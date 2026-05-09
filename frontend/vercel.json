@@ -3,8 +3,8 @@
     "framework": "nextjs",
     "crons": [
         {
-            "path": "/api/admin/escrow/reconcile",
-            "schedule": "0 */12 * * *"
+            "path": "/api/cron/auto-release",
+            "schedule": "0 * * * *"
         }
     ]
 }

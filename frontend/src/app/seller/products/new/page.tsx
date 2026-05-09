@@ -731,7 +731,7 @@ export default function NewProduct() {
                         {formData.variants.length > 0 ? (
                             <div className="space-y-4">
                                 {formData.variants.map((variant, index) => (
-                                    <div key={index} className="grid grid-cols-1 md:grid-cols-[100px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
+                                    <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
                                         <button
                                             type="button"
                                             onClick={() => setFormData(p => ({
@@ -744,7 +744,7 @@ export default function NewProduct() {
                                         </button>
 
                                         {/* Variant Image */}
-                                        <div className="w-[100px] h-[100px] shrink-0">
+                                        <div className="w-[120px] shrink-0">
                                             <ProductImageSlot
                                                 url={variant.image_url}
                                                 onUrlChange={(newUrl) => {
@@ -764,7 +764,7 @@ export default function NewProduct() {
                                                         reader.readAsDataURL(file);
                                                     }
                                                 }}
-                                                className="mb-0 h-full w-full rounded-lg"
+                                                className="mb-0 w-full rounded-lg"
                                             />
                                         </div>
 

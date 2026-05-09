@@ -29,7 +29,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   serverExternalPackages: ["ws"],
-  staticGenerationMaxConcurrency: 5,
 };
 
 export default nextConfig;

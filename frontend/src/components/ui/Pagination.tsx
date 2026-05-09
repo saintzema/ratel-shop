@@ -58,7 +58,7 @@ export function Pagination({
         <button
           disabled={currentPage === 1}
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
+          className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -81,7 +81,7 @@ export function Pagination({
                 key={pageNum}
                 onClick={() => onPageChange(pageNum)}
                 className={cn(
-                  "w-8 h-8 rounded-lg text-xs font-black transition-all",
+                  "w-8 h-8 rounded-lg text-xs font-black transition-all cursor-pointer",
                   currentPage === pageNum 
                     ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" 
                     : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-indigo-200"
@@ -97,7 +97,7 @@ export function Pagination({
               <span className="text-gray-400 px-1">...</span>
               <button
                 onClick={() => onPageChange(totalPages)}
-                className="w-8 h-8 rounded-lg text-xs font-black bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                className="w-8 h-8 rounded-lg text-xs font-black bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer"
               >
                 {totalPages}
               </button>
@@ -108,7 +108,7 @@ export function Pagination({
         <button
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
+          className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

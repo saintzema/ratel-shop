@@ -31,16 +31,18 @@ import { useAuth } from "@/context/AuthContext";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
+
 export default function AdminLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const [searchQuery, setSearchQuery] = useState("");
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
     const { user } = useAuth();
-    const [searchQuery, setSearchQuery] = useState("");
+    // useEffect removed - now handled by server-side cron job /api/cron/auto-release
 
     const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && searchQuery.trim()) {

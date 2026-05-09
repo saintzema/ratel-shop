@@ -19,9 +19,9 @@ import Link from "next/link";
 const INTEGRATIONS = [
     {
         id: "instagram",
-        name: "Instagram DMs",
+        name: "Instagram Suite",
         provider: "Meta",
-        description: "Reply to Instagram messages & comments directly from your FairPrice CRM.",
+        description: "Reply to Instagram messages, and import your Instagram posts directly into your product catalog.",
         icon: <Instagram className="h-6 w-6 text-pink-600" />,
         status: "Disconnected",
         color: "pink",

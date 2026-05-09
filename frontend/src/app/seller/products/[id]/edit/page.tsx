@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
@@ -32,8 +32,10 @@ import {
 
 export default function EditProduct() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const router = useRouter();
     const productId = params.id as string;
+    const returnPage = searchParams.get("page") || "1";
     const fileInputRef = useRef<HTMLInputElement>(null);
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
@@ -57,6 +59,8 @@ export default function EditProduct() {
         external_url: "",
         financing_available: false,
         financing_down_payment: "",
+        financing_deposit_pct: 10,
+        isDepositByPct: true,
         variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -90,7 +94,8 @@ export default function EditProduct() {
             setTaxonomy(currentTaxonomy);
 
             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const found = allProducts.find(p => p.id === productId);
+            const decodedId = decodeURIComponent(productId);
+            const found = allProducts.find(p => String(p.id) === decodedId || String(p.id) === productId);
             if (found) {
                 setProduct(found);
                 // Only overwrite formData if the user hasn't made unsaved edits.
@@ -115,6 +120,8 @@ export default function EditProduct() {
                         external_url: found.external_url || "",
                         financing_available: found.financing_available || false,
                         financing_down_payment: found.financing_down_payment?.toString() || "",
+                        financing_deposit_pct: found.financing_deposit_pct || 10,
+                        isDepositByPct: !!found.financing_deposit_pct,
                         variants: found.variants ? found.variants.map(v => ({
                             name: v.name,
                             price: v.price > 0 ? v.price.toLocaleString() : "",
@@ -158,16 +165,37 @@ export default function EditProduct() {
                     }
                 }
 
-                setFormData(prev => ({
-                    ...prev,
-                    category: inferredCategory || prev.category,
-                    description: content.description || prev.description,
-                    highlights: content.highlights || prev.highlights,
-                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
-                    subcategory: content.subcategory || prev.subcategory,
-                    tags: content.tags || prev.tags,
-                    colors: content.colors ? content.colors.join(", ") : prev.colors
-                }));
+                setFormData(prev => {
+                    let newSpecs = prev.specs;
+                    if (content.specs) {
+                        try {
+                            if (Array.isArray(content.specs)) {
+                                newSpecs = content.specs.map((s: any) => {
+                                    if (typeof s === 'string') {
+                                        const parts = s.split(':');
+                                        return { key: parts[0]?.trim() || '', value: parts[1]?.trim() || '' };
+                                    }
+                                    return { key: s.key || s.name || '', value: String(s.value || '') };
+                                }).filter((s: any) => s.key && s.value);
+                            } else if (typeof content.specs === 'object') {
+                                newSpecs = Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) }));
+                            }
+                        } catch (e) {
+                            console.error("Failed to parse AI specs", e);
+                        }
+                    }
+
+                    return {
+                        ...prev,
+                        category: inferredCategory || prev.category,
+                        description: content.description || prev.description,
+                        highlights: content.highlights || prev.highlights,
+                        specs: newSpecs && newSpecs.length > 0 ? newSpecs : prev.specs,
+                        subcategory: content.subcategory || prev.subcategory,
+                        tags: content.tags || prev.tags,
+                        colors: content.colors ? (Array.isArray(content.colors) ? content.colors.join(", ") : content.colors) : prev.colors
+                    };
+                });
             } else {
                 const errData = await res.json().catch(() => ({}));
                 setErrorMsg(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set in Vercel.`);
@@ -265,12 +293,51 @@ export default function EditProduct() {
         setFormData({ ...formData, images: newImages.length ? newImages : [""] });
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
         if (!formData.name) {
             alert("Please enter a product name first.");
             return;
         }
-        setIsPriceDiscoveryOpen(true);
+        setIsCalculatingBestPrice(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/gemini-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
+            });
+            
+            if (res.ok) {
+                const best = await res.json();
+                const fairPrice = best.approxPrice;
+                const otherPrice = Math.round(fairPrice * 1.15);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    price: fairPrice.toLocaleString(),
+                    original_price: otherPrice.toLocaleString(),
+                    category: best.category?.toLowerCase() || prev.category,
+                    subcategory: best.subcategory || prev.subcategory,
+                    description: best.description || prev.description,
+                    tags: best.tags || prev.tags,
+                    specs: best.specs ? Object.entries(best.specs).map(([k, v]) => ({ key: k, value: String(v) })) : prev.specs
+                }));
+
+                // Auto-calculate deposit if enabled
+                if (formData.isDepositByPct) {
+                    const deposit = Math.round(fairPrice * (formData.financing_deposit_pct / 100));
+                    setFormData(prev => ({ ...prev, financing_down_payment: deposit.toLocaleString() }));
+                }
+            } else {
+                setErrorMsg("Could not calculate Best Price. Falling back to manual entry.");
+                setIsPriceDiscoveryOpen(true);
+            }
+        } catch (error) {
+            console.error("Best Price calculation failed", error);
+            setIsPriceDiscoveryOpen(true);
+        } finally {
+            setIsCalculatingBestPrice(false);
+        }
     };
 
     const handlePriceSelect = (suggestion: ProductSuggestion) => {
@@ -349,6 +416,7 @@ export default function EditProduct() {
             highlights: formData.highlights,
             financing_available: formData.financing_available,
             financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0,
+            financing_deposit_pct: formData.financing_available ? formData.financing_deposit_pct : undefined,
             variants: formData.variants.filter(v => v.name.trim() !== "").map((v, i) => ({
                 id: product.variants?.[i]?.id || `var_${Date.now()}_${i}`,
                 name: v.name.trim(),
@@ -364,7 +432,7 @@ export default function EditProduct() {
         isFormDirtyRef.current = false; // Reset dirty flag after successful save
         setTimeout(() => {
             setSaved(false);
-            router.push("/seller/products");
+            router.push(`/seller/products?page=${returnPage}`);
         }, 1000);
     };
 
@@ -372,7 +440,7 @@ export default function EditProduct() {
         return (
             <div className="max-w-3xl mx-auto py-20 text-center text-gray-400">
                 <p className="text-lg font-medium">Product not found.</p>
-                <Link href="/seller/products" className="text-blue-600 text-sm mt-2 inline-block hover:underline">← Back to Products</Link>
+                <Link href={`/seller/products?page=${returnPage}`} className="text-blue-600 text-sm mt-2 inline-block hover:underline">← Back to Products</Link>
             </div>
         );
     }
@@ -380,7 +448,7 @@ export default function EditProduct() {
     return (
         <div className="max-w-3xl mx-auto py-10 px-4 sm:px-6">
             {/* Back Navigation */}
-            <Link href="/seller/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-8 group">
+            <Link href={`/seller/products?page=${returnPage}`} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-8 group">
                 <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
                 Back to Products
             </Link>
@@ -803,7 +871,7 @@ export default function EditProduct() {
                 {formData.variants.length > 0 ? (
                     <div className="space-y-4">
                         {formData.variants.map((variant, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-[100px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -819,7 +887,7 @@ export default function EditProduct() {
                                 </button>
 
                                 {/* Variant Image */}
-                                <div className="w-[100px] h-[100px] shrink-0">
+                                <div className="w-[120px] shrink-0">
                                     <ProductImageSlot
                                         url={variant.image_url}
                                         onUrlChange={(newUrl) => {
@@ -841,7 +909,8 @@ export default function EditProduct() {
                                                 reader.readAsDataURL(file);
                                             }
                                         }}
-                                        className="mb-0 h-full w-full rounded-lg"
+                                        className="mb-0 w-full rounded-lg"
+                                        hideInput={true}
                                     />
                                 </div>
 
@@ -954,26 +1023,67 @@ export default function EditProduct() {
                                     <span className="text-xs font-bold uppercase tracking-wider">Granular Financing Terms</span>
                                 </div>
                                 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Required Downpayment (₦)</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
-                                        <Input
-                                            type="text"
-                                            value={formData.financing_down_payment}
-                                            onChange={(e) => {
-                                                const rawValue = e.target.value.replace(/\D/g, "");
-                                                const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
-                                                setFormData({ ...formData, financing_down_payment: formatted });
-                                            }}
-                                            className="rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
-                                            placeholder="e.g. 50,000"
-                                        />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between pl-1">
+                                            <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Deposit Amount (₦)</label>
+                                            <button 
+                                                onClick={() => setFormData(p => ({ ...p, isDepositByPct: !p.isDepositByPct }))}
+                                                className="text-[10px] font-bold text-blue-400 hover:text-blue-600 transition-colors"
+                                            >
+                                                {formData.isDepositByPct ? "Switch to Manual Amount" : "Switch to Percentage"}
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
+                                            <Input
+                                                type="text"
+                                                value={formData.financing_down_payment}
+                                                disabled={formData.isDepositByPct}
+                                                onChange={(e) => {
+                                                    const rawValue = e.target.value.replace(/\D/g, "");
+                                                    const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
+                                                    const price = parseInt(formData.price.replace(/,/g, "")) || 0;
+                                                    
+                                                    setFormData(p => ({ 
+                                                        ...p, 
+                                                        financing_down_payment: formatted,
+                                                        financing_deposit_pct: price > 0 ? Math.round((parseInt(rawValue) / price) * 100) : p.financing_deposit_pct
+                                                    }));
+                                                }}
+                                                className={`rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900 ${formData.isDepositByPct ? 'opacity-50' : ''}`}
+                                                placeholder="e.g. 50,000"
+                                            />
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5">
-                                        The upfront cost a buyer pays to start the ownership plan. If set to ₦0, the platform will automatically estimate a standard 10% downpayment.
-                                    </p>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Deposit Percentage (%)</label>
+                                        <div className="relative">
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">%</span>
+                                            <Input
+                                                type="number"
+                                                value={formData.financing_deposit_pct}
+                                                onChange={(e) => {
+                                                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                    const price = parseInt(formData.price.replace(/,/g, "")) || 0;
+                                                    const amount = Math.round(price * (pct / 100));
+                                                    
+                                                    setFormData(p => ({ 
+                                                        ...p, 
+                                                        financing_deposit_pct: pct,
+                                                        financing_down_payment: amount.toLocaleString(),
+                                                        isDepositByPct: true
+                                                    }));
+                                                }}
+                                                className="rounded-xl pr-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
+                                <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5 px-1">
+                                    The upfront cost a buyer pays. {formData.isDepositByPct ? `Currently set to ${formData.financing_deposit_pct}% of the product price.` : "Adjust either the amount or percentage to update both."}
+                                </p>
                             </div>
                         </motion.div>
                     )}

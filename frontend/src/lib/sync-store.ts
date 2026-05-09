@@ -6,6 +6,7 @@ import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
 import { TEMU_PRODUCTS } from "./demo-data-temu";
 import { SEED_PRODUCTS, SEED_SELLERS } from "./data";
+import { ADMIN_EMAILS, SECURITY_EMAILS } from "./constants";
 
 export interface Category {
     id: string;
@@ -128,7 +129,6 @@ class DataSyncServiceService {
     private readonly _PENDING_NEGOTIATION_KEY = "fp_pending_negotiations";
     private readonly _PENDING_ORDER_KEY = "fp_pending_order_edits";
     private _isRegisteringSeller = false;
-    private _autoReleaseActive = false;
     private _syncDebounceTimer: any = null;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
@@ -336,9 +336,6 @@ class DataSyncServiceService {
             this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, "[]");
         }
         
-        // Start auto-release worker
-        this.runAutoReleaseWorker();
-
         // Resilience: Seed demo data if storage is empty to avoid blank UI
         this.seedDemoData();
     }
@@ -427,7 +424,8 @@ class DataSyncServiceService {
             const lastSync = localStorage.getItem("fp_last_sync_time");
             const hasLocalProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]').length > 0;
             const hasLocalSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]').length > 0;
-            const updatedAfter = (lastSync && hasLocalProducts && hasLocalSellers) ? `&updated_after=${lastSync}` : "";
+            // Force full sync for products to ensure deleted items are removed from local cache
+            const updatedAfter = "";
 
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
@@ -515,6 +513,8 @@ class DataSyncServiceService {
                             is_sponsored: p.isSponsored || p.is_sponsored || false,
                             original_price: p.originalPrice || p.original_price,
                             financing_down_payment: p.financingDownPayment || p.financing_down_payment,
+                            financing_deposit_pct: p.financingDepositPct || p.financing_deposit_pct,
+                            is_direct_payment: p.isDirectPayment || p.is_direct_payment || false,
                             seller_name: p.sellerName || p.seller_name || "Global Store",
                             tags: p.tags || [],
                             subcategory: p.subcategory || "",
@@ -524,6 +524,7 @@ class DataSyncServiceService {
                     
                     // ASYNC MERGE: Prevent UI hanging for large catalogs (6k+ items)
                     setTimeout(() => {
+                        // isIncremental is false because updatedAfter is forced empty
                         const isIncremental = !!updatedAfter;
                         const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
                         const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
@@ -650,6 +651,7 @@ class DataSyncServiceService {
                         customer_email: dbOrder.customerEmail || dbOrder.customer_email,
                         seller_name: dbOrder.sellerName || dbOrder.seller_name,
                         payout_status: dbOrder.payoutStatus || dbOrder.payout_status || 'none',
+                        is_direct_payment: dbOrder.isDirectPayment || dbOrder.is_direct_payment || false,
                         product: dbOrder.product ? {
                             id: dbOrder.product.id,
                             name: dbOrder.product.name,
@@ -682,9 +684,7 @@ class DataSyncServiceService {
                     window.dispatchEvent(new Event("storage"));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
-                // Run auto-release check after syncing orders
-                this.runAutoReleaseWorker();
-            }
+                }
             
 
             // ── Process Negotiations ──
@@ -2346,7 +2346,7 @@ class DataSyncServiceService {
 
         const deletedStubs = this.getDeletedStubs();
         const derivedProducts = allProducts
-            .filter((p: Product) => !deletedStubs.includes(p.id))
+            .filter((p: Product) => !deletedStubs.includes(p.id) && !p.is_direct_payment)
             .map((p: Product) => {
                 const seller = sellerMap.get(p.seller_id);
                 if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
@@ -2593,9 +2593,11 @@ class DataSyncServiceService {
         if (typeof window === "undefined") return;
         const cache = this._getSearchCache();
         Object.keys(cache).forEach(q => {
-            cache[q] = cache[q].map((p: any) =>
-                p.id === productId ? { ...p, ...updates } : p
-            );
+            if (Array.isArray(cache[q])) {
+                cache[q] = cache[q].map((p: any) =>
+                    p.id === productId ? { ...p, ...updates } : p
+                );
+            }
         });
         this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -2623,8 +2625,10 @@ class DataSyncServiceService {
         if (typeof window === "undefined") return;
         const cache = this._getSearchCache();
         Object.keys(cache).forEach(q => {
-            cache[q] = cache[q].filter((p: any) => p.id !== productId);
-            if (cache[q].length === 0) delete cache[q];
+            if (Array.isArray(cache[q])) {
+                cache[q] = cache[q].filter((p: any) => p.id !== productId);
+                if (cache[q].length === 0) delete cache[q];
+            }
         });
         this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -2974,7 +2978,7 @@ class DataSyncServiceService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                to: "techzema@gmail.com",
+                to: SECURITY_EMAILS,
                 subject: `New Order: ${product.name} — ₦${order.amount.toLocaleString()}`,
                 type: "security_alert",
                 data: { storeName: "FairPrice Admin", message: `New order #${orderId.substring(0, 8)} for "${product.name}" — ₦${order.amount.toLocaleString()} from ${seller?.business_name || 'Unknown Store'}.` }
@@ -5062,7 +5066,7 @@ class DataSyncServiceService {
         // Simulate sending an email to the admin
         fetch('/api/email', {
             method: 'POST',
-            body: JSON.stringify({ to: 'admin@fairprice.ng', type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
+            body: JSON.stringify({ to: ADMIN_EMAILS, type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
         }).catch(err => console.warn("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
@@ -5158,8 +5162,43 @@ class DataSyncServiceService {
         return orders.filter(o => o.escrow_status !== "released" && o.escrow_status !== "refunded");
     }
 
+    /**
+     * Client-side parity check for auto-release eligibility.
+     * Mirrors the server-side cron worker logic in /api/cron/auto-release.
+     * 
+     * An order is eligible when:
+     *  1. Seller has confirmed delivery (escrow_status === "seller_confirmed")
+     *  2. At least 24 hours have passed since the seller confirmation timestamp
+     *  3. No active dispute exists for the order
+     * 
+     * NOTE: This is a read-only helper for UI badge rendering.
+     * The actual state transition is performed exclusively by the cron worker or admin action.
+     */
+    checkAutoReleaseEligible(order: Order): boolean {
+        // Only seller_confirmed orders can be auto-eligible
+        if (order.escrow_status !== "seller_confirmed") return false;
+
+        // Must have a seller confirmation timestamp
+        const confirmedAt = order.seller_confirmed_at;
+        if (!confirmedAt) return false;
+
+        // 24-hour hold period must have elapsed
+        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+        const elapsed = Date.now() - new Date(confirmedAt).getTime();
+        if (elapsed < twentyFourHoursMs) return false;
+
+        // No active dispute should block the release
+        const dispute = this.getDisputeByOrderId(order.id);
+        if (dispute && dispute.status === "open") return false;
+
+        return true;
+    }
+
     sellerConfirmDelivery(orderId: string) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "seller_confirmed" as const,
@@ -5167,18 +5206,74 @@ class DataSyncServiceService {
             status: "delivered" as const,
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // --- Notifications ---
+        const productName = order.product?.name || `Product ${order.product_id}`;
+        
+        // Notify Buyer
+        this.addNotification({
+            userId: order.customer_id || order.customer_name,
+            type: "order",
+            message: `📦 Seller confirmed delivery for "${productName}". Please confirm receipt in your orders to complete the transaction.`,
+            link: `/account/orders/${orderId}`
+        });
+
+        // Email Buyer (Order Delivered)
+        const buyerEmail = order.customer_email || (order.customer_id ? this.getUser(order.customer_id)?.email : null);
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "ORDER_DELIVERED",
+                    payload: {
+                        name: order.customer_name || "Customer",
+                        orderId: orderId,
+                        productName: productName,
+                        amount: order.amount,
+                        trackingUrl: `https://www.fairprice.ng/account/orders/${orderId}`
+                    }
+                })
+            }).catch(() => {});
+        }
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     buyerConfirmReceipt(orderId: string) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "buyer_confirmed" as const,
             buyer_confirmed_at: new Date().toISOString(),
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // --- Notifications ---
+        
+        // Notify Seller
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `✅ Buyer confirmed receipt of Order #${orderId}. Your funds are now pending platform release.`,
+            link: `/seller/orders`
+        });
+
+        // Notify Admin
+        this.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `🏁 Order #${orderId} confirmed by buyer. Ready for final escrow release.`,
+            link: "/admin/escrow"
+        });
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     releaseEscrow(orderId: string) {
@@ -5238,40 +5333,128 @@ class DataSyncServiceService {
             link: `/account/orders/${orderId}`
         });
 
+        // ── Email Notifications ─────────────────────────────────
+        const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email || `seller_${order.seller_id}@fairprice.ng`;
+        const buyerEmail = order.customer_email || (order.customer_id ? this.getUser(order.customer_id)?.email : null);
+
+        // Email to Seller
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                type: "ESCROW_RELEASED",
+                payload: {
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: orderId,
+                    productName: productName,
+                    amount: order.amount
+                }
+            })
+        }).catch(() => {});
+
+        // Email to Buyer (Order Completion)
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "ORDER_COMPLETED",
+                    payload: {
+                        name: order.customer_name || "Customer",
+                        orderId: orderId,
+                        productName: productName,
+                        amount: order.amount,
+                        trackingUrl: `https://www.fairprice.ng/account/orders/${orderId}`
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Email to Admin (Security Alert)
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `💰 Escrow Released: Order #${orderId}`,
+                    title: "Escrow Release Finalized",
+                    message: `Escrow funds for Order #${orderId} have been released to ${seller?.business_name || 'Seller'}. This purchase is now marked as complete.`,
+                    data: {
+                        order_id: orderId,
+                        amount: `₦${order.amount.toLocaleString()}`,
+                        seller: seller?.business_name || "Unknown",
+                        buyer: order.customer_name || "Unknown"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    /** Check if order is eligible for auto-release (48 hours since seller confirmed, no dispute) */
-    checkAutoReleaseEligible(order: Order): boolean {
-        if (order.escrow_status !== "seller_confirmed" || !order.seller_confirmed_at) return false;
-        const hoursSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60);
-        return hoursSinceConfirm >= 24;
+    /** Bulk release of escrow funds */
+    public bulkReleaseEscrow(orderIds: string[]) {
+        if (!orderIds || orderIds.length === 0) return;
+        console.log(`🛠️ DataSyncService: Bulk releasing ${orderIds.length} orders.`);
+        
+        orderIds.forEach(id => this.releaseEscrow(id));
+
+        // Consolidated Admin Alert for Bulk Action
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚡ Bulk Escrow Release: ${orderIds.length} Orders`,
+                    title: "Bulk Action: Escrow Release",
+                    message: `An administrator has initiated a bulk escrow release for ${orderIds.length} orders. All associated funds have been moved to seller payout balances.`,
+                    data: {
+                        batch_size: orderIds.length,
+                        action: "Bulk Release",
+                        timestamp: new Date().toLocaleString()
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
     }
 
-    /** Background worker to process all eligible auto-releases */
-    public runAutoReleaseWorker() {
-        if (typeof window === "undefined" || this._autoReleaseActive) return;
-        this._autoReleaseActive = true;
-        try {
-            const orders = this.getOrders();
-            const eligible = orders.filter(o => this.checkAutoReleaseEligible(o));
-            if (eligible.length > 0) {
-                console.log(`🛠️ DataSyncService: Auto-releasing ${eligible.length} eligible orders.`);
-                eligible.forEach(o => {
-                    // Check if already released in this batch to avoid redundant cycles
-                    const currentOrder = this.getOrders().find(co => co.id === o.id);
-                    if (currentOrder && currentOrder.escrow_status !== "released") {
-                        this.releaseEscrow(o.id);
-                    }
-                });
-            }
-        } catch (e) {
-            console.error("Auto-release worker failed:", e);
-        } finally {
-            this._autoReleaseActive = false;
-        }
+    /** Bulk resolution of disputes */
+    public bulkResolveDisputes(disputeIds: string[], resolution: "resolved_release" | "resolved_refund") {
+        if (!disputeIds || disputeIds.length === 0) return;
+        disputeIds.forEach(id => this.resolveDispute(id, resolution, "Admin bulk resolution"));
+
+        // Consolidated Admin Alert for Bulk Action
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚖️ Bulk Dispute Resolution: ${disputeIds.length} Cases`,
+                    title: "Bulk Action: Dispute Resolution",
+                    message: `An administrator has resolved ${disputeIds.length} disputes in bulk with resolution: ${resolution.replace('_', ' ').toUpperCase()}.`,
+                    data: {
+                        batch_size: disputeIds.length,
+                        resolution_type: resolution,
+                        action: "Bulk Resolve"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
     }
+
     // ─── Dispute Management ─────────────────────────────
     getDisputes(): Dispute[] {
         const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
@@ -5383,15 +5566,24 @@ class DataSyncServiceService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                to: "techzema@gmail.com",
-                subject: `🚨 New Dispute: Order #${orderId} — ${productName}`,
-                type: "security_alert",
-                data: {
-                    storeName: "FairPrice Admin",
-                    message: `Dispute filed by ${buyerName} on order #${orderId} for "${productName}" (${seller?.business_name || "Unknown Seller"}). Reason: ${reasonLabel}. Amount: ₦${order.amount.toLocaleString()}.`
+                to: SECURITY_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `🚨 New Dispute: Order #${orderId}`,
+                    title: "Dispute Filed",
+                    message: `A buyer has filed a dispute on order #${orderId} for "${productName}". Payment is frozen until resolved.`,
+                    data: {
+                        order_id: orderId,
+                        reason: reasonLabel,
+                        buyer: buyerName,
+                        seller: seller?.business_name || "Unknown",
+                        amount: `₦${order.amount.toLocaleString()}`
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
                 }
             })
         }).catch(() => {});
+
 
         return dispute;
     }
@@ -5422,6 +5614,7 @@ class DataSyncServiceService {
         // Sync with backend API to prevent ghost rerenders from polling
         fetch("/api/admin/resolve-dispute", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 disputeId,
                 orderId: dispute.order_id,
@@ -5429,6 +5622,68 @@ class DataSyncServiceService {
                 adminNotes
             })
         }).catch(() => {});
+
+        // ── Email Notifications ─────────────────────────────────
+        const seller = this.getSellers().find(s => s.id === dispute.seller_id);
+        const sellerEmail = seller?.owner_email || this.getUser(dispute.seller_id)?.email || `seller_${dispute.seller_id}@fairprice.ng`;
+        const buyerEmail = dispute.buyer_email;
+
+        // Email to Seller
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                type: "DISPUTE_RESOLVED",
+                payload: {
+                    name: seller?.business_name || "Seller",
+                    orderId: dispute.order_id,
+                    newStatus: resolution,
+                    message: adminNotes
+                }
+            })
+        }).catch(() => {});
+
+        // Email to Buyer
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "DISPUTE_RESOLVED",
+                    payload: {
+                        name: dispute.buyer_name || "Customer",
+                        orderId: dispute.order_id,
+                        newStatus: resolution,
+                        message: adminNotes
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Email to Admin (Security Alert)
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚖️ Dispute Resolved: Order #${dispute.order_id}`,
+                    title: "Dispute Resolution Finalized",
+                    message: `Dispute for Order #${dispute.order_id} has been resolved via ${resolution.replace('_', ' ').toUpperCase()}.`,
+                    data: {
+                        order_id: dispute.order_id,
+                        resolution: resolution,
+                        seller: seller?.business_name || "Unknown",
+                        buyer: dispute.buyer_name || "Unknown"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+
 
         window.dispatchEvent(new Event("storage"));
     }

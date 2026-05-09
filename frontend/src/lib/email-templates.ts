@@ -1,6 +1,6 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'ORDER_COMPLETED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED' | 'ESCROW_RELEASED' | 'DISPUTE_RESOLVED' | 'SYSTEM_ALERT';
 
-interface EmailPayload {
+interface EmailTemplatePayload {
     name?: string;
     code?: string;
     orderId?: string;
@@ -24,11 +24,14 @@ interface EmailPayload {
     resetLink?: string;
     productLink?: string;
     senderName?: string;
+    subject?: string;
+    title?: string;
+    data?: Record<string, any>;
 }
 
 const BRAND_COLOR = "#059669";
 
-function BaseTemplate(title: string, contentHTML: string) {
+function BaseTemplate(title: string, contentHTML: string, brandColor: string = BRAND_COLOR) {
     return `
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -66,8 +69,8 @@ function BaseTemplate(title: string, contentHTML: string) {
         .text-main { color: #1d1d1f; }
         .text-muted { color: #86868b; }
         .code-box { background-color: #f5f5f7; border-color: #d2d2d7; }
-        .code-text { color: ${BRAND_COLOR}; }
-        .btn { background-color: ${BRAND_COLOR}; color: #ffffff; }
+        .code-text { color: ${brandColor}; }
+        .btn { background-color: ${brandColor}; color: #ffffff; }
         .feature-box { background-color: #f9fafb; border-color: #e5e7eb; }
         .divider { border-top-color: #e5e5ea; }
         
@@ -134,7 +137,7 @@ function BaseTemplate(title: string, contentHTML: string) {
     `;
 }
 
-export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { subject: string; html: string } {
+export function buildEmailTemplate(type: EmailType, payload: EmailTemplatePayload): { subject: string; html: string } {
     const { name = "Customer" } = payload;
     let subject = "";
     let html = "";
@@ -259,6 +262,24 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
     <a href="${payload.trackingUrl || "https://www.fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt & Finish Order</a>
 </div>
             `);
+            break;
+
+        case 'ORDER_COMPLETED':
+            subject = `Order Complete: ${payload.orderId}`;
+            html = BaseTemplate("Your Purchase is Complete! ✨", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">We're happy to inform you that your order <strong style="font-family:monospace;">${payload.orderId}</strong> for <strong>${payload.productName}</strong> is now officially complete.</p>
+<p style="margin:0 0 24px 0;">The escrow funds have been released to the seller. Thank you for choosing FairPrice for your secure transaction.</p>
+
+<div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;margin-bottom:32px;text-align:center;">
+    <p style="margin:0 0 8px 0;color:#16a34a;font-size:14px;font-weight:700;">Transaction Summary</p>
+    <p style="margin:0;color:#15803d;font-size:24px;font-weight:800;">₦${Number(payload.amount).toLocaleString()}</p>
+</div>
+
+<div style="text-align:center;">
+    <a href="https://www.fairprice.ng/account/orders/${payload.orderId}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Order History</a>
+</div>
+`);
             break;
 
         case 'SELLER_NEW_ORDER':
@@ -727,6 +748,59 @@ ${payload.daysRemaining === 0 ? `
             `);
             break;
 
+        case 'ESCROW_RELEASED':
+            subject = `💰 Funds Released: Order #${payload.orderId || ''}`;
+            html = BaseTemplate("Funds Released! 💰", `
+<p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
+<p style="margin:0 0 24px 0;">Great news! The escrow funds for Order <strong>#${payload.orderId || ''}</strong> have been released and are now available in your store balance.</p>
+
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+    <tr>
+        <td style="padding:16px;background-color:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;" class="feature-box">
+            <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+                <tr>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Product</td>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;" class="divider text-main">${payload.productName || 'Product'}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:12px;" class="text-muted">Amount Released</td>
+                    <td style="padding-top:12px;text-align:right;font-weight:900;font-size:18px;color:${BRAND_COLOR};" class="code-text">₦${payload.amount?.toLocaleString() || '0'}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">You can now request a payout for these funds via your wallet dashboard.</p>
+
+<div style="text-align:center;">
+    <a href="https://www.fairprice.ng/seller/dashboard/wallet" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Wallet balance</a>
+</div>
+            `);
+            break;
+
+        case 'DISPUTE_RESOLVED':
+            subject = `Dispute Resolved: Order #${payload.orderId || ''}`;
+            html = BaseTemplate("Dispute Resolution ⚖️", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">Our administrative team has reached a final decision regarding the dispute on Order <strong>#${payload.orderId || ''}</strong>.</p>
+
+<div style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:20px;margin-bottom:32px;">
+    <h3 style="margin:0 0 8px 0;color:#1e3a8a;font-size:16px;">Resolution Detail:</h3>
+    <p style="margin:0;color:#1e40af;font-size:15px;font-weight:700;">
+        ${payload.newStatus === 'resolved_refund' ? 'Full Refund Issued to Buyer' : 'Escrow Funds Released to Seller'}
+    </p>
+    ${payload.message ? `<p style="margin:12px 0 0 0;font-size:14px;color:#1e40af;font-style:italic;">Admin Notes: "${payload.message}"</p>` : ''}
+</div>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">This decision is final and has been applied to the escrow transaction. Thank you for your cooperation.</p>
+
+<div style="text-align:center;">
+    <a href="https://www.fairprice.ng/account/orders/${payload.orderId || ''}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Order Detail</a>
+</div>
+            `);
+            break;
+
         case 'SELLER_PAYOUT_FAILED':
             subject = `⚠️ Payout Issue: ₦${payload.amount?.toLocaleString() || '0'} transfer needs attention`;
             html = BaseTemplate("Payout Update ⚠️", `
@@ -750,6 +824,37 @@ ${payload.daysRemaining === 0 ? `
     <a href="https://www.fairprice.ng/seller/settings/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Bank Details</a>
 </div>
             `);
+            break;
+
+        case 'SYSTEM_ALERT':
+            subject = payload.subject || `🚨 System Alert: Action Required`;
+            html = BaseTemplate("Admin Security Alert 🚨", `
+<div style="background-color:#1e293b;border-radius:16px;padding:32px;color:#f8fafc;">
+    <div style="display:inline-block;padding:8px 16px;background-color:#ef4444;border-radius:99px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:24px;">
+        Critical Notification
+    </div>
+    <h2 style="font-size:24px;font-weight:900;margin:0 0 16px 0;letter-spacing:-0.02em;">${payload.title || 'System Notification'}</h2>
+    <p style="font-size:16px;line-height:28px;color:#cbd5e1;margin:0 0-24px 0;">
+        ${payload.message || 'No details provided.'}
+    </p>
+</div>
+
+<div style="margin-top:32px;padding:24px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;">
+    <h3 style="font-size:12px;font-weight:900;text-transform:uppercase;color:#64748b;margin:0 0 16px 0;letter-spacing:0.05em;">Alert Parameters</h3>
+    <table style="width:100%;border-collapse:collapse;">
+        ${Object.entries(payload.data || {}).map(([key, val]) => `
+        <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:12px 0;font-size:13px;color:#94a3b8;font-weight:600;">${key.replace(/_/g, ' ').toUpperCase()}</td>
+            <td style="padding:12px 0;font-size:13px;color:#1e293b;font-weight:700;text-align:right;">${val}</td>
+        </tr>
+        `).join('')}
+    </table>
+</div>
+
+<div style="text-align:center;margin-top:32px;">
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/admin'}" style="display:inline-block;padding:16px 32px;background-color:#4f46e5;color:white;text-decoration:none;border-radius:12px;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;box-shadow:0 10px 15px -3px rgba(79, 70, 229, 0.2);">Access Admin Control</a>
+</div>
+            `, "#4f46e5");
             break;
 
         default:

@@ -984,9 +984,12 @@ function CheckoutContent() {
                 // Generate IDs for all items in this transaction before starting Paystack
                 // This allows the webhook to update these specific orders
                 const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
+                // Collect unique seller IDs so the webhook can route escrow settlements
+                const uniqueSellerIds = [...new Set(checkoutItems.map(item => item.product.seller_id))];
                 setPaystackMetadata({
                     type: "order",
                     order_ids: orderIds.join(','),
+                    seller_ids: uniqueSellerIds.join(','),
                     customer_id: user?.id || user?.email || address.email,
                     total_amount: total
                 });
@@ -1092,8 +1095,9 @@ function CheckoutContent() {
 
             checkoutItems.forEach((item, index) => {
                 // Calculate financing details for vehicle products
+                // Uses the dynamic vehicleDepositRate (from getVehicleDepositPercent) computed at render-level
                 const isVehicleProduct = isVehicle(item.product);
-                const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * 0.15) : 0;
+                const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * vehicleDepositRate) : 0;
                 const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 2, 'foreign_used') : null;
 
                 // Use pre-generated ID if available (from Paystack flow)

@@ -164,6 +164,8 @@ model Product {
   updatedAt        DateTime             @updatedAt
   financingAvailable Boolean            @default(false)
   financingDownPayment Float?
+  financingDepositPct  Float?             @map("financing_deposit_pct")
+  isDirectPayment      Boolean            @default(false) @map("is_direct_payment")
   isTrending       Boolean              @default(false)
   deals            Deal[]
   negotiations     NegotiationRequest[]
@@ -213,6 +215,7 @@ model Order {
   escrowStatus      EscrowStatus   @default(held)
   shippingAddress   String
   paymentMethod     String         @default("paystack")
+  isDirectPayment   Boolean        @default(false) @map("is_direct_payment")
   trackingStatus    TrackingStatus @default(pending)
   trackingId        String?        @unique
   carrier           String?

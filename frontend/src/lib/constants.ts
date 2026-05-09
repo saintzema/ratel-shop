@@ -166,3 +166,7 @@ export const DEFAULT_AD_SLOTS = [
     { id: 'ad3', title: 'Best Sellers', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400', link: '/search?sort=popular' },
     { id: 'ad4', title: 'Price Checker', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400', link: '#' }
 ];
+
+export const ADMIN_EMAILS = ['admin@fairprice.ng', 'techzema@gmail.com'];
+export const SECURITY_EMAILS = ['techzema@gmail.com', 'admin@fairprice.ng'];
+

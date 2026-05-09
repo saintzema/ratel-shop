@@ -638,10 +638,16 @@ export function Navbar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // ─── Elite Background Image Hydration ───
-    // Runs when new results arrive. Max 3 concurrent requests. Updates both state
-    // AND sessionStorage so the Search Results Page (SRP) gets real images too.
+    // ─── Elite Background Image Hydration (Production-Hardened) ───
+    // Fetches real product images, then persists to ALL layers:
+    // 1. React state (instant UI update)
+    // 2. Per-query session cache (prevents stale cache hits)
+    // 3. fp_nav_search_results session storage (SRP hydration)
+    // 4. DataSyncService search cache (cross-session persistence)
+    // 5. DataSyncService products + DB (permanent persistence)
     useEffect(() => {
+        let cancelled = false;
+
         const isValidImg = (url: string | undefined | null) =>
             !!url &&
             url.trim().length > 4 &&
@@ -671,8 +677,12 @@ export function Navbar() {
 
         let active = 0;
         const MAX_CONCURRENT = 8;
+        const currentQuery = searchQuery.trim();
 
         const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
+            if (cancelled) return;
+
+            // ─── Layer 1: React State (instant UI) ───
             const updateFn = (prev: any[]) =>
                 prev.map(p =>
                     (p.id === product.id || p.name === product.name)
@@ -683,7 +693,22 @@ export function Navbar() {
             else if (product._kind === 'local') setSuggestions(updateFn);
             else if (product._kind === 'cached') setCachedResults(updateFn);
 
-            // Sync to sessionStorage so the SRP hydrates immediately on load
+            // ─── Layer 2: Per-query session cache (prevents stale cache hits) ───
+            try {
+                const cacheKey = `nav_search_${currentQuery}`;
+                const cached = sessionStorage.getItem(cacheKey);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    const updated = parsed.map((p: any) =>
+                        (p.name === product.name)
+                            ? { ...p, image_url: imageUrl, images: imageUrls }
+                            : p
+                    );
+                    sessionStorage.setItem(cacheKey, JSON.stringify(updated));
+                }
+            } catch { /* quota */ }
+
+            // ─── Layer 3: SRP session storage ───
             try {
                 const raw = sessionStorage.getItem('fp_nav_search_results');
                 if (raw) {
@@ -696,6 +721,38 @@ export function Navbar() {
                     sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
                 }
             } catch { /* quota */ }
+
+            // ─── Layer 4: DataSyncService search cache (cross-session) ───
+            const productId = product.id || generateCompliantId(product.name);
+            try {
+                DataSyncService.updateSearchCacheProduct(productId, {
+                    image_url: imageUrl,
+                    images: imageUrls,
+                });
+            } catch { /* non-critical */ }
+
+            // ─── Layer 5: DataSyncService products + DB (permanent) ───
+            try {
+                const existing = DataSyncService.getProducts().find((p: any) => p.id === productId);
+                if (existing) {
+                    // Product already in catalog — update its image
+                    DataSyncService.updateProduct(productId, {
+                        image_url: imageUrl,
+                        images: imageUrls,
+                    } as any);
+                }
+                // Fire-and-forget: persist image to Postgres for the product
+                fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: productId,
+                        image_url: imageUrl,
+                        images: imageUrls,
+                        _imageOnly: true, // Signal to API: only update image fields
+                    }),
+                }).catch(() => {});
+            } catch { /* non-critical */ }
         };
 
         const processNext = () => {
@@ -710,7 +767,7 @@ export function Navbar() {
                 fetch(`/api/product-image?q=${q}&category=${cat}`)
                     .then(res => res.ok ? res.json() : null)
                     .then(data => {
-                        if (!data) return;
+                        if (!data || cancelled) return;
                         // Handle both { imageUrls: [...] } and { imageUrl: "..." }
                         const urls: string[] = data.imageUrls?.length
                             ? data.imageUrls
@@ -722,11 +779,13 @@ export function Navbar() {
                         }
                     })
                     .catch(() => {})
-                    .finally(() => { active--; processNext(); });
+                    .finally(() => { active--; if (!cancelled) processNext(); });
             }
         };
 
         processNext();
+
+        return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [globalResults.length, suggestions.length, cachedResults.length]);
 

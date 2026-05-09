@@ -196,17 +196,9 @@ export default function SellerLayout({
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);
 
-        // --- Escrow Auto-Release Worker ---
-        // Run once on load and then every 30 minutes
-        DataSyncService.runAutoReleaseWorker();
-        const escrowInterval = setInterval(() => {
-            DataSyncService.runAutoReleaseWorker();
-        }, 1000 * 60 * 30);
-
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("sync-store-update", loadData);
-            clearInterval(escrowInterval);
         };
     }, [router, isPublicRoute]);
 

@@ -114,7 +114,9 @@ export interface Product {
     external_url?: string;
     highlights?: string[];
     financing_available?: boolean;
+    financing_deposit_pct?: number;
     financing_down_payment?: number;
+    is_direct_payment?: boolean;
     condition?: "brand_new" | "used" | "refurbished";
     colors?: string[];
     subcategory?: string;
@@ -196,6 +198,11 @@ export interface Order {
         condition?: string;          // new | foreign_used | nigerian_used
         loan_type?: string;          // bnpl | lease
     };
+    payment_proof_url?: string;
+    payment_verified_at?: string;
+    payment_declined_at?: string;
+    payment_decline_reason?: string;
+    is_direct_payment?: boolean;
 }
 
 export interface ReturnRequest {
@@ -350,7 +357,7 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "all" | "trending" | "best_selling" | "solar" | "streaming_kits" | "phones" | "gaming" | "computers" | "fashion" | "cars" | "grocery" | "home_office" | "evs" | "industrial" | "health" | "automotive" | "bags" | "women" | "jewelry" | "household" | "toys" | "crafts" | "men" | "sports" | "kids" | "beauty" | "office" | "baby" | "garden" | "pets" | "musical" | "appliances" | "food" | "books" | "tablets" | "electronics" | "energy" | "fitness" | "machinery" | "agriculture" | "construction" | "medical" | "furniture" | "smartwatch" | "vehicles" | "home";
+export type ProductCategory = "all" | "trending" | "best_selling" | "solar" | "streaming_kits" | "phones" | "gaming" | "computers" | "fashion" | "cars" | "grocery" | "home_office" | "evs" | "industrial" | "health" | "automotive" | "bags" | "women" | "jewelry" | "household" | "toys" | "crafts" | "men" | "sports" | "kids" | "beauty" | "office" | "baby" | "garden" | "pets" | "musical" | "appliances" | "food" | "books" | "tablets" | "electronics" | "energy" | "machinery" | "agriculture" | "construction" | "medical" | "furniture" | "smartwatch" | "vehicles" | "home" | "fitness";
 
 export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[], adminOnly?: boolean }[] = [
     { value: "trending", label: "Trending", subcategories: [], adminOnly: true },

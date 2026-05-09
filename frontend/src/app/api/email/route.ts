@@ -10,7 +10,7 @@ function getResend() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { to, type, payload } = body as { to: string, type: EmailType, payload: any };
+        const { to, type, payload } = body as { to: string | string[], type: EmailType, payload: any };
 
         if (!to || !type) {
             return NextResponse.json(
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
         const data = await resendInstance.emails.send({
             from: '🛍️ FairPrice Shop <hello@fairprice.ng>',
             replyTo: process.env.ESCALATION_EMAIL || 'fairprice2026@gmail.com',
-            to: [to],
+            to: Array.isArray(to) ? to : [to],
             subject: subject,
             html: html,
         });

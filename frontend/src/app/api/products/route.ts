@@ -148,6 +148,35 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, message: "Product deleted via POST fallback" });
         }
 
+        // ─── Image-Only Update Guard ───
+        // Background hydration sends { id, image_url, images, _imageOnly: true }
+        // We MUST NOT run a full upsert (which would wipe name/price/description).
+        // Instead, do a targeted update on just the image fields.
+        if (body._imageOnly && body.id) {
+            const imageUpdate: any = {};
+            if (body.image_url) imageUpdate.imageUrl = body.image_url;
+            if (body.images && Array.isArray(body.images)) imageUpdate.images = body.images;
+            
+            if (Object.keys(imageUpdate).length === 0) {
+                return NextResponse.json({ success: true, skipped: true });
+            }
+
+            try {
+                await db.product.update({
+                    where: { id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id },
+                    data: imageUpdate,
+                });
+                broadcast({ type: "product_updated", id: body.id });
+                return NextResponse.json({ success: true, imageOnly: true });
+            } catch (imgErr: any) {
+                // Product may not exist in DB yet — that's fine, skip silently
+                if (imgErr?.code === 'P2025') {
+                    return NextResponse.json({ success: true, skipped: true, reason: "product_not_found" });
+                }
+                throw imgErr;
+            }
+        }
+
         // Ensure "global-partners" seller exists if saving a globally sourced product
         if (body.seller_id === 'global-partners') {
             try {

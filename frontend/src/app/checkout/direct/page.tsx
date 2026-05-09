@@ -114,6 +114,8 @@ function DirectCheckoutContent() {
                     avg_rating: 4.5,
                     is_active: true,
                     created_at: new Date().toISOString(),
+                    // @ts-ignore
+                    is_direct_payment: true
                 };
 
                 product = reconstructed;

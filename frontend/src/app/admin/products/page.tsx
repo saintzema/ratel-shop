@@ -170,6 +170,9 @@ export default function CatalogControl() {
     }, [searchTerm, sort]);
 
     let filtered = products.filter(p => {
+        // Hide direct checkout QR codes from the general catalog view
+        if (p.is_direct_payment) return false;
+        
         const matchesSearch = (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.seller_name || "").toLowerCase().includes(searchTerm.toLowerCase());
         const isGlobal = p._source === "global" || p.seller_id === "global-partners" || (p.seller_name || "").toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
@@ -1562,7 +1565,7 @@ export default function CatalogControl() {
                                     {editVariants.length > 0 ? (
                                         <div className="space-y-3">
                                             {editVariants.map((variant, index) => (
-                                                <div key={index} className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-3 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 relative group">
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-3 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 relative group">
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditVariants(editVariants.filter((_, i) => i !== index))}
@@ -1570,7 +1573,7 @@ export default function CatalogControl() {
                                                     >
                                                         <X className="h-2.5 w-2.5" />
                                                     </button>
-                                                    <div className="w-[80px] h-[80px] shrink-0">
+                                                    <div className="w-[120px] shrink-0">
                                                         <ProductImageSlot
                                                             url={variant.image_url || ""}
                                                             onUrlChange={(newUrl) => {
@@ -1590,7 +1593,8 @@ export default function CatalogControl() {
                                                                     reader.readAsDataURL(file);
                                                                 }
                                                             }}
-                                                            className="mb-0 h-full w-full rounded-lg"
+                                                            className="mb-0 w-full rounded-lg"
+                                                            hideInput={true}
                                                         />
                                                     </div>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

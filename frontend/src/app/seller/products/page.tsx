@@ -71,8 +71,9 @@ export default function SellerProducts() {
     const [loading, setLoading] = useState(true);
 
     // Pagination State
+    const searchParams = useSearchParams();
     const [itemsPerPage, setItemsPerPage] = useState(50);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page") || "1"));
 
     const loadProducts = async () => {
         const sellerId = DataSyncService.getCurrentSellerId();
@@ -602,7 +603,7 @@ export default function SellerProducts() {
                                                     >
                                                         <Timer className="h-4 w-4" />
                                                     </Button>
-                                                    <Link href={`/seller/products/${product.id}/edit`}>
+                                                    <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Edit Item">
                                                             <Edit3 className="h-4 w-4" />
                                                         </Button>
@@ -703,7 +704,7 @@ export default function SellerProducts() {
                                         >
                                             <Timer className="h-4 w-4" />
                                         </Button>
-                                        <Link href={`/seller/products/${product.id}/edit`}>
+                                        <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                             <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm" title="Edit Item">
                                                 <Edit3 className="h-4 w-4" />
                                             </Button>
@@ -742,7 +743,12 @@ export default function SellerProducts() {
                         <Pagination 
                             currentPage={currentPage}
                             totalPages={totalPages}
-                            onPageChange={setCurrentPage}
+                            onPageChange={(page) => {
+                                setCurrentPage(page);
+                                const params = new URLSearchParams(window.location.search);
+                                params.set("page", page.toString());
+                                router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+                            }}
                             itemsPerPage={itemsPerPage}
                             totalItems={filtered.length}
                             onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}

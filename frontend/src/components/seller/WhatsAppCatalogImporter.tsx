@@ -8,47 +8,45 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 
 export function WhatsAppCatalogImporter() {
-    const [url, setUrl] = useState("");
+    const [phone, setPhone] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
     const [importedProducts, setImportedProducts] = useState<any[]>([]);
 
     const handleImport = async () => {
-        if (!url.includes("whatsapp.com")) {
-            setError("Please enter a valid WhatsApp Catalog link.");
+        const cleanPhone = phone.replace(/\D/g, "");
+        if (cleanPhone.length < 10) {
+            setError("Please enter a valid phone number (e.g. 08012345678).");
             return;
         }
 
+        const url = `https://wa.me/c/${cleanPhone.startsWith('0') ? '234' + cleanPhone.slice(1) : cleanPhone}`;
+        
         setLoading(true);
         setError("");
         
         try {
-            // Simulate AI-assisted scraping of the WhatsApp Catalog
-            // In a real implementation, this would call a backend scraper
-            await new Promise(resolve => setTimeout(resolve, 2500));
+            const response = await fetch("/api/whatsapp/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone: cleanPhone })
+            });
             
-            const mockProducts = [
-                {
-                    name: "Imported Item 1",
-                    price: 15000,
-                    category: "electronics",
-                    description: "High quality item imported from your WhatsApp catalog.",
-                    image_url: "/assets/images/placeholder.png"
-                },
-                {
-                    name: "Imported Item 2",
-                    price: 25000,
-                    category: "fashion",
-                    description: "Elegant fashion piece from your store.",
-                    image_url: "/assets/images/placeholder.png"
-                }
-            ];
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || "Failed to sync catalog");
+            }
 
-            setImportedProducts(mockProducts);
+            const data = await response.json();
+            setImportedProducts(data.products || []);
             setSuccess(true);
-        } catch (err) {
-            setError("Failed to reach WhatsApp. Please check the link and try again.");
+            
+            if (data.products?.length === 0) {
+                setError("We couldn't find any public products in this WhatsApp catalog.");
+            }
+        } catch (err: any) {
+            setError(err.message || "Failed to reach WhatsApp. Please check the number and try again.");
         } finally {
             setLoading(false);
         }
@@ -76,23 +74,23 @@ export function WhatsAppCatalogImporter() {
                 </div>
                 <div>
                     <h3 className="text-xl font-black text-gray-900 leading-tight">WhatsApp Catalog Sync</h3>
-                    <p className="text-xs text-gray-500 font-medium">Import your products directly from WhatsApp Business.</p>
+                    <p className="text-xs text-gray-500 font-medium">Enter your WhatsApp number to import products.</p>
                 </div>
             </div>
 
             <div className="space-y-4">
                 <div className="relative">
                     <Input 
-                        placeholder="https://wa.me/c/2348012345678"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="080 1234 5678"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         className="h-14 rounded-2xl pl-12 pr-32 border-gray-200 focus:ring-emerald-500"
                     />
-                    <MessageCircle className="absolute left-4 top-4 h-6 w-6 text-gray-300" />
+                    <div className="absolute left-4 top-4 h-6 w-6 text-gray-300 flex items-center justify-center font-bold text-xs">+234</div>
                     <button 
                         onClick={handleImport}
-                        disabled={loading || !url}
-                        className="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:bg-emerald-700 active:scale-95"
+                        disabled={loading || !phone}
+                        className="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:bg-emerald-700 active:scale-95 cursor-pointer"
                     >
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync Now"}
                     </button>
