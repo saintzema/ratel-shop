@@ -11,12 +11,13 @@ export default function FinancingSuccessPage() {
     const { id } = useParams();
     const router = useRouter();
     const [uploading, setUploading] = useState<string | null>(null);
-    const [completedDocs, setCompletedDocs] = useState<string[]>([]);
+    const [completedDocs, setCompletedDocs] = useState<string[]>(["technicalForm"]);
 
     const docs = [
-        { id: "bankStatementUrl", name: "6 Months Bank Statement", icon: <FileText className="h-5 w-5" />, desc: "Must be in PDF format and recent." },
-        { id: "cacDocumentUrl", name: "CAC Documents", icon: <ShieldCheck className="h-5 w-5" />, desc: "Registration certificates (Business only)." },
-        { id: "vendorInvoiceUrl", name: "Vendor Proforma Invoice", icon: <FileText className="h-5 w-5" />, desc: "The official quote for the item." },
+        { id: "technicalForm", name: "Technical/Solar Audit Form", icon: <ShieldCheck className="h-5 w-5" />, desc: "Auto-generated from your application.", isGenerated: true },
+        { id: "bankStatementUrl", name: "6 Months Bank Statement", icon: <FileText className="h-5 w-5" />, desc: "Must be in PDF format and recent.", isGenerated: false },
+        { id: "cacDocumentUrl", name: "CAC Documents", icon: <ShieldCheck className="h-5 w-5" />, desc: "Registration certificates (Business only).", isGenerated: false },
+        { id: "vendorInvoiceUrl", name: "Vendor Proforma Invoice", icon: <FileText className="h-5 w-5" />, desc: "The official quote for the item.", isGenerated: false },
     ];
 
     const handleUpload = async (docType: string) => {
@@ -67,7 +68,19 @@ export default function FinancingSuccessPage() {
                                 </div>
 
                                 {completedDocs.includes(doc.id) ? (
-                                    <Badge variant="outline" className="bg-white border-emerald-200 text-emerald-600 font-black text-[10px]">UPLOADED</Badge>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <Badge variant="outline" className="bg-white border-emerald-200 text-emerald-600 font-black text-[10px]">COMPLETED</Badge>
+                                        {(doc as any).isGenerated && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-8 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 p-0"
+                                                onClick={() => window.open(`/api/financing/download/${id}/${doc.id}`, '_blank')}
+                                            >
+                                                <Download className="h-3 w-3 mr-1" /> View Copy
+                                            </Button>
+                                        )}
+                                    </div>
                                 ) : (
                                     <Button 
                                         size="sm" 

@@ -686,6 +686,8 @@ model FinancingApplication {
   companyProfileUrl String?
   energyAuditUrl    String?
   vendorInvoiceUrl  String?
+  auditData         Json?           @map("audit_data")
+  payslipData       Json?           @map("payslip_data")
   
   // Metadata
   source            String          @default("whatsapp") // whatsapp, web, app

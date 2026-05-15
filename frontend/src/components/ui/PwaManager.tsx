@@ -95,7 +95,7 @@ export function PwaManager() {
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_2px_15px_rgba(0,0,0,0.06)] pointer-events-auto"
+                className="w-full bg-white border-b border-gray-100 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 flex items-center justify-between gap-3 shadow-[0_2px_15px_rgba(0,0,0,0.06)] pointer-events-auto"
             >
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-white border-2 border-white rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">

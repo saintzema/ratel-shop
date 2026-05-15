@@ -402,30 +402,30 @@ function HomeContent() {
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
-                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} />
                 </section>
 
                 {sections.followedStoreProducts.length > 0 && (
                   <section className="container mx-auto px-1 md:px-2 mb-1">
-                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
+                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} />
                   </section>
                 )}
 
                 {/* ══ Category Sections ══ */}
                 <section className="container mx-auto px-1 md:px-2 space-y-3 mb-1">
-                  <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-                  <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
-                  <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                  <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
-                  <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                  <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
-                  <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
-                  <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
-                  <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
-                  <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
-                  <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="left" />
-                  <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} autoScroll direction="right" />
-                  <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
+                  <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} />
+                  <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
+                  <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
+                  <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />
+                  <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} />
+                  <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} />
+                  <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} />
+                  <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} />
+                  <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} />
+                  <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} />
+                  <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} />
+                  <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} />
+                  <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} />
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 my-2 pt-2 border-t border-gray-100">
@@ -641,49 +641,52 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     window.addEventListener("resize", checkScroll);
     return () => window.removeEventListener("resize", checkScroll);
   }, [products, checkScroll]);
+
+  // Framer Motion based smooth auto-scroll to replace setInterval
+  const [scrollX, setScrollX] = useState(0);
+  
   useEffect(() => {
-    if (!autoScroll) return;
+    if (!autoScroll || isPaused || isLoading) return;
+    
     const el = scrollRef.current;
     if (!el) return;
 
     // Set initial offset for right direction
     if (!initOffsetDone.current && direction === "right") {
-      setTimeout(() => {
-        if (el) el.scrollLeft = el.scrollWidth / 3;
-      }, 100);
+      el.scrollLeft = el.scrollWidth / 3;
       initOffsetDone.current = true;
     }
 
-    const startAutoScroll = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(() => {
-        if (!el) return;
-        const scrollAmount = direction === "left" ? 220 : -220; // Approximately one card width
-        
-        // Handle native wrap around
-        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
-        } else if (direction === "right" && el.scrollLeft <= 0) {
-          el.scrollLeft = el.scrollWidth / 3;
-        } else {
-          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    let animationFrame: number;
+    let lastTime = performance.now();
+    const speed = 0.5; // pixels per frame approx
+
+    const animate = (time: number) => {
+      if (!scrollRef.current) return;
+      
+      const deltaTime = time - lastTime;
+      lastTime = time;
+
+      const move = (speed * deltaTime) / 16; // Normalize to 60fps
+      
+      if (direction === "left") {
+        scrollRef.current.scrollLeft += move;
+        if (scrollRef.current.scrollLeft >= scrollRef.current.scrollWidth / 3) {
+          scrollRef.current.scrollLeft = 0;
         }
-      }, 3500);
-    };
-
-    if (!isPaused) {
-      startAutoScroll();
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      } else {
+        scrollRef.current.scrollLeft -= move;
+        if (scrollRef.current.scrollLeft <= 0) {
+          scrollRef.current.scrollLeft = scrollRef.current.scrollWidth / 3;
+        }
       }
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      animationFrame = requestAnimationFrame(animate);
     };
-  }, [autoScroll, isPaused, direction]);
+
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [autoScroll, isPaused, direction, isLoading]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {

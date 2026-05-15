@@ -666,7 +666,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const isGlobalProduct = product?.id?.startsWith('global-') || product?.seller_id === 'global-partners';
     const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
-    const [loanAnalysis, setLoanAnalysis] = useState<any>(null);
     const vehicleDepositPctDisplay = Math.round(getVehicleDepositPercent() * 100);
 
     const [isFinancingDetailsOpen, setIsFinancingDetailsOpen] = useState(false);
@@ -674,7 +673,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [showDurationSelector, setShowDurationSelector] = useState(false);
 
     // Calculate loan options if financing is enabled
-    useEffect(() => {
+    const loanAnalysis = useMemo(() => {
         if (product && hasFinancing(product)) {
             const conditionStr = (product.specs?.Condition || '').toLowerCase();
             const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
@@ -682,10 +681,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             const defaultYears = selectedTenorYears > 0 ? selectedTenorYears : undefined;
             const activePrice = product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price;
             const inlineProductWithQuantityPrice = { ...product, price: activePrice * quantity };
-            const loan = calculateMonthlyPayment(inlineProductWithQuantityPrice, defaultYears);
-            setLoanAnalysis(loan);
+            return calculateMonthlyPayment(inlineProductWithQuantityPrice, defaultYears);
         }
-    }, [product, selectedTenorYears, quantity, selectedVariantIndex]);
+        return null;
+    }, [
+        product?.id,
+        product?.price,
+        product?.category,
+        product?.variants,
+        selectedTenorYears,
+        quantity,
+        selectedVariantIndex
+    ]);
     
     // Record to browsing history & Sync with DB
     useEffect(() => {

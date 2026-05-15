@@ -133,6 +133,13 @@ export function isVehicle(product: any): boolean {
     return cat.includes('car') || cat.includes('vehicle');
 }
 
+export function isSolar(product: any): boolean {
+    if (!product) return false;
+    const cat = product.category?.toLowerCase() || '';
+    const name = product.name?.toLowerCase() || '';
+    return cat.includes('solar') || cat.includes('inverter') || name.includes('solar') || name.includes('inverter') || name.includes('panel') || name.includes('battery');
+}
+
 export function getVehicleDepositPercent(): number {
     return 0.15; // 15% as per system setting default
 }

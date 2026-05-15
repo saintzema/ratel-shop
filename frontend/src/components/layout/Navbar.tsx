@@ -436,6 +436,11 @@ export function Navbar() {
         try {
 
         // 2. Synchronous mapping and hydration
+        // Attempt to find a valid shared image from any result to use as a fallback for others in the same query
+        const validSharedImage = globalResults.find((r: any) => 
+            r && r.image_url && r.image_url.startsWith('http') && r.image_url.length < 2000 && !r.image_url.includes('placeholder') && !r.image_url.includes('logo.png')
+        )?.image_url;
+
         // Build product objects from global results with intelligent verification
         const globalAsProducts = globalResults.filter((r: any) => r && r.name).map((r: any) => {
             const productId = generateCompliantId(r.name);
@@ -460,7 +465,19 @@ export function Navbar() {
                 ? { ...r.specs, "Condition": r.condition || "Brand New" }
                 : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
 
-            let imageUrl = getProxiedImageUrl(r.image_url);
+            let rawImageUrl = r.image_url;
+            
+            // Drop base64 images if they are huge to prevent QuotaExceeded crashes
+            if (rawImageUrl && rawImageUrl.startsWith('data:image') && rawImageUrl.length > 5000) {
+                 rawImageUrl = null;
+            }
+
+            // Share valid image among similar products if missing or placeholder
+            if (!rawImageUrl || rawImageUrl.includes('placeholder') || rawImageUrl.includes('logo.png')) {
+                 rawImageUrl = validSharedImage || rawImageUrl;
+            }
+
+            let imageUrl = getProxiedImageUrl(rawImageUrl);
 
             return {
                 id: productId,

@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { productId, type, loanAmount, tenureMonths, monthlyRepayment, interestRate } = body;
+        const { productId, type, loanAmount, tenureMonths, monthlyRepayment, interestRate, auditData, payslipData } = body;
 
         if (!loanAmount || !tenureMonths || !monthlyRepayment) {
             return NextResponse.json({ error: "Missing required financing details" }, { status: 400 });
@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
                 interestRate: parseFloat(interestRate || "36"),
                 source: "web",
                 customerName: (user as any).name,
-                email: (user as any).email
+                email: (user as any).email,
+                auditData: auditData || null,
+                payslipData: payslipData || null
             }
         });
 

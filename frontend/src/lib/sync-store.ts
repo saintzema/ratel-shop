@@ -6353,35 +6353,60 @@ class DataSyncServiceService {
 
         console.log(`🧹 Pruning storage (${isAggressive ? 'Aggressive' : 'Soft'})...`);
 
-        // 1. Soft Pruning: Clear non-essential caches
-        localStorage.removeItem(this.STORAGE_KEYS.SEARCH_CACHE);
-        localStorage.removeItem(this.STORAGE_KEYS.TRENDING_CURATION);
-        localStorage.removeItem(this.STORAGE_KEYS.PROMOTIONS);
-        
+        // LRU Eviction Helper
+        const evictLRU = (key: string, keepCount: number, sortField: string = 'updated_at') => {
+            try {
+                const stored = localStorage.getItem(key);
+                if (!stored) return;
+                const data = JSON.parse(stored);
+                if (Array.isArray(data) && data.length > keepCount) {
+                    // Sort by newest first, then slice
+                    const sorted = [...data].sort((a, b) => {
+                        const timeA = new Date(a[sortField] || a.created_at || a.timestamp || a.createdAt || 0).getTime();
+                        const timeB = new Date(b[sortField] || b.created_at || b.timestamp || b.createdAt || 0).getTime();
+                        return timeB - timeA;
+                    });
+                    localStorage.setItem(key, JSON.stringify(sorted.slice(0, keepCount)));
+                } else if (typeof data === 'object' && !Array.isArray(data)) {
+                     // For object maps like search cache, we delete oldest keys
+                     const keys = Object.keys(data);
+                     if (keys.length > keepCount) {
+                         const trimmedData: any = {};
+                         // Just keep the first 'keepCount' keys (objects are loosely ordered by insertion for string keys)
+                         keys.slice(0, keepCount).forEach(k => trimmedData[k] = data[k]);
+                         localStorage.setItem(key, JSON.stringify(trimmedData));
+                     }
+                }
+            } catch (e) { /* ignore parse errors */ }
+        };
+
+        // 1. Soft Pruning: Evict LRU from non-essential caches
+        evictLRU(this.STORAGE_KEYS.SEARCH_CACHE, 20); 
+        evictLRU(this.STORAGE_KEYS.PROMOTIONS, 20);
+        evictLRU(this.STORAGE_KEYS.REVIEWS, 50);
+        evictLRU(this.STORAGE_KEYS.NOTIFICATIONS, 30);
+        evictLRU(this.STORAGE_KEYS.CHAT_MESSAGES, 80, 'timestamp');
+
         if (!isAggressive) {
-            // Also clear old notifications
-            const notifications = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS) || "[]");
-            if (notifications.length > 50) {
-                localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.slice(0, 50)));
-            }
             return;
         }
 
-        // 2. Aggressive Pruning: Limit chat messages and clear seeded data
-        localStorage.removeItem(this.STORAGE_KEYS.REVIEWS);
-        localStorage.removeItem(this.STORAGE_KEYS.AD_CREDITS);
+        // 2. Aggressive Pruning: Apply stricter LRU limits
+        evictLRU(this.STORAGE_KEYS.SEARCH_CACHE, 5); 
+        evictLRU(this.STORAGE_KEYS.PROMOTIONS, 5);
+        evictLRU(this.STORAGE_KEYS.REVIEWS, 10);
         
-        // Limit chat messages to last 100
-        const messages = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
-        if (messages.length > 100) {
-            localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(messages.slice(-100)));
-        }
+        // Shrink catalog to most recent to free significant space
+        evictLRU(this.STORAGE_KEYS.PRODUCTS, 150); 
+        evictLRU(this.STORAGE_KEYS.SELLERS, 50);
+        evictLRU(this.STORAGE_KEYS.NEGOTIATIONS, 30);
+        
+        // Limit chat messages more aggressively
+        evictLRU(this.STORAGE_KEYS.CHAT_MESSAGES, 30, 'timestamp');
+        evictLRU(this.STORAGE_KEYS.NOTIFICATIONS, 10);
 
-        // Limit notifications even more
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
-
-        // Clear Ziva chats older than 7 days
-        this.bulkCleanupChats({ daysOld: 7, zivaOnly: true });
+        // Clear Ziva chats older than 2 days
+        this.bulkCleanupChats({ daysOld: 2, zivaOnly: true });
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -6403,7 +6428,6 @@ class DataSyncServiceService {
             const isOldEnough = !cutoff || orderDate < cutoff;
             
             if (isOldEnough && o.chat_messages && Array.isArray(o.chat_messages) && o.chat_messages.length > 0) {
-                // If readOnly is set, only clear if no unread messages (simulated check)
                 if (readOnly && o.zivaActive) return o; 
                 
                 ordersCleared++;
@@ -6423,10 +6447,9 @@ class DataSyncServiceService {
             const isZiva = c.context?.type === "ziva_escalation";
             const isRead = Object.values(c.unread_count || {}).every(v => v === 0);
 
-            // Filter logic
             if (zivaOnly && !isZiva) return true;
             if (readOnly && !isRead) return true;
-            if (isOldEnough) return false; // Delete it
+            if (isOldEnough) return false; 
             
             return true;
         });

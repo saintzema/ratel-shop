@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     try {
         const user = getUserFromRequest(request);
         if (!user) {
-            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+            return NextResponse.json({ success: true, payouts: [] });
         }
 
         const { searchParams } = new URL(request.url);
