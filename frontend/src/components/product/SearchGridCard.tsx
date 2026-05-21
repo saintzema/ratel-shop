@@ -241,10 +241,15 @@ export const SearchGridCard = ({
             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
             autoPlayOnHover={true}
           />
+        ) : imageError && !hydratedImage ? (
+          /* Show category icon while background hydration is running — no broken image ever */
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+            <div className="text-gray-200">{getCategoryIcon(product.category || '')}</div>
+          </div>
         ) : (
           <img
             src={(() => {
-              if (imageError) return "/assets/images/placeholder.png";
+              // Prefer freshly-hydrated image over original (which may have just failed)
               if (hydratedImage) return getProxiedImageUrl(hydratedImage);
               const rawUrl = product.image_url || product.images?.[0];
               return getProxiedImageUrl(rawUrl);
@@ -255,13 +260,23 @@ export const SearchGridCard = ({
               isImageLoading ? "opacity-0" : "opacity-100 z-10"
             )}
             loading="lazy"
-            onLoad={() => setIsImageLoading(false)}
-            onError={(e) => {
+            onLoad={() => { setIsImageLoading(false); setImageError(false); }}
+            onError={() => {
               setIsImageLoading(false);
-              if (!imageError) {
-                setImageError(true);
+              setImageError(true);
+              // Immediately trigger hydration on error (don't wait for mount stagger)
+              if (!hydratedImage && product.name) {
+                const q = encodeURIComponent(product.name);
+                const cat = encodeURIComponent(product.category || '');
+                fetch(`/api/product-image?q=${q}&category=${cat}`)
+                  .then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                    if (!data) return;
+                    const url = data.imageUrls?.[0] || data.imageUrl;
+                    if (url) { setHydratedImage(url); setImageError(false); }
+                  })
+                  .catch(() => {});
               }
-              e.currentTarget.src = "/assets/images/placeholder.png";
             }}
           />
         )}

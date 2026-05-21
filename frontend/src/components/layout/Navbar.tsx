@@ -57,6 +57,7 @@ import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGrounding
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { useMessages } from "@/context/MessageContext";
 const NAV_SEARCH_CACHE = new Map<string, any[]>();
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
@@ -1334,16 +1335,15 @@ export function Navbar() {
                                                             activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-emerald-100/50"
                                                         )}
                                                     >
-                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                            <img
-                                                                src={getProxiedImageUrl(
-                                                                    result.image_url ||
-                                                                    imagePool[(result.name || '').toLowerCase().trim()] ||
-                                                                    undefined
-                                                                )}
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden shadow-sm">
+                                                            <SmartImage
+                                                                src={result.image_url || imagePool[(result.name || '').toLowerCase().trim()] || null}
                                                                 alt={result.name}
-                                                                className="w-full h-full object-contain"
-                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                                productName={result.name}
+                                                                category={result.category}
+                                                                imagePool={imagePool}
+                                                                iconSize={20}
+                                                                className="w-10 h-10"
                                                             />
                                                         </div>
                                                         <div className="flex flex-col flex-1 min-w-0">

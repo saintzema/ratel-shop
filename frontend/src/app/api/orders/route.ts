@@ -239,10 +239,12 @@ export async function POST(request: Request) {
             return order;
         });
 
-        // Notify the seller via persistent DB notification
+        // Notify the seller via persistent DB notification + email
         if (body.seller_id) {
             const productName = (newOrder as any).product?.name || "a product";
             const amount = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(body.amount || 0);
+
+            // Bell notification
             db.notification.create({
                 data: {
                     userId: body.seller_id,
@@ -252,6 +254,31 @@ export async function POST(request: Request) {
                     read: false,
                 }
             }).catch(() => { /* non-critical */ });
+
+            // Email notification — fire-and-forget
+            db.seller.findUnique({ where: { id: body.seller_id }, select: { ownerEmail: true, businessName: true } })
+                .then(seller => {
+                    const email = seller?.ownerEmail || body.seller_email;
+                    if (!email) return;
+                    fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: email,
+                            type: 'SELLER_NEW_ORDER',
+                            payload: {
+                                sellerName: seller?.businessName || body.seller_name || 'Seller',
+                                buyerName: userName,
+                                productName,
+                                amount,
+                                orderId: newOrder.id,
+                                orderLink: `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/seller/orders`,
+                                quantity: body.quantity || 1,
+                                shippingAddress: body.shipping_address || '',
+                            }
+                        })
+                    }).catch(() => { /* non-critical */ });
+                }).catch(() => { /* non-critical */ });
         }
 
         // Broadcast update for real-time sync

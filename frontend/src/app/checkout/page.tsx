@@ -2638,12 +2638,17 @@ function CheckoutContent() {
                                         }
                                         setIsSettingPassword(true);
                                         try {
-                                            const res = await fetch("/api/users", {
+                                            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                                            const res = await fetch("/api/auth/set-password", {
                                                 method: "POST",
-                                                headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ email: address.email, password: guestPassword })
+                                                headers: {
+                                                    "Content-Type": "application/json",
+                                                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                                                },
+                                                body: JSON.stringify({ password: guestPassword })
                                             });
-                                            if (res.ok) {
+                                            const data = await res.json();
+                                            if (res.ok && data.success) {
                                                 setShowGuestPasswordSetup(false);
                                                 if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                                                     setShowPushOptIn(true);
@@ -2651,10 +2656,10 @@ function CheckoutContent() {
                                                     router.push("/account/orders?success=true");
                                                 }
                                             } else {
-                                                throw new Error("Failed to secure account");
+                                                throw new Error(data.error || "Failed to secure account");
                                             }
-                                        } catch {
-                                            setPasswordError("Failed to set password. Try again later.");
+                                        } catch (err: any) {
+                                            setPasswordError(err.message || "Failed to set password. Try again later.");
                                         } finally {
                                             setIsSettingPassword(false);
                                         }

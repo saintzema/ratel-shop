@@ -1,53 +1,61 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { getUserFromRequest } from "@/lib/jwt";
 
-// POST /api/auth/set-password — Set or update a user's password (hashed) with token verification
+/**
+ * POST /api/auth/set-password
+ *
+ * Two modes:
+ * 1. Reset flow (token-based): { email, password, token }
+ * 2. Authenticated set (for logged-in users who have no password yet, e.g. WhatsApp-only accounts):
+ *    { password } — JWT must be present in Authorization header
+ */
 export async function POST(request: Request) {
     try {
-        const { email, password, token } = await request.json();
+        const body = await request.json();
+        const { email, password, token } = body;
 
-        if (!email || !password || !token) {
-            return NextResponse.json({ error: "Email, password, and token are required" }, { status: 400 });
+        if (!password || password.length < 6) {
+            return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
+        }
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // ── Mode 1: Authenticated user setting password for first time ──
+        // No token required — user is already logged in via JWT
+        if (!token) {
+            const payload = getUserFromRequest(request);
+            if (!payload) {
+                return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+            }
+            await db.user.update({
+                where: { id: payload.userId },
+                data: { password: hashedPassword },
+            });
+            return NextResponse.json({ success: true, message: "Password set successfully" });
         }
 
-        if (password.length < 8) {
-            return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+        // ── Mode 2: Token-based reset (forgot-password flow) ──
+        if (!email) {
+            return NextResponse.json({ error: "Email is required for token-based reset" }, { status: 400 });
         }
-
         const normalizedEmail = email.toLowerCase().trim();
 
-        // 1. Verify Token
-        const verificationToken = await db.verificationToken.findUnique({
-            where: { token }
-        });
-
+        const verificationToken = await db.verificationToken.findUnique({ where: { token } });
         if (!verificationToken || verificationToken.identifier !== normalizedEmail) {
             return NextResponse.json({ error: "Invalid or expired reset token" }, { status: 400 });
         }
-
         if (new Date() > verificationToken.expires) {
             await db.verificationToken.delete({ where: { token } });
-            return NextResponse.json({ error: "Reset token has expired" }, { status: 400 });
+            return NextResponse.json({ error: "Reset token has expired. Please request a new one." }, { status: 400 });
         }
 
-        // 2. Find User
-        const user = await db.user.findUnique({
-            where: { email: normalizedEmail },
-        });
-
+        const user = await db.user.findUnique({ where: { email: normalizedEmail } });
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        // 3. Hash and store
-        const hashedPassword = await bcrypt.hash(password, 12);
-        await db.user.update({
-            where: { id: user.id },
-            data: { password: hashedPassword },
-        });
-
-        // 4. Delete Token after use
+        await db.user.update({ where: { id: user.id }, data: { password: hashedPassword } });
         await db.verificationToken.delete({ where: { token } });
 
         return NextResponse.json({ success: true, message: "Password updated successfully" });

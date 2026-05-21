@@ -418,18 +418,109 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                             }).catch(() => { /* Email send is best-effort */ });
                         }
                     }
-                } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received")) {
+                } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received") || lowerText.includes("eta")) {
                     if (orderStatus === "delivered") {
                         zivaText = `Your order **${trackingId}** has been marked as **delivered**. If you've received your item and it's in good condition, you can confirm delivery from your orders page to release the payment from escrow. If there's any issue, let me know immediately!`;
                     } else if (orderStatus === "shipped") {
                         zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 3–7 business days. I'll notify you when it arrives!`;
                     } else {
-                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–7 business days**.`;
+                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. I've asked the seller to provide a shipping ETA. Estimated delivery: **3–7 business days**.`;
+                        // Notify seller to provide shipping update
+                        if (product) {
+                            const sellerId = product.seller_id;
+                            const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                            const currentUser = DataSyncService.getCurrentUser();
+                            const buyerName = currentUser?.name || "A Buyer";
+                            DataSyncService.addNotification({
+                                userId: sellerId,
+                                type: "order",
+                                message: `🚚 ${buyerName} is asking for a shipping ETA on "${product.name}" (Order #${trackingId.substring(0, 8)}). Please update the shipping status from your dashboard.`,
+                                link: `/seller/orders`
+                            });
+                            if (seller?.owner_email) {
+                                fetch('/api/email', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        to: seller.owner_email,
+                                        type: 'ORDER_INQUIRY',
+                                        payload: {
+                                            name: seller.business_name || "Seller",
+                                            productName: product.name,
+                                            orderId: trackingId,
+                                            buyerName,
+                                            inquiry: `${buyerName} is requesting a shipping ETA for their order. Please update the tracking information from your seller dashboard.`,
+                                            dashboardUrl: `${window.location.origin}/seller/orders`,
+                                        }
+                                    })
+                                }).catch(() => {});
+                            }
+                        }
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
-                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.";
-                } else if (lowerText.includes("condition") || lowerText.includes("confirm")) {
-                    zivaText = "I can request a condition check from the merchant. They'll be asked to verify the item's quality and packaging before shipping. This is part of our FairPrice Quality Assurance process.";
+                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.\n\nI've also notified the seller to confirm the warranty details for you.";
+                    if (product) {
+                        const sellerId = product.seller_id;
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
+                        const buyerName = currentUser?.name || "A Buyer";
+                        DataSyncService.addNotification({
+                            userId: sellerId,
+                            type: "order",
+                            message: `📋 ${buyerName} is asking about warranty details for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please confirm warranty info from your dashboard.`,
+                            link: `/seller/dashboard/messages`
+                        });
+                        if (seller?.owner_email) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: seller.owner_email,
+                                    type: 'ORDER_INQUIRY',
+                                    payload: {
+                                        name: seller.business_name || "Seller",
+                                        productName: product.name,
+                                        orderId: trackingId,
+                                        buyerName,
+                                        inquiry: `${buyerName} would like confirmation of the warranty details and terms for "${product.name}". Please respond via your seller dashboard.`,
+                                        dashboardUrl: `${window.location.origin}/seller/dashboard/messages`,
+                                    }
+                                })
+                            }).catch(() => {});
+                        }
+                    }
+                } else if (lowerText.includes("condition") || lowerText.includes("confirm condition") || lowerText.includes("as described")) {
+                    zivaText = "I've requested a **condition check** from the merchant. They'll verify the item's quality and packaging before shipping. You'll be notified once they confirm. This is part of FairPrice Quality Assurance.";
+                    if (product) {
+                        const sellerId = product.seller_id;
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
+                        const buyerName = currentUser?.name || "A Buyer";
+                        DataSyncService.addNotification({
+                            userId: sellerId,
+                            type: "order",
+                            message: `✅ ${buyerName} is requesting a condition check for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please confirm item condition and packaging before shipping.`,
+                            link: `/seller/dashboard/messages`
+                        });
+                        if (seller?.owner_email) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: seller.owner_email,
+                                    type: 'ORDER_INQUIRY',
+                                    payload: {
+                                        name: seller.business_name || "Seller",
+                                        productName: product.name,
+                                        orderId: trackingId,
+                                        buyerName,
+                                        inquiry: `${buyerName} wants to confirm the condition of "${product.name}" is as described in the listing. Please verify and respond via your seller dashboard.`,
+                                        dashboardUrl: `${window.location.origin}/seller/dashboard/messages`,
+                                    }
+                                })
+                            }).catch(() => {});
+                        }
+                    }
                 }
             }
 
