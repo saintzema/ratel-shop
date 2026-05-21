@@ -114,6 +114,7 @@ export function Navbar() {
     const [matchingBrands, setMatchingBrands] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
+    const [imagePool, setImagePool] = useState<Record<string, string>>({});
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
@@ -546,6 +547,31 @@ export function Navbar() {
         if (globalAsProducts.length > 0) {
             DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
         }
+
+        // Build imagePool from local catalogue for cross-page image sharing
+        try {
+            const localImagesPool: Record<string, string> = {};
+            const allLocalProducts = DataSyncService.getApprovedProducts();
+            allLocalProducts.forEach((p: any) => {
+                if (p.image_url && p.name) {
+                    const key = (p.name || '').toLowerCase().trim();
+                    if (!localImagesPool[key]) {
+                        localImagesPool[key] = getProxiedImageUrl(p.image_url);
+                    }
+                }
+            });
+            // Merge with globalAsProducts images for better coverage
+            globalAsProducts.forEach((p: any) => {
+                if (p.image_url && p.name && !p.image_url.includes('placeholder')) {
+                    const key = (p.name || '').toLowerCase().trim();
+                    if (!localImagesPool[key]) {
+                        localImagesPool[key] = p.image_url;
+                    }
+                }
+            });
+            setImagePool(localImagesPool);
+            sessionStorage.setItem('fp_nav_image_pool', JSON.stringify(localImagesPool));
+        } catch { /* quota or storage blocked */ }
 
         // Resolve __global_ prefix to actual product ID
         let resolvedClickedId = clickedProductId;
@@ -1310,7 +1336,11 @@ export function Navbar() {
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                             <img
-                                                                src={getProxiedImageUrl(result.image_url)}
+                                                                src={getProxiedImageUrl(
+                                                                    result.image_url ||
+                                                                    imagePool[(result.name || '').toLowerCase().trim()] ||
+                                                                    undefined
+                                                                )}
                                                                 alt={result.name}
                                                                 className="w-full h-full object-contain"
                                                                 onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}

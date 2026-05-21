@@ -649,6 +649,7 @@ enum FinancingType {
 }
 
 enum FinancingStatus {
+  draft
   pending
   under_review
   approved
@@ -689,6 +690,14 @@ model FinancingApplication {
   auditData         Json?           @map("audit_data")
   payslipData       Json?           @map("payslip_data")
   
+  // Draft / multi-step form management
+  currentStep       Int             @default(1)
+  applicationType   String?         // 'salary_earner' | 'business_owner'
+  contractType      String?         // 'long_term' | 'short_term'
+  documentsJson     String?         // JSON-serialized document metadata for save/resume
+  depositAmount     Float           @default(0)
+  payslipsUrl       String[]
+
   // Metadata
   source            String          @default("whatsapp") // whatsapp, web, app
   adminNotes        String?

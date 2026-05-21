@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, Upload, ChevronRight, ArrowLeft, ShieldCheck, Clock } from "lucide-react";
+import { CheckCircle2, FileText, Upload, ChevronRight, ArrowLeft, ShieldCheck, Clock, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";

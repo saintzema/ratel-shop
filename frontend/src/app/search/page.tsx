@@ -357,6 +357,25 @@ function SearchContent() {
   }, [fromNav, query]);
 
 
+  // Hydrate imagePool from Navbar image pool (passed via sessionStorage on nav→SRP transition)
+  useEffect(() => {
+    try {
+      const savedPool = sessionStorage.getItem('fp_nav_image_pool');
+      if (savedPool) {
+        const navPool: Record<string, string> = JSON.parse(savedPool);
+        setImagePool(prev => {
+          const merged = { ...prev };
+          Object.entries(navPool).forEach(([key, url]) => {
+            if (!merged[key] && url && !url.includes('placeholder')) {
+              merged[key] = { url, urls: [url] };
+            }
+          });
+          return merged;
+        });
+      }
+    } catch { /* fail silently */ }
+  }, []);
+
   useEffect(() => {
     if (minPriceParam)
       setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 500000000]);
