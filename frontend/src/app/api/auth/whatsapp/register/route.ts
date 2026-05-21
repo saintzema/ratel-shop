@@ -30,10 +30,17 @@ export async function POST(req: Request) {
         }
 
         const cleanPhone = WhatsAppService.normalizePhoneNumber(phoneNumber);
+        const phoneVariants = WhatsAppService.allPhoneVariants(phoneNumber);
+        const emailVariants = WhatsAppService.allWaEmailVariants(phoneNumber);
 
-        // Check if this WhatsApp number is already taken
-        const existingWa = await db.user.findUnique({
-            where: { whatsappNumber: cleanPhone }
+        // Broad duplicate check — covers every stored format of this number
+        const existingWa = await db.user.findFirst({
+            where: {
+                OR: [
+                    { whatsappNumber: { in: phoneVariants } },
+                    { email: { in: emailVariants } },
+                ]
+            }
         });
         if (existingWa) {
             return NextResponse.json(

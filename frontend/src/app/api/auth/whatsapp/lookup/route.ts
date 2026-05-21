@@ -5,6 +5,10 @@ import { WhatsAppService } from "@/lib/whatsapp-service";
 /**
  * POST /api/auth/whatsapp/lookup
  * Checks if a WhatsApp number already exists as a registered user.
+ *
+ * Handles all phone number variants (0-prefix, 234-prefix, legacy wa- emails)
+ * so a user entering 08169878676 and 2348169878676 always resolve to the same account.
+ *
  * Returns { exists: true, user: {...} } or { exists: false }
  */
 export async function POST(req: Request) {
@@ -17,13 +21,22 @@ export async function POST(req: Request) {
         }
 
         const cleanPhone = WhatsAppService.normalizePhoneNumber(phoneNumber);
+        const phoneVariants = WhatsAppService.allPhoneVariants(phoneNumber);
+        const emailVariants = WhatsAppService.allWaEmailVariants(phoneNumber);
 
-        // Check if this phone number is already registered
-        const user = await db.user.findUnique({
-            where: { whatsappNumber: cleanPhone }
+        // Check by whatsappNumber field — covers all stored formats
+        const user = await db.user.findFirst({
+            where: { whatsappNumber: { in: phoneVariants } }
         });
 
         if (user) {
+            // Opportunistically normalise the stored number if it's in a legacy format
+            if (user.whatsappNumber !== cleanPhone) {
+                await db.user.update({
+                    where: { id: user.id },
+                    data: { whatsappNumber: cleanPhone }
+                }).catch(() => {}); // best-effort, don't block the response
+            }
             return NextResponse.json({
                 exists: true,
                 user: {
@@ -37,18 +50,17 @@ export async function POST(req: Request) {
             });
         }
 
-        // Also check if the phone number is associated via email pattern
-        const waEmail = `wa_${cleanPhone}@fairprice.ng`;
-        const emailUser = await db.user.findUnique({
-            where: { email: waEmail }
+        // Also check via auto-generated email patterns (wa_234.../wa-0...)
+        const emailUser = await db.user.findFirst({
+            where: { email: { in: emailVariants } }
         });
 
         if (emailUser) {
-            // Associate the WA number with the existing user
+            // Link and normalise the stored number
             await db.user.update({
                 where: { id: emailUser.id },
                 data: { whatsappNumber: cleanPhone }
-            });
+            }).catch(() => {});
 
             return NextResponse.json({
                 exists: true,

@@ -254,22 +254,61 @@ export class WhatsAppService {
     }
 
     /**
-     * Normalizes a phone number to international format (E.164) for Nigeria
-     * Strips all non-digits, handles leading 0, and ensure 234 prefix
+     * Normalizes a phone number to international format (E.164) for Nigeria.
+     * Strips all non-digits, handles leading 0, and ensures 234 prefix.
      */
     static normalizePhoneNumber(phone: string): string {
-        let clean = phone.replace(/\D/g, "");
-        
-        // Handle Nigerian format: 081... -> 23481...
+        if (!phone) return "";
+        let clean = phone.trim().replace(/\D/g, "");
+
+        // Handle Nigerian format: 0XXXXXXXXXX (11 digits) -> 234XXXXXXXXXX
         if (clean.startsWith("0") && clean.length === 11) {
             clean = "234" + clean.substring(1);
         }
-        
-        // If it starts with 81... and is 10 digits, add 234
+
+        // 10-digit number without country code -> add 234
         if (!clean.startsWith("234") && clean.length === 10) {
             clean = "234" + clean;
         }
 
         return clean;
+    }
+
+    /**
+     * Returns ALL plausible stored formats of a Nigerian phone number.
+     * Used for duplicate checks — catches accounts created with old/alternate formats.
+     *
+     * For 2348169878676 this returns: ["2348169878676", "08169878676", "8169878676"]
+     */
+    static allPhoneVariants(phone: string): string[] {
+        if (!phone) return [];
+        const normalized = this.normalizePhoneNumber(phone);
+        const raw = phone.trim().replace(/\D/g, "");
+        const variants = new Set<string>();
+
+        if (normalized) variants.add(normalized);
+        if (raw && raw.length >= 10) variants.add(raw);
+
+        // If normalized has 234 prefix, also include the 0-prefixed local form
+        if (normalized.startsWith("234") && normalized.length === 13) {
+            variants.add("0" + normalized.substring(3));    // 08169878676
+            variants.add(normalized.substring(3));           // 8169878676 (10 digits)
+        }
+
+        return Array.from(variants).filter(v => v.length >= 10);
+    }
+
+    /**
+     * Returns all possible auto-generated email addresses for a phone number.
+     * Covers both the current format (wa_234...) and the legacy format (wa-0...).
+     */
+    static allWaEmailVariants(phone: string): string[] {
+        const variants = this.allPhoneVariants(phone);
+        const emails: string[] = [];
+        for (const v of variants) {
+            emails.push(`wa_${v}@fairprice.ng`);
+            emails.push(`wa-${v}@fairprice.ng`);
+        }
+        return emails;
     }
 }

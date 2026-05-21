@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
+import { signToken } from "@/lib/jwt";
 
 export async function GET(req: Request) {
     try {
-        const { searchParams } = new URL(req.url);
+        const { searchParams } = await Promise.resolve(new URL(req.url));
         const code = searchParams.get("code");
 
         if (!code) {
@@ -20,24 +21,36 @@ export async function GET(req: Request) {
         }
 
         if (verification.status === "verified" || verification.status === "used") {
-            // Find or create the user linked to this phone number
             const normalizedPhone = WhatsAppService.normalizePhoneNumber(verification.phoneNumber);
-            
-            let user = await db.user.findUnique({
-                where: { whatsappNumber: normalizedPhone }
+            const phoneVariants = WhatsAppService.allPhoneVariants(verification.phoneNumber);
+            const emailVariants = WhatsAppService.allWaEmailVariants(verification.phoneNumber);
+
+            // Broad lookup — catch accounts stored with any format of this number
+            let user = await db.user.findFirst({
+                where: {
+                    OR: [
+                        { whatsappNumber: { in: phoneVariants } },
+                        { email: { in: emailVariants } },
+                    ]
+                }
             });
 
             if (!user) {
-                // Check if user exists by email if we have it, otherwise create a placeholder
-                // For simplicity in this demo, we'll create a new user if not found
+                // Create a placeholder account — use consistent wa_ + 234-prefix format
                 user = await db.user.create({
                     data: {
                         name: `WA User ${normalizedPhone.slice(-4)}`,
-                        email: `wa-${normalizedPhone}@fairprice.ng`, // Placeholder email
+                        email: `wa_${normalizedPhone}@fairprice.ng`,
                         whatsappNumber: normalizedPhone,
                         role: "customer"
                     }
                 });
+            } else if (user.whatsappNumber !== normalizedPhone) {
+                // Normalise legacy stored number (e.g. 08169... → 2348169...)
+                await db.user.update({
+                    where: { id: user.id },
+                    data: { whatsappNumber: normalizedPhone }
+                }).catch(() => {});
             }
 
             // Mark verification as used
@@ -46,13 +59,22 @@ export async function GET(req: Request) {
                 data: { status: "used", userId: user.id }
             });
 
-            return NextResponse.json({ 
-                status: "success", 
+            const token = signToken({
+                userId: user.id,
+                email: user.email,
+                role: user.role,
+            });
+
+            return NextResponse.json({
+                status: "success",
+                token,
                 user: {
                     id: user.id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    whatsappNumber: normalizedPhone,
+                    avatar_url: user.avatarUrl,
                 }
             });
         }
