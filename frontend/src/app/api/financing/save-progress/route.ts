@@ -94,3 +94,56 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to save progress" }, { status: 500 });
     }
 }
+
+/**
+ * GET /api/financing/save-progress?productId=xxx
+ * Returns the most recent draft for this user+product so the UI can restore step/data.
+ */
+export async function GET(req: NextRequest) {
+    try {
+        const user = getUserFromRequest(req);
+        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const productId = req.nextUrl.searchParams.get("productId");
+        if (!productId) return NextResponse.json({ error: "productId required" }, { status: 400 });
+
+        const draft = await (prisma as any).financingApplication.findFirst({
+            where: { userId: user.userId, productId, status: 'draft' },
+            orderBy: { updatedAt: 'desc' },
+            select: {
+                id: true,
+                applicationType: true,
+                contractType: true,
+                currentStep: true,
+                loanAmount: true,
+                depositAmount: true,
+                tenureMonths: true,
+                monthlyRepayment: true,
+                interestRate: true,
+                documentsJson: true,
+            },
+        });
+
+        if (!draft) return NextResponse.json({ draft: null });
+
+        // Reconstruct a partial contract object so FinancingFlow can pre-populate Step 2
+        const contract = draft.contractType ? {
+            contractType: draft.contractType,
+            tenure: draft.tenureMonths,
+            monthlyPayment: draft.monthlyRepayment,
+            depositAmount: draft.depositAmount,
+            interestRate: String(draft.interestRate ?? 36),
+            fundedAmount: draft.loanAmount,
+        } : null;
+
+        return NextResponse.json({
+            applicationId: draft.id,
+            currentStep: draft.currentStep ?? 1,
+            applicantType: draft.applicationType ?? null,
+            contract,
+        });
+    } catch (err) {
+        console.error('[financing/save-progress GET] error:', err);
+        return NextResponse.json({ error: "Server error" }, { status: 500 });
+    }
+}

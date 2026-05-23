@@ -36,7 +36,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const [analysisStep, setAnalysisStep] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [isSystemCalculated, setIsSystemCalculated] = useState(false);
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const { startConversation, openMessageBox } = useMessages();
     const [showPushOptIn, setShowPushOptIn] = useState(false);
     const [countryCode, setCountryCode] = useState("+234");
@@ -171,6 +171,23 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         };
 
         DataSyncService.addNegotiation(newNegotiation);
+
+        // Save WhatsApp number to user profile if provided and logged in
+        if (whatsappNumber && user?.email) {
+            const fullWaNumber = `${countryCode.replace(/^\+/, '')}${whatsappNumber.replace(/\D/g, '')}`;
+            try {
+                const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                if (token) {
+                    fetch('/api/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ email: user.email, whatsappNumber: fullWaNumber }),
+                    }).then(r => r.ok ? r.json() : null).then(data => {
+                        if (data?.id && updateUser) updateUser({ whatsapp: fullWaNumber });
+                    }).catch(() => {});
+                }
+            } catch {}
+        }
 
         startConversation(
             `neg_${product.id}`,

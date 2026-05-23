@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { CreditCard, ChevronRight, Zap, Banknote } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { CreditCard, ChevronRight, Zap, Banknote, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { calculateFinancing, getFinancingThreshold, isVehicle } from "@/lib/financing-utils";
-import { FinancingFlow } from "./FinancingFlow";
+import { FinancingFlow, type FlowData } from "./FinancingFlow";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 interface FinancingOfferProps {
     product: {
@@ -16,8 +18,54 @@ interface FinancingOfferProps {
 }
 
 export function FinancingOffer({ product }: FinancingOfferProps) {
+    const { user } = useAuth();
+    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [tenure, setTenure] = useState(isVehicle(product) ? 48 : 12);
+    const [draftStep, setDraftStep] = useState<number>(1);
+    const [draftData, setDraftData] = useState<Partial<FlowData> | undefined>(undefined);
+    const [draftAppId, setDraftAppId] = useState<string | undefined>(undefined);
+    const loadedRef = useRef(false);
+
+    // Load any existing draft for this product when user is logged in
+    useEffect(() => {
+        if (!user || loadedRef.current) return;
+        loadedRef.current = true;
+        const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+        if (!token) return;
+
+        // Search for a draft by product
+        fetch(`/api/financing/save-progress?productId=${product.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then((d) => {
+                if (d?.applicationId) {
+                    setDraftAppId(d.applicationId);
+                    setDraftStep(d.currentStep ?? 1);
+                    // Restore applicantType and contract (File objects can't be restored)
+                    setDraftData({
+                        applicantType: d.applicantType ?? null,
+                        contract: d.contract ?? null,
+                        documents: {},
+                        signature: null,
+                    });
+                }
+            })
+            .catch(() => { /* ignore */ });
+    }, [user, product.id]);
+
+    const handleApplyClick = () => {
+        if (!user) {
+            // Save intent and redirect to login
+            if (typeof window !== 'undefined') {
+                sessionStorage.setItem('fp_financing_intent', JSON.stringify({ productId: product.id, returnPath: window.location.pathname }));
+            }
+            router.push(`/login?redirect=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`);
+            return;
+        }
+        setIsOpen(true);
+    };
 
     const threshold = getFinancingThreshold();
     if (product.price < threshold) return null;
@@ -71,21 +119,33 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
                 </div>
 
                 <Button
-                    onClick={() => setIsOpen(true)}
+                    onClick={handleApplyClick}
                     className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-100 group"
                 >
-                    Apply Now <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                    {!user && <Lock className="h-3.5 w-3.5 mr-1.5 opacity-70" />}
+                    {draftStep > 1 ? 'Continue Application' : 'Apply Now'}
+                    <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
 
-                <p className="text-[9px] text-center text-gray-400 font-bold mt-3 uppercase tracking-tighter">
-                    Apply Now to Get Product Delivered After Approval
-                </p>
+                {draftStep > 1 && (
+                    <p className="text-[9px] text-center text-indigo-500 font-bold mt-2">
+                        Draft saved — step {draftStep} of 4
+                    </p>
+                )}
+                {!draftStep || draftStep === 1 ? (
+                    <p className="text-[9px] text-center text-gray-400 font-bold mt-3 uppercase tracking-tighter">
+                        {user ? 'Apply Now to Get Product Delivered After Approval' : 'Sign in to apply for financing'}
+                    </p>
+                ) : null}
             </div>
 
             <FinancingFlow
                 product={product}
                 isOpen={isOpen}
                 onClose={() => setIsOpen(false)}
+                applicationId={draftAppId}
+                initialStep={draftStep}
+                initialData={draftData}
             />
         </>
     );

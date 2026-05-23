@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ShieldCheck, CheckCircle2, ArrowLeft } from "lucide-react";
@@ -36,7 +36,7 @@ export interface FlowData {
 
 const STEPS = ["Applicant", "Contract", "Documents", "Review"];
 
-export function FinancingFlow({ product, isOpen, onClose, applicationId, initialStep = 1, initialData }: FinancingFlowProps) {
+export function FinancingFlow({ product, isOpen, onClose, applicationId: initialAppId, initialStep = 1, initialData }: FinancingFlowProps) {
     const router = useRouter();
     const [step, setStep] = useState(initialStep);
     const [flowData, setFlowData] = useState<FlowData>({
@@ -45,6 +45,8 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
         documents: initialData?.documents ?? {},
         signature: null,
     });
+    // Track the draft application ID returned by the server (may differ from prop if newly created)
+    const appIdRef = useRef<string | undefined>(initialAppId);
 
     const getAuthHeaders = (): Record<string, string> => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
@@ -55,7 +57,7 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
 
     const saveProgress = useCallback(async (data: Partial<FlowData>, currentStep: number) => {
         try {
-            await fetch('/api/financing/save-progress', {
+            const res = await fetch('/api/financing/save-progress', {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
@@ -64,23 +66,30 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
                     contract: data.contract,
                     documents: data.documents,
                     currentStep,
-                    applicationId,
+                    applicationId: appIdRef.current, // send existing ID so it upserts correctly
                 }),
             });
+            if (res.ok) {
+                const result = await res.json();
+                // Store the returned application ID for subsequent saves
+                if (result.applicationId) appIdRef.current = result.applicationId;
+            }
         } catch { /* fail silently — save is best-effort */ }
-    }, [product.id, applicationId]);
+    }, [product.id]);
 
     const handleStep1 = useCallback((applicantType: ApplicantType) => {
         const updated = { ...flowData, applicantType };
         setFlowData(updated);
+        saveProgress(updated, 2);
         setStep(2);
-    }, [flowData]);
+    }, [flowData, saveProgress]);
 
     const handleStep2 = useCallback((contract: ContractSelection) => {
         const updated = { ...flowData, contract };
         setFlowData(updated);
+        saveProgress(updated, 3);
         setStep(3);
-    }, [flowData]);
+    }, [flowData, saveProgress]);
 
     const handleStep3 = useCallback((documents: DocumentUploads, signature: SignatureData, boardResolution?: BoardResolutionData) => {
         const updated = { ...flowData, documents, signature, boardResolution };
@@ -200,12 +209,17 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
                                     const isActive = step === stepNum;
                                     const isDone = step > stepNum;
                                     return (
-                                        <div key={label} className="flex items-center gap-2">
+                                        <button
+                                            key={label}
+                                            onClick={() => isDone ? setStep(stepNum) : undefined}
+                                            disabled={!isDone}
+                                            className={`flex items-center gap-2 w-full text-left transition-opacity ${isDone ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                                        >
                                             <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black transition-colors ${isDone ? 'bg-emerald-500' : isActive ? 'bg-indigo-500' : 'bg-white/10'}`}>
                                                 {isDone ? <CheckCircle2 className="h-3 w-3" /> : stepNum}
                                             </div>
                                             <span className={`text-xs font-bold transition-colors ${isActive ? 'text-white' : isDone ? 'text-emerald-400' : 'text-gray-500'}`}>{label}</span>
-                                        </div>
+                                        </button>
                                     );
                                 })}
                             </div>

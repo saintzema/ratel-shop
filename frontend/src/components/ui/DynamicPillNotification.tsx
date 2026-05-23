@@ -265,13 +265,14 @@ export function DynamicPillNotification() {
             try { (window as any).nativeBridge?.hapticFeedback?.("heavy"); } catch {}
 
             const isNego = pendingNotification ? !!pendingNotification.negotiation : (customNotification ? customNotification.isNegotiation : false);
-            
+            const isSeller = customNotification?.isSellerAction ?? false;
+
             if (activeNotif.id) {
                 showNotification({
                     type: isNego ? "ziva" : "info",
-                    title: isNego ? "Price Update" : "FairPrice.ng",
+                    title: isNego ? (isSeller ? "New Offer Received" : "Counter Offer From Seller") : "FairPrice.ng",
                     message: activeNotif.text,
-                    duration: 10000 
+                    duration: 10000
                 });
             }
 
@@ -364,7 +365,9 @@ export function DynamicPillNotification() {
     };
 
     const displayText = pendingNotification ? pendingNotification.text : customNotification?.text || "New Notification";
-    const displayTitle = isNegotiation ? "Price Update" : "FairPrice.ng";
+    const displayTitle = isNegotiation
+        ? (isSellerAction ? "New Offer Received" : "Counter Offer From Seller")
+        : "FairPrice.ng";
 
     return (
         <AnimatePresence>
