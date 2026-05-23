@@ -21,6 +21,8 @@ import {
     Vault,
     Megaphone,
     Wallet as LucideWallet,
+    Gift,
+    MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -61,6 +63,9 @@ export default function AdminLayout({
         { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
         { label: "Sponsored Ads", href: "/admin/ads", icon: Megaphone },
         { label: "Push Alerts", href: "/admin/notifications", icon: Bell },
+        { label: "Gift Cards", href: "/admin/gift-cards", icon: Gift },
+        { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageCircle },
+        { label: "Financing", href: "/admin/financing", icon: LucideWallet },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
 

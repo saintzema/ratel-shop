@@ -84,12 +84,12 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{
           __html: `
            #fp-splash{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#ffffff;transition:opacity .4s ease-out;pointer-events:all}
-          #fp-splash .logo-container{width:100px;height:100px;border-radius:24px;background:#ffffff;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);animation:fp-pulse 2s ease-in-out infinite}
+          #fp-splash .logo-container{width:100px;height:100px;border-radius:24px;background:#ffffff;padding:12px;box-shadow:0 0 0 1.5px rgba(16,185,129,0.18), 0 0 28px 6px rgba(16,185,129,0.22), 0 0 60px 12px rgba(16,185,129,0.10), 0 12px 30px rgba(0,0,0,0.08);animation:fp-pulse 2s ease-in-out infinite}
           #fp-splash img{width:100%;height:100%;object-fit:cover;scale:1.1;border-radius:12px}
           #fp-splash .fp-name{color:#111827;font-size:26px;font-weight:900;letter-spacing:-0.03em;margin-top:24px;font-family:system-ui,-apple-system,sans-serif;}
           #fp-splash .fp-tagline{color:#6B7280;font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-top:8px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:300px;}
           #fp-splash .fp-spin{margin-top:40px;width:24px;height:24px;border-radius:50%;border:3px solid #f3f4f6;border-top-color:#10b981;animation:fp-spin .8s linear infinite}
-          @keyframes fp-pulse{0%,100%{transform:scale(1);box-shadow:0 12px 30px rgba(0,0,0,0.08)}50%{transform:scale(0.97);box-shadow:0 8px 20px rgba(0,0,0,0.04)}}
+          @keyframes fp-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 1.5px rgba(16,185,129,0.18),0 0 28px 6px rgba(16,185,129,0.22),0 0 60px 12px rgba(16,185,129,0.10),0 12px 30px rgba(0,0,0,0.08)}50%{transform:scale(0.97);box-shadow:0 0 0 1.5px rgba(16,185,129,0.10),0 0 16px 3px rgba(16,185,129,0.30),0 0 40px 8px rgba(16,185,129,0.14),0 8px 20px rgba(0,0,0,0.04)}}
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
         `}} />

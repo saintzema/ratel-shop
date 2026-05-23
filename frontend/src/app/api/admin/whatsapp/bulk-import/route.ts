@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
                         whatsappNumber: normalized,
                         name: `WhatsApp User`,
                         role: "customer",
-                        source: source,
                     } as any
                 });
                 results.created++;
