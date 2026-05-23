@@ -1,312 +1,472 @@
 "use client";
 
-import { useState } from "react";
-import { DownloadCloud, Loader2, CheckSquare, Square, Package, Instagram } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+    Instagram, Loader2, CheckSquare, Square, Package,
+    RefreshCcw, Link2, AlertCircle, CheckCircle2, ExternalLink, X
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { DataSyncService } from "@/lib/sync-store";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const MOCK_IG_POSTS = [
-    { id: "ig_1", media_url: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800", caption: "Premium Leather Bag. Classic edition.", media_type: "IMAGE" },
-    { id: "ig_2", media_url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800", caption: "Classic Watch for everyday carry.", media_type: "IMAGE" },
-    { id: "ig_3", media_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800", caption: "Wireless headphones. 🎧", media_type: "IMAGE" },
-    { id: "ig_4", media_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800", caption: "Step up your sneaker game. Limited stock!", media_type: "IMAGE" }
-];
+const CATEGORIES = ["Fashion", "Electronics", "Home", "Beauty", "Gaming", "Sports", "Food", "Accessories", "Health", "Uncategorized"];
+
+interface IgPost {
+    id: string;
+    media_url: string;
+    caption: string;
+    media_type: string;
+    timestamp: string;
+    permalink?: string;
+}
+
+interface EditProduct {
+    igPostId: string;
+    name: string;
+    description: string;
+    price: string;
+    stock: string;
+    category: string;
+    imageUrl: string;
+}
 
 export function InstagramCatalogImporter() {
-    const [handle, setHandle] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [posts, setPosts] = useState<any[]>([]);
-    const [selectedPosts, setSelectedPosts] = useState<string[]>([]);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    
-    // Editor State
-    const [currentEditIndex, setCurrentEditIndex] = useState(0);
-    const [editingProducts, setEditingProducts] = useState<any[]>([]);
+    const searchParams = useSearchParams();
 
-    const handleFetchPosts = async () => {
-        const cleanHandle = handle.replace("@", "").trim();
-        if (cleanHandle.length < 2) return;
+    const [status, setStatus] = useState<"idle" | "loading" | "connected" | "error">("idle");
+    const [username, setUsername] = useState<string | null>(null);
+    const [posts, setPosts] = useState<IgPost[]>([]);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [editProducts, setEditProducts] = useState<EditProduct[]>([]);
+    const [editIdx, setEditIdx] = useState(0);
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<{ created: number; message: string } | null>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-        setLoading(true);
+    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+    const authHeaders = () => ({
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    });
+
+    const fetchPosts = useCallback(async () => {
+        setStatus("loading");
+        setErrorMsg(null);
         try {
-            // Simulated API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            setPosts(MOCK_IG_POSTS);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
+            const res = await fetch("/api/seller/instagram/posts", { headers: authHeaders() });
+            const data = await res.json();
+            if (data.connected) {
+                setUsername(data.username || null);
+                setPosts(data.posts || []);
+                setStatus("connected");
+            } else if (data.expired) {
+                setErrorMsg("Your Instagram connection has expired. Please reconnect.");
+                setStatus("error");
+            } else {
+                setStatus("idle");
+            }
+        } catch {
+            setStatus("error");
+            setErrorMsg("Could not reach the server. Please try again.");
         }
+    }, []); // eslint-disable-line
+
+    // On mount: check URL params from OAuth redirect, then fetch posts
+    useEffect(() => {
+        const igConnected = searchParams.get("ig_connected");
+        const igError = searchParams.get("ig_error");
+        const igUser = searchParams.get("ig_user");
+
+        if (igError === "no_ig_account") {
+            setErrorMsg("No Instagram Business or Creator account found linked to your Facebook page. Make sure your Instagram account is connected to a Facebook Page as a Business/Creator account.");
+            setStatus("error");
+        } else if (igError) {
+            setErrorMsg("Instagram connection failed. Please try again.");
+            setStatus("error");
+        } else if (igConnected) {
+            if (igUser) setUsername(decodeURIComponent(igUser));
+            fetchPosts();
+        } else {
+            fetchPosts();
+        }
+    }, []); // eslint-disable-line
+
+    const connectInstagram = () => {
+        // Opens Meta OAuth — server handles the redirect to avoid exposing secrets client-side
+        window.location.href = "/api/seller/instagram/auth";
     };
 
-    const toggleSelection = (id: string) => {
-        setSelectedPosts(prev => 
-            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-        );
-    };
+    const toggleSelect = (id: string) =>
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-    const openImportModal = () => {
-        const selected = posts.filter(p => selectedPosts.includes(p.id));
-        setEditingProducts(selected.map(p => ({
-            id: p.id,
-            name: p.caption.split('.')[0] || "Instagram Product",
-            description: p.caption,
+    const selectAll = () => setSelectedIds(posts.map(p => p.id));
+    const clearSelection = () => setSelectedIds([]);
+
+    const openImportEditor = () => {
+        const selected = posts.filter(p => selectedIds.includes(p.id));
+        setEditProducts(selected.map(p => ({
+            igPostId: p.id,
+            name: p.caption?.split(/[.!?\n]/)[0]?.replace(/#\S+/g, "").trim().slice(0, 80) || "Instagram Product",
+            description: p.caption || "",
             price: "",
             stock: "10",
             category: "Fashion",
-            image_url: p.media_url
+            imageUrl: p.media_url,
         })));
-        setCurrentEditIndex(0);
-        setIsImportModalOpen(true);
+        setEditIdx(0);
+        setImportResult(null);
+        setIsImportOpen(true);
     };
 
-    const updateCurrentProduct = (field: string, value: string) => {
-        const newProducts = [...editingProducts];
-        newProducts[currentEditIndex] = { ...newProducts[currentEditIndex], [field]: value };
-        setEditingProducts(newProducts);
-    };
-
-    const saveProductsToStore = () => {
-        const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId) return;
-
-        editingProducts.forEach(prod => {
-            const newProduct = {
-                id: `prod_ig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                seller_id: sellerId,
-                name: prod.name,
-                description: prod.description,
-                price: parseFloat(prod.price) || 0,
-                stock: parseInt(prod.stock) || 0,
-                category: prod.category,
-                image_url: prod.image_url,
-                images: [],
-                is_active: true,
-                created_at: new Date().toISOString()
-            };
-            DataSyncService.addApprovedProduct(newProduct as any);
+    const updateProd = (field: keyof EditProduct, value: string) => {
+        setEditProducts(prev => {
+            const next = [...prev];
+            next[editIdx] = { ...next[editIdx], [field]: value };
+            return next;
         });
-
-        alert(`Successfully imported ${editingProducts.length} product(s) to your store!`);
-        setIsImportModalOpen(false);
-        setSelectedPosts([]);
-        setPosts([]);
-        setHandle("");
-        
-        window.dispatchEvent(new Event("sync-store-update"));
     };
 
-    return (
-        <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm h-full flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-pink-50 rounded-xl">
-                    <Instagram className="h-6 w-6 text-pink-600" />
+    const handleImport = async () => {
+        setImporting(true);
+        try {
+            const res = await fetch("/api/seller/instagram/import", {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({ products: editProducts }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setImportResult({ created: data.created, message: data.message });
+                setSelectedIds([]);
+                // Trigger site-wide product list refresh
+                window.dispatchEvent(new Event("sync-store-update"));
+            } else {
+                alert(data.error || "Import failed. Please try again.");
+            }
+        } catch {
+            alert("Something went wrong. Please try again.");
+        } finally {
+            setImporting(false);
+        }
+    };
+
+    // ── Render: Not connected ──────────────────────────────────────────────
+    if (status === "idle" || status === "error") {
+        return (
+            <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm flex flex-col gap-5">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl">
+                        <Instagram className="h-6 w-6 text-pink-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-gray-900 leading-tight">Instagram Catalog Sync</h3>
+                        <p className="text-xs text-gray-500 font-medium">Import your posts and turn them into live products.</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-tight">Instagram Catalog Sync</h3>
-                    <p className="text-xs text-gray-500 font-medium">Import your posts and turn them into products.</p>
+
+                {errorMsg && (
+                    <div className="flex gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-sm text-rose-700">
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                        <p className="font-medium leading-relaxed">{errorMsg}</p>
+                    </div>
+                )}
+
+                <div className="p-4 bg-gradient-to-br from-pink-50/60 to-purple-50/60 rounded-2xl border border-pink-100 space-y-3">
+                    <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                        Connect your <strong>Instagram Business</strong> or <strong>Creator account</strong> via Facebook Login.
+                        Your posts will appear here so you can select, edit, and publish them as products in seconds.
+                    </p>
+                    <ul className="space-y-1.5">
+                        {[
+                            "Signs in with your Meta account securely",
+                            "Reads your recent Instagram posts (images only)",
+                            "You choose what to import — nothing is auto-posted",
+                        ].map(t => (
+                            <li key={t} className="flex items-center gap-2 text-[11px] font-bold text-gray-500">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> {t}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                <Button
+                    onClick={connectInstagram}
+                    className="h-12 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold rounded-2xl gap-2 shadow-lg shadow-pink-200"
+                >
+                    <Link2 className="h-4 w-4" />
+                    {errorMsg ? "Reconnect Instagram" : "Connect Instagram"}
+                </Button>
+            </div>
+        );
+    }
+
+    // ── Render: Loading ───────────────────────────────────────────────────
+    if (status === "loading") {
+        return (
+            <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm flex items-center justify-center gap-3 text-gray-400 min-h-[200px]">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm font-bold">Loading your Instagram posts…</span>
+            </div>
+        );
+    }
+
+    // ── Render: Connected — post grid ─────────────────────────────────────
+    return (
+        <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm flex flex-col gap-5">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl">
+                        <Instagram className="h-6 w-6 text-pink-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-gray-900 leading-tight">Instagram Catalog Sync</h3>
+                        <p className="text-xs font-bold text-pink-600">@{username} · {posts.length} posts</p>
+                    </div>
+                </div>
+                <button
+                    onClick={fetchPosts}
+                    className="h-9 w-9 rounded-xl border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                    title="Refresh posts"
+                >
+                    <RefreshCcw className="h-4 w-4 text-gray-400" />
+                </button>
+            </div>
+
+            {/* Selection toolbar */}
+            <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Select Posts to Import
+                </span>
+                <div className="flex items-center gap-2">
+                    {selectedIds.length > 0
+                        ? <button onClick={clearSelection} className="text-[11px] font-bold text-gray-400 hover:text-gray-600">Clear</button>
+                        : <button onClick={selectAll} className="text-[11px] font-bold text-pink-600 hover:text-pink-700">Select All</button>
+                    }
+                    <Button
+                        size="sm"
+                        disabled={selectedIds.length === 0}
+                        onClick={openImportEditor}
+                        className="h-8 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold rounded-xl text-xs shadow-md disabled:opacity-40"
+                    >
+                        Edit &amp; Import ({selectedIds.length})
+                    </Button>
                 </div>
             </div>
 
-            {posts.length === 0 ? (
-                <div className="space-y-4 flex-1">
-                    <div className="relative">
-                        <Input 
-                            placeholder="yourstore.ng"
-                            value={handle}
-                            onChange={(e) => setHandle(e.target.value)}
-                            className="h-14 rounded-2xl pl-12 pr-32 border-gray-200 focus:ring-pink-500"
-                        />
-                        <div className="absolute left-4 top-4 h-6 w-6 text-gray-300 flex items-center justify-center font-bold text-xs">@</div>
-                        <button 
-                            onClick={handleFetchPosts}
-                            disabled={loading || !handle}
-                            className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center justify-center"
+            {/* Grid */}
+            <div className="grid grid-cols-3 gap-2.5 max-h-[320px] overflow-y-auto pr-0.5">
+                {posts.map(post => {
+                    const selected = selectedIds.includes(post.id);
+                    return (
+                        <div
+                            key={post.id}
+                            onClick={() => toggleSelect(post.id)}
+                            className={cn(
+                                "relative group rounded-2xl overflow-hidden cursor-pointer border-2 transition-all",
+                                selected ? "border-pink-500 shadow-md shadow-pink-100" : "border-transparent hover:border-gray-200"
+                            )}
                         >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fetch Posts"}
-                        </button>
-                    </div>
-                    <div className="p-4 bg-pink-50/50 rounded-2xl border border-pink-100 mt-auto">
-                        <p className="text-[10px] text-pink-800/70 font-bold leading-relaxed">
-                            <strong>Tip:</strong> Ziva AI will analyze your recent Instagram posts and try to extract the product name and price based on the caption!
-                        </p>
-                    </div>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Posts to Import</h4>
-                        <Button 
-                            size="sm"
-                            disabled={selectedPosts.length === 0}
-                            onClick={openImportModal}
-                            className="bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold rounded-xl h-8 text-xs shadow-md"
-                        >
-                            Edit & Import ({selectedPosts.length})
-                        </Button>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                        {posts.map(post => {
-                            const isSelected = selectedPosts.includes(post.id);
-                            return (
-                                <div 
-                                    key={post.id} 
-                                    className={`relative group rounded-2xl overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-pink-500 shadow-sm' : 'border-transparent hover:border-gray-200'}`}
-                                    onClick={() => toggleSelection(post.id)}
-                                >
-                                    <div className="aspect-square relative bg-gray-100">
-                                        <img src={post.media_url} alt="" className="w-full h-full object-cover" />
-                                        <div className="absolute top-2 right-2 z-10">
-                                            {isSelected ? (
-                                                <div className="bg-pink-600 text-white rounded-md">
-                                                    <CheckSquare className="h-5 w-5" />
-                                                </div>
-                                            ) : (
-                                                <div className="bg-white/80 text-gray-400 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Square className="h-5 w-5" />
-                                                </div>
-                                            )}
-                                        </div>
+                            <div className="aspect-square bg-gray-100">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="absolute top-2 right-2 z-10">
+                                {selected ? (
+                                    <div className="bg-pink-600 text-white rounded-md p-0.5">
+                                        <CheckSquare className="h-4 w-4" />
                                     </div>
+                                ) : (
+                                    <div className="bg-white/80 text-gray-400 rounded-md p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Square className="h-4 w-4" />
+                                    </div>
+                                )}
+                            </div>
+                            {post.caption && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <p className="text-[10px] text-white font-medium line-clamp-2 leading-tight">{post.caption}</p>
                                 </div>
-                            )
-                        })}
-                    </div>
-                    <Button variant="ghost" onClick={() => setPosts([])} className="w-full text-xs text-gray-500 font-bold mt-2">
-                        Cancel
-                    </Button>
-                </div>
-            )}
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                <button
+                    onClick={connectInstagram}
+                    className="text-[11px] font-bold text-gray-400 hover:text-pink-600 flex items-center gap-1 transition-colors"
+                >
+                    <Link2 className="h-3 w-3" /> Switch account
+                </button>
+                {posts.length > 0 && (
+                    <a href={`https://instagram.com/${username}`} target="_blank" rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-gray-400 hover:text-pink-600 flex items-center gap-1 transition-colors">
+                        View on Instagram <ExternalLink className="h-3 w-3" />
+                    </a>
+                )}
+            </div>
 
             {/* Import Editor Modal */}
-            <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
-                <DialogContent className="max-w-3xl p-0 overflow-hidden bg-gray-50 rounded-3xl">
-                    <div className="flex h-[500px]">
-                        {/* Sidebar: Selected Posts List */}
-                        <div className="w-64 bg-white border-r border-gray-100 flex flex-col hidden md:flex">
-                            <div className="p-4 border-b border-gray-100">
-                                <h3 className="font-black text-gray-900 tracking-tight">Import Products ({editingProducts.length})</h3>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                {editingProducts.map((p, idx) => (
-                                    <button
-                                        key={p.id}
-                                        onClick={() => setCurrentEditIndex(idx)}
-                                        className={cn(
-                                            "w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors",
-                                            currentEditIndex === idx ? "bg-pink-50 border border-pink-100" : "hover:bg-gray-50 border border-transparent"
-                                        )}
-                                    >
-                                        <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover bg-gray-100 shrink-0" />
-                                        <div className="min-w-0 flex-1">
-                                            <p className={cn("text-xs font-bold truncate", currentEditIndex === idx ? "text-pink-700" : "text-gray-700")}>{p.name}</p>
-                                            <p className="text-[10px] text-emerald-600 font-bold mt-0.5">{p.price ? `₦${p.price}` : "Needs Price"}</p>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-3xl bg-gray-50">
+                    <DialogTitle className="sr-only">Edit & Import Instagram Products</DialogTitle>
 
-                        {/* Editor Area */}
-                        {editingProducts.length > 0 && (
-                            <div className="flex-1 flex flex-col bg-white overflow-hidden">
-                                <div className="p-6 overflow-y-auto flex-1">
-                                    <div className="flex flex-col sm:flex-row gap-6">
-                                        <div className="w-full sm:w-40 shrink-0">
-                                            <div className="aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative">
-                                                <img src={editingProducts[currentEditIndex].image_url} alt="" className="w-full h-full object-cover" />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 space-y-4">
-                                            <div>
-                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Product Name</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={editingProducts[currentEditIndex].name}
-                                                    onChange={e => updateCurrentProduct("name", e.target.value)}
-                                                    className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none text-sm font-bold text-gray-900 transition-all"
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Price (₦)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        value={editingProducts[currentEditIndex].price}
-                                                        onChange={e => updateCurrentProduct("price", e.target.value)}
-                                                        placeholder="e.g. 15000"
-                                                        className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none text-sm font-bold text-gray-900 transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Stock</label>
-                                                    <input 
-                                                        type="number" 
-                                                        value={editingProducts[currentEditIndex].stock}
-                                                        onChange={e => updateCurrentProduct("stock", e.target.value)}
-                                                        className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none text-sm font-bold text-gray-900 transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Category</label>
-                                                <select 
-                                                    value={editingProducts[currentEditIndex].category}
-                                                    onChange={e => updateCurrentProduct("category", e.target.value)}
-                                                    className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none text-sm font-bold text-gray-900 transition-all bg-white"
-                                                >
-                                                    <option>Fashion</option>
-                                                    <option>Electronics</option>
-                                                    <option>Home</option>
-                                                    <option>Beauty</option>
-                                                    <option>Gaming</option>
-                                                    <option>Uncategorized</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Description</label>
-                                                <textarea 
-                                                    value={editingProducts[currentEditIndex].description}
-                                                    onChange={e => updateCurrentProduct("description", e.target.value)}
-                                                    className="w-full p-4 rounded-xl border border-gray-200 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none text-sm text-gray-600 transition-all"
-                                                    rows={4}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
+                    {importResult ? (
+                        // Success screen
+                        <div className="flex flex-col items-center justify-center gap-5 p-12 text-center">
+                            <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center">
+                                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-gray-900">{importResult.created} Product{importResult.created !== 1 ? "s" : ""} Imported!</h3>
+                                <p className="text-gray-500 text-sm mt-2 max-w-sm">{importResult.message}</p>
+                            </div>
+                            <Button
+                                onClick={() => { setIsImportOpen(false); setImportResult(null); }}
+                                className="h-12 px-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold"
+                            >
+                                Done
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex h-[520px]">
+                            {/* Sidebar */}
+                            <div className="w-56 bg-white border-r border-gray-100 flex-col hidden md:flex">
+                                <div className="p-4 border-b border-gray-100">
+                                    <h3 className="font-black text-gray-900 text-sm">Import ({editProducts.length})</h3>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">Review each product before publishing</p>
                                 </div>
-                                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-1">
-                                            {editingProducts.map((_, idx) => (
-                                                <div 
-                                                    key={idx} 
-                                                    className={cn("h-2 rounded-full transition-all cursor-pointer", currentEditIndex === idx ? "w-4 bg-pink-500" : "w-2 bg-gray-300")}
-                                                    onClick={() => setCurrentEditIndex(idx)}
-                                                />
-                                            ))}
-                                        </div>
-                                        <p className="text-xs text-gray-500 font-medium hidden sm:block">
-                                            Product {currentEditIndex + 1} of {editingProducts.length}
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
-                                        <Button 
-                                            className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white rounded-xl font-bold px-6 shadow-md"
-                                            onClick={saveProductsToStore}
+                                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                    {editProducts.map((p, idx) => (
+                                        <button
+                                            key={p.igPostId}
+                                            onClick={() => setEditIdx(idx)}
+                                            className={cn(
+                                                "w-full flex items-center gap-2.5 p-2 rounded-xl text-left transition-colors",
+                                                editIdx === idx ? "bg-pink-50 border border-pink-100" : "hover:bg-gray-50 border border-transparent"
+                                            )}
                                         >
-                                            <Package className="h-4 w-4 mr-2" /> Publish {editingProducts.length}
-                                        </Button>
-                                    </div>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={p.imageUrl} alt="" className="h-9 w-9 rounded-lg object-cover bg-gray-100 shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className={cn("text-xs font-bold truncate", editIdx === idx ? "text-pink-700" : "text-gray-700")}>{p.name}</p>
+                                                <p className={cn("text-[10px] font-bold mt-0.5", p.price ? "text-emerald-600" : "text-rose-400")}>
+                                                    {p.price ? `₦${parseInt(p.price).toLocaleString()}` : "⚠ Needs price"}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        )}
-                    </div>
+
+                            {/* Editor */}
+                            {editProducts[editIdx] && (
+                                <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                                    <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                                        <div className="flex gap-5">
+                                            {/* Image */}
+                                            <div className="w-36 h-36 shrink-0 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={editProducts[editIdx].imageUrl} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1 space-y-3">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Product Name</label>
+                                                    <input
+                                                        value={editProducts[editIdx].name}
+                                                        onChange={e => updateProd("name", e.target.value)}
+                                                        className="w-full px-3 h-10 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm font-bold text-gray-900"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Price (₦) <span className="text-rose-400">*</span></label>
+                                                        <input
+                                                            type="number"
+                                                            value={editProducts[editIdx].price}
+                                                            onChange={e => updateProd("price", e.target.value)}
+                                                            placeholder="e.g. 15000"
+                                                            className="w-full px-3 h-10 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm font-bold text-gray-900"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Stock</label>
+                                                        <input
+                                                            type="number"
+                                                            value={editProducts[editIdx].stock}
+                                                            onChange={e => updateProd("stock", e.target.value)}
+                                                            className="w-full px-3 h-10 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm font-bold text-gray-900"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Category</label>
+                                                    <select
+                                                        value={editProducts[editIdx].category}
+                                                        onChange={e => updateProd("category", e.target.value)}
+                                                        className="w-full px-3 h-10 rounded-xl border border-gray-200 focus:border-pink-400 outline-none text-sm font-bold text-gray-900 bg-white"
+                                                    >
+                                                        {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Description</label>
+                                            <textarea
+                                                value={editProducts[editIdx].description}
+                                                onChange={e => updateProd("description", e.target.value)}
+                                                rows={3}
+                                                className="w-full p-3 rounded-xl border border-gray-200 focus:border-pink-400 focus:ring-2 focus:ring-pink-100 outline-none text-sm text-gray-600 resize-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="p-4 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                                        {/* Step dots */}
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex gap-1">
+                                                {editProducts.map((_, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => setEditIdx(i)}
+                                                        className={cn("rounded-full transition-all", editIdx === i ? "w-4 h-2 bg-pink-500" : "w-2 h-2 bg-gray-300 hover:bg-gray-400")}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <span className="text-xs text-gray-500 font-medium hidden sm:block">
+                                                {editIdx + 1} / {editProducts.length}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                className="rounded-xl font-bold text-gray-500"
+                                                onClick={() => setIsImportOpen(false)}
+                                            >
+                                                <X className="h-4 w-4 mr-1" /> Cancel
+                                            </Button>
+                                            <Button
+                                                onClick={handleImport}
+                                                disabled={importing || editProducts.some(p => !p.price)}
+                                                className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white rounded-xl font-bold px-5 shadow-md disabled:opacity-50"
+                                            >
+                                                {importing ? (
+                                                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Publishing…</>
+                                                ) : (
+                                                    <><Package className="h-4 w-4 mr-2" /> Publish {editProducts.length} Product{editProducts.length !== 1 ? "s" : ""}</>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

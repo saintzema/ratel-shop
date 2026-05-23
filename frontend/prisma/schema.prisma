@@ -118,6 +118,10 @@ model Seller {
   whatsappNumber String?
   autoPayoutEnabled Boolean            @default(false)
   whatsappDirectDM  Boolean            @default(false)
+  instagramAccessToken  String?
+  instagramUserId       String?
+  instagramUsername     String?
+  instagramTokenExpiry  DateTime?
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
