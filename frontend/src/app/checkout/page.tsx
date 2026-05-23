@@ -455,9 +455,14 @@ function CheckoutContent() {
     }, [checkoutItems]);
 
     // Identity Reconciliation State
-    const isWhatsAppPlaceholder = user?.email?.startsWith("wa-") && user?.email?.endsWith("@fairprice.ng");
+    // Catch both wa- (legacy) and wa_ (current) placeholder emails
+    const isWhatsAppPlaceholder = (user?.email?.startsWith("wa-") || user?.email?.startsWith("wa_")) && user?.email?.endsWith("@fairprice.ng");
     const [showIdentityPrompt, setShowIdentityPrompt] = useState(false);
     const [identityReconciled, setIdentityReconciled] = useState(false);
+    // Email conflict: null = unchecked, 'none' = safe, 'conflict' = email belongs to another account
+    const [emailConflictStatus, setEmailConflictStatus] = useState<null | 'none' | 'conflict'>(null);
+    // Supplier/proxy-order mode: logged-in user ordering in someone else's name
+    const [orderEmailMode, setOrderEmailMode] = useState<'account' | 'order_only' | 'create_account'>('account');
 
     useEffect(() => {
         if (isWhatsAppPlaceholder && !identityReconciled) {
@@ -496,6 +501,7 @@ function CheckoutContent() {
 
     const handleEmailChange = (value: string) => {
         setAddress({ ...address, email: value });
+        setEmailConflictStatus(null); // reset on change
         const atIdx = value.indexOf("@");
         if (atIdx >= 1) {
             const typed = value.substring(atIdx + 1).toLowerCase();
@@ -997,9 +1003,41 @@ function CheckoutContent() {
             }
         };
 
-        if (isWhatsAppPlaceholder && address.email !== user?.email && !identityReconciled) {
+        if (isWhatsAppPlaceholder && address.email && address.email !== user?.email && !identityReconciled) {
             setIsProcessing(true);
-            // Reconcile Identity
+
+            if (orderEmailMode === 'order_only') {
+                // Don't update account — just use this email for order notifications
+                setIdentityReconciled(true);
+                setShowIdentityPrompt(false);
+                setIsProcessing(false);
+                continueWithOrder();
+                return;
+            }
+
+            if (orderEmailMode === 'create_account') {
+                // Create a new account for this email — don't modify the WA account
+                fetch(`/api/auth/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: address.email,
+                        name: `${address.firstName} ${address.lastName}`.trim(),
+                        role: 'customer',
+                    })
+                }).then(() => {
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
+                    setIsProcessing(false);
+                    continueWithOrder();
+                }).catch(() => {
+                    setIsProcessing(false);
+                    continueWithOrder(); // non-fatal
+                });
+                return;
+            }
+
+            // Default (orderEmailMode === 'account'): link the email to the WA account
             fetch(`/api/users`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1020,9 +1058,12 @@ function CheckoutContent() {
                     setIsProcessing(false);
                     continueWithOrder();
                 } else {
+                    // If update failed (e.g. email conflict race), fall through to order_only
+                    setOrderEmailMode('order_only');
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
                     setIsProcessing(false);
-                    setAddressError("Failed to update profile. Please try again.");
-                    scrollToShippingAddress();
+                    continueWithOrder();
                 }
             }).catch(() => {
                 setIsProcessing(false);
@@ -1648,7 +1689,7 @@ function CheckoutContent() {
                                                 />
                                             </div>
                                         </div>
-                                        {/* Only show email for guest users or placeholder accounts */}
+                                        {/* Email — guest / WA placeholder / supplier (ordering in someone else's name) */}
                                         {(!user || isWhatsAppPlaceholder) && (
                                             <div className="space-y-1 relative">
                                                 <label className="text-xs font-bold uppercase text-gray-400">Email Address <span className="text-red-400">*</span></label>
@@ -1657,10 +1698,25 @@ function CheckoutContent() {
                                                     value={address.email}
                                                     onChange={e => handleEmailChange(e.target.value)}
                                                     onFocus={() => { if (emailSuggestions.length > 0) setShowEmailDropdown(true); }}
-                                                    onBlur={() => setTimeout(() => setShowEmailDropdown(false), 200)}
+                                                    onBlur={async () => {
+                                                        setTimeout(() => setShowEmailDropdown(false), 200);
+                                                        // Only check conflict for WA users entering a real email
+                                                        if (isWhatsAppPlaceholder && address.email && address.email.includes('@') && !address.email.startsWith('wa')) {
+                                                            try {
+                                                                const res = await fetch(`/api/users?email=${encodeURIComponent(address.email)}`);
+                                                                const d = await res.json();
+                                                                if (d.exists && d.userId !== user?.id) {
+                                                                    setEmailConflictStatus('conflict');
+                                                                } else {
+                                                                    setEmailConflictStatus('none');
+                                                                    setOrderEmailMode('account'); // default: link to WA account
+                                                                }
+                                                            } catch { /* ignore */ }
+                                                        }
+                                                    }}
                                                     placeholder="your@email.com"
                                                     autoComplete="off"
-                                                    className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
+                                                    className={`rounded-xl bg-white focus:ring-brand-orange/20 ${emailConflictStatus === 'conflict' ? 'border-amber-400 focus:border-amber-400' : 'border-gray-300 focus:border-brand-orange/50'}`}
                                                 />
                                                 {/* Email domain autocomplete */}
                                                 {showEmailDropdown && emailSuggestions.length > 0 && (
@@ -1683,12 +1739,74 @@ function CheckoutContent() {
                                                         ))}
                                                     </div>
                                                 )}
+
+                                                {/* Email conflict resolution */}
+                                                {emailConflictStatus === 'conflict' && isWhatsAppPlaceholder && (
+                                                    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                                        <p className="text-xs font-bold text-amber-800 mb-2">⚠️ This email is linked to another account. What would you like to do?</p>
+                                                        <div className="space-y-1.5">
+                                                            {[
+                                                                { value: 'order_only', label: '📦 Use for this order only (no account link)', hint: 'Order updates go to this email. Your WhatsApp account stays separate.' },
+                                                                { value: 'create_account', label: '🆕 Create a new account with this email', hint: 'A separate account will be created. Your WhatsApp account & orders stay here.' },
+                                                            ].map(opt => (
+                                                                <label key={opt.value} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer border transition-all ${orderEmailMode === opt.value ? 'border-amber-400 bg-amber-100/60' : 'border-transparent hover:bg-amber-100/30'}`}>
+                                                                    <input type="radio" name="emailMode" value={opt.value} checked={orderEmailMode === opt.value} onChange={() => setOrderEmailMode(opt.value as typeof orderEmailMode)} className="mt-0.5 accent-amber-500" />
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-amber-900">{opt.label}</p>
+                                                                        <p className="text-[10px] text-amber-600">{opt.hint}</p>
+                                                                    </div>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Safe: email is new — offer to link to WA account */}
+                                                {emailConflictStatus === 'none' && isWhatsAppPlaceholder && address.email && (
+                                                    <div className="mt-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                                                        <p className="text-xs font-bold text-emerald-800 mb-1.5">✅ Email is available. How should we use it?</p>
+                                                        <div className="space-y-1.5">
+                                                            {[
+                                                                { value: 'account', label: '🔗 Add to my account (login with email in future)', hint: 'This email becomes a login option for your WhatsApp account.' },
+                                                                { value: 'order_only', label: '📦 This order only', hint: 'Order updates go here. Your account keeps using WhatsApp to login.' },
+                                                            ].map(opt => (
+                                                                <label key={opt.value} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer border transition-all ${orderEmailMode === opt.value ? 'border-emerald-400 bg-emerald-100/60' : 'border-transparent hover:bg-emerald-100/30'}`}>
+                                                                    <input type="radio" name="emailMode" value={opt.value} checked={orderEmailMode === opt.value} onChange={() => setOrderEmailMode(opt.value as typeof orderEmailMode)} className="mt-0.5 accent-emerald-500" />
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-emerald-900">{opt.label}</p>
+                                                                        <p className="text-[10px] text-emerald-600">{opt.hint}</p>
+                                                                    </div>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
-                                        {user && (
-                                            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-sm mb-2">
-                                                <Check className="h-4 w-4 text-green-600" />
-                                                <span className="text-green-700">Order receipt will be sent to <strong>{user.email}</strong></span>
+
+                                        {/* Logged-in (non-WA) user: show account email but allow ordering in another name */}
+                                        {user && !isWhatsAppPlaceholder && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-sm">
+                                                    <Check className="h-4 w-4 text-green-600" />
+                                                    <span className="text-green-700">Receipts → <strong>{user.email}</strong></span>
+                                                </div>
+                                                {/* Supplier mode: ordering in customer's name */}
+                                                {(address.firstName || address.email) && (address.email !== user.email) && (
+                                                    <div className="px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                                                        <p className="font-bold mb-1">🏪 Ordering in a customer's name?</p>
+                                                        <p className="text-blue-600 mb-2">Order updates will also be sent to <strong>{address.email || 'the email you enter'}</strong>.</p>
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={orderEmailMode === 'create_account'}
+                                                                onChange={e => setOrderEmailMode(e.target.checked ? 'create_account' : 'order_only')}
+                                                                className="accent-blue-600"
+                                                            />
+                                                            <span className="font-medium">Create a FairPrice account for that customer email</span>
+                                                        </label>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         <div className="space-y-1">

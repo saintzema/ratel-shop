@@ -107,9 +107,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email");
-    const id = searchParams.get("id");
+    const url = new URL(req.url);
+    const email = url.searchParams.get("email");
+    const id = url.searchParams.get("id");
 
     try {
         if (id) {
@@ -124,11 +124,11 @@ export async function GET(req: Request) {
             return NextResponse.json(user);
         }
         if (email) {
-            const user = await db.user.findUnique({ where: { email } });
+            const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true } });
             if (!user) {
-                return NextResponse.json({ error: "User not found" }, { status: 404 });
+                return NextResponse.json({ exists: false, userId: null });
             }
-            return NextResponse.json(user);
+            return NextResponse.json({ ...user, exists: true, userId: user.id });
         }
         const users = await db.user.findMany();
         return NextResponse.json(users);

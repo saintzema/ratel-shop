@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useId } from "react";
 import {
     X, Plus, Trash2, PenLine, RefreshCw, CheckCircle2,
-    Download, ImagePlus, Building2, ChevronDown, ChevronUp
+    Download, ImagePlus, Building2, ChevronDown, ChevronUp,
+    Eye, EyeOff, Copy, Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -256,6 +257,7 @@ export function BoardResolutionGenerator({ productName, loanAmount, tenureMonths
         resolvedAt: new Date().toISOString(),
     });
     const [showPreview, setShowPreview] = useState(false);
+    const [bvnVisible, setBvnVisible] = useState<Record<number, boolean>>({});
     const logoInputRef = useRef<HTMLInputElement>(null);
 
     const updateDirector = (idx: number, patch: Partial<Director>) => {
@@ -452,16 +454,26 @@ export function BoardResolutionGenerator({ productName, loanAmount, tenureMonths
                                             </div>
                                             <div className="col-span-2">
                                                 <label className="block text-[10px] font-bold text-gray-500 mb-1">
-                                                    BVN <span className="text-gray-400 font-normal">(optional — stored securely, not printed on document)</span>
+                                                    BVN <span className="text-gray-400 font-normal">(optional — stored securely, never printed)</span>
                                                 </label>
-                                                <input
-                                                    type="text"
-                                                    value={d.bvn}
-                                                    onChange={e => updateDirector(idx, { bvn: e.target.value })}
-                                                    placeholder="22xxxxxxxxx"
-                                                    maxLength={11}
-                                                    className="w-full h-9 px-3 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type={bvnVisible[idx] ? "text" : "password"}
+                                                        value={d.bvn}
+                                                        onChange={e => updateDirector(idx, { bvn: e.target.value })}
+                                                        placeholder="22xxxxxxxxx"
+                                                        maxLength={11}
+                                                        className="w-full h-9 pl-3 pr-8 rounded-xl border border-gray-200 text-xs font-medium focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setBvnVisible(p => ({ ...p, [idx]: !p[idx] }))}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                        tabIndex={-1}
+                                                    >
+                                                        {bvnVisible[idx] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 

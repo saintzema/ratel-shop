@@ -1,17 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-    MessageSquare, 
-    RefreshCcw, 
-    Search, 
-    User, 
-    Clock, 
-    Send, 
+import {
+    MessageSquare,
+    RefreshCcw,
+    Search,
+    User,
+    Clock,
+    Send,
     Inbox,
     ShieldCheck,
     AlertCircle,
-    Bot
+    Bot,
+    Upload,
+    Users,
+    CheckCircle2,
+    XCircle,
+    Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,10 +34,36 @@ interface Interaction {
 }
 
 export default function AdminWhatsAppLogs() {
+    const [activeTab, setActiveTab] = useState<'monitor' | 'import'>('monitor');
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [filter, setFilter] = useState("");
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+    // ── Bulk import state ──
+    const [importText, setImportText] = useState("");
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: number; total: number } | null>(null);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+    const authHeaders = () => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) });
+
+    const handleBulkImport = async () => {
+        const lines = importText.split(/[\n,;]+/).map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return;
+        setImporting(true);
+        setImportResult(null);
+        try {
+            const res = await fetch('/api/admin/whatsapp/bulk-import', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ numbers: lines, source: 'admin_bulk_import' }),
+            });
+            const d = await res.json();
+            if (d.success) setImportResult(d.summary);
+        } catch (e) { console.error(e); }
+        setImporting(false);
+    };
 
     const fetchInteractions = async () => {
         setIsLoading(true);
@@ -70,10 +101,10 @@ export default function AdminWhatsAppLogs() {
                         <div className="h-10 w-10 bg-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
                             <MessageSquare className="text-white h-6 w-6" />
                         </div>
-                        WhatsApp Live Monitor
+                        WhatsApp
                     </h1>
                     <p className="text-gray-500 font-medium mt-1">
-                        Real-time feed of all customer-bot interactions and automated negotiations.
+                        Live interactions, broadcasts and user imports.
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -93,6 +124,82 @@ export default function AdminWhatsAppLogs() {
                 </div>
             </div>
 
+            {/* Tab switcher */}
+            <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl w-fit">
+                {[{ key: 'monitor', label: 'Live Monitor', icon: MessageSquare }, { key: 'import', label: 'Bulk Import', icon: Users }].map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${activeTab === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <tab.icon className="h-3.5 w-3.5" /> {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Bulk Import Panel */}
+            {activeTab === 'import' && (
+                <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-8 max-w-2xl">
+                    <h2 className="text-xl font-black text-gray-900 mb-1">Bulk Import WhatsApp Numbers</h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Paste phone numbers (one per line, or comma/semicolon separated). Nigerian numbers with 0 or 234 prefix are both supported.
+                        Existing users are skipped automatically.
+                    </p>
+
+                    <textarea
+                        value={importText}
+                        onChange={e => setImportText(e.target.value)}
+                        placeholder={"08012345678\n2348023456789\n0803 456 7890\n..."}
+                        rows={12}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-xs font-mono text-gray-800 placeholder-gray-300 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 resize-y"
+                    />
+
+                    <div className="flex items-center gap-3 mt-4">
+                        <Button
+                            onClick={handleBulkImport}
+                            disabled={importing || !importText.trim()}
+                            className="h-10 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold px-6 gap-2 disabled:opacity-50"
+                        >
+                            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            {importing ? 'Importing…' : 'Import Numbers'}
+                        </Button>
+                        {importText && (
+                            <span className="text-xs text-gray-400">
+                                ~{importText.split(/[\n,;]+/).filter(l => l.trim()).length} numbers detected
+                            </span>
+                        )}
+                    </div>
+
+                    {importResult && (
+                        <div className="mt-5 p-4 rounded-2xl bg-gray-50 border border-gray-100 space-y-2">
+                            <p className="text-xs font-black text-gray-600 uppercase tracking-widest mb-3">Import Result</p>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
+                                    <p className="text-xl font-black text-emerald-700">{importResult.created}</p>
+                                    <p className="text-[10px] font-bold text-emerald-500">Created</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-center">
+                                    <Users className="h-5 w-5 text-amber-500 mx-auto mb-1" />
+                                    <p className="text-xl font-black text-amber-700">{importResult.skipped}</p>
+                                    <p className="text-[10px] font-bold text-amber-500">Already Exist</p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 text-center">
+                                    <XCircle className="h-5 w-5 text-rose-400 mx-auto mb-1" />
+                                    <p className="text-xl font-black text-rose-600">{importResult.errors}</p>
+                                    <p className="text-[10px] font-bold text-rose-400">Errors</p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-gray-500 text-center pt-1">
+                                {importResult.created} new users imported out of {importResult.total} numbers submitted.
+                                {importResult.created > 0 && ' They can now log in via WhatsApp or set a password on first visit.'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'monitor' && <>
             {/* Dashboard Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm">
@@ -225,6 +332,7 @@ export default function AdminWhatsAppLogs() {
                     </p>
                 </div>
             </div>
+            </>}
         </div>
     );
 }

@@ -123,7 +123,11 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
             });
             const data = await res.json();
             if (data.success) {
-                router.push(`/financing/success/${data.applicationId}`);
+                // Store type so success page can show correct upsell
+                if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('fp_fin_type', flowData.applicantType || '');
+                }
+                router.push(`/financing/success/${data.applicationId}?type=${encodeURIComponent(flowData.applicantType || '')}`);
             } else {
                 alert(data.error || "Application failed. Please try again.");
             }

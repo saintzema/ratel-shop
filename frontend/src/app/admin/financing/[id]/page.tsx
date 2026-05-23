@@ -6,7 +6,7 @@ import {
     ArrowLeft, Building2, User, FileText, CheckCircle2, Clock,
     XCircle, MessageSquare, Download, Send, Loader2, RefreshCw,
     BadgeCheck, AlertTriangle, ChevronDown, PenLine, Phone, Mail,
-    Shield, CreditCard, Calendar, Package
+    Shield, CreditCard, Calendar, Package, Eye, EyeOff, Copy, Check as CheckIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -132,6 +132,16 @@ export default function AdminFinancingDetailPage() {
     const [sentOk, setSentOk] = useState(false);
     const [adminNotesDraft, setAdminNotesDraft] = useState("");
     const [savingNotes, setSavingNotes] = useState(false);
+    const [bvnVisible, setBvnVisible] = useState<Record<number, boolean>>({});
+    const [bvnCopied, setBvnCopied] = useState<Record<number, boolean>>({});
+
+    const revealBvn = (idx: number) => setBvnVisible(p => ({ ...p, [idx]: !p[idx] }));
+    const copyBvn = (idx: number, bvn: string) => {
+        navigator.clipboard.writeText(bvn).then(() => {
+            setBvnCopied(p => ({ ...p, [idx]: true }));
+            setTimeout(() => setBvnCopied(p => ({ ...p, [idx]: false })), 2000);
+        });
+    };
     const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
 
     const authHeaders = () => ({
@@ -302,7 +312,30 @@ export default function AdminFinancingDetailPage() {
                                                 <p className="text-sm font-black text-gray-900">{d.name}</p>
                                                 <p className="text-[10px] font-bold text-gray-500 mt-0.5">{d.title}</p>
                                                 <p className="text-[10px] text-gray-400 mt-1">{d.idType}: <span className="font-mono">{d.idNumber}</span></p>
-                                                {d.bvn && <p className="text-[10px] text-gray-400">BVN: <span className="font-mono">{'*'.repeat(7) + d.bvn.slice(-4)}</span></p>}
+                                                {d.bvn && (
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <span className="text-[10px] text-gray-400">BVN:</span>
+                                                        <span className="text-[10px] font-mono text-gray-700 tracking-wider select-all">
+                                                            {bvnVisible[i] ? d.bvn : ('•'.repeat(7) + d.bvn.slice(-4))}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => revealBvn(i)}
+                                                            className="p-0.5 rounded text-gray-400 hover:text-indigo-600 transition-colors"
+                                                            title={bvnVisible[i] ? 'Hide' : 'Reveal BVN'}
+                                                        >
+                                                            {bvnVisible[i] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                                        </button>
+                                                        {bvnVisible[i] && (
+                                                            <button
+                                                                onClick={() => copyBvn(i, d.bvn)}
+                                                                className="p-0.5 rounded text-gray-400 hover:text-emerald-600 transition-colors"
+                                                                title="Copy BVN"
+                                                            >
+                                                                {bvnCopied[i] ? <CheckIcon className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                             {d.signatureDataUrl && (
                                                 <div className="text-right">

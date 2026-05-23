@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, Upload, ChevronRight, ArrowLeft, ShieldCheck, Clock, Download } from "lucide-react";
+import { CheckCircle2, FileText, Upload, ChevronRight, ArrowLeft, ShieldCheck, Clock, Download, Store, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 export default function FinancingSuccessPage() {
     const { id } = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const applicationType = searchParams.get('type') || (typeof window !== 'undefined' ? sessionStorage.getItem('fp_fin_type') : null);
+    const isBusinessOwner = applicationType === 'business_owner' || applicationType === 'business';
     const [uploading, setUploading] = useState<string | null>(null);
     const [completedDocs, setCompletedDocs] = useState<string[]>(["technicalForm"]);
 
@@ -95,12 +98,39 @@ export default function FinancingSuccessPage() {
                         ))}
                     </div>
 
+                    {/* Seller upsell — business owners only */}
+                    {isBusinessOwner && (
+                        <div className="mt-8 p-6 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 h-24 w-24 bg-indigo-400/10 blur-2xl rounded-full" />
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                                        <Store className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-indigo-900">Turn your business into a FairPrice seller</p>
+                                        <p className="text-[10px] text-indigo-600 font-medium">Reach thousands of customers across Nigeria</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-indigo-700 mb-4 leading-relaxed">
+                                    You're already a business owner — list your products on FairPrice and start earning while your financing is being processed. Setup takes under 5 minutes.
+                                </p>
+                                <Link href="/seller/onboard">
+                                    <Button className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-100 flex items-center gap-2">
+                                        <Store className="h-4 w-4" /> Become a Seller on FairPrice
+                                        <ArrowRight className="h-3.5 w-3.5 ml-auto" />
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="mt-10 pt-8 border-t border-gray-100 flex flex-col gap-4">
-                        <Button 
+                        <Button
                             className="w-full h-14 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg shadow-xl shadow-gray-200"
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/account')}
                         >
-                            Go to My Dashboard
+                            Go to My Account
                         </Button>
                         <Link href="/" className="text-center text-sm font-bold text-gray-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
                             <ArrowLeft className="h-4 w-4" /> Back to Marketplace
