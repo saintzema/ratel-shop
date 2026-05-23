@@ -28,62 +28,18 @@ export default function AdminFinancingDashboard() {
     const [filterStatus, setFilterStatus] = useState("all");
 
     useEffect(() => {
-        // Simulated fetch - In a real app, this calls /api/admin/financing
-        const mockData = [
-            {
-                id: "fin_1",
-                customerName: "Jessica Taylor",
-                businessName: "JT Fashion Hub",
-                type: "business",
-                loanAmount: 1500000,
-                tenureMonths: 12,
-                status: "pending",
-                createdAt: new Date().toISOString(),
-                phoneNumber: "+234 801 234 5678",
-                documents: {
-                    cac: true,
-                    bankStatement: true,
-                    financials: false
-                }
-            },
-            {
-                id: "fin_2",
-                customerName: "David O.",
-                type: "individual",
-                loanAmount: 495000,
-                tenureMonths: 6,
-                status: "under_review",
-                createdAt: new Date(Date.now() - 86400000).toISOString(),
-                phoneNumber: "+234 902 333 4444",
-                documents: {
-                    bankStatement: true,
-                    idCard: true
-                }
-            },
-            {
-                id: "fin_3",
-                customerName: "Solar Solutions Ltd",
-                businessName: "Solar Solutions Ltd",
-                type: "business",
-                loanAmount: 20000000,
-                tenureMonths: 24,
-                status: "approved",
-                createdAt: new Date(Date.now() - 172800000).toISOString(),
-                phoneNumber: "+234 810 555 6666",
-                documents: {
-                    cac: true,
-                    bankStatement: true,
-                    financials: true,
-                    energyAudit: true
-                }
+        const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+        fetch(`/api/admin/financing?status=${filterStatus}&q=${encodeURIComponent(searchTerm)}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
             }
-        ];
-
-        setTimeout(() => {
-            setApplications(mockData);
-            setLoading(false);
-        }, 800);
-    }, []);
+        })
+            .then(r => r.json())
+            .then(d => { if (d.success) setApplications(d.applications || []); })
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, [filterStatus]);
 
     const filtered = applications.filter(app => {
         const matchesSearch = app.customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 

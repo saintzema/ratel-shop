@@ -8,6 +8,7 @@ import { ShieldCheck, CheckCircle2, ArrowLeft } from "lucide-react";
 import { Step1ApplicantType, type ApplicantType } from "./Step1-ApplicantType";
 import { Step2ContractSelection, type ContractSelection } from "./Step2-ContractSelection";
 import { Step3DocumentUpload, type DocumentUploads, type SignatureData } from "./Step3-DocumentUpload";
+import type { BoardResolutionData } from "./BoardResolutionGenerator";
 import { Step4Review } from "./Step4-Review";
 
 export interface FinancingFlowProps {
@@ -30,6 +31,7 @@ export interface FlowData {
     contract: ContractSelection | null;
     documents: DocumentUploads;
     signature: SignatureData;
+    boardResolution?: BoardResolutionData;
 }
 
 const STEPS = ["Applicant", "Contract", "Documents", "Review"];
@@ -80,8 +82,8 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
         setStep(3);
     }, [flowData]);
 
-    const handleStep3 = useCallback((documents: DocumentUploads, signature: SignatureData) => {
-        const updated = { ...flowData, documents, signature };
+    const handleStep3 = useCallback((documents: DocumentUploads, signature: SignatureData, boardResolution?: BoardResolutionData) => {
+        const updated = { ...flowData, documents, signature, boardResolution };
         setFlowData(updated);
         saveProgress(updated, 4);
         setStep(4);
@@ -101,6 +103,7 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: product.id,
+                    productName: product.name,
                     type: flowData.applicantType === 'salary_earner' ? 'individual' : 'business',
                     applicationType: flowData.applicantType,
                     contractType: flowData.contract.contractType,
@@ -109,6 +112,12 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
                     monthlyRepayment: flowData.contract.monthlyPayment,
                     depositAmount: flowData.contract.depositAmount,
                     interestRate: flowData.contract.interestRate,
+                    signatureDataUrl: flowData.signature,
+                    // Business owner extras
+                    companyName: flowData.boardResolution?.companyName,
+                    companyRegistrationNumber: flowData.boardResolution?.registrationNumber,
+                    companyLogoBase64: flowData.boardResolution?.companyLogoBase64,
+                    directorsJson: flowData.boardResolution?.directors ? JSON.stringify(flowData.boardResolution.directors) : undefined,
                     source: 'web',
                 }),
             });
@@ -142,6 +151,9 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
                     <Step3DocumentUpload
                         applicantType={flowData.applicantType!}
                         initialDocuments={flowData.documents}
+                        productName={product.name}
+                        loanAmount={product.price}
+                        tenureMonths={flowData.contract?.tenure ?? 12}
                         onNext={handleStep3}
                         onBack={() => setStep(2)}
                         onSaveProgress={handleSaveProgress}

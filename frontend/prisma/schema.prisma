@@ -699,6 +699,15 @@ model FinancingApplication {
   depositAmount     Float           @default(0)
   payslipsUrl       String[]
 
+  // Applicant signature (base64 PNG data-URL)
+  signatureDataUrl  String?
+
+  // Business owner — company & directors
+  companyRegistrationNumber String?
+  companyLogoBase64 String?         // base64 logo for board resolution letterhead
+  directorsJson     String?         // JSON array of {name,title,idNumber,bvn?,signatureDataUrl?}
+  boardResolutionDataUrl String?    // Final generated board resolution as base64 image
+
   // Metadata
   source            String          @default("whatsapp") // whatsapp, web, app
   adminNotes        String?

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { CheckCircle2, UploadCloud, Loader2, Save, Files, Download, PenLine, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, UploadCloud, Loader2, Save, Files, Download, PenLine, RefreshCw, X, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ApplicantType } from "./Step1-ApplicantType";
+import { BoardResolutionGenerator, type BoardResolutionData } from "./BoardResolutionGenerator";
 
 // A doc value can be a single File, an array of Files, or null
 export type DocValue = File | File[] | null;
@@ -279,20 +280,27 @@ function SignatureCanvas({ onSave, onClear, existingSignature }: SignatureCanvas
 interface Props {
     applicantType: ApplicantType;
     initialDocuments: DocumentUploads;
-    onNext: (documents: DocumentUploads, signature: SignatureData) => void;
+    productName?: string;
+    loanAmount?: number;
+    tenureMonths?: number;
+    onNext: (documents: DocumentUploads, signature: SignatureData, boardResolution?: BoardResolutionData) => void;
     onBack: () => void;
     onSaveProgress: (documents: DocumentUploads) => Promise<void>;
 }
 
-export function Step3DocumentUpload({ applicantType, initialDocuments, onNext, onBack, onSaveProgress }: Props) {
+export function Step3DocumentUpload({ applicantType, initialDocuments, productName = "Product", loanAmount = 0, tenureMonths = 12, onNext, onBack, onSaveProgress }: Props) {
     const [documents, setDocuments] = useState<DocumentUploads>(initialDocuments);
     const [signature, setSignature] = useState<SignatureData>(null);
+    const [boardResolution, setBoardResolution] = useState<BoardResolutionData | null>(null);
+    const [showBoardResolutionGenerator, setShowBoardResolutionGenerator] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [savedAt, setSavedAt] = useState<Date | null>(null);
 
     const requiredDocs = applicantType === 'salary_earner' ? SALARY_DOCS : BUSINESS_DOCS;
     const uploadedCount = requiredDocs.filter(d => fileCount(documents[d.key]) > 0).length;
-    const allUploaded = uploadedCount === requiredDocs.length && !!signature;
+    const boardResolutionRequired = applicantType === 'business_owner';
+    const boardResolutionDone = !boardResolutionRequired || !!boardResolution;
+    const allUploaded = uploadedCount === requiredDocs.length && !!signature && boardResolutionDone;
 
     const altbankForm = ALTBANK_FORMS[applicantType];
 
@@ -313,6 +321,17 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, onNext, o
     };
 
     return (
+        <>
+        {showBoardResolutionGenerator && (
+            <BoardResolutionGenerator
+                productName={productName}
+                loanAmount={loanAmount}
+                tenureMonths={tenureMonths}
+                initialData={boardResolution ?? undefined}
+                onSave={(res) => { setBoardResolution(res); setShowBoardResolutionGenerator(false); }}
+                onClose={() => setShowBoardResolutionGenerator(false)}
+            />
+        )}
         <div className="flex flex-col h-full">
             <div className="mb-4">
                 <h2 className="text-xl font-black text-gray-900 tracking-tight">Upload Documents</h2>
@@ -400,7 +419,39 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, onNext, o
                     );
                 })}
 
-                {/* Signature section */}
+                {/* Board Resolution — business owners only */}
+                {boardResolutionRequired && (
+                    <div className={`rounded-xl border p-3 ${boardResolution ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-100 bg-amber-50/30'}`}>
+                        <div className="flex items-start gap-3">
+                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${boardResolution ? 'bg-emerald-500' : 'bg-amber-100'}`}>
+                                {boardResolution
+                                    ? <CheckCircle2 className="h-4 w-4 text-white" />
+                                    : <FileSignature className="h-4 w-4 text-amber-500" />
+                                }
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-xs font-bold ${boardResolution ? 'text-emerald-700' : 'text-amber-800'}`}>
+                                    Board Resolution
+                                </p>
+                                {boardResolution ? (
+                                    <p className="text-[10px] text-emerald-600 mt-0.5">
+                                        {boardResolution.companyName} · {boardResolution.directors.length} director{boardResolution.directors.length !== 1 ? 's' : ''} signed
+                                    </p>
+                                ) : (
+                                    <p className="text-[10px] text-amber-600 mt-0.5">Required for business applications — auto-generated</p>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setShowBoardResolutionGenerator(true)}
+                                className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${boardResolution ? 'border-emerald-300 text-emerald-600 hover:bg-emerald-100' : 'border-amber-300 text-amber-700 hover:bg-amber-100'}`}
+                            >
+                                {boardResolution ? 'Edit' : 'Generate'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Applicant signature */}
                 <div className="rounded-xl border border-gray-100 bg-white p-3">
                     <p className="text-xs font-black text-gray-800 mb-0.5">Applicant Signature</p>
                     <p className="text-[10px] text-gray-400 mb-1">Sign below — this will be attached to your application</p>
@@ -440,7 +491,7 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, onNext, o
 
             <div className="mt-3">
                 <Button
-                    onClick={() => onNext(documents, signature)}
+                    onClick={() => onNext(documents, signature, boardResolution ?? undefined)}
                     disabled={!allUploaded}
                     className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-100 disabled:opacity-50"
                 >
@@ -448,10 +499,14 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, onNext, o
                 </Button>
                 {!allUploaded && (
                     <p className="text-center text-[10px] text-gray-400 mt-1.5">
-                        Upload all {requiredDocs.length} documents {!signature ? '& add your signature' : ''} to continue
+                        {uploadedCount < requiredDocs.length && `Upload all ${requiredDocs.length} documents`}
+                        {uploadedCount >= requiredDocs.length && !boardResolutionDone && 'Generate your board resolution'}
+                        {uploadedCount >= requiredDocs.length && boardResolutionDone && !signature && 'Add your signature'}
+                        {' '}to continue
                     </p>
                 )}
             </div>
         </div>
+        </>
     );
 }
