@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "prisma generate && prisma db push --skip-generate && next build",
+    "build": "prisma generate && prisma db push && next build",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:normalize-phones": "tsx scripts/normalize_phones.ts",

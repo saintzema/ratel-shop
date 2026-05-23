@@ -48,19 +48,25 @@ export default function AdminWhatsAppLogs() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
     const authHeaders = () => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) });
 
+    // Extract Nigerian phone numbers from raw text (same regex as the API)
+    const detectNumbers = (text: string): number => {
+        const regex = /(?:\+?234|0)[7-9][01]\d{8}/g;
+        return (text.replace(/[\s\-]/g, '').match(regex) || []).length;
+    };
+
     const handleBulkImport = async () => {
-        const lines = importText.split(/[\n,;]+/).map(l => l.trim()).filter(Boolean);
-        if (!lines.length) return;
+        if (!importText.trim()) return;
         setImporting(true);
         setImportResult(null);
         try {
             const res = await fetch('/api/admin/whatsapp/bulk-import', {
                 method: 'POST',
                 headers: authHeaders(),
-                body: JSON.stringify({ numbers: lines, source: 'admin_bulk_import' }),
+                body: JSON.stringify({ rawText: importText }),
             });
             const d = await res.json();
             if (d.success) setImportResult(d.summary);
+            else alert(d.error || 'Import failed');
         } catch (e) { console.error(e); }
         setImporting(false);
     };
@@ -142,14 +148,15 @@ export default function AdminWhatsAppLogs() {
                 <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-8 max-w-2xl">
                     <h2 className="text-xl font-black text-gray-900 mb-1">Bulk Import WhatsApp Numbers</h2>
                     <p className="text-sm text-gray-500 mb-6">
-                        Paste phone numbers (one per line, or comma/semicolon separated). Nigerian numbers with 0 or 234 prefix are both supported.
-                        Existing users are skipped automatically.
+                        Paste <strong>anything</strong> — clean numbers, raw WhatsApp chat exports, contact lists, or mixed text.
+                        The system automatically extracts all Nigerian numbers (08xx, 07xx, 09xx, +234, 234 formats).
+                        Numbers already in the system are skipped automatically.
                     </p>
 
                     <textarea
                         value={importText}
                         onChange={e => setImportText(e.target.value)}
-                        placeholder={"08012345678\n2348023456789\n0803 456 7890\n..."}
+                        placeholder={"Paste anything here — raw WhatsApp chat, contact list, or just numbers:\n\n08032931803\n+2347060497527\n[12/05/2024, 09:14:22] Emeka Obi: Hello I want to buy...\n0803 456 7890\n..."}
                         rows={12}
                         className="w-full px-4 py-3 rounded-xl border border-gray-200 text-xs font-mono text-gray-800 placeholder-gray-300 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 resize-y"
                     />
@@ -165,7 +172,7 @@ export default function AdminWhatsAppLogs() {
                         </Button>
                         {importText && (
                             <span className="text-xs text-gray-400">
-                                ~{importText.split(/[\n,;]+/).filter(l => l.trim()).length} numbers detected
+                                {detectNumbers(importText)} Nigerian numbers detected
                             </span>
                         )}
                     </div>
