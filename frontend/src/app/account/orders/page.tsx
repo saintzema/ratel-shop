@@ -402,6 +402,12 @@ function OrdersContent() {
                                                                 <span className="text-[10px] text-gray-400">• {order.carrier || "Track"}: {order.tracking_id}</span>
                                                             )}
                                                         </div>
+                                                        {order.status_note && (
+                                                            <div className="mt-1 flex items-start gap-1.5 px-2 py-1 bg-amber-50 border border-amber-100 rounded-md max-w-sm">
+                                                                <span className="text-amber-500 text-[10px] mt-0.5 shrink-0">📋</span>
+                                                                <span className="text-[11px] text-amber-800 leading-snug">{order.status_note}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <span className="text-xs text-gray-500 whitespace-nowrap">
@@ -778,6 +784,17 @@ function OrdersContent() {
                                     <p className="text-[11px] font-medium text-brand-green-600 mt-1">{selectedOrderForTracking.customer_phone || selectedOrderForTracking.customer_whatsapp || user?.phone || 'No phone attached'}</p>
                                 </div>
                             </div>
+
+                            {/* Seller Status Note */}
+                            {selectedOrderForTracking.status_note && (
+                                <div className="mx-5 my-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex gap-2">
+                                    <span className="text-amber-500 text-sm shrink-0">📋</span>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Seller Update</p>
+                                        <p className="text-xs text-amber-800 leading-snug">{selectedOrderForTracking.status_note}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Tracking Steps */}
                             <div className="px-5 py-4 space-y-4 max-h-[40vh] overflow-y-auto">

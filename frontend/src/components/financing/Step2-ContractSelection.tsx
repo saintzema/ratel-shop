@@ -69,7 +69,11 @@ export function Step2ContractSelection({ product, applicantType, initialContract
         monthlyPayment = Math.round((funded * (1 + flatRate)) / tenure);
     }
 
-    const tenureList = isCar ? [12, 24, 36, 48] : (TENURE_OPTIONS[contractType] as number[]);
+    // Short-term is always 6 or 12 months regardless of product type.
+    // Long-term cars get an extended tenure range.
+    const tenureList = contractType === 'short_term'
+        ? TENURE_OPTIONS.short_term
+        : (isCar ? [12, 24, 36, 48] : TENURE_OPTIONS.long_term);
 
     const handleNext = () => {
         onNext({
@@ -96,8 +100,10 @@ export function Step2ContractSelection({ product, applicantType, initialContract
                         key={opt.value}
                         onClick={() => {
                             setContractType(opt.value);
-                            // Reset tenure to valid value for new contract
-                            const validTenures = isCar ? [12, 24, 36, 48] : TENURE_OPTIONS[opt.value];
+                            // Snap tenure to the first valid option for the new contract type
+                            const validTenures = opt.value === 'short_term'
+                                ? TENURE_OPTIONS.short_term
+                                : (isCar ? [12, 24, 36, 48] : TENURE_OPTIONS.long_term);
                             if (!validTenures.includes(tenure)) setTenure(validTenures[0]);
                         }}
                         className={`p-4 rounded-2xl border-2 transition-all text-left ${contractType === opt.value ? 'border-indigo-600 bg-indigo-50/50' : 'border-gray-100 hover:border-gray-200'}`}

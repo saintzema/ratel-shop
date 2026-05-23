@@ -22,21 +22,22 @@ export async function POST(req: NextRequest) {
             applicationId,
         } = body;
 
-        // Serialize document metadata only (not the actual File objects, which can't cross the wire)
+        // Serialize document metadata only (File objects can't cross the wire).
+        // Handles both single File and File[] (e.g. CAC Form 1 & 2).
+        const serializeDoc = (v: unknown) => {
+            if (!v) return null;
+            if (Array.isArray(v)) {
+                return v.map(f => ({ name: (f as any).name as string, size: (f as any).size as number ?? 0 }));
+            }
+            if (typeof v === 'object' && 'name' in v) {
+                return { name: (v as any).name as string, size: (v as any).size as number ?? 0 };
+            }
+            return null;
+        };
         const documentsJson = body.documents
-            ? JSON.stringify(
-                Object.fromEntries(
-                    Object.entries(body.documents as Record<string, unknown>).map(([k, v]) => [
-                        k,
-                        v && typeof v === 'object' && 'name' in v
-                            ? {
-                                name: (v as Record<string, unknown>)['name'] as string,
-                                size: (v as Record<string, unknown>)['size'] as number ?? 0,
-                              }
-                            : null,
-                    ])
-                )
-            )
+            ? JSON.stringify(Object.fromEntries(
+                Object.entries(body.documents as Record<string, unknown>).map(([k, v]) => [k, serializeDoc(v)])
+            ))
             : null;
 
         const upsertData = {

@@ -29,7 +29,9 @@ import {
     XCircle,
     Car,
     Banknote,
-    CreditCard
+    CreditCard,
+    MessageSquarePlus,
+    Loader2
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -51,6 +53,9 @@ export default function SellerOrders() {
     const [shipLocation, setShipLocation] = useState("Lagos Warehouse");
     const [shipArrivalDate, setShipArrivalDate] = useState("");
     const [warehouses, setWarehouses] = useState<{name: string, address: string}[]>([]);
+    // Per-order status note drafts (keyed by order id)
+    const [statusNotes, setStatusNotes] = useState<Record<string, string>>({});
+    const [sendingNote, setSendingNote] = useState<string | null>(null);
 
     const searchParams = useSearchParams();
 
@@ -165,6 +170,44 @@ export default function SellerOrders() {
         // Reload to show pending layout
         if (seller.id) {
             setOrders(DataSyncService.getOrders().filter(o => o.seller_id === seller.id));
+        }
+    };
+
+    const handleSendStatusNote = async (order: Order) => {
+        const note = (statusNotes[order.id] || '').trim();
+        if (!note) return;
+        setSendingNote(order.id);
+        try {
+            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+            await fetch('/api/orders', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ id: order.id, status_note: note }),
+            });
+            // Notify buyer
+            DataSyncService.addNotification({
+                userId: order.customer_id,
+                type: 'order',
+                message: `📋 Update on your order "${order.product?.name}": ${note}`,
+                link: '/account/orders',
+            });
+            // Notify admin
+            DataSyncService.addNotification({
+                userId: 'admin',
+                type: 'order',
+                message: `📋 Seller note on order ${order.id}: ${note}`,
+                link: '/admin/orders',
+            });
+            // Clear the draft and update local orders list
+            setStatusNotes(prev => ({ ...prev, [order.id]: '' }));
+            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status_note: note } : o));
+        } catch {
+            alert('Failed to send update. Please try again.');
+        } finally {
+            setSendingNote(null);
         }
     };
 
@@ -852,6 +895,40 @@ export default function SellerOrders() {
                                                             </div>
                                                         </div>
                                                     )}
+                                                </div>
+                                            </div>
+
+                                            {/* Seller Status Note — visible to buyer and admin */}
+                                            <div className="mt-4 pt-4 border-t border-gray-100">
+                                                <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                    <MessageSquarePlus className="h-3 w-3" /> Send Order Update to Buyer
+                                                </h5>
+                                                {/* Show existing note if set */}
+                                                {order.status_note && (
+                                                    <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                                                        <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Current Update</p>
+                                                        <p className="text-xs text-amber-800">{order.status_note}</p>
+                                                    </div>
+                                                )}
+                                                <div className="flex gap-2">
+                                                    <textarea
+                                                        rows={2}
+                                                        placeholder='e.g. "Item held in customs — expected clearance in 3 days"'
+                                                        value={statusNotes[order.id] || ''}
+                                                        onChange={e => setStatusNotes(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                        className="flex-1 text-xs rounded-lg border border-gray-200 px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 placeholder:text-gray-300"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={!statusNotes[order.id]?.trim() || sendingNote === order.id}
+                                                        onClick={() => handleSendStatusNote(order)}
+                                                        className="self-end bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold h-9 px-3 shrink-0"
+                                                    >
+                                                        {sendingNote === order.id
+                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                            : <span className="flex items-center gap-1"><MessageSquarePlus className="h-3 w-3" />Send</span>
+                                                        }
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </div>

@@ -652,6 +652,12 @@ class DataSyncServiceService {
                         seller_name: dbOrder.sellerName || dbOrder.seller_name,
                         payout_status: dbOrder.payoutStatus || dbOrder.payout_status || 'none',
                         is_direct_payment: dbOrder.isDirectPayment || dbOrder.is_direct_payment || false,
+                        status_note: dbOrder.statusNote || dbOrder.status_note || undefined,
+                        tracking_id: dbOrder.trackingId || dbOrder.tracking_id || undefined,
+                        carrier: dbOrder.carrier || undefined,
+                        tracking_steps: dbOrder.trackingSteps || dbOrder.tracking_steps || undefined,
+                        tracking_status: dbOrder.trackingStatus || dbOrder.tracking_status || undefined,
+                        quantity: dbOrder.quantity || 1,
                         product: dbOrder.product ? {
                             id: dbOrder.product.id,
                             name: dbOrder.product.name,

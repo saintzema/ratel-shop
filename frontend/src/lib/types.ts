@@ -185,6 +185,7 @@ export interface Order {
     source?: string;
     seller_name?: string;
     discount_id?: string;
+    status_note?: string;  // Seller-added note visible to buyer & admin (e.g. "held in customs")
     // Vehicle Loan Financing details (set when isVehicle is true)
     financing?: {
         is_vehicle_loan: boolean;

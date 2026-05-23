@@ -55,7 +55,12 @@ export async function GET(request: Request) {
                     }
                 },
                 chatMessages: true,
-                zivaActive: true
+                zivaActive: true,
+                statusNote: true,
+                trackingId: true,
+                carrier: true,
+                trackingSteps: true,
+                trackingStatus: true
             },
             orderBy: {
                 createdAt: 'desc',
@@ -313,6 +318,8 @@ export async function PATCH(request: Request) {
         if (updates.tracking_id) prismaUpdates.trackingId = updates.tracking_id;
         if (updates.carrier) prismaUpdates.carrier = updates.carrier;
         if (updates.tracking_steps) prismaUpdates.trackingSteps = updates.tracking_steps;
+        // Seller status note (e.g. "held in customs", "awaiting clearance")
+        if (updates.status_note !== undefined) prismaUpdates.statusNote = updates.status_note || null;
 
         if (updates.status === 'delivered') {
             prismaUpdates.deliveredAt = new Date();

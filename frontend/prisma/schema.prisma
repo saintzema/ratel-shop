@@ -230,6 +230,7 @@ model Order {
   deliveredAt       DateTime?
   chatMessages      Json?
   payoutStatus      String?        @default("none")
+  statusNote        String?        // Seller-added note visible to buyer & admin (e.g. "held in customs")
   unreadAdmin       Boolean?       @default(false)
   zivaActive        Boolean?       @default(false)
   financing         Json?
