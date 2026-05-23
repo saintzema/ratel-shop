@@ -73,10 +73,19 @@ export function Step4Review({ product, flowData, onSubmit, onBack, onClose }: Pr
                 </div>
             </div>
 
-            {/* Document summary */}
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl mb-5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                <span className="text-xs font-bold text-emerald-700">{docCount} document{docCount !== 1 ? 's' : ''} uploaded</span>
+            {/* Document + signature summary */}
+            <div className="space-y-2 mb-5">
+                <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold text-emerald-700">{docCount} document{docCount !== 1 ? 's' : ''} uploaded</span>
+                </div>
+                {flowData.signature && (
+                    <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-bold text-emerald-700">Signature captured</span>
+                        <img src={flowData.signature} alt="Signature" className="h-8 ml-auto border border-gray-100 rounded bg-white" />
+                    </div>
+                )}
             </div>
 
             <div className="mt-auto space-y-2">

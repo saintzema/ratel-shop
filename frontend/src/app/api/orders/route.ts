@@ -56,11 +56,8 @@ export async function GET(request: Request) {
                 },
                 chatMessages: true,
                 zivaActive: true,
-                statusNote: true,
-                trackingId: true,
-                carrier: true,
-                trackingSteps: true,
-                trackingStatus: true
+                // statusNote added in schema — Prisma client regenerated on Vercel build
+                ...({ statusNote: true, trackingId: true, carrier: true, trackingSteps: true, trackingStatus: true } as any),
             },
             orderBy: {
                 createdAt: 'desc',

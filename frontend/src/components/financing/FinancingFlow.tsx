@@ -7,7 +7,7 @@ import { ShieldCheck, CheckCircle2, ArrowLeft } from "lucide-react";
 
 import { Step1ApplicantType, type ApplicantType } from "./Step1-ApplicantType";
 import { Step2ContractSelection, type ContractSelection } from "./Step2-ContractSelection";
-import { Step3DocumentUpload, type DocumentUploads } from "./Step3-DocumentUpload";
+import { Step3DocumentUpload, type DocumentUploads, type SignatureData } from "./Step3-DocumentUpload";
 import { Step4Review } from "./Step4-Review";
 
 export interface FinancingFlowProps {
@@ -29,6 +29,7 @@ export interface FlowData {
     applicantType: ApplicantType | null;
     contract: ContractSelection | null;
     documents: DocumentUploads;
+    signature: SignatureData;
 }
 
 const STEPS = ["Applicant", "Contract", "Documents", "Review"];
@@ -40,13 +41,21 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
         applicantType: initialData?.applicantType ?? null,
         contract: initialData?.contract ?? null,
         documents: initialData?.documents ?? {},
+        signature: null,
     });
+
+    const getAuthHeaders = (): Record<string, string> => {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        return headers;
+    };
 
     const saveProgress = useCallback(async (data: Partial<FlowData>, currentStep: number) => {
         try {
             await fetch('/api/financing/save-progress', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: product.id,
                     applicantType: data.applicantType,
@@ -71,8 +80,8 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
         setStep(3);
     }, [flowData]);
 
-    const handleStep3 = useCallback((documents: DocumentUploads) => {
-        const updated = { ...flowData, documents };
+    const handleStep3 = useCallback((documents: DocumentUploads, signature: SignatureData) => {
+        const updated = { ...flowData, documents, signature };
         setFlowData(updated);
         saveProgress(updated, 4);
         setStep(4);
@@ -89,7 +98,7 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId, initial
         try {
             const res = await fetch('/api/financing/apply', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: product.id,
                     type: flowData.applicantType === 'salary_earner' ? 'individual' : 'business',

@@ -515,7 +515,6 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
 
 function BestSellersScroller({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const initOffsetDone = useRef(false);
 
@@ -541,34 +540,34 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       initOffsetDone.current = true;
     }
 
-    const startAutoScroll = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(() => {
-        if (!el) return;
-        const scrollAmount = direction === "left" ? 240 : -240;
-        
-        // Handle loop wrap around natively
-        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
-        } else if (direction === "right" && el.scrollLeft <= 0) {
-          el.scrollLeft = el.scrollWidth / 3;
-        } else {
-          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
-        }
-      }, 3500);
+    // Step-by-step scroll: scroll one card width, pause 2.5s, repeat
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const stepScroll = () => {
+      if (!el || isHovered) return;
+      const cardWidth = 240;
+      const scrollAmount = direction === "left" ? cardWidth : -cardWidth;
+
+      // Wrap around at 1/3 of total scroll width (tripled array)
+      if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+        el.scrollLeft = 0;
+      } else if (direction === "right" && el.scrollLeft <= 0) {
+        el.scrollLeft = el.scrollWidth / 3;
+      } else {
+        el.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      }
+
+      // Schedule next step after pause
+      timeoutId = setTimeout(stepScroll, 2800);
     };
 
     if (!isHovered) {
-      startAutoScroll();
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      // Initial delay before first step
+      timeoutId = setTimeout(stepScroll, 1500);
     }
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [autoScroll, isHovered, direction]);
 
