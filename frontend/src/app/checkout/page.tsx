@@ -285,7 +285,7 @@ function persistAddresses(addresses: SavedAddress[]) {
 function CheckoutContent() {
     const { cart, cartTotal, removeFromCart, updateQuantity, clearCart } = useCart();
     const router = useRouter();
-    const { user, login } = useAuth();
+    const { user, login, updateUser } = useAuth();
     const [isClient, setIsClient] = useState(false);
     
     const searchParams = useSearchParams();
@@ -1272,7 +1272,7 @@ function CheckoutContent() {
             }
 
             if (!user) {
-                // We no longer auto-login the guest here. 
+                // We no longer auto-login the guest here.
                 // They will be prompted to secure their account after the order is finalized.
                 setIsGuestCheckout(true);
 
@@ -1287,11 +1287,32 @@ function CheckoutContent() {
                         role: "customer",
                         password: "fairprice123", // Default password — user will be prompted to change
                         phone: `${countryCode} ${address.phone}`,
-                        whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
+                        whatsapp: showWhatsappField ? `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}` : undefined,
                         address: deliveryMethod === "doorstep"
                             ? `${address.street}, ${address.city}`
                             : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
                     })
+                }).catch(console.error);
+            } else if (user && showWhatsappField && whatsappPhone.trim()) {
+                // Logged-in user: save WA number to their profile so it's linked and available for broadcasts
+                const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                fetch("/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({
+                        id: user.id,
+                        email: user.email,
+                        whatsappNumber: `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}`,
+                    })
+                }).then(async (res) => {
+                    if (res.ok) {
+                        const updated = await res.json();
+                        // Reflect in local context so profile page shows it immediately
+                        updateUser({ whatsappNumber: updated.whatsappNumber } as any);
+                    }
                 }).catch(console.error);
             }
             // Show concierge before redirect (ONLY for signed in users per user request)

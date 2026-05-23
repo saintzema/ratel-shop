@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { UserRole } from "@prisma/client";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export async function POST(req: Request) {
     try {
@@ -41,6 +42,17 @@ export async function POST(req: Request) {
         if (body.location !== undefined) updateData.location = body.location;
         if (body.birthday !== undefined) updateData.birthday = body.birthday;
 
+        // Save WhatsApp number — normalise to E.164 digits, deduplicate across +234/234/0 variants
+        if (body.whatsapp) {
+            const normalized = WhatsAppService.normalizePhoneNumber(String(body.whatsapp));
+            if (normalized) updateData.whatsappNumber = normalized;
+        }
+        // Also accept direct whatsappNumber field (e.g. from profile page)
+        if (body.whatsappNumber) {
+            const normalized = WhatsAppService.normalizePhoneNumber(String(body.whatsappNumber));
+            if (normalized) updateData.whatsappNumber = normalized;
+        }
+
         // SECURITY: Role Protection
         // Prevent unauthorized role escalation. 
         // Only allow 'admin' role if the requester is already an admin.
@@ -63,6 +75,9 @@ export async function POST(req: Request) {
              updateData.role = updateData.role || body.role;
         }
 
+        // Resolve whatsappNumber for create path
+        const waNumber = updateData.whatsappNumber ?? null;
+
         const createData = {
             id: body.id || `user_${body.email}`,
             email: body.email,
@@ -71,7 +86,8 @@ export async function POST(req: Request) {
             avatarUrl: body.avatar_url,
             location: body.location,
             birthday: body.birthday,
-            password: updateData.password, 
+            password: updateData.password,
+            whatsappNumber: waNumber || undefined,
             // Handle the Address relation correctly
             addresses: body.address ? {
                 create: {

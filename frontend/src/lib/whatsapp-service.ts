@@ -254,60 +254,83 @@ export class WhatsAppService {
     }
 
     /**
-     * Normalizes a phone number to international format (E.164) for Nigeria.
-     * Strips all non-digits, handles leading 0, and ensures 234 prefix.
+     * Normalises any phone number to E.164 digits (no leading "+").
+     *
+     * Rules (in order):
+     *  1. Strip leading "+" then all non-digit characters (spaces, dashes, brackets)
+     *  2. Nigerian shorthand:
+     *       "0XXXXXXXXXX" (11 digits starting with 0)  → "234XXXXXXXXXX"
+     *       bare 10-digit number with no country code   → "234XXXXXXXXXX" (NG default)
+     *  3. Numbers already carrying a country code are kept as-is.
+     *
+     * Returns empty string on unrecognisable input (< 10 or > 15 digits).
      */
     static normalizePhoneNumber(phone: string): string {
         if (!phone) return "";
-        let clean = phone.trim().replace(/\D/g, "");
+        // Remove leading + then strip all non-digit characters
+        let clean = phone.trim().replace(/^\+/, "").replace(/\D/g, "");
 
-        // Handle Nigerian format: 0XXXXXXXXXX (11 digits) -> 234XXXXXXXXXX
+        // Nigerian local: 0XXXXXXXXXX (11 digits starting with 0)
         if (clean.startsWith("0") && clean.length === 11) {
             clean = "234" + clean.substring(1);
         }
 
-        // 10-digit number without country code -> add 234
-        if (!clean.startsWith("234") && clean.length === 10) {
+        // Bare 10-digit number → assume Nigerian
+        if (clean.length === 10 && !clean.startsWith("0")) {
             clean = "234" + clean;
         }
 
-        return clean;
+        // Valid E.164 body must be 10–15 digits
+        if (clean.length < 10 || clean.length > 15) return "";
+
+        return clean; // e.g. "2348012345678", "447911123456", "12025550123"
     }
 
     /**
-     * Returns ALL plausible stored formats of a Nigerian phone number.
-     * Used for duplicate checks — catches accounts created with old/alternate formats.
+     * Returns ALL plausible stored formats for duplicate checks.
      *
-     * For 2348169878676 this returns: ["2348169878676", "08169878676", "8169878676"]
+     * Nigerian example for "2348169878676":
+     *   ["2348169878676", "+2348169878676", "08169878676", "8169878676"]
+     *
+     * International example for "447911123456":
+     *   ["447911123456", "+447911123456"]
      */
     static allPhoneVariants(phone: string): string[] {
         if (!phone) return [];
         const normalized = this.normalizePhoneNumber(phone);
-        const raw = phone.trim().replace(/\D/g, "");
+        if (!normalized) return [];
+
         const variants = new Set<string>();
+        variants.add(normalized);            // digits only, no +
+        variants.add("+" + normalized);      // E.164 with +
 
-        if (normalized) variants.add(normalized);
-        if (raw && raw.length >= 10) variants.add(raw);
-
-        // If normalized has 234 prefix, also include the 0-prefixed local form
+        // Nigerian-specific local forms
         if (normalized.startsWith("234") && normalized.length === 13) {
-            variants.add("0" + normalized.substring(3));    // 08169878676
-            variants.add(normalized.substring(3));           // 8169878676 (10 digits)
+            variants.add("0" + normalized.substring(3));  // 08169878676
+            variants.add(normalized.substring(3));         // 8169878676 (10-digit)
         }
+
+        // Also keep the raw form passed in case it was already stored verbatim
+        const raw = phone.trim().replace(/\D/g, "");
+        if (raw.length >= 10) variants.add(raw);
 
         return Array.from(variants).filter(v => v.length >= 10);
     }
 
     /**
-     * Returns all possible auto-generated email addresses for a phone number.
-     * Covers both the current format (wa_234...) and the legacy format (wa-0...).
+     * Returns all possible auto-generated WA placeholder email addresses.
+     * Covers current format (wa_234...) and legacy format (wa-0...).
      */
     static allWaEmailVariants(phone: string): string[] {
         const variants = this.allPhoneVariants(phone);
+        const seen = new Set<string>();
         const emails: string[] = [];
         for (const v of variants) {
-            emails.push(`wa_${v}@fairprice.ng`);
-            emails.push(`wa-${v}@fairprice.ng`);
+            const digits = v.replace(/^\+/, ""); // always use digits-only in emails
+            for (const prefix of ["wa_", "wa-"]) {
+                const email = `${prefix}${digits}@fairprice.ng`;
+                if (!seen.has(email)) { seen.add(email); emails.push(email); }
+            }
         }
         return emails;
     }
