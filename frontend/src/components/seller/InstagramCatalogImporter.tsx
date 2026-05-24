@@ -93,9 +93,34 @@ export function InstagramCatalogImporter() {
         }
     }, []); // eslint-disable-line
 
-    const connectInstagram = () => {
-        // Opens Meta OAuth — server handles the redirect to avoid exposing secrets client-side
-        window.location.href = "/api/seller/instagram/auth";
+    const connectInstagram = async () => {
+        try {
+            // Fetch with Bearer token so the server can authenticate the seller.
+            // Direct browser navigation cannot send custom headers (token is in localStorage).
+            const res = await fetch("/api/seller/instagram/auth", {
+                headers: { ...authHeaders(), accept: "application/json" },
+            });
+            if (res.status === 401) {
+                setErrorMsg("You must be logged in as a seller to connect Instagram.");
+                setStatus("error");
+                return;
+            }
+            if (res.status === 404) {
+                setErrorMsg("No seller account found. Complete seller onboarding first.");
+                setStatus("error");
+                return;
+            }
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                setErrorMsg("Could not generate Instagram login link. Please try again.");
+                setStatus("error");
+            }
+        } catch {
+            setErrorMsg("Connection failed. Please check your network and try again.");
+            setStatus("error");
+        }
     };
 
     const toggleSelect = (id: string) =>

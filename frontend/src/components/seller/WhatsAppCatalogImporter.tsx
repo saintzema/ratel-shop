@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 
 export function WhatsAppCatalogImporter() {
+    const [countryCode, setCountryCode] = useState("+234");
     const [phone, setPhone] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -16,12 +18,19 @@ export function WhatsAppCatalogImporter() {
 
     const handleImport = async () => {
         const cleanPhone = phone.replace(/\D/g, "");
-        if (cleanPhone.length < 10) {
-            setError("Please enter a valid phone number (e.g. 08012345678).");
+        if (cleanPhone.length < 6) {
+            setError("Please enter a valid phone number.");
             return;
         }
 
-        const url = `https://wa.me/c/${cleanPhone.startsWith('0') ? '234' + cleanPhone.slice(1) : cleanPhone}`;
+        // Build E.164 digits: strip leading 0 for NG (+234), prepend country code digits
+        const dialDigits = countryCode.replace(/^\+/, "");
+        const localDigits = dialDigits === "234" && cleanPhone.startsWith("0")
+            ? cleanPhone.slice(1)
+            : cleanPhone;
+        const e164 = `${dialDigits}${localDigits}`;
+
+        const url = `https://wa.me/c/${e164}`;
         
         setLoading(true);
         setError("");
@@ -30,7 +39,7 @@ export function WhatsAppCatalogImporter() {
             const response = await fetch("/api/whatsapp/sync", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: cleanPhone })
+                body: JSON.stringify({ phone: e164 })
             });
             
             if (!response.ok) {
@@ -79,21 +88,23 @@ export function WhatsAppCatalogImporter() {
             </div>
 
             <div className="space-y-4">
-                <div className="relative">
-                    <Input 
-                        placeholder="080 1234 5678"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="h-14 rounded-2xl pl-12 pr-32 border-gray-200 focus:ring-emerald-500"
-                    />
-                    <div className="absolute left-4 top-4 h-6 w-6 text-gray-300 flex items-center justify-center font-bold text-xs">+234</div>
-                    <button 
-                        onClick={handleImport}
-                        disabled={loading || !phone}
-                        className="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:bg-emerald-700 active:scale-95 cursor-pointer"
-                    >
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync Now"}
-                    </button>
+                <div className="flex gap-2">
+                    <CountryCodeSelect value={countryCode} onChange={setCountryCode} />
+                    <div className="relative flex-1">
+                        <Input
+                            placeholder="8012345678"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                            className="h-14 rounded-2xl pr-32 border-gray-200 focus:ring-emerald-500"
+                        />
+                        <button
+                            onClick={handleImport}
+                            disabled={loading || !phone}
+                            className="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:bg-emerald-700 active:scale-95 cursor-pointer"
+                        >
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync Now"}
+                        </button>
+                    </div>
                 </div>
 
                 <AnimatePresence>

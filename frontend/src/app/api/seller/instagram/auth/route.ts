@@ -42,5 +42,13 @@ export async function GET(req: NextRequest) {
     });
 
     const oauthUrl = `https://www.facebook.com/dialog/oauth?${params.toString()}`;
+
+    // If client requests JSON (fetch from browser), return the URL instead of redirecting.
+    // This lets the client send the Bearer token via fetch(), then redirect itself.
+    const acceptHeader = req.headers.get("accept") || "";
+    if (acceptHeader.includes("application/json")) {
+        return NextResponse.json({ url: oauthUrl });
+    }
+
     return NextResponse.redirect(oauthUrl);
 }
