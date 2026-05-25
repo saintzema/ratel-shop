@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { MessageCircle, Settings, Users, BarChart3, HelpCircle, ArrowLeft, RefreshCw, Send, Image as ImageIcon, Zap, Plus, DownloadCloud } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { MessageCircle, Settings, Users, ArrowLeft, RefreshCw, Send, Image as ImageIcon, Zap, Plus, DownloadCloud, CheckCircle2 as Check, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
+import { DataSyncService } from "@/lib/sync-store";
 
 export default function MetaBusinessSuite() {
     const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "import" | "settings">("import");
+    const [igConnected, setIgConnected] = useState(false);
+    const [waConnected, setWaConnected] = useState(false);
+
+    useEffect(() => {
+        const seller = DataSyncService.getCurrentSeller();
+        setIgConnected(!!(seller as any)?.instagramAccessToken || !!(seller as any)?.instagram_access_token);
+        setWaConnected(!!(seller as any)?.whatsappNumber || !!(seller as any)?.whatsapp_number);
+    }, []);
 
     // Mock conversations
     const [conversations] = useState([
@@ -32,7 +40,13 @@ export default function MetaBusinessSuite() {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">Meta Business Suite</h1>
-                                <span className="bg-[#E7F3FF] text-[#1877F2] font-black text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full">Connected</span>
+                                {igConnected || waConnected ? (
+                                    <span className="bg-[#E7F3FF] text-[#1877F2] font-black text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                        {igConnected && waConnected ? "IG + WA" : igConnected ? "Instagram" : "WhatsApp"} Connected
+                                    </span>
+                                ) : (
+                                    <span className="bg-gray-100 text-gray-500 font-black text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full">Not Connected</span>
+                                )}
                             </div>
                             <p className="text-sm font-medium text-gray-500 mt-1">Manage your Instagram &amp; WhatsApp Presence seamlessly.</p>
                         </div>
@@ -225,11 +239,15 @@ export default function MetaBusinessSuite() {
                         <div className="bg-white border text-sm font-medium border-gray-200 rounded-2xl divide-y divide-gray-100 shadow-sm">
                             <div className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <span className="text-gray-600 font-bold">Instagram Account</span>
-                                <span className="text-emerald-600 font-bold flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Connected</span>
+                                {igConnected
+                                    ? <span className="text-emerald-600 font-bold flex items-center gap-1.5"><Check className="h-4 w-4" /> Connected</span>
+                                    : <span className="text-gray-400 font-bold flex items-center gap-1.5"><XCircle className="h-4 w-4" /> Not connected</span>}
                             </div>
                             <div className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <span className="text-gray-600 font-bold">WhatsApp Business API</span>
-                                <span className="text-emerald-600 font-bold flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Connected</span>
+                                {waConnected
+                                    ? <span className="text-emerald-600 font-bold flex items-center gap-1.5"><Check className="h-4 w-4" /> Connected</span>
+                                    : <span className="text-gray-400 font-bold flex items-center gap-1.5"><XCircle className="h-4 w-4" /> Not connected</span>}
                             </div>
                             <div className="p-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
                                 <span className="text-gray-600 font-bold">Meta Business Portfolio</span>
@@ -252,25 +270,5 @@ export default function MetaBusinessSuite() {
     );
 }
 
-// Add the missing icon export locally since it wasn't in the standard import
-function CheckCircle2(props: any) {
-    return (
-        <svg
-            {...props}
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-            <path d="m9 12 2 2 4-4" />
-        </svg>
-    )
-}
 
 

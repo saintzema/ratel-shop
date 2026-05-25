@@ -29,6 +29,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 
 export default function SellerSettingsPage() {
     const router = useRouter();
@@ -42,6 +43,7 @@ export default function SellerSettingsPage() {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
 
+    const [waCountryCode, setWaCountryCode] = useState("+234");
     const [formData, setFormData] = useState({
         business_name: "",
         description: "",
@@ -107,7 +109,10 @@ export default function SellerSettingsPage() {
                     staff_count: formData.staff_count,
                     physical_stores: formData.physical_stores,
                     currencies: formData.currencies,
-                    whatsapp_number: formData.whatsapp_number,
+                    // Store full E.164 number so integrations can use it directly
+                    whatsapp_number: formData.whatsapp_number
+                        ? `${waCountryCode.replace('+', '')}${formData.whatsapp_number.replace(/^0/, '')}`
+                        : "",
                 }),
             });
 
@@ -577,14 +582,19 @@ export default function SellerSettingsPage() {
                         {formData.whatsapp_enabled && (
                             <div className="space-y-4 max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-emerald-900/50 flex items-center gap-1.5">Business WhatsApp Number</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 text-sm font-black">+234</span>
+                                <div className="flex gap-2">
+                                    <div className={!isEditing ? "opacity-50 pointer-events-none" : ""}>
+                                        <CountryCodeSelect
+                                            value={waCountryCode}
+                                            onChange={setWaCountryCode}
+                                        />
+                                    </div>
                                     <Input
                                         disabled={!isEditing}
                                         value={formData.whatsapp_number}
                                         onChange={e => setFormData({ ...formData, whatsapp_number: e.target.value.replace(/\D/g, '') })}
                                         placeholder="8012345678"
-                                        className="h-14 bg-white border-emerald-200 rounded-2xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 pl-14 font-black shadow-inner disabled:opacity-80"
+                                        className="h-14 flex-1 bg-white border-emerald-200 rounded-2xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 font-black shadow-inner disabled:opacity-80"
                                     />
                                 </div>
                                 <div className="flex items-center gap-2 bg-white/50 p-3 rounded-xl border border-emerald-100/50">

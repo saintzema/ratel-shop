@@ -1,197 +1,252 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Download, Loader2, CheckCircle2, AlertCircle, Sparkles, Plus, X } from "lucide-react";
+import {
+    Package, Plus, X, CheckCircle2, Loader2, ChevronDown, ChevronUp,
+    Pencil, UploadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
-import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+
+const CATEGORIES = [
+    "electronics", "fashion", "home", "food", "beauty",
+    "sports", "automotive", "services", "general"
+];
+
+const BLANK_PRODUCT = () => ({
+    name: "",
+    price: "",
+    category: "general",
+    description: "",
+    image_url: "",
+    stock: "10",
+});
 
 export function WhatsAppCatalogImporter() {
-    const [countryCode, setCountryCode] = useState("+234");
-    const [phone, setPhone] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
+    const [expanded, setExpanded] = useState(false);
+    const [products, setProducts] = useState([BLANK_PRODUCT()]);
+    const [saving, setSaving] = useState(false);
+    const [savedCount, setSavedCount] = useState(0);
     const [error, setError] = useState("");
-    const [importedProducts, setImportedProducts] = useState<any[]>([]);
 
-    const handleImport = async () => {
-        const cleanPhone = phone.replace(/\D/g, "");
-        if (cleanPhone.length < 6) {
-            setError("Please enter a valid phone number.");
-            return;
-        }
-
-        // Build E.164 digits: strip leading 0 for NG (+234), prepend country code digits
-        const dialDigits = countryCode.replace(/^\+/, "");
-        const localDigits = dialDigits === "234" && cleanPhone.startsWith("0")
-            ? cleanPhone.slice(1)
-            : cleanPhone;
-        const e164 = `${dialDigits}${localDigits}`;
-
-        const url = `https://wa.me/c/${e164}`;
-        
-        setLoading(true);
-        setError("");
-        
-        try {
-            const response = await fetch("/api/whatsapp/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: e164 })
-            });
-            
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to sync catalog");
-            }
-
-            const data = await response.json();
-            setImportedProducts(data.products || []);
-            setSuccess(true);
-            
-            if (data.products?.length === 0) {
-                setError("We couldn't find any public products in this WhatsApp catalog.");
-            }
-        } catch (err: any) {
-            setError(err.message || "Failed to reach WhatsApp. Please check the number and try again.");
-        } finally {
-            setLoading(false);
-        }
+    const authHeaders = (): Record<string, string> => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        const h: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) h["Authorization"] = `Bearer ${token}`;
+        return h;
     };
 
-    const saveToInventory = (product: any) => {
-        const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId) return;
+    const updateProduct = (i: number, field: string, value: string) => {
+        setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
+    };
 
-        DataSyncService.addProduct({
-            ...product,
-            seller_id: sellerId,
-            is_active: true,
-            stock: 10
-        });
+    const addRow = () => setProducts(prev => [...prev, BLANK_PRODUCT()]);
+    const removeRow = (i: number) => setProducts(prev => prev.filter((_, idx) => idx !== i));
 
-        setImportedProducts(prev => prev.filter(p => p !== product));
+    const handleSave = async () => {
+        const valid = products.filter(p => p.name.trim() && p.price);
+        if (!valid.length) {
+            setError("Add at least one product with a name and price.");
+            return;
+        }
+        setError("");
+        setSaving(true);
+
+        try {
+            const res = await fetch("/api/whatsapp/sync", {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    products: valid.map(p => ({
+                        name: p.name.trim(),
+                        price: Number(p.price),
+                        category: p.category,
+                        description: p.description.trim(),
+                        image_url: p.image_url.trim(),
+                        stock: Number(p.stock) || 10,
+                    })),
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setError(data.error || `Error ${res.status}`);
+                return;
+            }
+
+            // Also persist to local sync so product list refreshes immediately
+            const sellerId = DataSyncService.getCurrentSellerId();
+            if (sellerId) {
+                const seller = DataSyncService.getCurrentSeller();
+                valid.forEach(p => {
+                    DataSyncService.addProduct({
+                        name: p.name.trim(),
+                        price: Number(p.price),
+                        original_price: Number(p.price),
+                        category: p.category as any,
+                        description: p.description.trim(),
+                        image_url: p.image_url.trim() || "/assets/images/placeholder.png",
+                        images: p.image_url.trim() ? [p.image_url.trim()] : [],
+                        stock: Number(p.stock) || 10,
+                        is_active: true,
+                        avg_rating: 0,
+                        review_count: 0,
+                        sold_count: 0,
+                    } as any);
+                });
+            }
+
+            setSavedCount(data.created ?? valid.length);
+            setProducts([BLANK_PRODUCT()]);
+            setTimeout(() => { setSavedCount(0); setExpanded(false); }, 3000);
+        } catch (err: any) {
+            setError(err.message || "Network error. Please try again.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-50 rounded-xl">
-                    <MessageCircle className="h-6 w-6 text-emerald-600" />
-                </div>
-                <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-tight">WhatsApp Catalog Sync</h3>
-                    <p className="text-xs text-gray-500 font-medium">Enter your WhatsApp number to import products.</p>
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                <div className="flex gap-2">
-                    <CountryCodeSelect value={countryCode} onChange={setCountryCode} />
-                    <div className="relative flex-1">
-                        <Input
-                            placeholder="8012345678"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                            className="h-14 rounded-2xl pr-32 border-gray-200 focus:ring-emerald-500"
-                        />
-                        <button
-                            onClick={handleImport}
-                            disabled={loading || !phone}
-                            className="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-6 rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50 transition-all hover:bg-emerald-700 active:scale-95 cursor-pointer"
-                        >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync Now"}
-                        </button>
+        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+            {/* Header — always visible, click to expand */}
+            <button
+                onClick={() => setExpanded(v => !v)}
+                className="w-full flex items-center justify-between p-6 sm:p-8 hover:bg-gray-50/60 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-50 rounded-xl">
+                        <Package className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div className="text-left">
+                        <h3 className="text-base font-black text-gray-900">Quick Product Add</h3>
+                        <p className="text-xs text-gray-400 font-medium">Add products to your inventory instantly</p>
                     </div>
                 </div>
-
-                <AnimatePresence>
-                    {error && (
-                        <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="flex items-center gap-2 text-red-500 text-xs font-bold bg-red-50 p-3 rounded-xl"
-                        >
-                            <AlertCircle className="h-4 w-4" />
-                            {error}
-                        </motion.div>
+                <div className="flex items-center gap-3">
+                    {savedCount > 0 && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">
+                            <CheckCircle2 className="h-3 w-3" /> {savedCount} saved
+                        </span>
                     )}
-                </AnimatePresence>
+                    {expanded
+                        ? <ChevronUp className="h-5 w-5 text-gray-400" />
+                        : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                </div>
+            </button>
 
-                {importedProducts.length > 0 && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-8 space-y-4"
+            {/* Expandable body — fixed max-height so it never pushes the QR down */}
+            <AnimatePresence initial={false}>
+                {expanded && (
+                    <motion.div
+                        key="body"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
                     >
-                        <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Products Found ({importedProducts.length})</h4>
-                            <span className="flex items-center gap-1 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-                                <Sparkles className="h-3 w-3" /> AI Assisted Parsing
-                            </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 gap-3">
-                            {importedProducts.map((p, i) => (
-                                <div key={i} className="flex flex-col gap-4 bg-gray-50 p-6 rounded-3xl border border-gray-100 group hover:border-emerald-200 transition-all shadow-sm">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-16 w-16 bg-white rounded-2xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1 shadow-inner">
-                                            <img src={p.image_url} alt="" className="w-full h-full object-cover rounded-xl" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <input 
+                        <div className="px-6 sm:px-8 pb-8 space-y-4">
+                            {/* Scrollable product list — max-height keeps layout stable */}
+                            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                                {products.map((p, i) => (
+                                    <div key={i} className="flex flex-col sm:flex-row gap-3 bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {/* Name */}
+                                            <Input
+                                                placeholder="Product name *"
                                                 value={p.name}
-                                                onChange={(e) => {
-                                                    const next = [...importedProducts];
-                                                    next[i].name = e.target.value;
-                                                    setImportedProducts(next);
-                                                }}
-                                                className="bg-transparent font-black text-gray-900 truncate w-full outline-none focus:ring-2 ring-emerald-500/20 rounded-md px-1"
+                                                onChange={e => updateProduct(i, "name", e.target.value)}
+                                                className="h-11 rounded-xl border-gray-200 font-bold text-sm"
                                             />
-                                            <div className="flex items-center gap-1 mt-1">
-                                                <span className="text-emerald-600 font-black text-sm">₦</span>
-                                                <input 
+                                            {/* Price */}
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-black text-sm">₦</span>
+                                                <Input
                                                     type="number"
+                                                    placeholder="Price *"
                                                     value={p.price}
-                                                    onChange={(e) => {
-                                                        const next = [...importedProducts];
-                                                        next[i].price = parseInt(e.target.value) || 0;
-                                                        setImportedProducts(next);
-                                                    }}
-                                                    className="bg-transparent text-emerald-600 font-black text-sm w-24 outline-none focus:ring-2 ring-emerald-500/20 rounded-md px-1"
+                                                    onChange={e => updateProduct(i, "price", e.target.value)}
+                                                    className="h-11 pl-8 rounded-xl border-gray-200 font-bold text-sm"
                                                 />
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button 
-                                                onClick={() => saveToInventory(p)}
-                                                className="h-12 px-5 rounded-2xl bg-emerald-600 text-white flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 shadow-lg shadow-emerald-200"
+                                            {/* Category */}
+                                            <select
+                                                value={p.category}
+                                                onChange={e => updateProduct(i, "category", e.target.value)}
+                                                className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer"
                                             >
-                                                <Plus className="h-4 w-4" /> Save
-                                            </button>
-                                            <button 
-                                                onClick={() => setImportedProducts(prev => prev.filter((_, idx) => idx !== i))}
-                                                className="h-12 w-12 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all active:scale-90"
-                                            >
-                                                <X className="h-5 w-5" />
-                                            </button>
+                                                {CATEGORIES.map(c => (
+                                                    <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                                                ))}
+                                            </select>
+                                            {/* Stock */}
+                                            <Input
+                                                type="number"
+                                                placeholder="Stock qty"
+                                                value={p.stock}
+                                                onChange={e => updateProduct(i, "stock", e.target.value)}
+                                                className="h-11 rounded-xl border-gray-200 font-bold text-sm"
+                                            />
+                                            {/* Image URL */}
+                                            <Input
+                                                placeholder="Image URL (optional)"
+                                                value={p.image_url}
+                                                onChange={e => updateProduct(i, "image_url", e.target.value)}
+                                                className="h-11 rounded-xl border-gray-200 text-sm sm:col-span-2"
+                                            />
+                                            {/* Description */}
+                                            <Input
+                                                placeholder="Short description"
+                                                value={p.description}
+                                                onChange={e => updateProduct(i, "description", e.target.value)}
+                                                className="h-11 rounded-xl border-gray-200 text-sm sm:col-span-2"
+                                            />
                                         </div>
+                                        {products.length > 1 && (
+                                            <button
+                                                onClick={() => removeRow(i)}
+                                                className="self-start h-10 w-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shrink-0"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        )}
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+
+                            {/* Add another row */}
+                            <button
+                                onClick={addRow}
+                                className="w-full h-11 rounded-xl border-2 border-dashed border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/30 text-gray-400 hover:text-emerald-600 font-bold text-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                <Plus className="h-4 w-4" /> Add another product
+                            </button>
+
+                            {error && (
+                                <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-xl">
+                                    {error}
+                                </p>
+                            )}
+
+                            {/* Save */}
+                            <button
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-emerald-200"
+                            >
+                                {saving ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                                ) : (
+                                    <><UploadCloud className="h-4 w-4" /> Save to Inventory</>
+                                )}
+                            </button>
                         </div>
                     </motion.div>
                 )}
-            </div>
-
-            <div className="mt-8 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                <p className="text-[10px] text-emerald-800/70 font-bold leading-relaxed">
-                    <strong>Tip:</strong> Ziva AI can automatically keep your WhatsApp catalog and FairPrice inventory in sync. Every time you update a price on WhatsApp, we'll suggest an update here!
-                </p>
-            </div>
+            </AnimatePresence>
         </div>
     );
 }
