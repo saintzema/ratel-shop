@@ -53,6 +53,14 @@ export default function DiscountsPage() {
         expiry: ""
     });
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
+    const [createError, setCreateError] = useState<string | null>(null);
+
+    const authHeaders = (): Record<string, string> => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        const h: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) h["Authorization"] = `Bearer ${token}`;
+        return h;
+    };
 
     const loadDiscounts = async () => {
         const sellerId = DataSyncService.getCurrentSellerId();
@@ -85,42 +93,47 @@ export default function DiscountsPage() {
     };
 
     const handleCreate = async () => {
-        if (!newDiscount.code || !newDiscount.value) return;
+        if (!newDiscount.code || !newDiscount.value) {
+            setCreateError("Promo code and value are required.");
+            return;
+        }
         const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId) return;
+        if (!sellerId) {
+            setCreateError("You must be logged in as a seller to create promo codes.");
+            return;
+        }
 
+        setCreateError(null);
         try {
             const res = await fetch("/api/discounts", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...newDiscount,
-                    sellerId
-                }),
+                headers: authHeaders(),
+                body: JSON.stringify({ ...newDiscount, sellerId }),
             });
 
-            if (res.ok) {
-                setIsCreateOpen(false);
-                setNewDiscount({
-                    code: "",
-                    type: "Percentage",
-                    value: "",
-                    usageLimit: "",
-                    expiry: ""
-                });
-                loadDiscounts();
+            const data = await res.json();
+
+            if (!res.ok) {
+                setCreateError(data.error || `Error ${res.status}: Could not create promo code.`);
+                return;
             }
+
+            setIsCreateOpen(false);
+            setNewDiscount({ code: "", type: "Percentage", value: "", usageLimit: "", expiry: "" });
+            loadDiscounts();
         } catch (error) {
             console.error("Failed to create discount:", error);
+            setCreateError("Network error. Please check your connection and try again.");
         }
     };
 
     const handleDelete = async (id: string) => {
         try {
-            const res = await fetch(`/api/discounts/${id}`, { method: "DELETE" });
-            if (res.ok) {
-                loadDiscounts();
-            }
+            const res = await fetch(`/api/discounts/${id}`, {
+                method: "DELETE",
+                headers: authHeaders(),
+            });
+            if (res.ok) loadDiscounts();
         } catch (error) {
             console.error("Delete failed:", error);
         }
@@ -139,7 +152,7 @@ export default function DiscountsPage() {
                     <p className="text-xs sm:text-sm text-gray-500 font-medium mt-0.5">Boost performance with promotional codes.</p>
                 </div>
                 <Button
-                    onClick={() => setIsCreateOpen(true)}
+                    onClick={() => { setCreateError(null); setIsCreateOpen(true); }}
                     className="rounded-xl bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest text-xs h-10 sm:h-11 px-5 shadow-xl transition-all hover:scale-105 active:scale-95 w-full sm:w-auto"
                 >
                     <Plus className="h-4 w-4 mr-2" /> Launch New Promo
@@ -423,11 +436,16 @@ export default function DiscountsPage() {
                         </div>
                     </div>
 
+                    {createError && (
+                        <div className="mx-5 sm:mx-6 mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-bold">
+                            {createError}
+                        </div>
+                    )}
                     <DialogFooter className="p-5 sm:p-6 pt-0 flex gap-3">
                         <Button
                             variant="ghost"
                             className="flex-1 h-11 rounded-xl font-black uppercase tracking-widest text-[10px] text-gray-400 hover:text-gray-900"
-                            onClick={() => setIsCreateOpen(false)}
+                            onClick={() => { setCreateError(null); setIsCreateOpen(false); }}
                         >
                             Cancel
                         </Button>

@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { getUserFromRequest } from "@/lib/jwt";
 import { broadcast } from "@/lib/realtime-service";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
     try {
-        const { searchParams } = new URL(req.url);
-        const sellerId = searchParams.get("seller_id");
+        const sellerId = req.nextUrl.searchParams.get("seller_id");
 
         if (!sellerId) {
             return NextResponse.json({ error: "Seller ID required" }, { status: 400 });
@@ -24,30 +24,51 @@ export async function GET(req: Request) {
                             }
                         }
                     },
-                    orderBy: { usedAt: "desc" }
+                    orderBy: { createdAt: "desc" }
                 }
             },
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json(discounts);
-    } catch (error) {
+        // Normalise: expose createdAt as usedAt so the frontend display works
+        const normalised = discounts.map((d: any) => ({
+            ...d,
+            usages: d.usages.map((u: any) => ({ ...u, usedAt: u.usedAt ?? u.createdAt }))
+        }));
+
+        return NextResponse.json(normalised);
+    } catch (error: any) {
+        console.error("[discounts GET]", error);
         return NextResponse.json({ error: "Failed to fetch discounts" }, { status: 500 });
     }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const user = getUserFromRequest(req);
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const body = await req.json();
         const { code, type, value, usageLimit, expiry, sellerId } = body;
 
         if (!code || !type || !value || !sellerId) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+            return NextResponse.json({ error: "Missing required fields: code, type, value, sellerId" }, { status: 400 });
+        }
+
+        // Verify the seller belongs to the authenticated user
+        const seller = await db.seller.findUnique({
+            where: { id: sellerId },
+            select: { userId: true }
+        });
+        if (!seller || seller.userId !== user.userId) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         const discount = await (db as any).discount.create({
             data: {
-                code: code.toUpperCase(),
+                code: code.toUpperCase().trim(),
                 type: type.toLowerCase(),
                 value: parseFloat(value),
                 usageLimit: usageLimit ? parseInt(usageLimit) : null,
@@ -61,7 +82,11 @@ export async function POST(req: Request) {
 
         return NextResponse.json(discount);
     } catch (error: any) {
-        console.error("Discount creation error:", error);
+        console.error("[discounts POST]", error);
+        // Surface duplicate code error clearly
+        if (error.code === "P2002") {
+            return NextResponse.json({ error: "A promo code with this name already exists. Choose a different code." }, { status: 409 });
+        }
         return NextResponse.json({ error: error.message || "Failed to create discount" }, { status: 500 });
     }
 }

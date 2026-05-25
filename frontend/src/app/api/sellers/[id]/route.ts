@@ -51,23 +51,47 @@ export async function PATCH(
     try {
         const { id } = await params;
         const body = await req.json();
-        const { status, verified, kyc_status, kycStatus } = body;
+
+        // Build the update payload — handles both admin fields and seller self-service fields
+        const sellerData: Record<string, any> = {};
+
+        // Admin-controlled fields
+        if (body.status !== undefined)                         sellerData.status = body.status;
+        if (body.verified !== undefined)                       sellerData.verified = body.verified;
+        if (body.kyc_status || body.kycStatus)                 sellerData.kycStatus = body.kyc_status || body.kycStatus;
+        if (body.autoPayoutEnabled !== undefined)              sellerData.autoPayoutEnabled = body.autoPayoutEnabled;
+
+        // Seller self-service profile fields
+        if (body.businessName || body.business_name)           sellerData.businessName = body.businessName || body.business_name;
+        if (body.description !== undefined)                    sellerData.description = body.description;
+        if (body.logo_url !== undefined)                       sellerData.logoUrl = body.logo_url;
+        if (body.logoUrl !== undefined)                        sellerData.logoUrl = body.logoUrl;
+        if (body.cover_image_url !== undefined)                sellerData.coverImageUrl = body.cover_image_url;
+        if (body.coverImageUrl !== undefined)                  sellerData.coverImageUrl = body.coverImageUrl;
+        if (body.store_url !== undefined)                      sellerData.storeUrl = body.store_url || null;
+        if (body.storeUrl !== undefined)                       sellerData.storeUrl = body.storeUrl || null;
+        if (body.location !== undefined)                       sellerData.location = body.location;
+        if (body.weekly_orders !== undefined)                  sellerData.weeklyOrders = body.weekly_orders;
+        if (body.weeklyOrders !== undefined)                   sellerData.weeklyOrders = body.weeklyOrders;
+        if (body.staff_count !== undefined)                    sellerData.staffCount = body.staff_count;
+        if (body.staffCount !== undefined)                     sellerData.staffCount = body.staffCount;
+        if (body.physical_stores !== undefined)                sellerData.physicalStores = body.physical_stores;
+        if (body.physicalStores !== undefined)                 sellerData.physicalStores = body.physicalStores;
+        if (Array.isArray(body.currencies))                    sellerData.currencies = body.currencies;
+        if (body.whatsapp_number !== undefined)                sellerData.whatsappNumber = body.whatsapp_number;
+        if (body.whatsappNumber !== undefined)                 sellerData.whatsappNumber = body.whatsappNumber;
+
+        // User-linked fields (name, email)
+        const userUpdate: Record<string, any> = {};
+        if (body.name || body.display_name)         userUpdate.name = body.name || body.display_name;
+        if (body.email || body.owner_email)         userUpdate.email = body.email || body.owner_email;
+        if (body.status === "active")               userUpdate.role = "seller";
 
         const seller = await db.seller.update({
             where: { id },
             data: {
-                status: body.status || undefined,
-                verified: body.verified !== undefined ? body.verified : undefined,
-                kycStatus: body.kyc_status || body.kycStatus || undefined,
-                businessName: body.businessName || body.business_name || undefined,
-                autoPayoutEnabled: body.autoPayoutEnabled !== undefined ? body.autoPayoutEnabled : undefined,
-                user: {
-                    update: {
-                        name: body.name || body.display_name || undefined,
-                        email: body.email || body.owner_email || undefined,
-                        role: body.status === "active" ? "seller" : undefined
-                    }
-                }
+                ...sellerData,
+                ...(Object.keys(userUpdate).length > 0 ? { user: { update: userUpdate } } : {})
             }
         });
 

@@ -96,6 +96,28 @@ const INTEGRATIONS = [
     }
 ];
 
+// Derive real connection status from the seller record so the UI reflects truth
+function computeIntegrations(seller: any) {
+    const hasBankDetails  = !!(seller?.account_number && seller?.bank_name);
+    const hasInstagram    = !!(seller?.instagram_access_token || (seller as any)?.instagramAccessToken);
+    const hasWhatsApp     = !!(seller?.whatsapp_number || seller?.whatsappNumber);
+    const hasWhatsAppDM   = !!(seller?.whatsapp_direct_dm || (seller as any)?.whatsappDirectDM);
+    const hasStoreUrl     = !!(seller?.store_url || seller?.storeUrl);
+
+    return INTEGRATIONS.map(app => {
+        let connected = false;
+        switch (app.id) {
+            case "paystack":        connected = hasBankDetails;  break;
+            case "instagram":       connected = hasInstagram;    break;
+            case "whatsapp":        connected = hasWhatsApp;     break;
+            case "whatsapp_direct": connected = hasWhatsAppDM;   break;
+            case "custom_domain":   connected = hasStoreUrl;     break;
+            default:                connected = false;
+        }
+        return { ...app, status: connected ? "Connected" : "Disconnected" };
+    });
+}
+
 export default function IntegrationsPage() {
     const [connecting, setConnecting] = useState<string | null>(null);
     const [integrations, setIntegrations] = useState(INTEGRATIONS);
@@ -103,74 +125,77 @@ export default function IntegrationsPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const sellerId = DataSyncService.getCurrentSellerId();
         const seller = DataSyncService.getCurrentSeller();
-        if (seller) {
-            setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
-        }
-        if (!sellerId) return;
-
-        const stored = localStorage.getItem(`fp_integrations_${sellerId}`);
-        if (stored) {
-            try {
-                let parsed = JSON.parse(stored);
-                // ID MIGRATION LAYER: Convert old int_N IDs to new semantic IDs
-                const idMap: Record<string, string> = {
-                    "int_1": "instagram",
-                    "int_2": "paystack",
-                    "int_3": "shipbubble",
-                    "int_4": "fez",
-                    "int_5": "whatsapp",
-                    "int_6": "custom_domain",
-                    "int_7": "whatsapp_direct"
-                };
-
-                const migrated = parsed.map((app: any) => {
-                    const newId = idMap[app.id];
-                    if (newId) {
-                        const template = INTEGRATIONS.find(i => i.id === newId);
-                        return { ...app, id: newId, manageUrl: template?.manageUrl };
-                    }
-                    return app;
-                });
-                
-                setIntegrations(migrated);
-                if (JSON.stringify(migrated) !== stored) {
-                    localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(migrated));
-                }
-            } catch (e) {
-                setIntegrations(INTEGRATIONS);
-            }
-        } else {
-            // Seed
-            localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(INTEGRATIONS));
-        }
+        if (!seller) return;
+        setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
+        // Derive status from real seller data — never trust the localStorage toggle
+        setIntegrations(computeIntegrations(seller));
     }, []);
 
     const handleConnect = async (intId: string, requiresPremium: boolean) => {
         if (requiresPremium && isStarterPlan) {
-            alert("This integration requires a premium subscription. Please upgrade your plan.");
             router.push('/seller/settings/billing');
             return;
         }
 
-        const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId) return;
-
         setConnecting(intId);
-        // Simulate OAuth redirect or connection delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
 
-        const updated = integrations.map(app =>
-            app.id === intId ? { ...app, status: app.status === "Connected" ? "Disconnected" : "Connected" } : app
-        );
-        setIntegrations(updated);
-        localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(updated));
+        switch (intId) {
+            case "instagram":
+                // Real OAuth flow — fetch redirect URL from the API
+                try {
+                    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                    const res = await fetch("/api/seller/instagram/auth", {
+                        headers: {
+                            Accept: "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                    });
+                    const data = await res.json();
+                    if (data.url) { window.location.href = data.url; return; }
+                } catch {}
+                break;
 
-        // Special handling for WhatsApp Direct DM routing
-        if (intId === "whatsapp_direct") {
-            const isEnabled = updated.find(a => a.id === "whatsapp_direct")?.status === "Connected";
-            DataSyncService.updateSeller(sellerId, { whatsappDirectDM: isEnabled } as any);
+            case "paystack":
+                // Paystack connection = configure bank settlement details
+                router.push("/seller/settings/payouts");
+                break;
+
+            case "whatsapp":
+                // WhatsApp Business API = configure WA number in settings
+                router.push("/seller/settings");
+                break;
+
+            case "whatsapp_direct": {
+                // Toggle WhatsApp Direct DM in the seller record
+                const sellerId = DataSyncService.getCurrentSellerId();
+                const current = integrations.find(a => a.id === "whatsapp_direct");
+                const enable = current?.status !== "Connected";
+                if (sellerId) {
+                    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                    await fetch(`/api/sellers/${sellerId}`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify({ whatsappDirectDM: enable }),
+                    });
+                    DataSyncService.updateSeller(sellerId, { whatsappDirectDM: enable } as any);
+                    setIntegrations(prev =>
+                        prev.map(a => a.id === "whatsapp_direct" ? { ...a, status: enable ? "Connected" : "Disconnected" } : a)
+                    );
+                }
+                break;
+            }
+
+            case "custom_domain":
+                router.push("/seller/settings");
+                break;
+
+            default:
+                // Logistics (Shipbubble/Fez): coming soon — just show a toast-like alert
+                alert("This integration is coming soon. We'll notify you when it's available.");
         }
 
         setConnecting(null);
@@ -222,7 +247,7 @@ export default function IntegrationsPage() {
                                 <div className="flex gap-2">
                                     <Link href={(app as any).manageUrl || "#"} className="flex-1">
                                         <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
-                                            Manage
+                                            {app.id === "paystack" ? "View Payouts" : app.id === "whatsapp" ? "Configure" : "Manage"}
                                         </Button>
                                     </Link>
                                     <Button

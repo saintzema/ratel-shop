@@ -82,23 +82,54 @@ export default function SellerSettingsPage() {
         setLoading(false);
     }, [router]);
 
+    const getAuthHeaders = (): Record<string, string> => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!seller) return;
 
         setSaving(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 800));
+        try {
+            const res = await fetch(`/api/sellers/${seller.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                body: JSON.stringify({
+                    business_name: formData.business_name,
+                    description: formData.description,
+                    logo_url: formData.logo_url,
+                    cover_image_url: formData.cover_image_url,
+                    store_url: formData.store_url,
+                    location: formData.location,
+                    weekly_orders: formData.weekly_orders,
+                    staff_count: formData.staff_count,
+                    physical_stores: formData.physical_stores,
+                    currencies: formData.currencies,
+                    whatsapp_number: formData.whatsapp_number,
+                }),
+            });
 
-        DataSyncService.updateSeller(seller.id, formData);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Save failed (${res.status})`);
+            }
 
-        // Refresh local seller state so logo/cover image preview updates immediately
-        const refreshed = DataSyncService.getCurrentSeller();
-        if (refreshed) setSeller(refreshed as Seller);
+            // Keep localStorage in sync so sidebar avatar updates immediately
+            DataSyncService.updateSeller(seller.id, formData);
 
-        setSaving(false);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
+            const refreshed = DataSyncService.getCurrentSeller();
+            if (refreshed) setSeller(refreshed as Seller);
+
+            setSuccess(true);
+            setTimeout(() => setSuccess(false), 3000);
+        } catch (err: any) {
+            console.error("Settings save error:", err);
+            alert(err.message || "Failed to save settings. Please try again.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     const toggleCurrency = (currency: string) => {
@@ -126,6 +157,7 @@ export default function SellerSettingsPage() {
 
                 const res = await fetch("/api/upload", {
                     method: "POST",
+                    headers: { ...getAuthHeaders() }, // no Content-Type: multipart handles it
                     body: uploadFormData
                 });
                 
@@ -135,19 +167,32 @@ export default function SellerSettingsPage() {
                 }
 
                 const url = data.url;
+                let logoUrl = formData.logo_url;
+                let coverUrl = formData.cover_image_url;
+
                 if (type === 'cover') {
                     const currentUrls = (formData as any).cover_image_urls || (formData.cover_image_url ? [formData.cover_image_url] : []);
                     const maxImages = (seller?.subscription_plan === "Growth" || seller?.subscription_plan === "Scale") ? 3 : 1;
-                    
                     if (currentUrls.length >= maxImages && maxImages > 1) {
                         const newUrls = [...currentUrls, url].slice(-maxImages);
                         setFormData(prev => ({ ...prev, cover_image_urls: newUrls, cover_image_url: newUrls[0] }));
                     } else {
                         setFormData(prev => ({ ...prev, cover_image_url: url, cover_image_urls: [url] }));
                     }
+                    coverUrl = url;
                 } else {
                     setFormData(prev => ({ ...prev, logo_url: url }));
+                    logoUrl = url;
                 }
+
+                // Persist the new image URL to DB immediately — don't require user to click Save
+                await fetch(`/api/sellers/${seller!.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                    body: JSON.stringify({ logo_url: logoUrl, cover_image_url: coverUrl }),
+                });
+                // Sync localStorage so sidebar/header update on next render
+                DataSyncService.updateSeller(seller!.id, { logo_url: logoUrl, cover_image_url: coverUrl } as any);
             } catch (err: any) {
                 console.error("Upload error:", err);
                 alert(err.message || "Failed to upload image. Please try again.");
