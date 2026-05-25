@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
+import { signToken } from "@/lib/jwt";
 
 /**
  * POST /api/auth/whatsapp/verify-otp
@@ -65,7 +66,35 @@ export async function POST(req: Request) {
             data: { status: "verified" }
         });
 
-        return NextResponse.json({ success: true });
+        // Look up an existing user with this phone number and issue a JWT if found
+        // so the client can immediately authenticate API calls after OTP verification
+        let token: string | undefined;
+        let userPayload: any;
+        try {
+            const cleanPhone = WhatsAppService.normalizePhoneNumber(verification.phoneNumber);
+            const emailVariants = WhatsAppService.allWaEmailVariants(cleanPhone);
+            const existingUser = await db.user.findFirst({
+                where: {
+                    OR: [
+                        { whatsappNumber: cleanPhone },
+                        { email: { in: emailVariants } },
+                    ]
+                },
+                select: { id: true, email: true, name: true, role: true, avatarUrl: true }
+            });
+            if (existingUser) {
+                token = signToken({ userId: existingUser.id, email: existingUser.email, role: existingUser.role as any });
+                userPayload = {
+                    id: existingUser.id,
+                    email: existingUser.email,
+                    name: existingUser.name,
+                    role: existingUser.role,
+                    avatar_url: existingUser.avatarUrl,
+                };
+            }
+        } catch { /* non-critical — new registrations don't have a user yet */ }
+
+        return NextResponse.json({ success: true, token, user: userPayload });
     } catch (error: any) {
         console.error("WhatsApp Verify OTP Error:", error);
         return NextResponse.json(

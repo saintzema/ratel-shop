@@ -156,7 +156,13 @@ export default function UnifiedAuthPage() {
         return () => clearInterval(timer);
     }, [bgImages.length]);
 
-    // --- Handlers ---
+    // --- Helpers ---
+
+    /** Persist the server-issued JWT so every protected API call can send it as Bearer token */
+    const saveToken = (token?: string) => {
+        if (!token) return;
+        try { localStorage.setItem('fp_token', token); } catch { /* ignore */ }
+    };
 
     // Check if a user is already registered by looking up localStorage
     const checkRegisteredUser = (email: string): boolean => {
@@ -306,6 +312,7 @@ export default function UnifiedAuthPage() {
             if (data.success && data.user) {
                 // DB verified — use the DB user data (has correct role)
                 const dbUser = data.user;
+                saveToken(data.token);
                 login(dbUser);
                 saveRegisteredUser(dbUser.email, dbUser.name, dbUser.role);
 
@@ -551,7 +558,7 @@ export default function UnifiedAuthPage() {
         }, 1200);
     };
 
-    const handleFinalizeOtpLogin = () => {
+    const handleFinalizeOtpLogin = async () => {
         setError("");
         const enteredCode = Array.from({ length: 6 }).map((_, i) => (document.getElementById(`otp-ex-${i}`) as HTMLInputElement)?.value || "").join("");
 
@@ -561,26 +568,40 @@ export default function UnifiedAuthPage() {
         }
 
         setIsLoading(true);
-        setTimeout(() => {
-            if (existingUser) {
-                let determinedRole: "customer" | "seller" | "admin" = "customer";
-                if (existingUser?.role) {
-                    determinedRole = existingUser.role as "customer" | "seller" | "admin";
-                } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
-                    determinedRole = "admin";
-                } else if (identifier.toLowerCase().includes("seller@")) {
-                    determinedRole = "seller";
-                }
-
-                const finalRedirect =
-                    determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                        determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
-                            redirectPath;
-
-                login(existingUser);
-                router.push(finalRedirect);
+        // Slight delay for UX, then log in
+        await new Promise(r => setTimeout(r, 800));
+        if (existingUser) {
+            let determinedRole: "customer" | "seller" | "admin" = "customer";
+            if (existingUser?.role) {
+                determinedRole = existingUser.role as "customer" | "seller" | "admin";
+            } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
+                determinedRole = "admin";
+            } else if (identifier.toLowerCase().includes("seller@")) {
+                determinedRole = "seller";
             }
-        }, 1000);
+
+            // Issue JWT so protected API calls work
+            try {
+                const tokenRes = await fetch('/api/auth/issue-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: existingUser.email }),
+                });
+                if (tokenRes.ok) {
+                    const tokenData = await tokenRes.json();
+                    saveToken(tokenData.token);
+                }
+            } catch { /* non-critical */ }
+
+            const finalRedirect =
+                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                        redirectPath;
+
+            login(existingUser);
+            router.push(finalRedirect);
+        }
+        setIsLoading(false);
     };
 
     const [waPhoneNumber, setWaPhoneNumber] = useState("");
@@ -697,8 +718,8 @@ export default function UnifiedAuthPage() {
         }
     };
 
-    /** Verify WhatsApp OTP code */
-    const handleVerifyWhatsAppOtp = async (enteredCode: string): Promise<boolean> => {
+    /** Verify WhatsApp OTP code — returns token if user already exists */
+    const handleVerifyWhatsAppOtp = async (enteredCode: string): Promise<{ ok: boolean; token?: string }> => {
         try {
             const res = await fetch("/api/auth/whatsapp/verify-otp", {
                 method: "POST",
@@ -706,9 +727,9 @@ export default function UnifiedAuthPage() {
                 body: JSON.stringify({ phoneNumber: waFullPhone, code: enteredCode })
             });
             const data = await res.json();
-            return data.success === true;
+            return { ok: data.success === true, token: data.token };
         } catch {
-            return false;
+            return { ok: false };
         }
     };
 
@@ -731,6 +752,7 @@ export default function UnifiedAuthPage() {
             const data = await res.json();
 
             if (data.success && data.user) {
+                saveToken(data.token);
                 login(data.user);
                 saveRegisteredUser(
                     data.user.email,
@@ -781,7 +803,7 @@ export default function UnifiedAuthPage() {
         }
 
         setIsLoading(true);
-        const verified = await handleVerifyWhatsAppOtp(enteredCode);
+        const { ok: verified, token: otpToken } = await handleVerifyWhatsAppOtp(enteredCode);
 
         if (!verified) {
             setError("Invalid verification code. Please check your WhatsApp and try again.");
@@ -792,6 +814,7 @@ export default function UnifiedAuthPage() {
         if (isExistingUser) {
             // WA OTP login — user is verified, log them in
             if (fetchedUser) {
+                saveToken(otpToken);
                 login(fetchedUser);
                 saveRegisteredUser(fetchedUser.email, fetchedUser.name, fetchedUser.role);
                 const finalRedirect =
@@ -1180,6 +1203,10 @@ export default function UnifiedAuthPage() {
                                                         } else if (result === "bypassed") {
                                                             // Verification bypassed — log in directly via OTP skip
                                                             if (fetchedUser) {
+                                                                try {
+                                                                    const tr = await fetch('/api/auth/issue-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: fetchedUser.email }) });
+                                                                    if (tr.ok) { const td = await tr.json(); saveToken(td.token); }
+                                                                } catch { /* non-critical */ }
                                                                 login(fetchedUser);
                                                                 saveRegisteredUser(fetchedUser.email, fetchedUser.name, fetchedUser.role);
                                                                 router.push(redirectPath);

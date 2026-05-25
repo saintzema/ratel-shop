@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { CheckCircle2, UploadCloud, Loader2, Save, Files, Download, PenLine, RefreshCw, X, FileSignature } from "lucide-react";
+import { CheckCircle2, UploadCloud, Loader2, Save, Files, Download, PenLine, RefreshCw, X, FileSignature, Sparkles, ChevronRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ApplicantType } from "./Step1-ApplicantType";
 import { BoardResolutionGenerator, type BoardResolutionData } from "./BoardResolutionGenerator";
@@ -30,7 +30,8 @@ const SALARY_DOCS: DocDef[] = [
 
 const BUSINESS_DOCS: DocDef[] = [
     { key: 'cac', label: 'CAC Documents (Form 1 & 2)', hint: 'Select both forms at once (PDF or image)', accept: '.pdf,.jpg,.jpeg,.png', multiple: true },
-    { key: 'auditedFinancials', label: '1–2 Years Audited Financials', hint: 'PDF', accept: '.pdf' },
+    { key: 'auditedFinancials', label: '1–2 Years Audited Financials', hint: 'PDF, Excel or CSV — or generate below', accept: '.pdf,.xlsx,.xls,.csv' },
+    { key: 'cashFlowProjection', label: 'Cash Flow Projection', hint: 'PDF, Excel or CSV — or generate below', accept: '.pdf,.xlsx,.xls,.csv' },
     { key: 'bankStatement', label: '1 Year Bank Statement', hint: 'PDF or image', accept: '.pdf,.jpg,.jpeg,.png' },
     { key: 'altbankForm', label: 'Filled AltBank Business Form', hint: 'Download below, fill & upload here', accept: '.pdf,.jpg,.jpeg,.png' },
 ];
@@ -75,17 +76,16 @@ function SignatureCanvas({ onSave, onClear, existingSignature }: SignatureCanvas
 
     const getPos = (e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) => {
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        // No scaling needed — canvas.style.width/height now exactly matches rect
         if ('touches' in e) {
             return {
-                x: (e.touches[0].clientX - rect.left) * scaleX,
-                y: (e.touches[0].clientY - rect.top) * scaleY,
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top,
             };
         }
         return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY,
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
         };
     };
 
@@ -126,15 +126,20 @@ function SignatureCanvas({ onSave, onClear, existingSignature }: SignatureCanvas
         const canvas = canvasRef.current;
         if (!canvas || !showPad) return;
 
-        // Set canvas resolution
+        // Measure CSS size BEFORE changing canvas dimensions so getBoundingClientRect is accurate
         const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
+        const dpr = window.devicePixelRatio || 1;
+        // Set pixel buffer to match physical pixels
+        canvas.width  = rect.width  * dpr;
+        canvas.height = rect.height * dpr;
+        // CSS size stays as is (set by parent layout)
+        canvas.style.width  = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
         const ctx = canvas.getContext('2d');
         if (ctx) {
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            ctx.scale(dpr, dpr);
             ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, rect.width, rect.height);
         }
 
         canvas.addEventListener('mousedown', startDraw);
@@ -160,9 +165,11 @@ function SignatureCanvas({ onSave, onClear, existingSignature }: SignatureCanvas
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (!canvas || !ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = parseFloat(canvas.style.width) || canvas.width;
+        const h = parseFloat(canvas.style.height) || canvas.height;
+        ctx.clearRect(0, 0, w, h);
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, w, h);
         setHasDrawn(false);
     };
 
@@ -295,6 +302,11 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
     const [showBoardResolutionGenerator, setShowBoardResolutionGenerator] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [savedAt, setSavedAt] = useState<Date | null>(null);
+    const [showFinancialWizard, setShowFinancialWizard] = useState(false);
+    const [wizardTarget, setWizardTarget] = useState<'auditedFinancials' | 'cashFlowProjection'>('auditedFinancials');
+    const [wizardStep, setWizardStep] = useState(0);
+    const [wizardGenerating, setWizardGenerating] = useState(false);
+    const [wizardAnswers, setWizardAnswers] = useState<Record<string, string>>({});
 
     const requiredDocs = applicantType === 'salary_earner' ? SALARY_DOCS : BUSINESS_DOCS;
     const uploadedCount = requiredDocs.filter(d => fileCount(documents[d.key]) > 0).length;
@@ -320,8 +332,190 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
         setIsSaving(false);
     };
 
+    const openWizard = (target: 'auditedFinancials' | 'cashFlowProjection') => {
+        setWizardTarget(target);
+        setWizardStep(0);
+        setWizardAnswers({});
+        setShowFinancialWizard(true);
+    };
+
+    // Questions shown in the wizard — slightly different per target
+    const WIZARD_QUESTIONS = wizardTarget === 'auditedFinancials' ? [
+        { key: 'revenue', label: 'Annual Revenue (₦)', placeholder: 'e.g. 12,000,000', type: 'number' },
+        { key: 'cogs', label: 'Cost of Goods Sold / Direct Costs (₦)', placeholder: 'e.g. 7,000,000', type: 'number' },
+        { key: 'opex', label: 'Total Operating Expenses (₦)', placeholder: 'e.g. 2,000,000', type: 'number' },
+        { key: 'assets', label: 'Total Assets (₦)', placeholder: 'e.g. 20,000,000', type: 'number' },
+        { key: 'liabilities', label: 'Total Liabilities (₦)', placeholder: 'e.g. 8,000,000', type: 'number' },
+        { key: 'yearEnd', label: 'Financial Year End Date', placeholder: 'e.g. 31 Dec 2024', type: 'text' },
+        { key: 'auditor', label: 'Name of Accountant / Auditor (if any)', placeholder: 'e.g. ABC & Partners', type: 'text' },
+    ] : [
+        { key: 'monthlyRevenue', label: 'Average Monthly Revenue (₦)', placeholder: 'e.g. 1,000,000', type: 'number' },
+        { key: 'monthlyExpenses', label: 'Average Monthly Expenses (₦)', placeholder: 'e.g. 600,000', type: 'number' },
+        { key: 'loanRepayment', label: 'Proposed Monthly Loan Repayment (₦)', placeholder: 'Auto-filled', type: 'number' },
+        { key: 'seasonality', label: 'Describe any seasonal patterns in revenue', placeholder: 'e.g. Higher sales in Dec/Jan due to festive period', type: 'text' },
+        { key: 'projectionPeriod', label: 'Projection Period (months)', placeholder: 'e.g. 24', type: 'number' },
+        { key: 'growthRate', label: 'Expected Monthly Revenue Growth (%)', placeholder: 'e.g. 3', type: 'number' },
+    ];
+
+    const generateFinancialDoc = () => {
+        setWizardGenerating(true);
+        setTimeout(() => {
+            const a = wizardAnswers;
+            let csvContent = '';
+
+            if (wizardTarget === 'auditedFinancials') {
+                const rev   = Number((a.revenue   || '0').replace(/,/g,''));
+                const cogs  = Number((a.cogs      || '0').replace(/,/g,''));
+                const opex  = Number((a.opex      || '0').replace(/,/g,''));
+                const gross = rev - cogs;
+                const net   = gross - opex;
+                const assets = Number((a.assets       || '0').replace(/,/g,''));
+                const liab   = Number((a.liabilities  || '0').replace(/,/g,''));
+                const equity = assets - liab;
+
+                csvContent = [
+                    `AUDITED FINANCIAL STATEMENT — Generated by FairPrice Financing`,
+                    `Year End:,${a.yearEnd || 'N/A'}`,
+                    `Auditor:,${a.auditor || 'Self-Reported'}`,
+                    ``,
+                    `INCOME STATEMENT`,
+                    `Revenue,₦${rev.toLocaleString()}`,
+                    `Cost of Goods Sold,₦${cogs.toLocaleString()}`,
+                    `Gross Profit,₦${gross.toLocaleString()}`,
+                    `Operating Expenses,₦${opex.toLocaleString()}`,
+                    `Net Profit,₦${net.toLocaleString()}`,
+                    ``,
+                    `BALANCE SHEET`,
+                    `Total Assets,₦${assets.toLocaleString()}`,
+                    `Total Liabilities,₦${liab.toLocaleString()}`,
+                    `Shareholders Equity,₦${equity.toLocaleString()}`,
+                ].join('\n');
+            } else {
+                const monthlyRev  = Number((a.monthlyRevenue || '0').replace(/,/g,''));
+                const monthlyExp  = Number((a.monthlyExpenses|| '0').replace(/,/g,''));
+                const repayment   = Number((a.loanRepayment  || String(Math.round(loanAmount * 0.036 / 12))).replace(/,/g,''));
+                const growth      = Number(a.growthRate || '2') / 100;
+                const months      = Math.min(Number(a.projectionPeriod || tenureMonths), 48);
+
+                const rows = [`Month,Revenue (₦),Expenses (₦),Loan Repayment (₦),Net Cash Flow (₦)`];
+                let cumRev = monthlyRev;
+                for (let i = 1; i <= months; i++) {
+                    const netFlow = cumRev - monthlyExp - repayment;
+                    rows.push(`Month ${i},${Math.round(cumRev).toLocaleString()},${monthlyExp.toLocaleString()},${repayment.toLocaleString()},${Math.round(netFlow).toLocaleString()}`);
+                    cumRev = cumRev * (1 + growth);
+                }
+                csvContent = [
+                    `CASH FLOW PROJECTION — Generated by FairPrice Financing`,
+                    `Seasonality Notes:,${a.seasonality || 'None specified'}`,
+                    ``,
+                    ...rows,
+                ].join('\n');
+            }
+
+            // Create a File object from the CSV and store it in documents
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const filename = wizardTarget === 'auditedFinancials'
+                ? 'Audited-Financials-Generated.csv'
+                : 'Cash-Flow-Projection-Generated.csv';
+            const file = new File([blob], filename, { type: 'text/csv' });
+            setDocuments(prev => ({ ...prev, [wizardTarget]: file }));
+            setWizardGenerating(false);
+            setShowFinancialWizard(false);
+        }, 1200);
+    };
+
+    const currentQ = WIZARD_QUESTIONS[wizardStep];
+    const wizardTitle = wizardTarget === 'auditedFinancials' ? 'Generate Audited Financials' : 'Generate Cash Flow Projection';
+
     return (
         <>
+        {/* Financial Document Wizard */}
+        {showFinancialWizard && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-indigo-50">
+                        <div className="flex items-center gap-2">
+                            <div className="h-7 w-7 rounded-lg bg-purple-500 flex items-center justify-center">
+                                <Sparkles className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-gray-900">{wizardTitle}</h4>
+                                <p className="text-[9px] text-gray-400">Step {wizardStep + 1} of {WIZARD_QUESTIONS.length}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setShowFinancialWizard(false)} className="p-1 rounded-lg hover:bg-gray-100">
+                            <X className="h-4 w-4 text-gray-400" />
+                        </button>
+                    </div>
+
+                    <div className="p-5">
+                        {/* Progress bar */}
+                        <div className="h-1 bg-gray-100 rounded-full mb-5 overflow-hidden">
+                            <div className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                                style={{ width: `${((wizardStep) / WIZARD_QUESTIONS.length) * 100}%` }} />
+                        </div>
+
+                        {wizardGenerating ? (
+                            <div className="py-8 text-center space-y-3">
+                                <div className="h-12 w-12 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto">
+                                    <Loader2 className="h-6 w-6 text-purple-500 animate-spin" />
+                                </div>
+                                <p className="text-sm font-bold text-gray-700">Generating your document…</p>
+                                <p className="text-xs text-gray-400">This will be added to your application automatically.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <label className="block text-xs font-black text-gray-700 mb-1.5">{currentQ?.label}</label>
+                                <input
+                                    key={currentQ?.key}
+                                    type={currentQ?.type === 'number' ? 'text' : 'text'}
+                                    inputMode={currentQ?.type === 'number' ? 'numeric' : 'text'}
+                                    placeholder={currentQ?.placeholder}
+                                    defaultValue={wizardAnswers[currentQ?.key || ''] || ''}
+                                    onChange={e => setWizardAnswers(prev => ({ ...prev, [currentQ!.key]: e.target.value }))}
+                                    className="w-full h-12 px-4 rounded-xl border border-gray-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 outline-none text-sm font-medium"
+                                    autoFocus
+                                />
+                                <p className="text-[10px] text-gray-400 mt-1.5">
+                                    {wizardTarget === 'cashFlowProjection' && currentQ?.key === 'loanRepayment'
+                                        ? `Suggested: ₦${Math.round(loanAmount * 0.036 / 12).toLocaleString()} / month`
+                                        : 'Enter approximate figures — they help generate realistic projections.'
+                                    }
+                                </p>
+
+                                <div className="flex gap-2 mt-4">
+                                    {wizardStep > 0 && (
+                                        <button
+                                            onClick={() => setWizardStep(s => s - 1)}
+                                            className="h-10 px-4 rounded-xl border border-gray-200 text-xs font-bold text-gray-500 hover:bg-gray-50"
+                                        >
+                                            Back
+                                        </button>
+                                    )}
+                                    <Button
+                                        onClick={() => {
+                                            if (wizardStep < WIZARD_QUESTIONS.length - 1) {
+                                                setWizardStep(s => s + 1);
+                                            } else {
+                                                generateFinancialDoc();
+                                            }
+                                        }}
+                                        className="flex-1 h-10 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1"
+                                    >
+                                        {wizardStep < WIZARD_QUESTIONS.length - 1 ? (
+                                            <>Next <ChevronRight className="h-3.5 w-3.5" /></>
+                                        ) : (
+                                            <><Sparkles className="h-3.5 w-3.5" /> Generate Document</>
+                                        )}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+
         {showBoardResolutionGenerator && (
             <BoardResolutionGenerator
                 productName={productName}
@@ -402,18 +596,30 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
                                         : <p className={`text-[10px] mt-0.5 ${isAltbank ? 'text-blue-400' : 'text-gray-400'}`}>{doc.hint}</p>
                                     }
                                 </div>
-                                <label className="shrink-0 cursor-pointer">
-                                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${uploaded ? 'border-emerald-300 text-emerald-600 hover:bg-emerald-100' : isAltbank ? 'border-blue-200 text-blue-600 hover:bg-blue-50' : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
-                                        {uploaded ? 'Change' : 'Upload'}
-                                    </span>
-                                    <input
-                                        type="file"
-                                        accept={doc.accept}
-                                        multiple={isMulti}
-                                        className="sr-only"
-                                        onChange={(e) => handleFile(doc.key, doc.multiple, e.target.files)}
-                                    />
-                                </label>
+                                <div className="flex flex-col gap-1 shrink-0">
+                                    <label className="cursor-pointer">
+                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${uploaded ? 'border-emerald-300 text-emerald-600 hover:bg-emerald-100' : isAltbank ? 'border-blue-200 text-blue-600 hover:bg-blue-50' : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
+                                            {uploaded ? 'Change' : 'Upload'}
+                                        </span>
+                                        <input
+                                            type="file"
+                                            accept={doc.accept}
+                                            multiple={isMulti}
+                                            className="sr-only"
+                                            onChange={(e) => handleFile(doc.key, doc.multiple, e.target.files)}
+                                        />
+                                    </label>
+                                    {/* AI Generate button for financial docs */}
+                                    {(doc.key === 'auditedFinancials' || doc.key === 'cashFlowProjection') && !uploaded && (
+                                        <button
+                                            type="button"
+                                            onClick={() => openWizard(doc.key as 'auditedFinancials' | 'cashFlowProjection')}
+                                            className="text-[9px] font-black px-2 py-1 rounded-lg border border-purple-200 text-purple-600 hover:bg-purple-50 flex items-center gap-0.5 transition-all"
+                                        >
+                                            <Sparkles className="h-2.5 w-2.5" /> Generate
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     );
