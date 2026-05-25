@@ -606,7 +606,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 
         <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
-            <div key={`${product.id}-${idx}`} className="min-w-[190px] md:min-w-[220px] flex flex-col">
+            <div key={`${product.id}-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
               <ProductCard product={product} />
             </div>
           ))}
@@ -641,50 +641,41 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     return () => window.removeEventListener("resize", checkScroll);
   }, [products, checkScroll]);
 
-  // Framer Motion based smooth auto-scroll to replace setInterval
-  const [scrollX, setScrollX] = useState(0);
-  
+  // Step-by-step auto-scroll: advance one card, pause 2s, repeat (easier on eyes & performance)
   useEffect(() => {
     if (!autoScroll || isPaused || isLoading) return;
-    
+
     const el = scrollRef.current;
     if (!el) return;
 
-    // Set initial offset for right direction
+    // Set initial offset for right-to-left direction
     if (!initOffsetDone.current && direction === "right") {
       el.scrollLeft = el.scrollWidth / 3;
       initOffsetDone.current = true;
     }
 
-    let animationFrame: number;
-    let lastTime = performance.now();
-    const speed = 0.5; // pixels per frame approx
+    const CARD_WIDTH = 220; // matches md:min-w-[220px]
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-    const animate = (time: number) => {
-      if (!scrollRef.current) return;
-      
-      const deltaTime = time - lastTime;
-      lastTime = time;
+    const stepScroll = () => {
+      if (!el) return;
+      const scrollAmount = direction === "left" ? CARD_WIDTH : -CARD_WIDTH;
 
-      const move = (speed * deltaTime) / 16; // Normalize to 60fps
-      
-      if (direction === "left") {
-        scrollRef.current.scrollLeft += move;
-        if (scrollRef.current.scrollLeft >= scrollRef.current.scrollWidth / 3) {
-          scrollRef.current.scrollLeft = 0;
-        }
+      // Seamless wrap-around at 1/3 of total width (tripled array)
+      if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+        el.scrollLeft = 0;
+      } else if (direction === "right" && el.scrollLeft <= 0) {
+        el.scrollLeft = el.scrollWidth / 3;
       } else {
-        scrollRef.current.scrollLeft -= move;
-        if (scrollRef.current.scrollLeft <= 0) {
-          scrollRef.current.scrollLeft = scrollRef.current.scrollWidth / 3;
-        }
+        el.scrollBy({ left: scrollAmount, behavior: "smooth" });
       }
-      
-      animationFrame = requestAnimationFrame(animate);
+
+      timeoutId = setTimeout(stepScroll, 2200);
     };
 
-    animationFrame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationFrame);
+    // Initial delay before first step
+    timeoutId = setTimeout(stepScroll, 1800);
+    return () => clearTimeout(timeoutId);
   }, [autoScroll, isPaused, direction, isLoading]);
 
   const scroll = (direction: "left" | "right") => {
@@ -749,7 +740,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (
-            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col h-full">
+            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
               {isLoading ? (
                 <ProductCardSkeleton />
               ) : cardType === "compact" ? (

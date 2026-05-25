@@ -1531,10 +1531,8 @@ function SearchContent() {
               )
             )}
 
-            {/* See more results Button — always visible when there's a valid query */}
-            {query &&
-              query.trim().length > 2 &&
-              combinedCurrentResults.length > 0 && (
+            {/* See more results Button — visible whenever there's a valid query */}
+            {query && query.trim().length > 2 && (
                 <div className="flex justify-center my-10 relative">
                   <div
                     className="absolute inset-0 flex items-center"

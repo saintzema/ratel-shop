@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Resolve the seller record for this user
     const seller = await db.seller.findFirst({
-        where: { userId: (user as any).id },
+        where: { userId: user.userId },
         select: { id: true },
     });
 

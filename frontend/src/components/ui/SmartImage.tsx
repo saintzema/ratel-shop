@@ -136,8 +136,11 @@ export function SmartImage({
         if (real) {
             setResolvedSrc(real);
             setFailed(false);
+            setLoaded(false);
             onSrcResolved?.(real);
         }
+        // Allow retry in case the fetch returned nothing this time
+        hydrating.current = false;
     }, [productName, category, onSrcResolved]);
 
     // When src prop changes, re-evaluate
@@ -169,8 +172,9 @@ export function SmartImage({
         if (productName) tryHydrate();
     };
 
-    // Show category icon while no image is resolved or if everything failed
-    if (!resolvedSrc || (failed && !resolvedSrc)) {
+    // Show category icon while no image is resolved OR when the image failed
+    // (show icon immediately on failure while background hydration runs)
+    if (!resolvedSrc || failed) {
         return (
             <div className={`flex items-center justify-center bg-gray-50 ${className}`}>
                 <CategoryIcon category={category} name={productName} size={iconSize} />

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const seller = await db.seller.findFirst({
-        where: { userId: (user as any).id },
+        where: { userId: user.userId },
         select: { id: true, businessName: true, status: true },
     });
 

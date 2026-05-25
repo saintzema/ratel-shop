@@ -1206,14 +1206,14 @@ export function Navbar() {
                                         </div>
                                     )}
 
-                                    {/* Cached Results from Past Searches (instant) */}
+                                    {/* Cached Results from Past Searches (instant) — capped at 2 to keep dropdown tight */}
                                     {cachedResults.length > 0 && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
                                                 <History className="h-3.5 w-3.5 text-blue-500" />
                                                 PREVIOUSLY FOUND
                                             </div>
-                                            {cachedResults.slice(0, 4).map((result: any, i: number) => {
+                                            {cachedResults.slice(0, 2).map((result: any, i: number) => {
                                                 const cachedIdx = textSuggestions.length + suggestions.length + i;
                                                 return (
                                                     <button
@@ -1224,12 +1224,15 @@ export function Navbar() {
                                                             activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-100"
                                                         )}
                                                     >
-                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                            <img
-                                                                src={getProxiedImageUrl(result.image_url || result.images?.[0])}
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden shadow-sm">
+                                                            <SmartImage
+                                                                src={result.image_url || result.images?.[0] || null}
                                                                 alt={result.name}
-                                                                className="w-full h-full object-contain"
-                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                                productName={result.name}
+                                                                category={result.category}
+                                                                imagePool={imagePool}
+                                                                iconSize={18}
+                                                                className="w-10 h-10"
                                                             />
                                                         </div>
                                                         <div className="flex flex-col flex-1 min-w-0">
@@ -1282,8 +1285,8 @@ export function Navbar() {
                                                 </div>
                                             </div>
                                         </div>
-                                    )}                                    {/* Global Search Results (from Gemini API) */}
-                                    {isGlobalSearching && (
+                                    )}                                    {/* Global search skeleton — only shown when no other results exist yet */}
+                                    {isGlobalSearching && globalResults.length === 0 && suggestions.length === 0 && cachedResults.length === 0 && (
                                         <div className="border-t border-blue-50 px-4 py-3">
                                             <div className="flex items-center gap-2 text-xs text-green-600 font-semibold mb-2">
                                                 <Globe className="h-3.5 w-3.5 animate-spin" />
@@ -1368,7 +1371,7 @@ export function Navbar() {
                                                 setIsPriceIntelOpen(true);
                                                 setShowSuggestions(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow cursor-pointer glassy-gradient-border"
+                                            className="w-full flex items-center gap-3 px-4 py-4 backdrop-blur-sm bg-white/60 hover:backdrop-blur-md hover:bg-emerald-50/80 transition-all border-t border-emerald-100/60 cursor-pointer glassy-gradient-border"
                                         >
                                             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                                                 <Globe className="h-5 w-5" />
