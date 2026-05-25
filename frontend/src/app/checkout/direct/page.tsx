@@ -63,10 +63,14 @@ function DirectCheckoutContent() {
             if (!product && (sellerId || label)) {
                 const sellers = DataSyncService.getSellers();
                 const seller = sellers.find(s => s.id === sellerId);
-                
-                // Use a unique ID for direct payments to allow multiple different payments in one cart
-                const uniqueId = productId || `qr-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                
+
+                // Always generate a fresh ID so repeat scans (after cart removal) each
+                // create a new distinct cart item.
+                const uniqueId = `qr-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+                // Use the seller logo (passed via `image` param) or a QR icon fallback
+                const productImage = image || seller?.logo_url || "/assets/images/placeholder.png";
+
                 const reconstructed: Product = {
                     id: uniqueId,
                     name: label || (name ? name : `Payment to ${seller?.business_name || "Verified Seller"}`),
@@ -74,8 +78,8 @@ function DirectCheckoutContent() {
                     original_price: amount,
                     category: (category || "services") as ProductCategory,
                     description: label || `Direct QR payment secured by FairPrice Escrow.`,
-                    image_url: image || "SPECIAL:QR_PAYMENT",
-                    images: [image || "SPECIAL:QR_PAYMENT"],
+                    image_url: productImage,
+                    images: [productImage],
                     stock: 9999,
                     seller_id: sellerId || "global-partners",
                     seller_name: seller?.business_name || "Verified Seller",
@@ -132,9 +136,12 @@ function DirectCheckoutContent() {
 
             setStatus("redirecting");
 
-            // Small delay so the user sees the confirmation before redirect
+            // Hard navigation so the Next.js router cache is cleared.
+            // Without this, scanning the same QR a second time serves the stale
+            // cached component and the useEffect never re-fires — the item never
+            // gets re-added after being removed from cart.
             setTimeout(() => {
-                router.replace("/checkout");
+                window.location.href = "/checkout";
             }, 1200);
 
         } catch (err) {
