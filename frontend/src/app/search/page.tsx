@@ -23,7 +23,7 @@ import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 
 import { DataSyncService } from "@/lib/sync-store";
 import { CATEGORIES } from "@/lib/types";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProxiedImageUrl } from "@/lib/utils";
 import {
   getFiltersForCategory,
   detectCategoryFromQuery,
@@ -1278,13 +1278,16 @@ function SearchContent() {
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
             {(() => {
+              // Brand logos use Clearbit (proxied through our CDN) for non-car brands.
+              // Car logos are served locally from /assets/images/Car-Logos/.
+              const cl = (domain: string) => getProxiedImageUrl(`https://logo.clearbit.com/${domain}`);
               const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
                 cars: [
                   { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
                   { name: "Lexus", logo: "💎", logoImage: "/assets/images/Car-Logos/Lexus-logo.png" },
                   { name: "Mercedes-Benz", logo: "⭐", logoImage: "/assets/images/Car-Logos/Benz-logo.png" },
                   { name: "Honda", logo: "🏎️", logoImage: "/assets/images/Car-Logos/Honda-logo.png" },
-                  { name: "EVs", logo: "⚡" }, 
+                  { name: "EVs", logo: "⚡" },
                   { name: "Hyundai", logo: "🚙", logoImage: "/assets/images/Car-Logos/Hyundai-logo.png" },
                   { name: "BYD", logo: "⚡", logoImage: "/assets/images/Car-Logos/BYD-Logo.png" },
                   { name: "Tesla", logo: "⚡", logoImage: "/assets/images/Car-Logos/Tesla-Logo.png" },
@@ -1301,52 +1304,52 @@ function SearchContent() {
                   { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
                 ],
                 phones: [
-                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
-                  { name: "Tecno", logo: "T", logoImage: "/assets/images/Brand-Logos/Tecno-logo.png" },
-                  { name: "Infinix", logo: "I", logoImage: "/assets/images/Brand-Logos/Infinix-logo.png" },
-                  { name: "Xiaomi", logo: "X", logoImage: "/assets/images/Brand-Logos/Xiaomi-logo.png" },
-                  { name: "Oppo", logo: "O", logoImage: "/assets/images/Brand-Logos/Oppo-logo.png" },
-                  { name: "Vivo", logo: "V", logoImage: "/assets/images/Brand-Logos/Vivo-logo.png" },
-                  { name: "Nokia", logo: "N", logoImage: "/assets/images/Brand-Logos/Nokia-logo.png" },
-                  { name: "Google Pixel", logo: "G", logoImage: "/assets/images/Brand-Logos/Google-logo.png" },
-                  { name: "Huawei", logo: "H", logoImage: "/assets/images/Brand-Logos/Huawei-logo.png" },
-                  { name: "OnePlus", logo: "1+", logoImage: "/assets/images/Brand-Logos/OnePlus-logo.png" },
-                  { name: "Itel", logo: "i", logoImage: "/assets/images/Brand-Logos/Itel-logo.png" },
+                  { name: "Apple", logo: "A", logoImage: cl("apple.com") },
+                  { name: "Samsung", logo: "S", logoImage: cl("samsung.com") },
+                  { name: "Tecno", logo: "T", logoImage: cl("tecno.com") },
+                  { name: "Infinix", logo: "I", logoImage: cl("infinixmobility.com") },
+                  { name: "Xiaomi", logo: "X", logoImage: cl("xiaomi.com") },
+                  { name: "Oppo", logo: "O", logoImage: cl("oppo.com") },
+                  { name: "Vivo", logo: "V", logoImage: cl("vivo.com") },
+                  { name: "Nokia", logo: "N", logoImage: cl("nokia.com") },
+                  { name: "Google Pixel", logo: "G", logoImage: cl("google.com") },
+                  { name: "Huawei", logo: "H", logoImage: cl("huawei.com") },
+                  { name: "OnePlus", logo: "1+", logoImage: cl("oneplus.com") },
+                  { name: "Itel", logo: "i", logoImage: cl("itel-mobile.com") },
                 ],
                 electronics: [
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
-                  { name: "LG", logo: "LG", logoImage: "/assets/images/Brand-Logos/LG-logo.png" },
-                  { name: "Hisense", logo: "H", logoImage: "/assets/images/Brand-Logos/Hisense-logo.png" },
-                  { name: "Sony", logo: "S", logoImage: "/assets/images/Brand-Logos/Sony-logo.png" },
-                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
-                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
-                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
-                  { name: "Panasonic", logo: "P", logoImage: "/assets/images/Brand-Logos/Panasonic-logo.png" },
-                  { name: "Haier Thermocool", logo: "H", logoImage: "/assets/images/Brand-Logos/Haier-logo.png" },
-                  { name: "Scanfrost", logo: "SF", logoImage: "/assets/images/Brand-Logos/Scanfrost-logo.png" },
-                  { name: "Binatone", logo: "B", logoImage: "/assets/images/Brand-Logos/Binatone-logo.png" },
+                  { name: "Samsung", logo: "S", logoImage: cl("samsung.com") },
+                  { name: "LG", logo: "LG", logoImage: cl("lg.com") },
+                  { name: "Hisense", logo: "H", logoImage: cl("hisense.com") },
+                  { name: "Sony", logo: "S", logoImage: cl("sony.com") },
+                  { name: "HP", logo: "HP", logoImage: cl("hp.com") },
+                  { name: "Dell", logo: "D", logoImage: cl("dell.com") },
+                  { name: "Apple", logo: "A", logoImage: cl("apple.com") },
+                  { name: "Lenovo", logo: "L", logoImage: cl("lenovo.com") },
+                  { name: "Panasonic", logo: "P", logoImage: cl("panasonic.com") },
+                  { name: "Haier Thermocool", logo: "H", logoImage: cl("haier.com") },
+                  { name: "Scanfrost", logo: "SF" },
+                  { name: "Binatone", logo: "B", logoImage: cl("binatone.com") },
                 ],
                 computers: [
-                  { name: "Apple MacBook", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
-                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
-                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
-                  { name: "Asus", logo: "A", logoImage: "/assets/images/Brand-Logos/Asus-logo.png" },
-                  { name: "Acer", logo: "A", logoImage: "/assets/images/Brand-Logos/Acer-logo.png" },
-                  { name: "Microsoft Surface", logo: "M", logoImage: "/assets/images/Brand-Logos/Microsoft-logo.png" },
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
+                  { name: "Apple MacBook", logo: "A", logoImage: cl("apple.com") },
+                  { name: "HP", logo: "HP", logoImage: cl("hp.com") },
+                  { name: "Dell", logo: "D", logoImage: cl("dell.com") },
+                  { name: "Lenovo", logo: "L", logoImage: cl("lenovo.com") },
+                  { name: "Asus", logo: "A", logoImage: cl("asus.com") },
+                  { name: "Acer", logo: "A", logoImage: cl("acer.com") },
+                  { name: "Microsoft Surface", logo: "M", logoImage: cl("microsoft.com") },
+                  { name: "Samsung", logo: "S", logoImage: cl("samsung.com") },
                 ],
                 fashion: [
-                  { name: "Nike", logo: "N", logoImage: "/assets/images/Brand-Logos/Nike-logo.png" },
-                  { name: "Adidas", logo: "A", logoImage: "/assets/images/Brand-Logos/Adidas-logo.png" },
-                  { name: "Zara", logo: "Z", logoImage: "/assets/images/Brand-Logos/Zara-logo.png" },
-                  { name: "H&M", logo: "H", logoImage: "/assets/images/Brand-Logos/HM-logo.png" },
-                  { name: "Gucci", logo: "G", logoImage: "/assets/images/Brand-Logos/Gucci-logo.png" },
-                  { name: "Louis Vuitton", logo: "LV", logoImage: "/assets/images/Brand-Logos/LV-logo.png" },
-                  { name: "Balenciaga", logo: "B", logoImage: "/assets/images/Brand-Logos/Balenciaga-logo.png" },
-                  { name: "Prada", logo: "P", logoImage: "/assets/images/Brand-Logos/Prada-logo.png" },
+                  { name: "Nike", logo: "N", logoImage: cl("nike.com") },
+                  { name: "Adidas", logo: "A", logoImage: cl("adidas.com") },
+                  { name: "Zara", logo: "Z", logoImage: cl("zara.com") },
+                  { name: "H&M", logo: "H", logoImage: cl("hm.com") },
+                  { name: "Gucci", logo: "G", logoImage: cl("gucci.com") },
+                  { name: "Louis Vuitton", logo: "LV", logoImage: cl("louisvuitton.com") },
+                  { name: "Balenciaga", logo: "B", logoImage: cl("balenciaga.com") },
+                  { name: "Prada", logo: "P", logoImage: cl("prada.com") },
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
@@ -1384,8 +1387,10 @@ function SearchContent() {
                               alt={brand.name}
                               className="h-7 w-auto max-w-[52px] object-contain"
                               onError={(e) => {
-                                const el = e.currentTarget;
-                                el.src = "/assets/images/placeholder.png";
+                                // Hide failed logo image and reveal the text-badge fallback
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                if (fallback) fallback.style.display = 'flex';
                               }}
                             />
                           ) : null}

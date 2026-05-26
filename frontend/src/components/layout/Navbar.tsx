@@ -726,11 +726,16 @@ export function Navbar() {
         const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
             if (cancelled) return;
 
+            // Proxy raw CDN URLs so browsers can load them without CORS/mixed-content issues.
+            // Raw URLs are kept for DB persistence; proxied URLs are used for all UI layers.
+            const proxiedUrl = getProxiedImageUrl(imageUrl);
+            const proxiedUrls = imageUrls.map(u => getProxiedImageUrl(u));
+
             // ─── Layer 1: React State (instant UI) ───
             const updateFn = (prev: any[]) =>
                 prev.map(p =>
                     (p.id === product.id || p.name === product.name)
-                        ? { ...p, image_url: imageUrl, images: imageUrls, _imageHydrated: true }
+                        ? { ...p, image_url: proxiedUrl, images: proxiedUrls, _imageHydrated: true }
                         : p
                 );
             if (product._kind === 'global') setGlobalResults(updateFn);
@@ -745,7 +750,7 @@ export function Navbar() {
                     const parsed = JSON.parse(cached);
                     const updated = parsed.map((p: any) =>
                         (p.name === product.name)
-                            ? { ...p, image_url: imageUrl, images: imageUrls }
+                            ? { ...p, image_url: proxiedUrl, images: proxiedUrls }
                             : p
                     );
                     sessionStorage.setItem(cacheKey, JSON.stringify(updated));
@@ -759,7 +764,7 @@ export function Navbar() {
                     const parsed = JSON.parse(raw);
                     const updated = parsed.map((p: any) =>
                         (p.id === product.id || p.name === product.name)
-                            ? { ...p, image_url: imageUrl, images: imageUrls }
+                            ? { ...p, image_url: proxiedUrl, images: proxiedUrls }
                             : p
                     );
                     sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
@@ -770,30 +775,30 @@ export function Navbar() {
             const productId = product.id || generateCompliantId(product.name);
             try {
                 DataSyncService.updateSearchCacheProduct(productId, {
-                    image_url: imageUrl,
-                    images: imageUrls,
+                    image_url: proxiedUrl,
+                    images: proxiedUrls,
                 });
             } catch { /* non-critical */ }
 
             // ─── Layer 5: DataSyncService products + DB (permanent) ───
+            // DB gets the raw URL so it stays portable if the proxy path ever changes.
             try {
                 const existing = DataSyncService.getProducts().find((p: any) => p.id === productId);
                 if (existing) {
-                    // Product already in catalog — update its image
                     DataSyncService.updateProduct(productId, {
-                        image_url: imageUrl,
-                        images: imageUrls,
+                        image_url: proxiedUrl,
+                        images: proxiedUrls,
                     } as any);
                 }
-                // Fire-and-forget: persist image to Postgres for the product
+                // Fire-and-forget: persist raw image URL to Postgres
                 fetch('/api/products', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: productId,
-                        image_url: imageUrl,
+                        image_url: imageUrl,   // raw URL for DB portability
                         images: imageUrls,
-                        _imageOnly: true, // Signal to API: only update image fields
+                        _imageOnly: true,
                     }),
                 }).catch(() => {});
             } catch { /* non-critical */ }
@@ -1340,7 +1345,7 @@ export function Navbar() {
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden shadow-sm">
                                                             <SmartImage
-                                                                src={result.image_url || imagePool[(result.name || '').toLowerCase().trim()] || null}
+                                                                src={result.image_url ? getProxiedImageUrl(result.image_url) : (imagePool[(result.name || '').toLowerCase().trim()] || null)}
                                                                 alt={result.name}
                                                                 productName={result.name}
                                                                 category={result.category}
