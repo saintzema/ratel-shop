@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
-// Cache at the edge for 30 days — images almost never change
-export const revalidate = 86400;
+// Force dynamic — this is a per-URL proxy; Next.js must NOT cache responses at the
+// framework level. Failed fetches (placeholder redirects) must never be served from
+// cache on retries. Successful images are cached at the CDN level via Cache-Control
+// headers on the response itself (30-day public cache).
+export const dynamic = "force-dynamic";
 
 /**
  * Lightweight image proxy.
@@ -44,7 +47,9 @@ export async function GET(req: Request) {
 
     // Expired Grounding URLs — instant placeholder, no network call
     if (GROUNDING_PATTERNS.some(p => lower.includes(p))) {
-        return NextResponse.redirect(new URL(PLACEHOLDER, req.url));
+        return NextResponse.redirect(new URL(PLACEHOLDER, req.url), {
+            headers: { "Cache-Control": "no-store, must-revalidate" },
+        });
     }
 
     // Thumbnail mode (NavSearch dropdown, product cards): redirect to source if HTTPS.
@@ -70,7 +75,9 @@ export async function GET(req: Request) {
         clearTimeout(timeoutId);
 
         if (!upstream.ok) {
-            return NextResponse.redirect(new URL(PLACEHOLDER, req.url));
+            return NextResponse.redirect(new URL(PLACEHOLDER, req.url), {
+                headers: { "Cache-Control": "no-store, must-revalidate" },
+            });
         }
 
         const contentType = upstream.headers.get("content-type") || "image/jpeg";
@@ -84,6 +91,8 @@ export async function GET(req: Request) {
             },
         });
     } catch {
-        return NextResponse.redirect(new URL(PLACEHOLDER, req.url));
+        return NextResponse.redirect(new URL(PLACEHOLDER, req.url), {
+            headers: { "Cache-Control": "no-store, must-revalidate" },
+        });
     }
 }
