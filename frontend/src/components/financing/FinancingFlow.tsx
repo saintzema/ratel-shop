@@ -106,6 +106,15 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
 
     const handleSubmit = useCallback(async () => {
         if (!flowData.applicantType || !flowData.contract) return;
+
+        // Pre-flight: make sure user is logged in before sending anything
+        const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+        if (!token) {
+            onClose();
+            router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
+            return;
+        }
+
         try {
             const res = await fetch('/api/financing/apply', {
                 method: 'POST',
@@ -131,6 +140,12 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
                 }),
             });
             const data = await res.json();
+            if (res.status === 401) {
+                // Session expired — redirect to login
+                onClose();
+                router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
+                return;
+            }
             if (data.success) {
                 // Store type so success page can show correct upsell
                 if (typeof window !== 'undefined') {
@@ -143,7 +158,7 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
         } catch {
             alert("Something went wrong. Please try again.");
         }
-    }, [flowData, product, router]);
+    }, [flowData, product, router, onClose]);
 
     const renderStep = () => {
         switch (step) {
@@ -167,6 +182,7 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
                         productName={product.name}
                         loanAmount={product.price}
                         tenureMonths={flowData.contract?.tenure ?? 12}
+                        monthlyPayment={flowData.contract?.monthlyPayment}
                         onNext={handleStep3}
                         onBack={() => setStep(2)}
                         onSaveProgress={handleSaveProgress}

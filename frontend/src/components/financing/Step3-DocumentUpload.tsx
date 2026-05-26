@@ -290,12 +290,14 @@ interface Props {
     productName?: string;
     loanAmount?: number;
     tenureMonths?: number;
+    /** Calculated monthly repayment from the chosen contract — auto-fills the wizard */
+    monthlyPayment?: number;
     onNext: (documents: DocumentUploads, signature: SignatureData, boardResolution?: BoardResolutionData) => void;
     onBack: () => void;
     onSaveProgress: (documents: DocumentUploads) => Promise<void>;
 }
 
-export function Step3DocumentUpload({ applicantType, initialDocuments, productName = "Product", loanAmount = 0, tenureMonths = 12, onNext, onBack, onSaveProgress }: Props) {
+export function Step3DocumentUpload({ applicantType, initialDocuments, productName = "Product", loanAmount = 0, tenureMonths = 12, monthlyPayment, onNext, onBack, onSaveProgress }: Props) {
     const [documents, setDocuments] = useState<DocumentUploads>(initialDocuments);
     const [signature, setSignature] = useState<SignatureData>(null);
     const [boardResolution, setBoardResolution] = useState<BoardResolutionData | null>(null);
@@ -307,6 +309,7 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
     const [wizardStep, setWizardStep] = useState(0);
     const [wizardGenerating, setWizardGenerating] = useState(false);
     const [wizardAnswers, setWizardAnswers] = useState<Record<string, string>>({});
+    const [showValidation, setShowValidation] = useState(false);
 
     const requiredDocs = applicantType === 'salary_earner' ? SALARY_DOCS : BUSINESS_DOCS;
     const uploadedCount = requiredDocs.filter(d => fileCount(documents[d.key]) > 0).length;
@@ -335,13 +338,18 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
     const openWizard = (target: 'auditedFinancials' | 'cashFlowProjection') => {
         setWizardTarget(target);
         setWizardStep(0);
-        setWizardAnswers({});
+        // Pre-populate loan repayment from the selected contract so user doesn't have to type it
+        const initialAnswers: Record<string, string> = {};
+        if (target === 'cashFlowProjection' && monthlyPayment && monthlyPayment > 0) {
+            initialAnswers['loanRepayment'] = String(Math.round(monthlyPayment));
+        }
+        setWizardAnswers(initialAnswers);
         setShowFinancialWizard(true);
     };
 
     // Questions shown in the wizard — slightly different per target
     const WIZARD_QUESTIONS = wizardTarget === 'auditedFinancials' ? [
-        { key: 'revenue', label: 'Annual Revenue (₦)', placeholder: 'e.g. 12,000,000', type: 'number' },
+        { key: 'revenue', label: 'How much does your company make in a year?', placeholder: 'e.g. 12,000,000', type: 'number' },
         { key: 'cogs', label: 'Cost of Goods Sold / Direct Costs (₦)', placeholder: 'e.g. 7,000,000', type: 'number' },
         { key: 'opex', label: 'Total Operating Expenses (₦)', placeholder: 'e.g. 2,000,000', type: 'number' },
         { key: 'assets', label: 'Total Assets (₦)', placeholder: 'e.g. 20,000,000', type: 'number' },
@@ -477,9 +485,11 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
                                     autoFocus
                                 />
                                 <p className="text-[10px] text-gray-400 mt-1.5">
-                                    {wizardTarget === 'cashFlowProjection' && currentQ?.key === 'loanRepayment'
-                                        ? `Suggested: ₦${Math.round(loanAmount * 0.036 / 12).toLocaleString()} / month`
-                                        : 'Enter approximate figures — they help generate realistic projections.'
+                                    {wizardTarget === 'auditedFinancials' && currentQ?.key === 'revenue'
+                                        ? 'Hint: Add up your total account balance from your annual bank statement'
+                                        : wizardTarget === 'cashFlowProjection' && currentQ?.key === 'loanRepayment'
+                                            ? `Suggested: ₦${(monthlyPayment && monthlyPayment > 0 ? Math.round(monthlyPayment) : Math.round(loanAmount * 0.036 / 12)).toLocaleString()} / month`
+                                            : 'Enter approximate figures — they help generate realistic projections.'
                                     }
                                 </p>
 
@@ -574,7 +584,7 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
                     return (
                         <div
                             key={doc.key}
-                            className={`p-3 rounded-xl border transition-all ${uploaded ? 'border-emerald-200 bg-emerald-50/50' : isAltbank ? 'border-blue-100 bg-blue-50/30 hover:border-blue-200' : 'border-gray-100 bg-white hover:border-indigo-200'}`}
+                            className={`p-3 rounded-xl border transition-all ${uploaded ? 'border-emerald-200 bg-emerald-50/50' : showValidation ? 'border-red-300 bg-red-50' : isAltbank ? 'border-blue-100 bg-blue-50/30 hover:border-blue-200' : 'border-gray-100 bg-white hover:border-indigo-200'}`}
                         >
                             <div className="flex items-start gap-3">
                                 <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${uploaded ? 'bg-emerald-500' : isAltbank ? 'bg-blue-100' : 'bg-gray-100'}`}>
@@ -627,7 +637,7 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
 
                 {/* Board Resolution — business owners only */}
                 {boardResolutionRequired && (
-                    <div className={`rounded-xl border p-3 ${boardResolution ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-100 bg-amber-50/30'}`}>
+                    <div className={`rounded-xl border p-3 ${boardResolution ? 'border-emerald-200 bg-emerald-50/40' : showValidation ? 'border-red-300 bg-red-50' : 'border-amber-100 bg-amber-50/30'}`}>
                         <div className="flex items-start gap-3">
                             <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${boardResolution ? 'bg-emerald-500' : 'bg-amber-100'}`}>
                                 {boardResolution
@@ -658,7 +668,7 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
                 )}
 
                 {/* Applicant signature */}
-                <div className="rounded-xl border border-gray-100 bg-white p-3">
+                <div className={`rounded-xl border p-3 ${showValidation && !signature ? 'border-red-300 bg-red-50' : 'border-gray-100 bg-white'}`}>
                     <p className="text-xs font-black text-gray-800 mb-0.5">Applicant Signature</p>
                     <p className="text-[10px] text-gray-400 mb-1">Sign below — this will be attached to your application</p>
                     <SignatureCanvas
@@ -697,18 +707,23 @@ export function Step3DocumentUpload({ applicantType, initialDocuments, productNa
 
             <div className="mt-3">
                 <Button
-                    onClick={() => onNext(documents, signature, boardResolution ?? undefined)}
-                    disabled={!allUploaded}
-                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-100 disabled:opacity-50"
+                    onClick={() => {
+                        if (!allUploaded) {
+                            setShowValidation(true);
+                            return;
+                        }
+                        setShowValidation(false);
+                        onNext(documents, signature, boardResolution ?? undefined);
+                    }}
+                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md shadow-indigo-100"
                 >
                     Review Application
                 </Button>
-                {!allUploaded && (
-                    <p className="text-center text-[10px] text-gray-400 mt-1.5">
-                        {uploadedCount < requiredDocs.length && `Upload all ${requiredDocs.length} documents`}
-                        {uploadedCount >= requiredDocs.length && !boardResolutionDone && 'Generate your board resolution'}
-                        {uploadedCount >= requiredDocs.length && boardResolutionDone && !signature && 'Add your signature'}
-                        {' '}to continue
+                {showValidation && !allUploaded && (
+                    <p className="text-center text-[10px] text-red-500 mt-1.5 font-medium">
+                        {uploadedCount < requiredDocs.length && `Please upload all ${requiredDocs.length} required documents`}
+                        {uploadedCount >= requiredDocs.length && !boardResolutionDone && 'Please generate your board resolution to continue'}
+                        {uploadedCount >= requiredDocs.length && boardResolutionDone && !signature && 'Please add your signature to continue'}
                     </p>
                 )}
             </div>
