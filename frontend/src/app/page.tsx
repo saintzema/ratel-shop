@@ -45,6 +45,8 @@ function HomeContent() {
   const [banners, setBanners] = useState<any[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [heroConfig, setHeroConfig] = useState<any>(null);
+  // Geo-aware trending label — detected from Vercel's IP header, session-cached
+  const [userGeo, setUserGeo] = useState<{ name: string; flag: string } | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -160,6 +162,28 @@ function HomeContent() {
     }, 6000);
     return () => clearInterval(timer);
   }, [banners]);
+
+  // Geo detection — runs once per session, result cached in sessionStorage
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem("fp_geo");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.name && parsed?.flag) { setUserGeo(parsed); return; }
+      }
+    } catch { /* sessionStorage blocked */ }
+
+    fetch("/api/geo")
+      .then(r => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.countryName && data?.flag) {
+          const geo = { name: data.countryName, flag: data.flag };
+          setUserGeo(geo);
+          try { sessionStorage.setItem("fp_geo", JSON.stringify(geo)); } catch { /* quota */ }
+        }
+      })
+      .catch(() => { /* fail silently — default label is fine */ });
+  }, []);
 
   // ─── Unified Product Memoization Engine ───
   const filteredByCategory = useMemo(() => {
@@ -356,7 +380,7 @@ function HomeContent() {
             {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
             {(!mounted || !sections) && (
               <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
-                <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
+                <ProductSlider title={`Trending in ${userGeo?.name ?? "Nigeria"}`} link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                   {Array(4).fill(0).map((_, i) => <div key={i} className="h-80 bg-white rounded-lg shadow-sm animate-pulse" />)}
                 </div>
@@ -386,7 +410,7 @@ function HomeContent() {
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
-                  <ProductSlider title={<>Trending in <span className='text-green-500'>Nigeria 🇳🇬</span></>} link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  <ProductSlider title={<>Trending in <span className='text-green-500'>{userGeo ? `${userGeo.name} ${userGeo.flag}` : "Nigeria 🇳🇬"}</span></>} link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1">
