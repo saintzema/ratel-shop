@@ -113,18 +113,24 @@ export function getFinancingThreshold(): number {
 
 export function hasFinancing(product: any): boolean {
     if (!product) return false;
+
+    // Seller explicitly disabled it → never show, regardless of price or category
+    if (product.financing_available === false) return false;
+
     const price = product.price || 0;
-    
     const threshold = getFinancingThreshold();
     // Strict enforcement: No financing under threshold regardless of category
     if (price < threshold) return false;
 
+    // Seller explicitly enabled it → show (price already passed threshold above)
+    if (product.financing_available === true) return true;
+
+    // financing_available not set (legacy products) → auto-qualify by category/price
     const cat = product.category?.toLowerCase() || '';
-    // Auto-enable for cars and expensive items
     if (cat.includes('car') || cat.includes('vehicle')) return true;
     if (cat.includes('solar') || cat.includes('inverter')) return true;
-    
-    return true; // If it passes threshold, it's eligible
+
+    return true; // Above threshold with no explicit setting → show
 }
 
 export function isVehicle(product: any): boolean {

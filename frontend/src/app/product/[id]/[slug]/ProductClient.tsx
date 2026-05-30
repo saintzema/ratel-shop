@@ -146,7 +146,8 @@ export default function ProductDetailPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [isFinancingModalOpen, setIsFinancingModalOpen] = useState(false);
     const [loadedMore, setLoadedMore] = useState(false);
-    const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(0);
+    // -1 = base product selected (no add-on/variant), ≥0 = a specific variant/bundle
+    const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1);
 
     // Pagination states
     const [visibleReviewsCount, setVisibleReviewsCount] = useState(3);
@@ -1702,6 +1703,23 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     <div className="mt-4 mb-2 p-4 rounded-2xl border border-gray-200 bg-white shadow-sm">
                                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Select Option</h3>
                                         <div className="grid grid-cols-2 gap-2">
+                                            {/* Base product (default — no add-on) */}
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedVariantIndex(-1);
+                                                    setCurrentImageIndex(0);
+                                                }}
+                                                className={`flex flex-col gap-1 p-3 border rounded-xl transition-all col-span-2 text-left ${selectedVariantIndex === -1 ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-gray-200 hover:border-emerald-300'}`}
+                                            >
+                                                <span className={`text-xs font-bold line-clamp-1 ${selectedVariantIndex === -1 ? 'text-emerald-900' : 'text-gray-800'}`}>
+                                                    {product.name}
+                                                </span>
+                                                <span className={`text-xs font-black ${selectedVariantIndex === -1 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                                    {formatPrice(product.price)}
+                                                </span>
+                                            </button>
+
+                                            {/* Optional add-ons / bundle variants */}
                                             {product.variants.map((v: any, idx: number) => (
                                                 <button
                                                     key={idx}
@@ -1719,7 +1737,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     }}
                                                     className={`flex flex-col gap-1 p-3 border rounded-xl transition-all ${selectedVariantIndex === idx ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-gray-200 hover:border-emerald-300'}`}
                                                 >
-                                                    <span className={`text-xs font-bold line-clamp-1 text-left ${selectedVariantIndex === idx ? 'text-emerald-900' : 'text-gray-800'}`}>{v.name}</span>
+                                                    {v.image_url && (
+                                                        <img
+                                                            src={getProxiedImageUrl(v.image_url)}
+                                                            alt={v.name}
+                                                            className="w-full h-16 object-contain rounded-lg mb-1 bg-gray-50"
+                                                        />
+                                                    )}
+                                                    <span className={`text-xs font-bold line-clamp-2 text-left ${selectedVariantIndex === idx ? 'text-emerald-900' : 'text-gray-800'}`}>{v.name}</span>
                                                     <span className={`text-xs font-black text-left ${selectedVariantIndex === idx ? 'text-emerald-600' : 'text-gray-600'}`}>
                                                         {formatPrice(v.price ? Number(v.price) : product.price)}
                                                     </span>

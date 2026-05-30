@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { CreditCard, ChevronRight, Zap, Banknote, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { calculateFinancing, getFinancingThreshold, isVehicle } from "@/lib/financing-utils";
+import { calculateFinancing, getFinancingThreshold, hasFinancing, isVehicle } from "@/lib/financing-utils";
 import { FinancingFlow, type FlowData } from "./FinancingFlow";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ interface FinancingOfferProps {
         name: string;
         price: number;
         category?: string;
+        financing_available?: boolean;
     };
 }
 
@@ -67,8 +68,7 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
         setIsOpen(true);
     };
 
-    const threshold = getFinancingThreshold();
-    if (product.price < threshold) return null;
+    if (!hasFinancing(product)) return null;
 
     const isCar = isVehicle(product);
     const terms = calculateFinancing(product.price, 'individual', tenure, isCar);
