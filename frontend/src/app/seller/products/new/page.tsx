@@ -165,12 +165,83 @@ export default function NewProduct() {
         }
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
         if (!formData.name) {
-            alert("Please enter a product name first.");
+            setAiErrorMsg("Please enter a product name first.");
             return;
         }
-        setIsPriceDiscoveryOpen(true);
+        setIsCalculatingBestPrice(true);
+        setAiErrorMsg(null);
+        try {
+            const currentPrice = parseInt(formData.price.replace(/,/g, "")) || 0;
+            const res = await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    productName: formData.name,
+                    mode: "analyze",
+                    anchorPrice: currentPrice || undefined,
+                    category: formData.category
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.recommendedPrice) {
+                    const recommended = data.recommendedPrice;
+                    const marketAvg = data.marketAverage || Math.round(recommended * 1.15);
+
+                    // Map category from response
+                    let mappedCat = formData.category;
+                    let mappedSub = data.subcategory || formData.subcategory;
+                    if (data.category) {
+                        const match = taxonomy.find((c: any) =>
+                            c.name.toLowerCase() === data.category.toLowerCase() ||
+                            data.category.toLowerCase().includes(c.name.toLowerCase())
+                        );
+                        if (match) {
+                            mappedCat = match.name.toLowerCase();
+                            if (mappedSub) {
+                                const subMatch = match.subcategories?.find((s: any) =>
+                                    s.name.toLowerCase() === mappedSub.toLowerCase() ||
+                                    mappedSub.toLowerCase().includes(s.name.toLowerCase())
+                                );
+                                if (subMatch) mappedSub = subMatch.name;
+                            }
+                        } else {
+                            mappedCat = data.category.toLowerCase();
+                        }
+                    }
+
+                    setFormData(prev => ({
+                        ...prev,
+                        price: recommended.toLocaleString(),
+                        original_price: marketAvg.toLocaleString(),
+                        category: mappedCat,
+                        subcategory: mappedSub,
+                        ...(data.tags?.length ? { tags: data.tags } : {})
+                    }));
+
+                    setPriceAnalysis({
+                        marketAvg,
+                        fairRangeLow: recommended,
+                        status: "fair",
+                        demand: "High",
+                        salesProbability: "85%"
+                    });
+                } else {
+                    setAiErrorMsg("Best Price returned no data. Try a more specific product name.");
+                }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setAiErrorMsg(errData.error || `Best Price failed (${res.status}). Please try again.`);
+            }
+        } catch (error) {
+            console.error("Best price calculation failed", error);
+            setAiErrorMsg("Best Price request failed. Check your connection.");
+        } finally {
+            setIsCalculatingBestPrice(false);
+        }
     };
 
     const handlePriceSelect = (suggestion: ProductSuggestion) => {

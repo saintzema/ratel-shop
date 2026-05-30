@@ -33,7 +33,9 @@ import {
     Link as LinkIcon,
     QrCode,
     RefreshCcw,
-    Download
+    Download,
+    BadgeCheck,
+    Smartphone,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -417,33 +419,58 @@ export default function SellerDashboard() {
                 {/* Store Link + FairPay QR — combined card */}
                 {(() => {
                     const storeSlug = safeSeller.store_url || safeSeller.id;
-                    const storeUrl = `https://www.fairprice.ng/store/${storeSlug}`;
+                    const origin = typeof window !== "undefined" ? window.location.origin : "https://fairprice.ng";
+                    const storeUrl = `${origin}/store/${storeSlug}`;
                     const isPayMode = qrDesc.trim() !== "" || qrAmount.trim() !== "";
-                    const paymentUrl = `https://www.fairprice.ng/checkout/direct?seller_id=${safeSeller.id}&name=${encodeURIComponent(safeSeller.business_name || "")}&description=${encodeURIComponent(qrDesc.trim())}&image=${encodeURIComponent((safeSeller as any).logo_url || "")}${qrAmount ? `&amount=${qrAmount}` : ""}`;
+                    const paymentUrl = `${origin}/checkout/direct?seller_id=${safeSeller.id}&name=${encodeURIComponent(safeSeller.business_name || "")}&description=${encodeURIComponent(qrDesc.trim())}&image=${encodeURIComponent((safeSeller as any).logo_url || "")}${qrAmount ? `&amount=${qrAmount}` : ""}`;
                     const activeQrUrl = isPayMode ? paymentUrl : storeUrl;
                     const activeShareText = isPayMode
                         ? `${qrAmount ? `Pay ₦${parseInt(qrAmount).toLocaleString()} ` : ""}${qrDesc.trim() ? `for ${qrDesc.trim()} ` : ""}via FairPrice: ${paymentUrl}`
                         : `Check out my store on FairPrice: ${storeUrl}`;
+                    const displayOrigin = origin.replace(/^https?:\/\//, "");
 
                     return (
-                        <div className="bg-white rounded-3xl border border-zinc-100 shadow-sm p-6 flex flex-col">
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="p-2 bg-indigo-50 rounded-xl">
-                                    <Globe className="h-6 w-6 text-indigo-600" />
+                        <div className="bg-white rounded-3xl border border-zinc-100 shadow-sm overflow-hidden flex flex-col">
+                            {/* ── Header — matches /seller/dashboard/payments design ── */}
+                            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500" />
+                            <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <div className="h-11 w-11 rounded-[16px] bg-gradient-to-br from-indigo-600 via-indigo-500 to-blue-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                                            <QrCode className="h-5 w-5 text-white" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                            <BadgeCheck className="h-2.5 w-2.5 text-white" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-lg font-black tracking-tight text-gray-900">FairPay</span>
+                                            <span className="text-lg font-black tracking-tight bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">QR Scan</span>
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 -mt-0.5">Store & FairPay QR</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-gray-900 leading-tight">Store & FairPay QR</h3>
-                                    <p className="text-xs text-gray-500 font-medium">Share your store or collect payment in seconds.</p>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-black">
+                                        <ShieldCheck className="h-3 w-3" /> Secure
+                                    </div>
+                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black">
+                                        <Zap className="h-3 w-3 fill-indigo-500" /> Instant
+                                    </div>
                                 </div>
                             </div>
+                            <div className="px-6 pb-0">
+                                <p className="text-xs text-gray-500 font-medium">Share your store or collect payment in seconds.</p>
+                            </div>
+                            <div className="px-6 pt-4">
 
                             {/* Store URL row */}
-                            <div className="bg-zinc-50 rounded-2xl p-3.5 border border-zinc-100 mb-5">
+                            <div className="bg-zinc-50 rounded-2xl p-3.5 border border-zinc-100 mb-4">
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Your Store Link</p>
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-bold text-indigo-700 truncate flex-1">
-                                        fairprice.ng/store/{storeSlug}
+                                        {displayOrigin}/store/{storeSlug}
                                     </p>
                                     <Link href={`/store/${storeSlug}`} target="_blank">
                                         <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-zinc-400 hover:text-indigo-600 hover:bg-white shadow-sm shrink-0">
@@ -461,13 +488,11 @@ export default function SellerDashboard() {
                                 </div>
                             </div>
 
-                            {/* ── FairPay section ── */}
-                            <div className={`rounded-2xl border transition-all duration-300 p-4 mb-5 ${isPayMode ? "border-emerald-200 bg-emerald-50/50" : "border-dashed border-zinc-200 bg-zinc-50/40"}`}>
-                                <p className={`text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 ${isPayMode ? "text-emerald-600" : "text-zinc-400"}`}>
-                                    <QrCode className={`h-3.5 w-3.5 ${isPayMode ? "text-emerald-500" : "text-zinc-300"}`} />
-                                    <span className={isPayMode ? "text-emerald-600" : "text-zinc-400"}>
-                                        {isPayMode ? "Payment QR — Ready to share" : "Collect a Payment (optional)"}
-                                    </span>
+                            {/* ── Collect a Payment ── always green/active */}
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 mb-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 text-emerald-600">
+                                    <QrCode className="h-3.5 w-3.5 text-emerald-500" />
+                                    {isPayMode ? "Payment QR — Ready to share" : "Collect a Payment"}
                                 </p>
 
                                 <div className="space-y-2.5">
@@ -480,7 +505,7 @@ export default function SellerDashboard() {
                                             value={qrDesc}
                                             onChange={e => setQrDesc(e.target.value)}
                                             placeholder="e.g. iPhone case, School fees, 2 bags of rice…"
-                                            className="w-full h-10 px-3 rounded-xl border border-zinc-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                                            className="w-full h-10 px-3 rounded-xl border border-emerald-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
                                         />
                                     </div>
                                     {/* Amount */}
@@ -491,7 +516,7 @@ export default function SellerDashboard() {
                                             value={qrAmount}
                                             onChange={e => setQrAmount(e.target.value)}
                                             placeholder="Amount — leave blank for open amount"
-                                            className="w-full h-10 pl-8 pr-3 rounded-xl border border-zinc-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                                            className="w-full h-10 pl-8 pr-3 rounded-xl border border-emerald-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -504,6 +529,24 @@ export default function SellerDashboard() {
                                         ✕ Clear — back to store QR
                                     </button>
                                 )}
+                            </div>
+
+                            {/* Customer Scans + Instant Sync info tiles */}
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                {[
+                                    { icon: Smartphone, color: "blue", title: "Customer Scans", desc: "Works with any smartphone camera. No app download required." },
+                                    { icon: Zap, color: "emerald", title: "Instant Sync", desc: "Payment credited to your balance instantly upon success." },
+                                ].map(({ icon: Icon, color, title, desc }) => (
+                                    <div key={title} className={`rounded-2xl p-3 border flex flex-col gap-2 ${color === "blue" ? "bg-blue-50/60 border-blue-100" : "bg-emerald-50/60 border-emerald-100"}`}>
+                                        <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${color === "blue" ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"}`}>
+                                            <Icon className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-gray-900">{title}</p>
+                                            <p className="text-[10px] font-medium text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* QR display */}
@@ -568,8 +611,10 @@ export default function SellerDashboard() {
                                 )}
                             </div>
 
+                            </div>{/* end px-6 pt-4 */}
+
                             {/* Social share row */}
-                            <div className="flex justify-center gap-3 mt-4 pt-4 border-t border-zinc-50">
+                            <div className="flex justify-center gap-3 mt-4 pt-4 px-6 pb-6 border-t border-zinc-50">
                                 <a href={`https://wa.me/?text=${encodeURIComponent(activeShareText)}`} target="_blank" rel="noopener noreferrer"
                                     className="h-10 w-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200 hover:scale-110 transition-all" title="Share on WhatsApp">
                                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>

@@ -77,12 +77,16 @@ export function WhatsAppCatalogImporter() {
                 return;
             }
 
-            // Also persist to local sync so product list refreshes immediately
+            // Persist to local sync with correct seller_id so product
+            // is immediately visible across the platform (homepage, search, etc.)
             const sellerId = DataSyncService.getCurrentSellerId();
-            if (sellerId) {
-                const seller = DataSyncService.getCurrentSeller();
+            const seller = DataSyncService.getCurrentSeller();
+            if (sellerId && seller) {
                 valid.forEach(p => {
-                    DataSyncService.addProduct({
+                    DataSyncService.addRawProduct({
+                        id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        seller_id: sellerId,
+                        seller_name: seller.business_name,
                         name: p.name.trim(),
                         price: Number(p.price),
                         original_price: Number(p.price),
@@ -95,7 +99,12 @@ export function WhatsAppCatalogImporter() {
                         avg_rating: 0,
                         review_count: 0,
                         sold_count: 0,
-                    } as any);
+                        created_at: new Date().toISOString(),
+                        price_flag: "fair",
+                        highlights: [],
+                        specs: {},
+                        tags: [],
+                    } as any, true);
                 });
             }
 
@@ -111,31 +120,39 @@ export function WhatsAppCatalogImporter() {
 
     return (
         <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-            {/* Header — always visible, click to expand */}
-            <button
-                onClick={() => setExpanded(v => !v)}
-                className="w-full flex items-center justify-between p-6 sm:p-8 hover:bg-gray-50/60 transition-colors"
-            >
+            {/* Header — always visible */}
+            <div className="flex items-center justify-between p-5 sm:p-6">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-50 rounded-xl">
-                        <Package className="h-5 w-5 text-emerald-600" />
+                    <div className="h-10 w-10 rounded-[14px] bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200">
+                        <Package className="h-5 w-5 text-white" />
                     </div>
                     <div className="text-left">
-                        <h3 className="text-base font-black text-gray-900">Quick Product Add</h3>
-                        <p className="text-xs text-gray-400 font-medium">Add products to your inventory instantly</p>
+                        <h3 className="text-sm font-black text-gray-900">Quick Product Add</h3>
+                        <p className="text-[11px] text-gray-400 font-medium">Bulk-add products to your inventory</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     {savedCount > 0 && (
                         <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">
                             <CheckCircle2 className="h-3 w-3" /> {savedCount} saved
                         </span>
                     )}
-                    {expanded
-                        ? <ChevronUp className="h-5 w-5 text-gray-400" />
-                        : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                    <button
+                        onClick={() => setExpanded(v => !v)}
+                        className={`flex items-center gap-1.5 h-9 px-4 rounded-xl text-xs font-black transition-all ${
+                            expanded
+                                ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200"
+                        }`}
+                    >
+                        {expanded ? (
+                            <><ChevronUp className="h-3.5 w-3.5" /> Close</>
+                        ) : (
+                            <><Plus className="h-3.5 w-3.5" /> Add Products</>
+                        )}
+                    </button>
                 </div>
-            </button>
+            </div>
 
             {/* Expandable body — fixed max-height so it never pushes the QR down */}
             <AnimatePresence initial={false}>
