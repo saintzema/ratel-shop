@@ -258,8 +258,10 @@ export default function SellerLayout({
                             onClick={() => setIsSwitchModalOpen(true)}
                             className="w-full flex items-center gap-3 rounded-xl p-2 -m-2 hover:bg-gray-50 transition-colors cursor-pointer group"
                         >
-                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
-                                {currentSeller.business_name.charAt(0).toUpperCase()}
+                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
+                                {currentSeller.logo_url ? (
+                                    <img src={currentSeller.logo_url} alt="" className="h-full w-full object-cover" />
+                                ) : (currentSeller.business_name || "?").charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                                 <h2 className="font-bold text-sm text-gray-900 truncate tracking-tight px-1">{currentSeller.business_name}</h2>
@@ -355,7 +357,9 @@ export default function SellerLayout({
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="relative h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer p-0 overflow-hidden">
-                                        {currentSeller.business_name.charAt(0).toUpperCase()}
+                                        {currentSeller.logo_url ? (
+                                            <img src={currentSeller.logo_url} alt="" className="h-full w-full object-cover rounded-2xl" />
+                                        ) : (currentSeller.business_name || "?").charAt(0).toUpperCase()}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 border-gray-100 shadow-xl bg-white/95 backdrop-blur-xl">

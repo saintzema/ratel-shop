@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
@@ -47,7 +47,7 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 
-export default function SellerProducts() {
+function SellerProductsContent() {
     const [products, setProducts] = useState<Product[]>([]);
     const [activeDeals, setActiveDeals] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -939,5 +939,17 @@ export default function SellerProducts() {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function SellerProducts() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+                <div className="h-6 w-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+            </div>
+        }>
+            <SellerProductsContent />
+        </Suspense>
     );
 }

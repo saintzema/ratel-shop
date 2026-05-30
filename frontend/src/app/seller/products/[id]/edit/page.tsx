@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
@@ -30,7 +30,7 @@ import {
     Package
 } from "lucide-react";
 
-export default function EditProduct() {
+function EditProductContent() {
     const params = useParams();
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -1206,12 +1206,25 @@ export default function EditProduct() {
                 </Button>
             </motion.div>
 
-            <PriceDiscoveryModal 
+            <PriceDiscoveryModal
                 isOpen={isPriceDiscoveryOpen}
                 onClose={() => setIsPriceDiscoveryOpen(false)}
                 productName={formData.name}
                 onSelect={handlePriceSelect}
             />
         </div>
+    );
+}
+
+export default function EditProduct() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto py-20 text-center text-gray-400">
+                <div className="h-6 w-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm font-medium">Loading product editor...</p>
+            </div>
+        }>
+            <EditProductContent />
+        </Suspense>
     );
 }
