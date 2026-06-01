@@ -73,9 +73,39 @@ function EditProductContent() {
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const isFormDirtyRef = useRef(false);
+    const apiHydratedRef = useRef(false); // Tracks if we've fetched the full product from API
 
     // Mark form as dirty whenever the user makes any change
     const markDirty = useCallback(() => { isFormDirtyRef.current = true; }, []);
+
+    // Hydrate heavy fields (description, highlights, specs, images) from DB API
+    // The sync-store strips these fields for performance; this corrects that for the edit page.
+    useEffect(() => {
+        if (apiHydratedRef.current) return;
+        const decoded = decodeURIComponent(productId);
+        fetch(`/api/products/${decoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .then((full: any) => {
+                if (!full) return;
+                apiHydratedRef.current = true;
+                if (!isFormDirtyRef.current) {
+                    setFormData(prev => ({
+                        ...prev,
+                        description: full.description != null ? full.description : prev.description,
+                        highlights: full.highlights?.length ? full.highlights : prev.highlights,
+                        specs: full.specs && Object.keys(full.specs).length
+                            ? Object.entries(full.specs).map(([key, value]) => ({ key, value: String(value) }))
+                            : prev.specs,
+                        image_url: full.imageUrl || full.image_url || prev.image_url,
+                        images: full.images?.length ? full.images : prev.images,
+                        tags: full.tags?.length ? full.tags : prev.tags,
+                    }));
+                    // Also update the product state so handleSave has the full product
+                    setProduct(prev => prev ? { ...prev, description: full.description, highlights: full.highlights, specs: full.specs, images: full.images, tags: full.tags } : prev);
+                }
+            })
+            .catch(() => { /* silently fall back to localStorage version */ });
+    }, [productId]);
 
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {

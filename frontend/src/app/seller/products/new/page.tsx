@@ -14,7 +14,7 @@ import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 
-export default function NewProduct() {
+function NewProductContent() {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
@@ -50,24 +50,29 @@ export default function NewProduct() {
             if (adminSettings.minFinancingPrice) setMinFinancingPrice(Number(adminSettings.minFinancingPrice));
         } catch {}
 
-        const seller = DataSyncService.getCurrentSeller();
-        if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
-            setIsPremium(true);
-        }
-        const user = DataSyncService.getCurrentUser();
-        const numbers = new Set<string>();
-        if (seller?.phone_numbers) seller.phone_numbers.forEach(n => numbers.add(n));
-        if (seller?.phone_number) numbers.add(seller.phone_number);
-        if (user?.phone) numbers.add(user.phone);
-        if (user?.phone_numbers) user.phone_numbers.forEach((n: string) => numbers.add(n));
-        setSavedNumbers(Array.from(numbers).filter(Boolean));
-        
-        if (numbers.size > 0 && !formData.contact_info.phone) {
-            const defaultNum = Array.from(numbers)[0];
-            setFormData(prev => ({
-                ...prev,
-                contact_info: { ...prev.contact_info, phone: defaultNum, whatsapp: defaultNum }
-            }));
+        try {
+            const seller = DataSyncService.getCurrentSeller();
+            if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+                setIsPremium(true);
+            }
+            const user = DataSyncService.getCurrentUser();
+            const numbers = new Set<string>();
+            // phone_numbers could be a string in legacy data — guard with Array.isArray
+            if (Array.isArray(seller?.phone_numbers)) seller.phone_numbers.forEach((n: string) => numbers.add(n));
+            if (seller?.phone_number) numbers.add(seller.phone_number);
+            if (user?.phone) numbers.add(user.phone);
+            if (Array.isArray(user?.phone_numbers)) user.phone_numbers.forEach((n: string) => numbers.add(n));
+            setSavedNumbers(Array.from(numbers).filter(Boolean));
+
+            if (numbers.size > 0 && !formData.contact_info.phone) {
+                const defaultNum = Array.from(numbers)[0];
+                setFormData(prev => ({
+                    ...prev,
+                    contact_info: { ...prev.contact_info, phone: defaultNum, whatsapp: defaultNum }
+                }));
+            }
+        } catch (err) {
+            console.warn("NewProduct: seller/user data load error", err);
         }
     }, []);
 
@@ -108,7 +113,10 @@ export default function NewProduct() {
 
     // --- AI Content Generation ---
     const handleAIGenerate = async () => {
-        if (!formData.name) return;
+        if (!formData.name) {
+            setAiErrorMsg("Enter a product name first so AI knows what to fill in.");
+            return;
+        }
         setIsGenerating(true);
         setAiErrorMsg(null);
         try {
@@ -1230,12 +1238,25 @@ export default function NewProduct() {
                     </div>
                 </div>
             </div>
-            <PriceDiscoveryModal 
+            <PriceDiscoveryModal
                 isOpen={isPriceDiscoveryOpen}
                 onClose={() => setIsPriceDiscoveryOpen(false)}
                 productName={formData.name}
                 onSelect={handlePriceSelect}
             />
         </div>
+    );
+}
+
+import { Suspense } from "react";
+export default function NewProduct() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto py-20 flex items-center justify-center">
+                <div className="h-6 w-6 border-2 border-gray-300 border-t-emerald-600 rounded-full animate-spin" />
+            </div>
+        }>
+            <NewProductContent />
+        </Suspense>
     );
 }

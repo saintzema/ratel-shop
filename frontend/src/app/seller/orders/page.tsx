@@ -34,7 +34,7 @@ import {
     Loader2
 } from "lucide-react";
 
-export default function SellerOrders() {
+function SellerOrdersContent() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
     const [search, setSearch] = useState("");
@@ -1196,5 +1196,15 @@ export default function SellerOrders() {
                 </div>
             )}
         </div>
+    );
+}
+
+
+import { Suspense } from "react";
+export default function SellerOrders() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="h-6 w-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /></div>}>
+            <SellerOrdersContent />
+        </Suspense>
     );
 }

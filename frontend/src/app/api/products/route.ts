@@ -234,8 +234,10 @@ export async function POST(req: Request) {
             rawSpecs.Size = 'Standard';
         }
 
+        const productId = body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id;
+
         const productData = {
-            id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id,
+            id: productId,
             sellerId: body.seller_id,
             sellerName: body.seller_name,
             name: body.name,
@@ -261,9 +263,18 @@ export async function POST(req: Request) {
             slug: body.slug,
         } as any;
 
+        // Build a SAFE update object that won't wipe heavy content fields if they're missing
+        // from the payload. This protects against the sync-store stripping description/images
+        // from localStorage before feeding them into the background save call.
+        const safeUpdate = { ...productData };
+        if (!body.description && body.description !== "") delete safeUpdate.description;
+        if (!body.highlights?.length && !body._fromEditPage) delete safeUpdate.highlights;
+        if (!body.images?.length && !body._fromEditPage) delete safeUpdate.images;
+        // Always keep specs (even if empty) since they may be intentionally cleared
+
         const product = await (db.product as any).upsert({
             where: { id: productData.id },
-            update: productData,
+            update: safeUpdate,
             create: productData,
         });
 
