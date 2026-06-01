@@ -801,34 +801,32 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         };
 
         const hasPlaceholderImage = !isValidImageUrl(product?.image_url);
-        const needsHydration = product && product.id?.startsWith('global') && !isFetchingGlobalData && (product.price === 0 || hasPlaceholderImage);
+        const isGlobalProd = product?.id?.startsWith('global') || product?.seller_id === 'global-partners';
+        const needsHydration = product && isGlobalProd && !isFetchingGlobalData && (product.price === 0 || hasPlaceholderImage);
 
         if (needsHydration && product) {
             setIsFetchingGlobalData(true);
             const namePart = product.name;
             const productId = product.id;
 
-            // Helper: persist updates to all layers
+            // Helper: persist updates to all layers (localStorage + search cache + Postgres).
+            // IMPORTANT: route through DataSyncService so we hit the CORRECT localStorage key
+            // (fairprice_demo_products) and guarantee a DB row exists. The previous version
+            // wrote to a phantom "fp_products" key (lost on next render) and used _imageOnly
+            // which silently no-ops (P2025) when the global product row isn't in the DB yet.
             const persistUpdates = (updates: any) => {
                 try {
-                    const products = DataSyncService.getProducts();
-                    const idx = products.findIndex((p: any) => p.id === productId);
-                    if (idx >= 0) {
-                        products[idx] = { ...products[idx], ...updates };
-                        localStorage.setItem('fp_products', JSON.stringify(products));
+                    const existing = DataSyncService.getProducts().find((p: any) => p.id === productId);
+                    if (existing) {
+                        // Writes to the correct localStorage key AND upserts the full product to Postgres
+                        DataSyncService.updateProduct(productId, updates);
                     } else {
-                        DataSyncService.addRawProduct({ ...product, ...updates } as any);
+                        // Not in the catalog yet — create the row with full data incl. the new image
+                        DataSyncService.addRawProduct({ ...product, ...updates } as any, true);
                     }
-                    
-                    // Aggressively update the search cache so Navsearch shows the new image globally
+
+                    // Aggressively update the search cache so NavSearch/SRP show the new image globally
                     DataSyncService.updateSearchCacheProduct(productId, updates);
-                    
-                    // Persist to Postgres DB (image-only — prevents metadata wipe)
-                    fetch('/api/products', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: productId, ...updates, _imageOnly: true }),
-                    }).catch(() => {});
 
                     window.dispatchEvent(new Event("storage"));
                     setStoreVersion(v => v + 1);
