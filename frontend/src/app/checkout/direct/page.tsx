@@ -38,8 +38,8 @@ function DirectCheckoutContent() {
         const amount = Number(searchParams.get("amount")) || 0;
         const image = searchParams.get("image") || "";
         const category = searchParams.get("category") || "general";
-        const sellerId = searchParams.get("sellerId") || "";
-        const label = searchParams.get("label") || memo || ref || "";
+        const sellerId = searchParams.get("sellerId") || searchParams.get("seller_id") || "";
+        const label = searchParams.get("label") || searchParams.get("description") || memo || ref || "";
 
         if (!productId && !name && !sellerId && !label) {
             setStatus("error");

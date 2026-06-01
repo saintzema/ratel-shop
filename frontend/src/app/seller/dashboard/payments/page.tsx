@@ -267,22 +267,58 @@ function PaymentDetailModal({
                         ))}
                     </div>
 
-                    {/* Payment link */}
-                    {paymentUrl && (
-                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 mb-5">
-                            <Link2 className="h-4 w-4 text-indigo-400 shrink-0" />
-                            <span className="text-xs font-bold text-indigo-600 truncate flex-1">{paymentUrl}</span>
-                            <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 h-7 w-7 rounded-lg bg-indigo-50 flex items-center justify-center hover:bg-indigo-100 transition-colors">
-                                <ExternalLink className="h-3.5 w-3.5 text-indigo-500" />
-                            </a>
+                    {/* QR code + payment link */}
+                    {paymentUrl && !isRevoked && (
+                        <div className="flex flex-col sm:flex-row gap-4 mb-5 p-4 bg-gray-50 rounded-[20px] border border-gray-100">
+                            {/* QR */}
+                            <div className="flex flex-col items-center gap-2 shrink-0">
+                                <div className="p-3 bg-white rounded-2xl border border-gray-100 shadow-sm inline-flex">
+                                    <QRCodeCanvas
+                                        id={`modal-qr-${inv.id}`}
+                                        value={paymentUrl}
+                                        size={108}
+                                        level="H"
+                                        imageSettings={logoUrl && logoUrl !== "/logo.svg" ? {
+                                            src: logoUrl,
+                                            x: undefined, y: undefined,
+                                            height: 20, width: 20, excavate: true,
+                                        } : undefined}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const canvas = document.getElementById(`modal-qr-${inv.id}`) as HTMLCanvasElement;
+                                        if (canvas) { const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = `payment-${inv.id}.png`; a.click(); }
+                                    }}
+                                    className="flex items-center gap-1 text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-widest"
+                                >
+                                    <Download className="h-3 w-3" /> Save QR
+                                </button>
+                            </div>
+                            {/* Link + share */}
+                            <div className="flex-1 flex flex-col justify-between gap-3 min-w-0">
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Payment Link</p>
+                                    <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-2">
+                                        <Link2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                                        <span className="text-xs font-bold text-indigo-600 truncate flex-1">{paymentUrl}</span>
+                                        <a href={paymentUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 h-6 w-6 rounded-lg bg-indigo-50 flex items-center justify-center hover:bg-indigo-100 transition-colors">
+                                            <ExternalLink className="h-3 w-3 text-indigo-500" />
+                                        </a>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Share</p>
+                                    <ShareRow url={paymentUrl} bizName={bizName} compact />
+                                </div>
+                            </div>
                         </div>
                     )}
-
-                    {/* Share row */}
-                    {paymentUrl && !isRevoked && (
-                        <div className="flex items-center gap-3 mb-5">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Share</p>
-                            <ShareRow url={paymentUrl} bizName={bizName} compact />
+                    {/* Revoked link (no QR, just text) */}
+                    {paymentUrl && isRevoked && (
+                        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 mb-5 opacity-50">
+                            <Link2 className="h-4 w-4 text-gray-400 shrink-0" />
+                            <span className="text-xs font-medium text-gray-400 truncate flex-1 line-through">{paymentUrl}</span>
                         </div>
                     )}
 

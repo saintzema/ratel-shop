@@ -22,14 +22,19 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Resolve the seller record for this user
+    // Resolve the seller record for this user — try userId first, then email as fallback
     const seller = await db.seller.findFirst({
-        where: { userId: user.userId },
+        where: {
+            OR: [
+                { userId: user.userId },
+                ...(user.email ? [{ ownerEmail: user.email }] : []),
+            ],
+        },
         select: { id: true },
     });
 
     if (!seller) {
-        return NextResponse.json({ error: "No seller account found" }, { status: 404 });
+        return NextResponse.json({ error: "No seller account found. Complete seller onboarding first." }, { status: 404 });
     }
 
     const params = new URLSearchParams({
