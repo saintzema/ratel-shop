@@ -21,6 +21,11 @@ export default function KYCOnboarding() {
     const [fileName, setFileName] = useState<string | null>(null);
     const [businessName, setBusinessName] = useState("");
     const [storeUrl, setStoreUrl] = useState("");
+    // Tracks whether the seller manually edited the Store URL. Until they do, we
+    // auto-prefill it from the Business Name (slugified) so they don't have to type it.
+    const [storeUrlTouched, setStoreUrlTouched] = useState(false);
+    const slugifyStoreUrl = (s: string) =>
+        s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const [streetAddress, setStreetAddress] = useState("");
     const [city, setCity] = useState("");
     const [stateRegion, setStateRegion] = useState("");
@@ -415,7 +420,12 @@ export default function KYCOnboarding() {
                                         <Input
                                             placeholder="E.g. Ore's Gloss Hub"
                                             value={businessName}
-                                            onChange={(e) => setBusinessName(e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setBusinessName(val);
+                                                // Auto-fill the Store URL from the name until the seller edits it themselves
+                                                if (!storeUrlTouched) setStoreUrl(slugifyStoreUrl(val));
+                                            }}
                                             className="border border-gray-300"
                                             required
                                         />
@@ -442,7 +452,7 @@ export default function KYCOnboarding() {
                                             <Input
                                                 placeholder="oresglosshub"
                                                 value={storeUrl}
-                                                onChange={(e) => setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                onChange={(e) => { setStoreUrlTouched(true); setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); }}
                                                 className="rounded-l-none border-l-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-brand-green-600"
                                                 required
                                             />

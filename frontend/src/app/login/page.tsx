@@ -53,7 +53,10 @@ export default function UnifiedAuthPage() {
 
     // Get redirect path
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const redirectPath = searchParams?.get("from") || "/";
+    // Honor both `from` and `returnUrl` — ProtectedRoute/seller layout redirect with `returnUrl`,
+    // so reading only `from` previously dropped the intended deep link (e.g. the KYC review page
+    // /admin/users/{id} from the email) and fell back to a role-based default dashboard.
+    const redirectPath = searchParams?.get("from") || searchParams?.get("returnUrl") || "/";
     const autoWaCode = searchParams?.get("wa_code");
 
     // Pre-fill from URL params (e.g. guest checkout carry-over)
