@@ -45,11 +45,15 @@ export function InstagramCatalogImporter() {
     const [importResult, setImportResult] = useState<{ created: number; message: string } | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
-    const authHeaders = () => ({
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    });
+    // Read fresh on every call — avoids stale null when the admin session token
+    // was set after the component first rendered.
+    const authHeaders = () => {
+        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return {
+            "Content-Type": "application/json",
+            ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        };
+    };
 
     const fetchPosts = useCallback(async () => {
         setStatus("loading");
