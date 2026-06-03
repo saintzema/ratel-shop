@@ -690,7 +690,7 @@ export default function AdminSettings() {
                             <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
                                 <div className="max-w-md">
                                     <h4 className="text-sm font-bold text-gray-900">WhatsApp OTP Verification</h4>
-                                    <p className="text-xs text-gray-400 mt-0.5">Force WhatsApp-first login for all users (requires WhatsApp Number)</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Enable OTP codes to be sent via WhatsApp when a user chooses to log in with WhatsApp</p>
                                 </div>
                                 <Switch checked={waVerificationEnabled} onCheckedChange={setWaVerificationEnabled} />
                             </div>
