@@ -311,6 +311,10 @@ export async function PATCH(request: Request) {
         if (updates.status) prismaUpdates.status = updates.status;
         if (updates.escrow_status) prismaUpdates.escrowStatus = updates.escrow_status;
         if (updates.payout_status) prismaUpdates.payoutStatus = updates.payout_status;
+        // Escrow lifecycle timestamps — needed for auto-release eligibility to persist
+        if (updates.seller_confirmed_at) prismaUpdates.sellerConfirmedAt = new Date(updates.seller_confirmed_at);
+        if (updates.buyer_confirmed_at)  prismaUpdates.buyerConfirmedAt  = new Date(updates.buyer_confirmed_at);
+        if (updates.escrow_status === "released") prismaUpdates.escrowReleasedAt = new Date();
         if (updates.tracking_status) prismaUpdates.trackingStatus = updates.tracking_status;
         if (updates.tracking_id) prismaUpdates.trackingId = updates.tracking_id;
         if (updates.carrier) prismaUpdates.carrier = updates.carrier;

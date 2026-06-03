@@ -4046,6 +4046,26 @@ class DataSyncServiceService {
     }
 
 
+    /**
+     * Persist an order escrow/confirmation change to Postgres and mark it as a pending
+     * local edit so a background syncWithDB() doesn't overwrite it with a stale value
+     * before the PATCH lands. Used by all escrow lifecycle transitions.
+     */
+    private _persistOrderEscrow(id: string, escrow_status: Order["escrow_status"], extra: Record<string, any> = {}) {
+        this._pendingOrderEdits.add(id);
+        try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, escrow_status, ...extra }),
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+            }
+        }).catch(() => { /* stays pending; retried on next escrow action */ });
+    }
+
     updateOrderEscrow(id: string, escrow_status: Order["escrow_status"]) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === id);
@@ -4053,6 +4073,10 @@ class DataSyncServiceService {
 
         const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
         this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // CRITICAL: persist to DB + mark pending so a background syncWithDB() doesn't revert
+        // this escrow change (which made Confirm/Release buttons reappear).
+        this._persistOrderEscrow(id, escrow_status);
 
         // Financial Integrity: Recalculate balance on escrow state change
         this.recalculateSellerBalances(order.seller_id);
@@ -5205,17 +5229,21 @@ class DataSyncServiceService {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
 
+        const confirmedAt = new Date().toISOString();
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "seller_confirmed" as const,
-            seller_confirmed_at: new Date().toISOString(),
+            seller_confirmed_at: confirmedAt,
             status: "delivered" as const,
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
+        // Persist to DB + mark pending so a background sync doesn't revert the confirmation
+        this._persistOrderEscrow(orderId, "seller_confirmed", { seller_confirmed_at: confirmedAt, status: "delivered" });
+
         // --- Notifications ---
         const productName = order.product?.name || `Product ${order.product_id}`;
-        
+
         // Notify Buyer
         this.addNotification({
             userId: order.customer_id || order.customer_name,
@@ -5253,15 +5281,19 @@ class DataSyncServiceService {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
 
+        const buyerConfirmedAt = new Date().toISOString();
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "buyer_confirmed" as const,
-            buyer_confirmed_at: new Date().toISOString(),
+            buyer_confirmed_at: buyerConfirmedAt,
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
+        // Persist to DB + mark pending so a background sync doesn't revert the confirmation
+        this._persistOrderEscrow(orderId, "buyer_confirmed", { buyer_confirmed_at: buyerConfirmedAt });
+
         // --- Notifications ---
-        
+
         // Notify Seller
         this.addNotification({
             userId: order.seller_id,
