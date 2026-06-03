@@ -265,16 +265,10 @@ export function DynamicPillNotification() {
             try { (window as any).nativeBridge?.hapticFeedback?.("heavy"); } catch {}
 
             const isNego = pendingNotification ? !!pendingNotification.negotiation : (customNotification ? customNotification.isNegotiation : false);
-            const isSeller = customNotification?.isSellerAction ?? false;
 
-            if (activeNotif.id) {
-                showNotification({
-                    type: isNego ? "ziva" : "info",
-                    title: isNego ? (isSeller ? "New Offer Received" : "Counter Offer From Seller") : "FairPrice.ng",
-                    message: activeNotif.text,
-                    duration: 10000
-                });
-            }
+            // NOTE: We intentionally do NOT also call showNotification() here. That fired a
+            // duplicate top toast (which truncated the text) on top of this bottom pill.
+            // The bottom pill below is the single notification surface for these events.
 
             if (isNego || (customNotification?.hasImage)) {
                 setTimeout(() => setExpanded(true), 600);

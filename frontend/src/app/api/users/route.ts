@@ -129,10 +129,17 @@ export async function GET(req: Request) {
 
     try {
         if (id) {
-            let user = await db.user.findUnique({ where: { id } });
-            // Fallback: If not found by ID and looks like an email, try email lookup
+            // Include the seller record (+ KYC submissions) so the admin user-detail page
+            // can render the real role, status, business profile and uploaded KYC/CAC docs
+            // straight from the DB instead of the trimmed/empty localStorage cache.
+            const includeSeller = {
+                sellers: {
+                    include: { kycSubmissions: { orderBy: { createdAt: "desc" as const }, take: 5 } },
+                },
+            };
+            let user = await db.user.findUnique({ where: { id }, include: includeSeller });
             if (!user && id.includes("@")) {
-                user = await db.user.findUnique({ where: { email: id } });
+                user = await db.user.findUnique({ where: { email: id }, include: includeSeller });
             }
             if (!user) {
                 return NextResponse.json({ error: "User not found" }, { status: 404 });
