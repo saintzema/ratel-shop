@@ -18,6 +18,17 @@ interface QueuedOperation {
 }
 
 const QUEUE_KEY = "fairprice_offline_queue";
+
+/** Build request headers including the auth token so token-protected endpoints
+ *  (e.g. /api/payouts) don't reject queued/resilient writes with 401. */
+function authedHeaders(): Record<string, string> {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (typeof window !== "undefined") {
+        const token = localStorage.getItem("fp_token");
+        if (token) h["Authorization"] = `Bearer ${token}`;
+    }
+    return h;
+}
 const MAX_RETRIES = 10;
 const RETRY_INTERVALS = [3000, 5000, 10000, 30000, 60000]; // Exponential backoff
 
@@ -110,7 +121,7 @@ class OfflineQueueService {
             try {
                 const response = await fetch(op.endpoint, {
                     method: op.method,
-                    headers: { "Content-Type": "application/json" },
+                    headers: authedHeaders(),
                     body: op.body ? JSON.stringify(op.body) : undefined,
                 });
 
@@ -179,7 +190,7 @@ export async function resilientFetch(
     try {
         const response = await fetch(endpoint, {
             method: options.method,
-            headers: { "Content-Type": "application/json" },
+            headers: authedHeaders(),
             body: options.body ? JSON.stringify(options.body) : undefined,
         });
 

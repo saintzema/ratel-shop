@@ -24,12 +24,58 @@ export default function PayoutRequestsDirectory() {
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
-        const load = () => {
+        const loadLocal = () => {
             setPayouts(DataSyncService.getPayouts().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         };
-        load();
-        window.addEventListener("storage", load);
-        return () => window.removeEventListener("storage", load);
+
+        // AUTHORITATIVE: fetch all payouts from the DB (admin scope). The local cache alone
+        // misses payouts created on other devices / by sellers.
+        const loadFromDB = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const res = await fetch("/api/payouts", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                const dbPayouts: any[] = data?.payouts || [];
+                if (!Array.isArray(dbPayouts)) return;
+
+                const sellers = DataSyncService.getSellers();
+                const mapped = dbPayouts.map((p: any) => {
+                    const seller = sellers.find((s: any) => s.id === p.sellerId);
+                    return {
+                        id: p.id,
+                        seller_id: p.sellerId,
+                        seller_name: seller?.business_name || p.sellerName || p.sellerId,
+                        amount: p.amount,
+                        status: p.status,
+                        bank_name: p.bankName,
+                        account_number: p.accountNumber,
+                        account_name: p.accountName,
+                        order_ids: p.orderIds || [],
+                        created_at: (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString()),
+                    };
+                });
+                // Merge with any local-only payouts not yet in DB
+                const dbIds = new Set(mapped.map(m => m.id));
+                const localOnly = DataSyncService.getPayouts().filter((p: any) => !dbIds.has(p.id));
+                const merged = [...mapped, ...localOnly].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                setPayouts(merged);
+            } catch {
+                /* keep local */
+            }
+        };
+
+        loadLocal();
+        loadFromDB();
+        const onUpdate = () => { loadLocal(); loadFromDB(); };
+        window.addEventListener("storage", onUpdate);
+        window.addEventListener("sync-store-update", onUpdate);
+        return () => {
+            window.removeEventListener("storage", onUpdate);
+            window.removeEventListener("sync-store-update", onUpdate);
+        };
     }, []);
 
     const filtered = payouts.filter(p => {
@@ -53,9 +99,10 @@ export default function PayoutRequestsDirectory() {
             const finalAmount = parseFloat(overrideAmount) || selectedPayout.amount;
             
             // Call API to trigger Paystack
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch("/api/payouts", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({
                     id: selectedPayout.id,
                     status: "completed",
