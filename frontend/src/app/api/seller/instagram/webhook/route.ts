@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST — Receives real-time Instagram events.
- * Not required for catalog import — acknowledged with 200.
+ * Not required for catalog import — acknowledge with 200 to keep Meta happy.
  */
 export async function POST(req: NextRequest) {
     try { const body = await req.json(); console.log("[IG Webhook]", JSON.stringify(body).slice(0, 200)); } catch { }
