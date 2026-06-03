@@ -3,8 +3,17 @@ import { db } from "@/lib/db";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
 const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://fairprice.ng";
-const REDIRECT_URI = `${APP_URL}/api/seller/instagram/callback`;
+
+// Derive base URL + redirect_uri from the actual request host so they match the auth
+// route (which does the same). Meta requires the token-exchange redirect_uri to byte-match
+// the one used to obtain the code.
+function getBaseUrl(req: NextRequest): string {
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (envUrl) return envUrl.replace(/\/$/, "");
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    return host ? `${proto}://${host}` : "https://www.fairprice.ng";
+}
 
 /**
  * GET /api/seller/instagram/callback
@@ -23,6 +32,8 @@ export async function GET(req: NextRequest) {
     const state = req.nextUrl.searchParams.get("state");  // sellerId
     const error = req.nextUrl.searchParams.get("error");
 
+    const APP_URL = getBaseUrl(req);
+    const REDIRECT_URI = `${APP_URL}/api/seller/instagram/callback`;
     const dashboardUrl = `${APP_URL}/seller/integrations/meta`;
 
     if (error || !code || !state) {

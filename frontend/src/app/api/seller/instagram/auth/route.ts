@@ -3,8 +3,19 @@ import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://fairprice.ng";
-const REDIRECT_URI = `${APP_URL}/api/seller/instagram/callback`;
+
+// Build the OAuth redirect URI from the ACTUAL request host so it matches whichever
+// domain the seller is on (www.fairprice.ng vs fairprice.ng). Meta requires the
+// redirect_uri to byte-match a whitelisted entry, and the same value must be reused
+// in the callback's token exchange — deriving both from the request keeps them in sync.
+function getRedirectUri(req: NextRequest): string {
+    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (envUrl) return `${envUrl.replace(/\/$/, "")}/api/seller/instagram/callback`;
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const base = host ? `${proto}://${host}` : "https://www.fairprice.ng";
+    return `${base}/api/seller/instagram/callback`;
+}
 
 /**
  * GET /api/seller/instagram/auth
@@ -39,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     const params = new URLSearchParams({
         client_id: FB_APP_ID,
-        redirect_uri: REDIRECT_URI,
+        redirect_uri: getRedirectUri(req),
         scope: "pages_show_list,instagram_basic",
         response_type: "code",
         state: seller.id,              // verified in callback
