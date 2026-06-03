@@ -116,47 +116,73 @@ export default function CatalogControl() {
     const [dealDurationHours, setDealDurationHours] = useState("24");
 
     useEffect(() => {
-        const load = () => {
-            const all = DataSyncService.getProducts();
-            console.log("Admin Catalog detected update. Items:", all.length);
-            setProducts(all);
-            
-            setCachedProducts(DataSyncService.getAllCachedProducts());
-
+        const computeFlags = (all: any[]) => {
             const trending = new Set<string>();
             const sponsored = new Set<string>();
             const deals = new Set<string>();
-            
             all.forEach(p => {
                 if (p.is_trending) trending.add(p.id);
                 if (p.is_sponsored) sponsored.add(p.id);
             });
-
             const activeDeals = DataSyncService.getDeals();
-            activeDeals.forEach(d => {
-                if (d.is_active && d.product_id) {
-                    deals.add(d.product_id);
-                }
-            });
-
+            activeDeals.forEach(d => { if (d.is_active && d.product_id) deals.add(d.product_id); });
             setTrendingIds(trending);
             setSponsoredIds(sponsored);
             setDealProductIds(deals);
         };
 
+        const load = () => {
+            // Fast first paint from local cache (may be trimmed by localStorage quota)
+            const local = DataSyncService.getProducts();
+            setProducts(local);
+            setCachedProducts(DataSyncService.getAllCachedProducts());
+            computeFlags(local);
+        };
+
+        // AUTHORITATIVE: fetch the FULL catalog directly from the DB so the admin always
+        // sees every product, even when localStorage has been trimmed to fit its size limit.
+        const loadFromDB = async () => {
+            try {
+                const res = await fetch("/api/products?all=true");
+                if (!res.ok) return;
+                const data = await res.json();
+                const dbProducts: any[] = Array.isArray(data) ? data : (data?.products ?? []);
+                if (dbProducts.length === 0) return;
+
+                // Merge local-only flags (trending/sponsored toggles set locally) onto DB rows
+                const local = DataSyncService.getProducts();
+                const localMap = new Map(local.map((p: any) => [p.id, p]));
+                const merged = dbProducts.map((p: any) => {
+                    const l = localMap.get(p.id);
+                    return l ? { ...p, is_trending: p.is_trending ?? l.is_trending, is_sponsored: p.is_sponsored ?? l.is_sponsored } : p;
+                });
+                console.log("Admin Catalog loaded from DB:", merged.length, "products");
+                setProducts(merged);
+                computeFlags(merged);
+            } catch (e) {
+                console.warn("Admin catalog DB fetch failed, using local cache:", e);
+            }
+        };
+
         // Initial load
         load();
+        loadFromDB();
 
         // Run taxonomy management once separately to avoid event loops
         DataSyncService.syncTaxonomy().then(() => {
             DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
         });
 
-        window.addEventListener("storage", load);
-        window.addEventListener("sync-store-update", load);
+        // On live updates: refresh cached products locally + re-pull full catalog from DB
+        const onUpdate = () => {
+            setCachedProducts(DataSyncService.getAllCachedProducts());
+            loadFromDB();
+        };
+        window.addEventListener("storage", onUpdate);
+        window.addEventListener("sync-store-update", onUpdate);
         return () => {
-            window.removeEventListener("storage", load);
-            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("storage", onUpdate);
+            window.removeEventListener("sync-store-update", onUpdate);
         };
     }, []);
 
