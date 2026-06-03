@@ -61,15 +61,17 @@ export function GiftCardVisual({
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "2px" }}>
-                            {/* FP logo mark */}
+                            {/* Real FairPrice logo mark */}
                             <div style={{
                                 width: "28px", height: "28px", borderRadius: "7px",
                                 background: "rgba(255,255,255,0.92)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: "11px", fontWeight: 900, color: "#047857",
-                                letterSpacing: "-0.03em",
+                                overflow: "hidden",
                                 boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                            }}>FP</div>
+                            }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src="/logo.png" alt="FairPrice" style={{ width: "80%", height: "80%", objectFit: "contain" }} />
+                            </div>
                             <span style={{ color: "white", fontWeight: 900, fontSize: "clamp(11px, 2.4vw, 15px)", letterSpacing: "-0.02em", fontFamily: "system-ui, -apple-system, sans-serif" }}>
                                 FairPrice
                             </span>
