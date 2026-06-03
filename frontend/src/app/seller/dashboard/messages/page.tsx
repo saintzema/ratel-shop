@@ -23,8 +23,10 @@ import {
     X,
     Bot,
     ShieldAlert,
-    Trash2
+    Trash2,
+    Bell
 } from "lucide-react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -62,6 +64,8 @@ export default function UniversalMessagesPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [filter, setFilter] = useState<ConversationType>("all");
     const [search, setSearch] = useState("");
+    const [inboxTab, setInboxTab] = useState<"chats" | "alerts">("chats");
+    const [inboxNotifs, setInboxNotifs] = useState<any[]>([]);
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [chatMessage, setChatMessage] = useState("");
@@ -80,6 +84,13 @@ export default function UniversalMessagesPage() {
         const loadData = () => {
             const allProds = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);
+
+            // Load the same aggregated notification feed as the bell for the Alerts tab
+            try {
+                const notifs = (DataSyncService.getNotifications(sellerId) || [])
+                    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                setInboxNotifs(notifs);
+            } catch { /* non-critical */ }
 
             const negs = DataSyncService.getNegotiations(sellerId);
             const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
@@ -625,33 +636,85 @@ export default function UniversalMessagesPage() {
             )}>
                 <div className="p-4 border-b border-gray-200 bg-white">
                     <h2 className="text-xl font-black text-gray-900 mb-3 tracking-tight">Inbox</h2>
-                    <div className="relative mb-3">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                            placeholder="Search messages..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-9 bg-gray-50 border-gray-200 h-10 rounded-xl text-sm"
-                        />
+                    {/* Chats / Alerts tab toggle */}
+                    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-3">
+                        <button
+                            onClick={() => setInboxTab("chats")}
+                            className={cn("flex-1 h-8 rounded-lg text-xs font-black transition-colors", inboxTab === "chats" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        >
+                            Chats
+                        </button>
+                        <button
+                            onClick={() => setInboxTab("alerts")}
+                            className={cn("flex-1 h-8 rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1.5", inboxTab === "alerts" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        >
+                            Alerts
+                            {inboxNotifs.some(n => !n.read) && (
+                                <span className="h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                                    {inboxNotifs.filter(n => !n.read).length}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setFilter(t)}
-                                className={cn(
-                                    "px-3 py-1.5 rounded-full text-[11px] font-bold capitalize whitespace-nowrap transition-colors border",
-                                    filter === t ? "bg-gray-900 border-gray-900 text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                                )}
-                            >
-                                {t}
-                            </button>
-                        ))}
-                    </div>
+                    {inboxTab === "chats" && (
+                        <>
+                            <div className="relative mb-3">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                    placeholder="Search messages..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="pl-9 bg-gray-50 border-gray-200 h-10 rounded-xl text-sm"
+                                />
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setFilter(t)}
+                                        className={cn(
+                                            "px-3 py-1.5 rounded-full text-[11px] font-bold capitalize whitespace-nowrap transition-colors border",
+                                            filter === t ? "bg-gray-900 border-gray-900 text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                                        )}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-                    {filteredConvos.length === 0 ? (
+                    {inboxTab === "alerts" ? (
+                        inboxNotifs.length === 0 ? (
+                            <div className="p-12 text-center text-gray-400 text-sm font-medium flex flex-col items-center">
+                                <Bell className="h-8 w-8 text-gray-300 mb-3" />
+                                No alerts yet.
+                            </div>
+                        ) : (
+                            inboxNotifs.slice(0, 100).map((n) => (
+                                <Link
+                                    key={n.id}
+                                    href={n.link || "#"}
+                                    className={cn("block p-4 transition-colors hover:bg-white", !n.read && "bg-indigo-50/40")}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className={cn("h-9 w-9 rounded-full flex items-center justify-center shrink-0", !n.read ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400")}>
+                                            <Bell className="h-4 w-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={cn("text-sm leading-snug line-clamp-2", !n.read ? "font-bold text-gray-900" : "font-medium text-gray-600")}>{n.message}</p>
+                                            <p className="text-[10px] text-gray-400 font-medium mt-1">
+                                                {new Date(n.timestamp).toLocaleDateString("en-NG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                            </p>
+                                        </div>
+                                        {!n.read && <div className="h-2 w-2 rounded-full bg-indigo-500 shrink-0 mt-1.5" />}
+                                    </div>
+                                </Link>
+                            ))
+                        )
+                    ) : filteredConvos.length === 0 ? (
                         <div className="p-12 text-center text-gray-400 text-sm font-medium flex flex-col items-center">
                             <MessageSquare className="h-8 w-8 text-gray-300 mb-3" />
                             No conversations match your filter.
