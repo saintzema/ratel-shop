@@ -90,12 +90,12 @@ export function PwaManager() {
     if (!showInstallBanner) return null;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-[2000] flex flex-col items-center pointer-events-none">
-            {/* Premium Top Banner */}
+        <div className="fixed left-0 right-0 z-[2000] flex flex-col-reverse items-center pointer-events-none bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0">
+            {/* Banner — sits directly on top of the mobile bottom nav (h-16) */}
             <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full bg-white border-b border-gray-100 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 flex items-center justify-between gap-3 shadow-[0_2px_15px_rgba(0,0,0,0.06)] pointer-events-auto"
+                className="w-full bg-white border-t border-gray-100 rounded-t-2xl md:rounded-t-none px-4 pt-3 pb-3 flex items-center justify-between gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pointer-events-auto"
             >
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-white border-2 border-white rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
@@ -127,12 +127,12 @@ export function PwaManager() {
             <AnimatePresence>
                 {showInstructions && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                        className="mt-3 w-[94%] max-w-sm bg-black rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.4)] pointer-events-auto relative"
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="mb-3 w-[94%] max-w-sm bg-black rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.4)] pointer-events-auto relative"
                     >
-                        <div className="absolute -top-1.5 right-14 w-3 h-3 bg-black rotate-45" />
+                        <div className="absolute -bottom-1.5 right-14 w-3 h-3 bg-black rotate-45" />
 
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-white font-black text-sm">Download & Install</h3>
