@@ -271,6 +271,18 @@ export default function SellerDashboard() {
 
     const safeSeller = currentSeller;
 
+    // Clean, shareable store link — never expose the raw internal seller id
+    // (e.g. "s_user_techzema@gmail.com"). Falls back to a slugified business name,
+    // which the /store/[slug] route resolves via its business-name-slug branch.
+    const cleanStoreSlug =
+        safeSeller?.store_url ||
+        (safeSeller?.business_name ? safeSeller.business_name.toLowerCase().replace(/\s+/g, "-") : "") ||
+        safeSeller?.id ||
+        "";
+    const dashOrigin = typeof window !== "undefined" ? window.location.origin : "https://fairprice.ng";
+    const dashDisplayOrigin = dashOrigin.replace(/^https?:\/\//, "");
+    const cleanStoreUrl = `${dashOrigin}/store/${cleanStoreSlug}`;
+
     // Computed financials
     const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
     const ESCROW_STATES = ["held", "seller_confirmed"];
@@ -337,6 +349,25 @@ export default function SellerDashboard() {
                     <p className="text-sm text-zinc-500 font-medium mt-1">
                         Here's what's happening with your store today.
                     </p>
+                    {/* Store link — moved here from the QR card */}
+                    <div className="mt-3 inline-flex items-center gap-2 max-w-full rounded-xl bg-zinc-50 border border-zinc-100 pl-3 pr-1.5 py-1.5">
+                        <span className="text-[11px] sm:text-xs font-bold text-indigo-700 truncate">
+                            {dashDisplayOrigin}/store/{cleanStoreSlug}
+                        </span>
+                        <Link href={`/store/${cleanStoreSlug}`} target="_blank" className="shrink-0">
+                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-zinc-400 hover:text-indigo-600 hover:bg-white">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                        </Link>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 rounded-lg shrink-0 transition-all ${copiedStoreLink ? "text-emerald-600 bg-emerald-50" : "text-zinc-400 hover:text-indigo-600 hover:bg-white"}`}
+                            onClick={() => { navigator.clipboard.writeText(cleanStoreUrl); setCopiedStoreLink(true); setTimeout(() => setCopiedStoreLink(false), 2000); }}
+                        >
+                            {copiedStoreLink ? <CheckCircle className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button 
@@ -418,9 +449,9 @@ export default function SellerDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Store Link + FairPay QR — combined card */}
                 {(() => {
-                    const storeSlug = safeSeller.store_url || safeSeller.id;
-                    const origin = typeof window !== "undefined" ? window.location.origin : "https://fairprice.ng";
-                    const storeUrl = `${origin}/store/${storeSlug}`;
+                    const storeSlug = cleanStoreSlug;
+                    const origin = dashOrigin;
+                    const storeUrl = cleanStoreUrl;
                     const isPayMode = qrDesc.trim() !== "" || qrAmount.trim() !== "";
                     const paymentUrl = `${origin}/checkout/direct?sellerId=${safeSeller.id}&name=${encodeURIComponent(safeSeller.business_name || "")}&label=${encodeURIComponent(qrDesc.trim() || `Payment to ${safeSeller.business_name || "Seller"}`)}&image=${encodeURIComponent((safeSeller as any).logo_url || "")}${qrAmount ? `&amount=${qrAmount}` : ""}`;
                     const activeQrUrl = isPayMode ? paymentUrl : storeUrl;
@@ -443,50 +474,27 @@ export default function SellerDashboard() {
                                             <BadgeCheck className="h-2.5 w-2.5 text-white" />
                                         </div>
                                     </div>
-                                    <div>
-                                        <div className="flex items-baseline gap-1">
+                                    <div className="min-w-0">
+                                        <div className="flex items-baseline gap-1 whitespace-nowrap">
                                             <span className="text-lg font-black tracking-tight text-gray-900">FairPay</span>
-                                            <span className="text-lg font-black tracking-tight bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">QR Scan</span>
+                                            <span className="text-lg font-black tracking-tight bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">QR&nbsp;Scan</span>
                                         </div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 -mt-0.5">Store & FairPay QR</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 -mt-0.5">Scan to Pay</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-black">
                                         <ShieldCheck className="h-3 w-3" /> Secure
                                     </div>
-                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black">
+                                    <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black">
                                         <Zap className="h-3 w-3 fill-indigo-500" /> Instant
                                     </div>
                                 </div>
                             </div>
                             <div className="px-6 pb-0">
-                                <p className="text-xs text-gray-500 font-medium">Share your store or collect payment in seconds.</p>
+                                <p className="text-xs text-gray-500 font-medium">Generate a QR or link to collect payment in seconds.</p>
                             </div>
                             <div className="px-6 pt-4">
-
-                            {/* Store URL row */}
-                            <div className="bg-zinc-50 rounded-2xl p-3.5 border border-zinc-100 mb-4">
-                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Your Store Link</p>
-                                <div className="flex items-center gap-2">
-                                    <p className="text-sm font-bold text-indigo-700 truncate flex-1">
-                                        {displayOrigin}/store/{storeSlug}
-                                    </p>
-                                    <Link href={`/store/${storeSlug}`} target="_blank">
-                                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-zinc-400 hover:text-indigo-600 hover:bg-white shadow-sm shrink-0">
-                                            <ExternalLink className="h-4 w-4" />
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className={`h-8 w-8 rounded-xl shadow-sm transition-all shrink-0 ${copiedStoreLink ? "text-emerald-600 bg-emerald-50" : "text-zinc-400 bg-white hover:text-indigo-600"}`}
-                                        onClick={() => { navigator.clipboard.writeText(storeUrl); setCopiedStoreLink(true); setTimeout(() => setCopiedStoreLink(false), 2000); }}
-                                    >
-                                        {copiedStoreLink ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                    </Button>
-                                </div>
-                            </div>
 
                             {/* ── Collect a Payment ── always green/active */}
                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 mb-4">
