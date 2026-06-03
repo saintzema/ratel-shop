@@ -30,10 +30,59 @@ export default function GovernanceCenter() {
     const [complaints, setComplaints] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<"kyc" | "disputes">("kyc");
 
+    // Approve/Reject a governance item — handles both KYC submissions and pending sellers.
+    const approveItem = async (item: any) => {
+        if (item._isSeller) {
+            DataSyncService.updateSeller(item.seller_id, { status: "active", verified: true, kyc_status: "approved" });
+            try { await fetch(`/api/sellers/${item.seller_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "active", verified: true, kyc_status: "approved" }) }); } catch {}
+        } else {
+            DataSyncService.updateKYCStatus(item.id, "approved");
+        }
+        loadAll();
+    };
+    const rejectItem = async (item: any) => {
+        if (item._isSeller) {
+            DataSyncService.updateSeller(item.seller_id, { status: "frozen", kyc_status: "rejected" });
+            try { await fetch(`/api/sellers/${item.seller_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "frozen", kyc_status: "rejected" }) }); } catch {}
+        } else {
+            DataSyncService.updateKYCStatus(item.id, "rejected");
+        }
+        loadAll();
+    };
+
+    const loadAll = () => {
+        // Local KYC submissions (legacy)
+        const localKyc = DataSyncService.getKYCSubmissions();
+        // Pending sellers from the DB become approval items (onboarding doesn't create
+        // KYCSubmission rows, so this is the real seller-approval queue)
+        fetch("/api/sellers?all=true")
+            .then(r => r.ok ? r.json() : [])
+            .then((sellers: any[]) => {
+                const pendingSellers = (Array.isArray(sellers) ? sellers : [])
+                    .filter((s: any) => (s.status || s.status) === "pending")
+                    .map((s: any) => ({
+                        id: `seller_${s.id}`,
+                        _isSeller: true,
+                        seller_id: s.id,
+                        seller_name: s.business_name || s.businessName || "New Seller",
+                        id_type: "Onboarding / KYC",
+                        id_number: s.owner_email || s.ownerEmail || "—",
+                        status: "pending",
+                        created_at: s.created_at || s.createdAt || new Date().toISOString(),
+                        document_url: s.cac_document_url || s.cacDocumentUrl || s.id_document_url || `/admin/users/${s.id}`,
+                    }));
+                // Merge, de-dupe by seller_id
+                const seen = new Set(pendingSellers.map(p => p.seller_id));
+                const merged = [...pendingSellers, ...localKyc.filter((k: any) => !seen.has(k.seller_id))];
+                setKycs(merged);
+            })
+            .catch(() => setKycs(localKyc));
+    };
+
     useEffect(() => {
         const load = () => {
-            setKycs(DataSyncService.getKYCSubmissions());
-            
+            loadAll();
+
             // Mirror logic from Admin Dashboard: merge complaints + disputed/cancelled orders
             const rawComplaints = DataSyncService.getComplaints();
             const allOrders = DataSyncService.getOrders();
@@ -184,20 +233,20 @@ export default function GovernanceCenter() {
                                             </td>
                                             <td className="px-6 py-5 align-middle text-right">
                                                 <div className="flex items-center justify-end gap-2 transition-opacity">
-                                                    <Button variant="outline" size="sm" className="h-8 px-3 rounded-lg border-gray-200 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 flex items-center gap-1.5" onClick={() => window.open(kyc.document_url, '_blank')}>
-                                                        <ExternalLink className="h-3 w-3" /> View Doc
+                                                    <Button variant="outline" size="sm" className="h-8 px-3 rounded-lg border-gray-200 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 flex items-center gap-1.5" onClick={() => { const u = kyc._isSeller ? `/admin/users/${kyc.seller_id}` : kyc.document_url; if (u) window.open(u, kyc._isSeller ? '_self' : '_blank'); }}>
+                                                        <ExternalLink className="h-3 w-3" /> {kyc._isSeller ? "Review" : "View Doc"}
                                                     </Button>
                                                     {kyc.status === "pending" && (
                                                         <>
                                                             <Button
-                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "approved"); setKycs(DataSyncService.getKYCSubmissions()); }}
+                                                                onClick={() => approveItem(kyc)}
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                             >
                                                                 Approve
                                                             </Button>
                                                             <Button
-                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "rejected"); setKycs(DataSyncService.getKYCSubmissions()); }}
+                                                                onClick={() => rejectItem(kyc)}
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-[10px] uppercase tracking-widest"
