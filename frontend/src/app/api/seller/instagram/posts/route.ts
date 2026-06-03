@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 
 /**
  * GET /api/seller/instagram/posts
- * Fetches the seller's real Instagram media using their stored access token.
- * Returns up to 20 most recent IMAGE/CAROUSEL_ALBUM posts.
+ * Fetches recent IMAGE/CAROUSEL_ALBUM posts via Instagram Business Login Graph API.
+ * Uses graph.instagram.com (not graph.facebook.com) for Business Login tokens.
  */
 export async function GET(req: NextRequest) {
     const user = getUserFromRequest(req);
@@ -31,26 +31,21 @@ export async function GET(req: NextRequest) {
 
     const { instagramAccessToken: token, instagramUserId: igUserId, instagramUsername } = seller as any;
 
-    if (!token || !igUserId) {
-        return NextResponse.json({ connected: false, posts: [] });
-    }
+    if (!token || !igUserId) return NextResponse.json({ connected: false, posts: [] });
 
-    // Check token expiry
     const expiry: Date | null = (seller as any).instagramTokenExpiry;
-    if (expiry && expiry < new Date()) {
-        return NextResponse.json({ connected: false, expired: true, posts: [] });
-    }
+    if (expiry && expiry < new Date()) return NextResponse.json({ connected: false, expired: true, posts: [] });
 
     try {
         const fields = "id,caption,media_url,thumbnail_url,media_type,timestamp,permalink";
-        const igRes = await fetch(
-            `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}`
+        // Instagram Business Login tokens use graph.instagram.com, not graph.facebook.com
+        const igRes  = await fetch(
+            `https://graph.instagram.com/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}`
         );
         const igData = await igRes.json();
 
         if (igData.error) {
-            console.error("[IG posts] Graph API error:", igData.error);
-            // Token may be invalid — clear it so seller re-connects
+            console.error("[IG posts] Graph error:", igData.error);
             if (igData.error.code === 190) {
                 await db.seller.update({
                     where: { id: (seller as any).id },
@@ -61,16 +56,15 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: igData.error.message }, { status: 502 });
         }
 
-        // Only include single images and carousels (skip videos for now)
         const posts = (igData.data || [])
             .filter((p: any) => p.media_url && ["IMAGE", "CAROUSEL_ALBUM"].includes(p.media_type))
             .map((p: any) => ({
-                id: p.id,
-                media_url: p.media_url,
-                caption: p.caption || "",
+                id:         p.id,
+                media_url:  p.media_url,
+                caption:    p.caption || "",
                 media_type: p.media_type,
-                timestamp: p.timestamp,
-                permalink: p.permalink,
+                timestamp:  p.timestamp,
+                permalink:  p.permalink,
             }));
 
         return NextResponse.json({ connected: true, username: instagramUsername, posts });

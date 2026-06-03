@@ -2,34 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 
-const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
+// Instagram Business Login uses a separate App ID from the Facebook App ID.
+// Found in: Meta Developer Console → Your App → Use Cases → Instagram API → Instagram app ID
+const IG_APP_ID = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
 
-// Build the OAuth redirect URI from the ACTUAL request host so it matches whichever
-// domain the seller is on (www.fairprice.ng vs fairprice.ng). Meta requires the
-// redirect_uri to byte-match a whitelisted entry, and the same value must be reused
-// in the callback's token exchange — deriving both from the request keeps them in sync.
+// Build the OAuth redirect URI from the ACTUAL request host so it byte-matches
+// whichever domain the seller is on (www vs non-www).
 function getRedirectUri(req: NextRequest): string {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (envUrl) return `${envUrl.replace(/\/$/, "")}/api/seller/instagram/callback`;
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const host  = req.headers.get("x-forwarded-host") || req.headers.get("host");
     const proto = req.headers.get("x-forwarded-proto") || "https";
-    const base = host ? `${proto}://${host}` : "https://www.fairprice.ng";
+    const base  = host ? `${proto}://${host}` : "https://www.fairprice.ng";
     return `${base}/api/seller/instagram/callback`;
 }
 
 /**
  * GET /api/seller/instagram/auth
- * Generates the Meta OAuth URL and redirects the seller to Facebook Login.
- * The `state` param carries the seller's DB id so the callback can store the token.
  *
- * Uses Instagram Graph API Business Login (replaces the deprecated Basic Display API
+ * Generates an Instagram Business Login OAuth URL and returns it to the client.
+ * Uses the new Instagram Business Login flow (not the deprecated Basic Display API
  * which was shut down on December 4, 2024).
  *
- * Scopes requested:
- *  - instagram_business_basic        : read IG Business/Creator profile + media
- *  - instagram_business_manage_messages : optional — future DM integration
- *  - pages_show_list                 : list Facebook Pages the user manages
- *    (instagram_business_basic requires the account to be linked to a FB Page)
+ * OAuth endpoint : https://www.instagram.com/oauth/authorize
+ * Scopes         : instagram_business_basic (read profile + media)
+ *                  instagram_business_manage_comments (optional)
+ *                  instagram_business_manage_messages (optional)
  */
 export async function GET(req: NextRequest) {
     const user = getUserFromRequest(req);
@@ -37,7 +35,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Resolve the seller record for this user — try userId first, then email as fallback
+    // Resolve seller — try userId first, then ownerEmail fallback
     const seller = await db.seller.findFirst({
         where: {
             OR: [
@@ -49,28 +47,31 @@ export async function GET(req: NextRequest) {
     });
 
     if (!seller) {
-        return NextResponse.json({ error: "No seller account found. Complete seller onboarding first." }, { status: 404 });
+        return NextResponse.json(
+            { error: "No seller account found. Complete seller onboarding first." },
+            { status: 404 }
+        );
     }
 
     const params = new URLSearchParams({
-        client_id: FB_APP_ID,
-        redirect_uri: getRedirectUri(req),
-        // instagram_business_basic replaces the deprecated instagram_basic scope
-        // (Instagram Basic Display API was shut down Dec 4 2024)
-        scope: "pages_show_list,instagram_business_basic",
+        force_reauth:  "true",
+        client_id:     IG_APP_ID,
+        redirect_uri:  getRedirectUri(req),
         response_type: "code",
-        state: seller.id,              // verified in callback
-        display: "popup",
+        scope: [
+            "instagram_business_basic",
+            "instagram_business_manage_messages",
+            "instagram_business_manage_comments",
+        ].join(","),
+        state: seller.id, // verified in callback to prevent CSRF
     });
 
-    const oauthUrl = `https://www.facebook.com/dialog/oauth?${params.toString()}`;
+    const oauthUrl = `https://www.instagram.com/oauth/authorize?${params.toString()}`;
 
-    // If client requests JSON (fetch from browser), return the URL instead of redirecting.
-    // This lets the client send the Bearer token via fetch(), then redirect itself.
+    // Client sends the Bearer token via fetch() then redirects itself to the OAuth URL.
     const acceptHeader = req.headers.get("accept") || "";
     if (acceptHeader.includes("application/json")) {
         return NextResponse.json({ url: oauthUrl });
     }
-
     return NextResponse.redirect(oauthUrl);
 }

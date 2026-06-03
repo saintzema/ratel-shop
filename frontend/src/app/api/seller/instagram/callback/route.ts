@@ -1,131 +1,92 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
-const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
+const IG_APP_ID     = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
+const IG_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || process.env.FACEBOOK_APP_SECRET!;
 
-// Derive base URL + redirect_uri from the actual request host so they match the auth
-// route (which does the same). Meta requires the token-exchange redirect_uri to byte-match
-// the one used to obtain the code.
 function getBaseUrl(req: NextRequest): string {
     const envUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (envUrl) return envUrl.replace(/\/$/, "");
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const host  = req.headers.get("x-forwarded-host") || req.headers.get("host");
     const proto = req.headers.get("x-forwarded-proto") || "https";
     return host ? `${proto}://${host}` : "https://www.fairprice.ng";
 }
 
 /**
  * GET /api/seller/instagram/callback
- * Meta redirects here after the seller approves Facebook Login.
- *
- * Steps:
- *  1. Exchange `code` for a short-lived user access token
- *  2. Extend to a long-lived token (60-day expiry)
- *  3. Get the seller's Facebook Pages
- *  4. For each page, check for a connected Instagram Business Account
- *  5. Store the token + IG user ID on the Seller record
- *  6. Redirect back to the seller dashboard
+ * Instagram Business Login OAuth callback (replaces deprecated Basic Display).
+ * Token exchange: api.instagram.com → graph.instagram.com (NOT graph.facebook.com).
  */
 export async function GET(req: NextRequest) {
-    const code = req.nextUrl.searchParams.get("code");
-    const state = req.nextUrl.searchParams.get("state");  // sellerId
+    const code  = req.nextUrl.searchParams.get("code");
+    const state = req.nextUrl.searchParams.get("state");
     const error = req.nextUrl.searchParams.get("error");
 
-    const APP_URL = getBaseUrl(req);
-    const REDIRECT_URI = `${APP_URL}/api/seller/instagram/callback`;
-    const dashboardUrl = `${APP_URL}/seller/integrations/meta`;
+    const BASE_URL      = getBaseUrl(req);
+    const REDIRECT_URI  = `${BASE_URL}/api/seller/instagram/callback`;
+    const DASHBOARD_URL = `${BASE_URL}/seller/dashboard`;
 
     if (error || !code || !state) {
-        console.error("[IG callback] OAuth denied or missing params:", { error, code: !!code, state });
-        return NextResponse.redirect(`${dashboardUrl}?ig_error=denied`);
+        console.error("[IG callback] OAuth denied:", { error, hasCode: !!code, state });
+        return NextResponse.redirect(`${DASHBOARD_URL}?ig_error=denied`);
     }
 
     try {
         // 1. Exchange code for short-lived token
-        const tokenRes = await fetch(
-            `https://graph.facebook.com/v22.0/oauth/access_token?` +
-            new URLSearchParams({
-                client_id: FB_APP_ID,
-                client_secret: FB_APP_SECRET,
-                redirect_uri: REDIRECT_URI,
+        const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
+            method:  "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                client_id:     IG_APP_ID,
+                client_secret: IG_APP_SECRET,
+                grant_type:    "authorization_code",
+                redirect_uri:  REDIRECT_URI,
                 code,
-            })
-        );
+            }).toString(),
+        });
         const tokenData = await tokenRes.json();
         if (!tokenData.access_token) {
             console.error("[IG callback] Token exchange failed:", tokenData);
-            return NextResponse.redirect(`${dashboardUrl}?ig_error=token_exchange`);
+            return NextResponse.redirect(`${DASHBOARD_URL}?ig_error=token_exchange`);
         }
+        const shortToken = tokenData.access_token;
+        const igUserId   = String(tokenData.user_id || "");
 
-        // 2. Exchange for long-lived token (60-day)
-        const longTokenRes = await fetch(
-            `https://graph.facebook.com/v22.0/oauth/access_token?` +
+        // 2. Upgrade to long-lived token (~60 days)
+        const longRes = await fetch(
+            `https://graph.instagram.com/access_token?` +
             new URLSearchParams({
-                grant_type: "fb_exchange_token",
-                client_id: FB_APP_ID,
-                client_secret: FB_APP_SECRET,
-                fb_exchange_token: tokenData.access_token,
+                grant_type:    "ig_exchange_token",
+                client_secret: IG_APP_SECRET,
+                access_token:  shortToken,
             })
         );
-        const longTokenData = await longTokenRes.json();
-        const accessToken = longTokenData.access_token || tokenData.access_token;
-        const expiresIn = longTokenData.expires_in || 5183944; // ~60 days default
+        const longData  = await longRes.json();
+        const accessToken = longData.access_token || shortToken;
+        const expiresIn   = longData.expires_in   || 5_183_944;
 
-        // 3. Get Facebook Pages managed by this user
-        const pagesRes = await fetch(
-            `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,instagram_business_account&access_token=${accessToken}`
-        );
-        const pagesData = await pagesRes.json();
-        const pages: any[] = pagesData.data || [];
+        // 3. Fetch username
+        const meRes  = await fetch(`https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`);
+        const meData = await meRes.json();
+        const igUsername = meData.username || null;
 
-        // 4. Find first page with a connected Instagram Business Account
-        let igUserId: string | null = null;
-        let igUsername: string | null = null;
-
-        for (const page of pages) {
-            const igAccountId = page.instagram_business_account?.id;
-            if (igAccountId) {
-                // Fetch username
-                const igInfoRes = await fetch(
-                    `https://graph.facebook.com/v22.0/${igAccountId}?fields=id,username&access_token=${accessToken}`
-                );
-                const igInfo = await igInfoRes.json();
-                igUserId = igInfo.id || igAccountId;
-                igUsername = igInfo.username || null;
-                break;
-            }
-        }
-
-        if (!igUserId) {
-            // No IG Business account found — save token anyway so they can retry or connect later
-            console.warn("[IG callback] No Instagram Business account found for seller:", state);
-            await db.seller.update({
-                where: { id: state },
-                data: {
-                    instagramAccessToken: accessToken,
-                    instagramTokenExpiry: new Date(Date.now() + expiresIn * 1000),
-                } as any,
-            });
-            return NextResponse.redirect(`${dashboardUrl}?ig_error=no_ig_account`);
-        }
-
-        // 5. Store everything on the Seller record
+        // 4. Persist on Seller record
         await db.seller.update({
             where: { id: state },
             data: {
                 instagramAccessToken: accessToken,
-                instagramUserId: igUserId,
-                instagramUsername: igUsername,
+                instagramUserId:      igUserId || meData.id || null,
+                instagramUsername:    igUsername,
                 instagramTokenExpiry: new Date(Date.now() + expiresIn * 1000),
             } as any,
         });
 
-        console.log(`[IG callback] Connected IG @${igUsername} (${igUserId}) to seller ${state}`);
-        return NextResponse.redirect(`${dashboardUrl}?ig_connected=1&ig_user=${encodeURIComponent(igUsername || igUserId)}`);
-
+        console.log(`[IG callback] Connected @${igUsername} to seller ${state}`);
+        return NextResponse.redirect(
+            `${DASHBOARD_URL}?ig_connected=1&ig_user=${encodeURIComponent(igUsername || "")}`
+        );
     } catch (err: any) {
-        console.error("[IG callback] Unexpected error:", err.message);
-        return NextResponse.redirect(`${dashboardUrl}?ig_error=server`);
+        console.error("[IG callback] Error:", err.message);
+        return NextResponse.redirect(`${DASHBOARD_URL}?ig_error=server_error`);
     }
 }
