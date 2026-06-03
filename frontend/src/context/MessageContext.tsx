@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { DataSyncService } from "@/lib/sync-store";
+import { playMessageReceiveSound } from "@/lib/audio";
 
 // ─── Types ───────────────────────────────────────────────
 export interface ChatMessage {
@@ -105,6 +106,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                         if (newMsg.sender !== "user") {
                             setPendingNotification(newMsg);
                             setPendingConversationId(conv.id);
+                            playMessageReceiveSound(); // soft Apple-style chime on real-time inbound message
                         }
                     }
                 }
@@ -161,6 +163,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 if (typeof window !== "undefined") {
                     localStorage.setItem("fp_messages", JSON.stringify(updated));
                 }
+                playMessageReceiveSound(); // chime on real-time negotiation response
                 return updated;
             });
         };

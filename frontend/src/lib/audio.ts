@@ -76,3 +76,46 @@ export const playDingSound = () => {
         console.log("Audio play blocked:", e);
     }
 };
+
+/**
+ * Light Apple-iMessage-style "message received" swim tone.
+ * Quick, soft two-note rise (~0.5s) — used when an inbound chat/negotiation message
+ * arrives in real time (Ziva, messages inbox, negotiation replies).
+ */
+let lastMsgToneTime = 0;
+const MSG_TONE_THROTTLE_MS = 900;
+
+export const playMessageReceiveSound = () => {
+    if (typeof window === 'undefined') return;
+    const nowTime = Date.now();
+    if (nowTime - lastMsgToneTime < MSG_TONE_THROTTLE_MS) return;
+    lastMsgToneTime = nowTime;
+    try {
+        const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+
+        // Two soft sine notes (A5 -> D6) for a gentle "swim" rise
+        const notes = [
+            { freq: 880,  start: 0,     dur: 0.28, gain: 0.16 },
+            { freq: 1175, start: 0.085, dur: 0.34, gain: 0.18 },
+        ];
+        notes.forEach(({ freq, start, dur, gain }) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, now + start);
+            g.gain.setValueAtTime(0, now + start);
+            g.gain.linearRampToValueAtTime(gain, now + start + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+            osc.connect(g);
+            g.connect(ctx.destination);
+            osc.start(now + start);
+            osc.stop(now + start + dur + 0.05);
+        });
+    } catch {
+        /* autoplay blocked before user gesture — safe to ignore */
+    }
+};

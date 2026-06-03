@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { playMessageReceiveSound } from "@/lib/audio";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
@@ -231,6 +232,21 @@ export function ZivaChat() {
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Play a soft Apple-style chime when a NEW inbound (assistant/admin) message lands.
+    // Seeds silently on first run so the welcome message doesn't ring.
+    const seenZivaMsgIds = useRef<Set<string> | null>(null);
+    useEffect(() => {
+        if (seenZivaMsgIds.current === null) {
+            seenZivaMsgIds.current = new Set(messages.map(m => m.id));
+            return;
+        }
+        const last = messages[messages.length - 1];
+        if (last && !seenZivaMsgIds.current.has(last.id) && (last.role === "assistant" || last.role === "admin") && !(last as any).isTyping) {
+            playMessageReceiveSound();
+        }
+        seenZivaMsgIds.current = new Set(messages.map(m => m.id));
+    }, [messages]);
     const { cart, addToCart } = useCart();
     const { user } = useAuth();
 
