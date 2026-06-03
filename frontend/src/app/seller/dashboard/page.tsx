@@ -36,6 +36,9 @@ import {
     Download,
     BadgeCheck,
     Smartphone,
+    Bell,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
@@ -59,6 +62,8 @@ export default function SellerDashboard() {
     const [qrDesc, setQrDesc] = useState("");
     const [qrAmount, setQrAmount] = useState("");
     const [copiedPayLink, setCopiedPayLink] = useState(false);
+    const [sellerAlerts, setSellerAlerts] = useState<any[]>([]);
+    const [alertsExpanded, setAlertsExpanded] = useState(false);
     const hasAttemptedCreation = useRef(false);
 
     // Dynamic stats calculations
@@ -106,6 +111,16 @@ export default function SellerDashboard() {
                 // Load off-listing invoices
                 const allInvoices = DataSyncService.getOffListingInvoices();
                 setOffListingInvoices(allInvoices.filter(inv => inv.seller_id === seller.id));
+
+                // Load important seller alerts (orders, negotiations, refunds, payouts, etc.)
+                // Reuses the same aggregated feed as the notification bell.
+                try {
+                    const notifs = DataSyncService.getNotifications(seller.id) || [];
+                    const important = notifs
+                        .filter((n: any) => n.type !== "system" && !(n.message || "").startsWith("Welcome to FairPrice"))
+                        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                    setSellerAlerts(important);
+                } catch { /* non-critical */ }
 
                 // Onboarding Verification Notification Logic
                 if (seller.verified) {
@@ -396,6 +411,62 @@ export default function SellerDashboard() {
                 <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} tooltip="Accept more reasonable counter-offers and avoid letting negotiations expire to boost your success rate." />
                 <StatCard icon={<Star />} label="Trust Score" value={`${safeSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
             </motion.div>
+
+            {/* ── Important Alerts — foldable, newest first ── */}
+            {sellerAlerts.length > 0 && (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                    <button
+                        onClick={() => setAlertsExpanded(v => !v)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50/60 transition-colors"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="relative">
+                                <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                    <Bell className="h-4 w-4 text-indigo-600" />
+                                </div>
+                                {sellerAlerts.some(a => !a.read) && (
+                                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border border-white">
+                                        {sellerAlerts.filter(a => !a.read).length}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-left">
+                                <p className="text-sm font-black text-gray-900">Alerts</p>
+                                <p className="text-[10px] text-gray-400 font-medium">New orders, negotiations, refunds & payouts</p>
+                            </div>
+                        </div>
+                        {alertsExpanded
+                            ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                            : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    </button>
+                    <div className="px-3 pb-3 space-y-1.5">
+                        {(alertsExpanded ? sellerAlerts : sellerAlerts.slice(0, 2)).map((a) => (
+                            <Link
+                                key={a.id}
+                                href={a.link || "/seller/dashboard/messages"}
+                                className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${a.read ? "border-zinc-100 bg-white hover:bg-zinc-50" : "border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50"}`}
+                            >
+                                <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${a.read ? "bg-zinc-300" : "bg-indigo-500"}`} />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{a.message}</p>
+                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                        {new Date(a.timestamp).toLocaleDateString("en-NG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                </div>
+                                <ChevronRight className="h-3.5 w-3.5 text-zinc-300 shrink-0 mt-0.5" />
+                            </Link>
+                        ))}
+                        {!alertsExpanded && sellerAlerts.length > 2 && (
+                            <button
+                                onClick={() => setAlertsExpanded(true)}
+                                className="w-full text-center text-[11px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest py-1.5"
+                            >
+                                Show {sellerAlerts.length - 2} more
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Dispute Alert */}
             {disputedOrders.length > 0 && (
