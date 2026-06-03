@@ -76,8 +76,9 @@ export default function SponsoredAdsPage() {
     }, [searchQuery]);
 
     const activeCount = promotions.filter(p => p.status === "active").length;
-    const totalRevenue = promotions.reduce((sum, p) => sum + p.amount_paid, 0);
-    const totalImpressions = promotions.reduce((sum, p) => sum + p.impressions, 0);
+    // Coalesce to 0 — a single undefined amount_paid/impressions turned the whole sum into NaN
+    const totalRevenue = promotions.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0);
+    const totalImpressions = promotions.reduce((sum, p) => sum + (Number(p.impressions) || 0), 0);
 
     const calculateDaysLeft = (expiresAt: string) => {
         const diff = new Date(expiresAt).getTime() - new Date().getTime();
@@ -183,7 +184,7 @@ export default function SponsoredAdsPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="font-medium text-gray-900">{promo.seller?.business_name || "Unknown Seller"}</div>
-                                                <div className="text-[11px] text-emerald-600 font-bold">{formatPrice(promo.amount_paid)} paid</div>
+                                                <div className="text-[11px] text-emerald-600 font-bold">{formatPrice(promo.amount_paid || 0)} paid</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2 mb-1.5">

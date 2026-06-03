@@ -57,6 +57,20 @@ export default function AdminFinancingDashboard() {
         }
     };
 
+    // Real stats computed from the actual fetched applications (was hardcoded mock data)
+    const approvedApps = applications.filter(a => a.status === "approved");
+    const pendingApps = applications.filter(a => a.status === "pending" || a.status === "under_review");
+    const totalApproved = approvedApps.reduce((sum, a) => sum + (Number(a.loanAmount || a.amount || a.fundedAmount) || 0), 0);
+    const fmtMoney = (n: number) => n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(1)}M` : `₦${n.toLocaleString()}`;
+    const riskScores = applications.map(a => Number(a.riskScore || a.creditScore)).filter(n => !isNaN(n) && n > 0);
+    const avgRisk = riskScores.length ? Math.round(riskScores.reduce((s, n) => s + n, 0) / riskScores.length) : 0;
+    const financingStats = [
+        { label: "Active Applications", value: String(applications.length), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+        { label: "Total Approved", value: fmtMoney(totalApproved), icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50" },
+        { label: "Pending Review", value: String(pendingApps.length), icon: AlertCircle, color: "text-rose-600", bg: "bg-rose-50" },
+        { label: "Risk Score Avg", value: avgRisk ? `${avgRisk}/100` : "—", icon: ShieldCheck, color: "text-indigo-600", bg: "bg-indigo-50" },
+    ];
+
     return (
         <div className="max-w-7xl mx-auto p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
@@ -87,12 +101,7 @@ export default function AdminFinancingDashboard() {
 
             {/* Stats Bar */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {[
-                    { label: "Active Applications", value: "24", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-                    { label: "Total Approved", value: "₦142.5M", icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50" },
-                    { label: "Pending Review", value: "8", icon: AlertCircle, color: "text-rose-600", bg: "bg-rose-50" },
-                    { label: "Risk Score Avg", value: "72/100", icon: ShieldCheck, color: "text-indigo-600", bg: "bg-indigo-50" },
-                ].map((stat, i) => (
+                {financingStats.map((stat, i) => (
                     <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
                         <div className={`h-12 w-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center shrink-0`}>
                             <stat.icon className="h-6 w-6" />
