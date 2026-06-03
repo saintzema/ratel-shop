@@ -67,9 +67,12 @@ function AdminInboxContent() {
             const allUsers = DataSyncService.getAllUsers();
             const dsUser = allUsers.find((u: any) => u.id === userId || u.email === userId);
             
+            // Name passed explicitly from the admin user-detail page (resolved from DB)
+            const passedName = searchParams?.get("name");
             // Crucial fix: prioritize the proper store ID, fallback to given ID
             const targetId = dsUser?.id || seller?.id || userId;
-            const targetName = dsUser?.name || seller?.business_name || seller?.owner_name || userId;
+            const targetName = passedName || dsUser?.name || seller?.business_name || seller?.owner_name ||
+                (userId.includes("@") ? userId.split("@")[0] : userId);
 
             const conv = DataSyncService.getOrCreateConversation(
                 ADMIN_ID, targetId,
@@ -165,8 +168,10 @@ function AdminInboxContent() {
 
     const getOtherParticipant = (conv: any) => {
         const otherId = conv.participants.find((p: string) => p !== ADMIN_ID) || "";
-        let resolvedName = conv.participant_names?.[otherId] || otherId;
-        let resolvedEmail = otherId.includes("@") ? otherId : "user@globalstores.shop";
+        let resolvedName = conv.participant_names?.[otherId] || (otherId.includes("@") ? otherId.split("@")[0] : otherId);
+        // Use the conversation's stored email if present, else the id when it's an email,
+        // else leave blank (no fake @globalstores.shop placeholder)
+        let resolvedEmail = otherId.includes("@") ? otherId : (conv.participant_emails?.[otherId] || "");
 
         // Attempt to enrich from DataSyncService
         if (typeof window !== "undefined") {

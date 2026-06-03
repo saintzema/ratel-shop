@@ -299,7 +299,7 @@ export default function AdminUserDetailPage() {
                                 Approve Seller
                             </Button>
                             <Button
-                                onClick={() => router.push(`/admin/inbox?user_id=${id}`)}
+                                onClick={() => router.push(`/admin/inbox?user_id=${encodeURIComponent(userEntity?.owner_email || userEntity?.email || userEntity?.user_id || id)}&name=${encodeURIComponent(userEntity?.business_name || userEntity?.name || "")}`)}
                                 variant="outline"
                                 className="h-11 px-5 rounded-2xl border-amber-200 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-wider hover:bg-amber-100 shadow-sm"
                             >
@@ -307,7 +307,7 @@ export default function AdminUserDetailPage() {
                             </Button>
                         </>
                     )}
-                    <Button onClick={() => router.push(`/admin/inbox?user_id=${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                    <Button onClick={() => router.push(`/admin/inbox?user_id=${encodeURIComponent(userEntity?.owner_email || userEntity?.email || userEntity?.user_id || id)}&name=${encodeURIComponent(userEntity?.business_name || userEntity?.name || "")}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Mail className="h-4 w-4 mr-2" /> Message
                     </Button>
                     {/* Activate — for pending users (buyers or sellers not yet approved) */}
