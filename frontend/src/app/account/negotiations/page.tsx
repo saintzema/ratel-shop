@@ -71,7 +71,13 @@ export default function NegotiationsPage() {
     };
 
     const handleAddToCart = (neg: NegotiationRequest, product: Product) => {
-        const finalPrice = neg.counter_status === "accepted" ? (neg.counter_price || neg.proposed_price) : (neg.status === "accepted" ? neg.proposed_price : product.price);
+        // Agreed price logic:
+        // - If the BUYER accepted the seller's counter → counter_price is what was agreed
+        // - If the SELLER accepted the buyer's offer  → proposed_price is what was agreed
+        // Never use counter_price when status="accepted" (seller accepted buyer's offer, counter was just a prior round)
+        const finalPrice = neg.counter_status === "accepted"
+            ? (neg.counter_price || neg.proposed_price)
+            : neg.proposed_price;
 
         addToCart(product, 1, finalPrice);
         setAddedIds(prev => new Set(prev).add(neg.id));
@@ -176,7 +182,8 @@ export default function NegotiationsPage() {
                                     const productImage = product?.image_url || "/assets/images/placeholder.png";
                                     const listPrice = product?.price || 0;
 
-                                    const isCounterOffer = neg.counter_status === "pending";
+                                    // isCounterOffer: there's a pending counter AND the deal hasn't been accepted yet
+                                    const isCounterOffer = neg.counter_status === "pending" && neg.status !== "accepted";
                                     const justAdded = addedIds.has(neg.id);
 
                                     const statusBadge = neg.status === "purchased" || neg.purchased
@@ -223,8 +230,9 @@ export default function NegotiationsPage() {
                                                         variant="ghost" 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            openMessageBox(`neg_${neg.product_id}`);
-                                                        }} 
+                                                            // Use negotiation id for unique conversation — same product can have multiple negotiations
+                                                            openMessageBox(`neg_${neg.id}`);
+                                                        }}
                                                         className="text-[10px] font-bold rounded-lg h-7 px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                                                     >
                                                         Chat
@@ -253,7 +261,7 @@ export default function NegotiationsPage() {
 
                                             {/* Mobile Card */}
                                             <div 
-                                                onClick={() => openMessageBox(`neg_${neg.product_id}`)}
+                                                onClick={() => openMessageBox(`neg_${neg.id}`)}
                                                 className="md:hidden p-4 space-y-3 cursor-pointer active:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                                             >
                                                 <div className="flex items-center gap-3">

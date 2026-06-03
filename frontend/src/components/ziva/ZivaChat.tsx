@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { playMessageReceiveSound } from "@/lib/audio";
+import { playMessageReceiveSound, playDingSound } from "@/lib/audio";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
@@ -182,29 +182,8 @@ export function ZivaChat() {
     // Whether the user has manually dismissed the bubble — stop cycling after that.
     const bubbleDismissedRef = useRef(false);
 
-    // Play the bubble chime (inline so we don't depend on lib/audio for the FAB entry sound)
-    const playBubbleChime = () => {
-        try {
-            const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-            if (!AudioCtx) return;
-            const ctx = new AudioCtx();
-            if (ctx.state === "suspended") ctx.resume();
-            const t = ctx.currentTime;
-            [{ f: 600, t0: 0 }, { f: 1200, t0: 0.08 }].forEach(({ f, t0 }) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = "sine";
-                osc.frequency.setValueAtTime(f, t + t0);
-                gain.gain.setValueAtTime(0, t + t0);
-                gain.gain.linearRampToValueAtTime(0.15, t + t0 + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, t + t0 + 0.35);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(t + t0);
-                osc.stop(t + t0 + 0.4);
-            });
-        } catch { /* autoplay blocked — silent fail */ }
-    };
+    // Use the original premium glass chime for the bubble (not the lighter message-receive tone)
+    const playBubbleChime = () => playDingSound();
 
     // Pulse cycle: wait 10s → show 6s → hide 30s → show 6s → hide 30s …
     // Stops automatically once the user opens the chat or clicks the ✕.
