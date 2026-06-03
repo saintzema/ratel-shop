@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
     QrCode,
     Download,
@@ -354,7 +355,27 @@ function PaymentDetailModal({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 export default function QRPaymentsPage() {
-    const seller = DataSyncService.getCurrentSeller();
+    // Load the seller into state (not a synchronous read) so the page never renders
+    // blank when localStorage isn't ready yet or the current-seller wasn't set during
+    // an admin login. Retries on sync/storage events.
+    const [seller, setSeller] = useState<any>(() =>
+        typeof window !== "undefined" ? DataSyncService.getCurrentSeller() : undefined
+    );
+    const [sellerLoading, setSellerLoading] = useState(true);
+    useEffect(() => {
+        const load = () => {
+            const s = DataSyncService.getCurrentSeller();
+            if (s) setSeller(s);
+            setSellerLoading(false);
+        };
+        load();
+        window.addEventListener("sync-store-update", load);
+        window.addEventListener("storage", load);
+        return () => {
+            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("storage", load);
+        };
+    }, []);
     const [amount, setAmount]               = useState("");
     const [displayAmount, setDisplayAmount] = useState("");
     const [label, setLabel]                 = useState("");
@@ -455,7 +476,26 @@ export default function QRPaymentsPage() {
         setTimeout(() => setCopiedStore(false), 2000);
     };
 
-    if (!seller) return null;
+    if (!seller) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
+                <div className="h-10 w-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-4">
+                    <QrCode className="h-5 w-5 text-indigo-400" />
+                </div>
+                {sellerLoading ? (
+                    <p className="text-sm font-bold text-gray-400">Loading your FairPay QR…</p>
+                ) : (
+                    <>
+                        <p className="text-base font-black text-gray-900 mb-1">No seller profile found</p>
+                        <p className="text-sm text-gray-500 max-w-sm">This page is for seller accounts. If you have a store, open your seller dashboard first, then return here.</p>
+                        <Link href="/seller/dashboard" className="mt-4 inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-gray-900 text-white text-sm font-bold">
+                            Go to Seller Dashboard
+                        </Link>
+                    </>
+                )}
+            </div>
+        );
+    }
 
     return (
         <>
