@@ -85,7 +85,11 @@ export async function PATCH(
         const userUpdate: Record<string, any> = {};
         if (body.name || body.display_name)         userUpdate.name = body.name || body.display_name;
         if (body.email || body.owner_email)         userUpdate.email = body.email || body.owner_email;
-        if (body.status === "active")               userUpdate.role = "seller";
+        // Only promote to "seller" if the user isn't already an admin — never downgrade an admin.
+        if (body.status === "active") {
+            const existingSeller = await db.seller.findUnique({ where: { id }, select: { user: { select: { role: true } } } });
+            if (existingSeller?.user?.role !== "admin") userUpdate.role = "seller";
+        }
 
         const seller = await db.seller.update({
             where: { id },

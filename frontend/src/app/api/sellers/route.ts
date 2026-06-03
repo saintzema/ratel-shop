@@ -108,9 +108,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Forbidden: Unauthorized access" }, { status: 403 });
         }
 
+        // Preserve admin role: an admin who also owns a store must NOT be downgraded to "seller".
+        const existingUser = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+        const preservedRole = existingUser?.role === "admin" ? "admin" : "seller";
+
         const user = await db.user.upsert({
             where: { id: userId },
-            update: { role: "seller" },
+            update: { role: preservedRole },
             create: {
                 id: userId,
                 email: body.owner_email || `${body.id}_owner@fairprice.ng`,
