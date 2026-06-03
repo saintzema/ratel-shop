@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
     Package, Plus, X, CheckCircle2, Loader2, ChevronDown, ChevronUp,
-    Pencil, UploadCloud,
+    Pencil, UploadCloud, ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,27 @@ export function WhatsAppCatalogImporter() {
 
     const updateProduct = (i: number, field: string, value: string) => {
         setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
+    };
+
+    // Compress an uploaded image to a small JPEG data URL (max 500px, q0.6) so it
+    // can be stored inline without blowing localStorage/DB limits.
+    const compressImage = (file: File, callback: (url: string) => void) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let { width, height } = img;
+                if (width > height && width > 500) { height *= 500 / width; width = 500; }
+                else if (height > 500) { width *= 500 / height; height = 500; }
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL("image/jpeg", 0.6));
+            };
+            img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
     };
 
     const addRow = () => setProducts(prev => [...prev, BLANK_PRODUCT()]);
@@ -207,13 +228,42 @@ export function WhatsAppCatalogImporter() {
                                                 onChange={e => updateProduct(i, "stock", e.target.value)}
                                                 className="h-11 rounded-xl border-gray-200 font-bold text-sm"
                                             />
-                                            {/* Image URL */}
-                                            <Input
-                                                placeholder="Image URL (optional)"
-                                                value={p.image_url}
-                                                onChange={e => updateProduct(i, "image_url", e.target.value)}
-                                                className="h-11 rounded-xl border-gray-200 text-sm sm:col-span-2"
-                                            />
+                                            {/* Image: upload OR paste URL */}
+                                            <div className="sm:col-span-2 flex items-center gap-2">
+                                                {p.image_url ? (
+                                                    <div className="relative h-11 w-11 shrink-0 rounded-xl overflow-hidden border border-gray-200">
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={p.image_url} alt="" className="h-full w-full object-cover" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateProduct(i, "image_url", "")}
+                                                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:text-rose-500 shadow-sm"
+                                                        >
+                                                            <X className="h-2.5 w-2.5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <label className="h-11 w-11 shrink-0 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-emerald-400 hover:text-emerald-600 cursor-pointer transition-colors">
+                                                        <ImagePlus className="h-4 w-4" />
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) compressImage(file, url => updateProduct(i, "image_url", url));
+                                                            }}
+                                                        />
+                                                    </label>
+                                                )}
+                                                <Input
+                                                    placeholder="Upload ← or paste image URL"
+                                                    value={p.image_url.startsWith("data:") ? "" : p.image_url}
+                                                    onChange={e => updateProduct(i, "image_url", e.target.value)}
+                                                    disabled={p.image_url.startsWith("data:")}
+                                                    className="h-11 rounded-xl border-gray-200 text-sm flex-1 disabled:bg-gray-50 disabled:text-gray-400"
+                                                />
+                                            </div>
                                             {/* Description */}
                                             <Input
                                                 placeholder="Short description"
