@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     try {
         // 1. Exchange code for short-lived token
         const tokenRes = await fetch(
-            `https://graph.facebook.com/v20.0/oauth/access_token?` +
+            `https://graph.facebook.com/v22.0/oauth/access_token?` +
             new URLSearchParams({
                 client_id: FB_APP_ID,
                 client_secret: FB_APP_SECRET,
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
 
         // 2. Exchange for long-lived token (60-day)
         const longTokenRes = await fetch(
-            `https://graph.facebook.com/v20.0/oauth/access_token?` +
+            `https://graph.facebook.com/v22.0/oauth/access_token?` +
             new URLSearchParams({
                 grant_type: "fb_exchange_token",
                 client_id: FB_APP_ID,
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
 
         // 3. Get Facebook Pages managed by this user
         const pagesRes = await fetch(
-            `https://graph.facebook.com/v20.0/me/accounts?fields=id,name,instagram_business_account&access_token=${accessToken}`
+            `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,instagram_business_account&access_token=${accessToken}`
         );
         const pagesData = await pagesRes.json();
         const pages: any[] = pagesData.data || [];
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
             if (igAccountId) {
                 // Fetch username
                 const igInfoRes = await fetch(
-                    `https://graph.facebook.com/v20.0/${igAccountId}?fields=id,username&access_token=${accessToken}`
+                    `https://graph.facebook.com/v22.0/${igAccountId}?fields=id,username&access_token=${accessToken}`
                 );
                 const igInfo = await igInfoRes.json();
                 igUserId = igInfo.id || igAccountId;

@@ -12,7 +12,12 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const seller = await db.seller.findFirst({
-        where: { userId: user.userId },
+        where: {
+            OR: [
+                { userId: user.userId },
+                ...(user.email ? [{ ownerEmail: user.email }] : []),
+            ],
+        },
         select: {
             id: true,
             instagramAccessToken: true,
@@ -39,7 +44,7 @@ export async function GET(req: NextRequest) {
     try {
         const fields = "id,caption,media_url,thumbnail_url,media_type,timestamp,permalink";
         const igRes = await fetch(
-            `https://graph.facebook.com/v20.0/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}`
+            `https://graph.facebook.com/v22.0/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}`
         );
         const igData = await igRes.json();
 

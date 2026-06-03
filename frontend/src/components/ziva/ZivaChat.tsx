@@ -179,32 +179,62 @@ export function ZivaChat() {
     const [showInviteBubble, setShowInviteBubble] = useState(false);
     const [hasUnread, setHasUnread] = useState(true);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsWiggling(true);
-            setShowInviteBubble(true);
-            setTimeout(() => setIsWiggling(false), 2000);
-            try {
-                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-                if (!AudioCtx) return;
-                const ctx = new AudioCtx();
+    // Whether the user has manually dismissed the bubble — stop cycling after that.
+    const bubbleDismissedRef = useRef(false);
+
+    // Play the bubble chime (inline so we don't depend on lib/audio for the FAB entry sound)
+    const playBubbleChime = () => {
+        try {
+            const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            if (ctx.state === "suspended") ctx.resume();
+            const t = ctx.currentTime;
+            [{ f: 600, t0: 0 }, { f: 1200, t0: 0.08 }].forEach(({ f, t0 }) => {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.type = "sine";
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0, ctx.currentTime);
-                // Increased volume from 0.05 to 0.15
-                gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.frequency.setValueAtTime(f, t + t0);
+                gain.gain.setValueAtTime(0, t + t0);
+                gain.gain.linearRampToValueAtTime(0.15, t + t0 + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + t0 + 0.35);
                 osc.connect(gain);
                 gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.3);
-            } catch (e) { /* ignore autoplay block */ }
-        }, 10000); // Delay set to 10 seconds
-        return () => clearTimeout(timer);
-    }, []);
+                osc.start(t + t0);
+                osc.stop(t + t0 + 0.4);
+            });
+        } catch { /* autoplay blocked — silent fail */ }
+    };
+
+    // Pulse cycle: wait 10s → show 6s → hide 30s → show 6s → hide 30s …
+    // Stops automatically once the user opens the chat or clicks the ✕.
+    useEffect(() => {
+        const SHOW_DURATION = 6_000;   // bubble stays visible for 6s
+        const HIDE_DURATION = 30_000;  // gap between pulses
+        const INITIAL_DELAY = 10_000;  // first appearance after 10s
+
+        const timers: ReturnType<typeof setTimeout>[] = [];
+
+        const showBubble = () => {
+            if (bubbleDismissedRef.current || isOpen) return;
+            setIsWiggling(true);
+            setShowInviteBubble(true);
+            playBubbleChime();
+            timers.push(setTimeout(() => setIsWiggling(false), 2000));
+            // Hide after SHOW_DURATION, then schedule next pulse
+            timers.push(setTimeout(() => {
+                setShowInviteBubble(false);
+                // Schedule next appearance
+                timers.push(setTimeout(showBubble, HIDE_DURATION));
+            }, SHOW_DURATION));
+        };
+
+        // First pulse after initial delay
+        timers.push(setTimeout(showBubble, INITIAL_DELAY));
+
+        return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     // ─── Hybrid Keyboard Handling ──────────────────────────────
     // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
@@ -1681,8 +1711,8 @@ export function ZivaChat() {
                             className="absolute bottom-[70px] left-[15px] md:left-[30px] z-[60] pointer-events-auto"
                         >
                             <div className="relative bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-bl-none shadow-2xl border border-blue-400/30 w-[240px] md:w-[280px]">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); bubbleDismissedRef.current = true; setShowInviteBubble(false); }}
                                     className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors shadow-lg cursor-pointer"
                                 >
                                     <X className="h-3 w-3" />

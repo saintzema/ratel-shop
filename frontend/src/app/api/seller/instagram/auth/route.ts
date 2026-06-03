@@ -22,10 +22,14 @@ function getRedirectUri(req: NextRequest): string {
  * Generates the Meta OAuth URL and redirects the seller to Facebook Login.
  * The `state` param carries the seller's DB id so the callback can store the token.
  *
+ * Uses Instagram Graph API Business Login (replaces the deprecated Basic Display API
+ * which was shut down on December 4, 2024).
+ *
  * Scopes requested:
- *  - pages_show_list            : list Facebook Pages the user manages
- *  - instagram_basic            : read IG business account info + media
- *  - instagram_content_publish  : (optional, for future post scheduling)
+ *  - instagram_business_basic        : read IG Business/Creator profile + media
+ *  - instagram_business_manage_messages : optional — future DM integration
+ *  - pages_show_list                 : list Facebook Pages the user manages
+ *    (instagram_business_basic requires the account to be linked to a FB Page)
  */
 export async function GET(req: NextRequest) {
     const user = getUserFromRequest(req);
@@ -51,7 +55,9 @@ export async function GET(req: NextRequest) {
     const params = new URLSearchParams({
         client_id: FB_APP_ID,
         redirect_uri: getRedirectUri(req),
-        scope: "pages_show_list,instagram_basic",
+        // instagram_business_basic replaces the deprecated instagram_basic scope
+        // (Instagram Basic Display API was shut down Dec 4 2024)
+        scope: "pages_show_list,instagram_business_basic",
         response_type: "code",
         state: seller.id,              // verified in callback
         display: "popup",
