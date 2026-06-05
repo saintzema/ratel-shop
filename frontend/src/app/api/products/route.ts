@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+
+const SITE_URL = "https://www.fairprice.ng";
+function productSlug(name: string | null | undefined): string {
+    return (name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
 
 export async function GET(req: Request) {
     try {
@@ -280,6 +286,24 @@ export async function POST(req: Request) {
 
         // Broadcast update for real-time sync
         broadcast({ type: "product_updated", id: product.id });
+
+        // ─── SEO: make the update visible to Google fast ───
+        // 1) Invalidate the cached (ISR) product page so the next crawl/visit gets fresh
+        //    name/image/description/specs immediately instead of waiting up to 1 hour.
+        const slug = productSlug(product.name);
+        try {
+            revalidatePath(`/product/${product.id}/${slug}`);
+            revalidatePath("/sitemap.xml");
+        } catch { /* revalidate is best-effort */ }
+
+        // 2) Ping Google's Indexing API so it re-crawls this URL (URL_UPDATED).
+        //    Fire-and-forget; never blocks the response.
+        const canonicalUrl = `${SITE_URL}/product/${product.id}/${slug}`;
+        fetch(`${SITE_URL}/api/google-index`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls: [canonicalUrl] }),
+        }).catch(() => {});
 
         return NextResponse.json(product);
     } catch (error: any) {
