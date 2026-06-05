@@ -189,16 +189,17 @@ export function ZivaChat() {
     // Stops automatically once the user opens the chat or clicks the ✕.
     useEffect(() => {
         const SHOW_DURATION = 6_000;   // bubble stays visible for 6s
-        const HIDE_DURATION = 30_000;  // gap between pulses
+        const HIDE_DURATION = 45_000;  // gap between pulses (longer = less intrusive)
         const INITIAL_DELAY = 10_000;  // first appearance after 10s
 
         const timers: ReturnType<typeof setTimeout>[] = [];
+        let firstShow = true; // chime only on the very first appearance, not every pulse
 
         const showBubble = () => {
             if (bubbleDismissedRef.current || isOpen) return;
             setIsWiggling(true);
             setShowInviteBubble(true);
-            playBubbleChime();
+            if (firstShow) { playBubbleChime(); firstShow = false; } // sound once, then stay silent
             timers.push(setTimeout(() => setIsWiggling(false), 2000));
             // Hide after SHOW_DURATION, then schedule next pulse
             timers.push(setTimeout(() => {

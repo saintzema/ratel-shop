@@ -277,13 +277,15 @@ function PaymentDetailModal({
                                     <QRCodeCanvas
                                         id={`modal-qr-${inv.id}`}
                                         value={paymentUrl}
-                                        size={108}
+                                        size={120}
                                         level="H"
-                                        imageSettings={logoUrl && logoUrl !== "/logo.svg" ? {
-                                            src: logoUrl,
+                                        marginSize={2}
+                                        imageSettings={{
+                                            // Always show a centered brand mark — seller logo if available, else FairPrice logo
+                                            src: (logoUrl && logoUrl !== "/logo.svg") ? logoUrl : "/logo.png",
                                             x: undefined, y: undefined,
-                                            height: 20, width: 20, excavate: true,
-                                        } : undefined}
+                                            height: 24, width: 24, excavate: true,
+                                        }}
                                     />
                                 </div>
                                 <button
@@ -726,7 +728,7 @@ export default function QRPaymentsPage() {
                                         <button
                                             onClick={handleGenerate}
                                             disabled={isGenerating}
-                                            className="w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-base tracking-tight shadow-xl shadow-indigo-200 hover:shadow-indigo-300/60 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                            className="w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-base tracking-tight shadow-xl shadow-indigo-200 hover:shadow-indigo-300/60 transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap px-4"
                                         >
                                             {isGenerating ? (
                                                 <span className="flex items-center gap-2">
@@ -739,8 +741,9 @@ export default function QRPaymentsPage() {
                                                 </span>
                                             ) : (
                                                 <>
-                                                    <QrCode className="h-5 w-5" />
-                                                    {amount ? `Create Payment QR — ₦${Number(amount).toLocaleString()}` : "Create Payment QR"}
+                                                    <QrCode className="h-5 w-5 shrink-0" />
+                                                    <span>Create Payment QR</span>
+                                                    {amount ? <span className="font-bold text-white/80">· ₦{Number(amount).toLocaleString()}</span> : null}
                                                 </>
                                             )}
                                         </button>

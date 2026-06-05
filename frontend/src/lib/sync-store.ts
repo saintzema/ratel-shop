@@ -587,16 +587,11 @@ class DataSyncServiceService {
                         if (localVersion) {
                             const mergedSeller = { ...localVersion, ...(dbSeller as any) };
                             for (const field of LOCAL_ONLY_FIELDS) {
-                                // Special handling for subscription_plan: don't downgrade from a paid plan to Starter
-                                if (field === 'subscription_plan') {
-                                    const localPlan = localVersion[field];
-                                    const dbPlan = dbSeller[field];
-                                    if (localPlan && localPlan !== 'Starter' && dbPlan === 'Starter') {
-                                        mergedSeller[field] = localPlan;
-                                        continue;
-                                    }
-                                }
-                                
+                                // subscription_plan is DB-authoritative: the billing flow writes
+                                // it to Postgres, so a downgrade (Pro -> Starter) MUST be reflected.
+                                // We previously kept the local paid plan over a DB 'Starter', which
+                                // froze the UI on 'Premium Seller' after a downgrade. Only fall back
+                                // to local when the DB genuinely has no value for the field.
                                 if (localVersion[field] !== undefined && (dbSeller[field] === undefined || dbSeller[field] === null)) {
                                     mergedSeller[field] = localVersion[field];
                                 }

@@ -78,9 +78,15 @@ export default function SellerLayout({
                 const unreadCount = convs.reduce((acc, c) => acc + (c.unread_count[seller.id] || 0), 0);
                 setUnreadMessages(unreadCount);
 
-                // Load all stores owned by this user
+                // Load all stores owned by THIS user only. Guard against empty values —
+                // matching on `undefined === undefined` previously pulled in every seller
+                // that lacked an owner_email/user_id (other people's stores).
                 const allSellers = DataSyncService.getSellers();
-                const myStores = allSellers.filter(s => s.user_id === seller.user_id || s.owner_email === seller.owner_email);
+                const myStores = allSellers.filter(s =>
+                    s.id === seller.id ||
+                    (!!seller.user_id && s.user_id === seller.user_id) ||
+                    (!!seller.owner_email && s.owner_email === seller.owner_email)
+                );
                 setAllUserStores(myStores);
 
                 // Check for plan expiry and send notifications/deactivate if needed
