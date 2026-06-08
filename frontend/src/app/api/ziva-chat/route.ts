@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { SEED_PRODUCTS } from '@/lib/data';
 import { db } from '@/lib/db';
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+import { chat, isQwenConfigured, extractJson, QWEN_MODELS, type QwenTool, type QwenMessage } from '@/lib/qwen';
 
 /* ──────────────────────────────────────────────────────────
    Server-Side Tool Implementations
@@ -191,53 +189,146 @@ async function comparePrices(productNames: string[]): Promise<any> {
 }
 
 /* ──────────────────────────────────────────────────────────
-   Gemini Function Declarations (Tool Definitions)
+   Qwen Tool Definitions (OpenAI-compatible function schema)
    ────────────────────────────────────────────────────────── */
 
-const toolDeclarations = [
+const ZIVA_TOOLS: QwenTool[] = [
     {
-        function_declarations: [
-            {
-                name: "search_catalog",
-                description: "Search the FairPrice product catalog and cached search results for products matching keywords. Use this when the user wants to find, browse, or discover products.",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        keywords: { type: "string", description: "Search keywords (e.g. 'iPhone 15', 'gaming laptop under 500k')" },
-                        max_budget: { type: "number", description: "Optional maximum budget in Naira" }
-                    },
-                    required: ["keywords"]
-                }
-            },
-            {
-                name: "explore_product",
-                description: "Get detailed information about a specific product including specs, description, price, reviews, and seller info. Use this when the user wants to know more about a particular product.",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        product_name: { type: "string", description: "The product name to explore" }
-                    },
-                    required: ["product_name"]
-                }
-            },
-            {
-                name: "compare_prices",
-                description: "Compare prices and features of multiple products side by side. Use this when the user wants to compare options or find the best deal.",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        product_names: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "List of product names to compare (2-4 products)"
-                        }
-                    },
-                    required: ["product_names"]
-                }
+        type: "function",
+        function: {
+            name: "search_catalog",
+            description: "Search the FairPrice product catalog and cached search results for products matching keywords. Use this when the user wants to find, browse, or discover products.",
+            parameters: {
+                type: "object",
+                properties: {
+                    keywords: { type: "string", description: "Search keywords (e.g. 'iPhone 15', 'gaming laptop under 500k')" },
+                    max_budget: { type: "number", description: "Optional maximum budget in Naira" }
+                },
+                required: ["keywords"]
             }
-        ]
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "explore_product",
+            description: "Get detailed information about a specific product including specs, description, price, reviews, and seller info. Use this when the user wants to know more about a particular product.",
+            parameters: {
+                type: "object",
+                properties: {
+                    product_name: { type: "string", description: "The product name to explore" }
+                },
+                required: ["product_name"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "compare_prices",
+            description: "Compare prices and features of multiple products side by side. Use this when the user wants to compare options or find the best deal.",
+            parameters: {
+                type: "object",
+                properties: {
+                    product_names: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "List of product names to compare (2-4 products)"
+                    }
+                },
+                required: ["product_names"]
+            }
+        }
     }
 ];
+
+/* Dispatch a tool call by name to its server-side implementation. */
+async function runZivaTool(name: string, args: any): Promise<any> {
+    switch (name) {
+        case "search_catalog":
+            return searchCatalog(args.keywords, args.max_budget);
+        case "explore_product":
+            return exploreProduct(args.product_name);
+        case "compare_prices":
+            return comparePrices(args.product_names || []);
+        default:
+            return { error: `Unknown tool: ${name}` };
+    }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Provider switch
+   ──────────────────────────────────────────────────────────
+   Ziva runs on Qwen by default. Admin can flip back to Gemini
+   instantly by setting AI_PROVIDER=gemini (env / Vercel) — no
+   code change, no redeploy of logic. Both code paths share the
+   same ZIVA_TOOLS definitions and the same local fallback.
+   ────────────────────────────────────────────────────────── */
+function activeProvider(): "qwen" | "gemini" {
+    return (process.env.AI_PROVIDER || "qwen").toLowerCase() === "gemini" ? "gemini" : "qwen";
+}
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+// Gemini speaks `function_declarations`; derive them from the canonical
+// OpenAI-shaped ZIVA_TOOLS so there's a single source of truth.
+const GEMINI_TOOL_DECLARATIONS = [{ function_declarations: ZIVA_TOOLS.map(t => t.function) }];
+
+/* Original Gemini tool-calling path, preserved for instant rollback. */
+async function runZivaGemini(systemPrompt: string, history: any[], message: string): Promise<any> {
+    if (!GEMINI_API_KEY) throw new Error("Gemini not configured");
+
+    const contents = [
+        { role: "user", parts: [{ text: systemPrompt }] },
+        { role: "model", parts: [{ text: '{"message":"Understood. I am Ziva, ready to help with shopping using my tools.","intent":"greeting","shouldEscalate":false}' }] },
+        ...history.map((msg: any) => ({
+            role: msg.sender === "user" ? "user" : "model",
+            parts: [{ text: msg.text }]
+        })),
+        { role: "user", parts: [{ text: message }] }
+    ];
+
+    const gen = { temperature: 0.7, responseMimeType: "application/json" };
+
+    let response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents, tools: GEMINI_TOOL_DECLARATIONS, generationConfig: gen })
+    });
+    if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
+
+    let data = await response.json();
+    let parts = data.candidates?.[0]?.content?.parts || [];
+    const functionCall = parts.find((p: any) => p.functionCall);
+
+    if (functionCall) {
+        const { name, args } = functionCall.functionCall;
+        const toolResult = await runZivaTool(name, args);
+        const updatedContents = [
+            ...contents,
+            { role: "model", parts: [{ functionCall: { name, args } }] },
+            { role: "user", parts: [{ functionResponse: { name, response: toolResult } }] }
+        ];
+        response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: updatedContents, tools: GEMINI_TOOL_DECLARATIONS, generationConfig: gen })
+        });
+        if (!response.ok) throw new Error(`Gemini API Error (tool follow-up): ${response.statusText}`);
+        data = await response.json();
+        parts = data.candidates?.[0]?.content?.parts || [];
+    }
+
+    const textPart = parts.find((p: any) => p.text);
+    if (!textPart) return { message: "I found something but had trouble formatting it. Could you try asking again? 🧠", intent: "error", shouldEscalate: false };
+
+    try {
+        return extractJson(textPart.text);
+    } catch {
+        return { message: textPart.text, intent: "general", shouldEscalate: false, suggestedProducts: [] };
+    }
+}
 
 /* ──────────────────────────────────────────────────────────
    Main API Handler
@@ -301,89 +392,65 @@ After using tools, respond with this JSON structure:
     "searchQuery": "optional global search query if nothing found locally"
 }`;
 
-        // Format History
-        const contents = [
-            { role: "user", parts: [{ text: systemPrompt }] },
-            { role: "model", parts: [{ text: '{"message":"Understood. I am Ziva, ready to help with shopping using my tools.","intent":"greeting","shouldEscalate":false}' }] },
-            ...history.map((msg: any) => ({
-                role: msg.sender === "user" ? "user" : "model",
-                parts: [{ text: msg.text }]
-            })),
-            { role: "user", parts: [{ text: message }] }
-        ];
-
-        // First call — Gemini may call tools
-        let response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents,
-                tools: toolDeclarations,
-                generationConfig: {
-                    temperature: 0.7,
-                    responseMimeType: "application/json"
-                }
-            })
-        });
-
-        if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
-
-        let data = await response.json();
-        let candidate = data.candidates?.[0];
-        let parts = candidate?.content?.parts || [];
-
-        // Check if Gemini wants to call a function
-        const functionCall = parts.find((p: any) => p.functionCall);
-
-        if (functionCall) {
-            const { name, args } = functionCall.functionCall;
-            let toolResult: any;
-
-            // Execute the tool
-            switch (name) {
-                case "search_catalog":
-                    toolResult = await searchCatalog(args.keywords, args.max_budget);
-                    break;
-                case "explore_product":
-                    toolResult = await exploreProduct(args.product_name);
-                    break;
-                case "compare_prices":
-                    toolResult = await comparePrices(args.product_names || []);
-                    break;
-                default:
-                    toolResult = { error: `Unknown tool: ${name}` };
-            }
-
-            // Second call — send tool result back to Gemini for final response
-            const updatedContents = [
-                ...contents,
-                { role: "model", parts: [{ functionCall: { name, args } }] },
-                { role: "user", parts: [{ functionResponse: { name, response: toolResult } }] }
-            ];
-
-            response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: updatedContents,
-                    tools: toolDeclarations,
-                    generationConfig: {
-                        temperature: 0.7,
-                        responseMimeType: "application/json"
-                    }
-                })
-            });
-
-            if (!response.ok) throw new Error(`Gemini API Error (tool follow-up): ${response.statusText}`);
-
-            data = await response.json();
-            candidate = data.candidates?.[0];
-            parts = candidate?.content?.parts || [];
+        // Provider switch: admin can flip to Gemini via AI_PROVIDER=gemini.
+        if (activeProvider() === "gemini") {
+            return NextResponse.json(await runZivaGemini(systemPrompt, history, message));
         }
 
-        // Parse the final response
-        const textPart = parts.find((p: any) => p.text);
-        if (!textPart) {
+        // Ziva runs on Qwen (qwen-max via Alibaba Cloud Model Studio). If the key
+        // isn't set yet we throw straight to the local catalog fallback below.
+        if (!isQwenConfigured()) {
+            throw new Error("Qwen not configured — using local fallback");
+        }
+
+        // Build the OpenAI-style message thread: system + prior turns + new turn.
+        const messages: QwenMessage[] = [
+            { role: "system", content: systemPrompt },
+            ...history.map((msg: any) => ({
+                role: (msg.sender === "user" ? "user" : "assistant") as QwenMessage["role"],
+                content: msg.text
+            })),
+            { role: "user", content: message }
+        ];
+
+        // Agentic tool loop — let Qwen call search/explore/compare across up to
+        // 4 rounds before it composes the final answer. (The old Gemini path
+        // only ever did a single hop.)
+        let finalContent: string | null = null;
+        const MAX_ROUNDS = 4;
+
+        for (let round = 0; round < MAX_ROUNDS; round++) {
+            const { content, toolCalls } = await chat({
+                model: QWEN_MODELS.reason,
+                messages,
+                tools: ZIVA_TOOLS,
+                toolChoice: "auto",
+                temperature: 0.7,
+            });
+
+            // No tool calls → Qwen is done, this is the final answer.
+            if (!toolCalls || toolCalls.length === 0) {
+                finalContent = content;
+                break;
+            }
+
+            // Record the assistant turn that requested the tools, then run each
+            // tool and feed results back in as role:"tool" messages.
+            messages.push({ role: "assistant", content: content ?? "", tool_calls: toolCalls });
+
+            for (const call of toolCalls) {
+                let args: any = {};
+                try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+                const toolResult = await runZivaTool(call.function.name, args);
+                messages.push({
+                    role: "tool",
+                    tool_call_id: call.id,
+                    content: JSON.stringify(toolResult)
+                });
+            }
+        }
+
+        if (!finalContent) {
             return NextResponse.json({
                 message: "I found something but had trouble formatting it. Could you try asking again? 🧠",
                 intent: "error",
@@ -392,17 +459,12 @@ After using tools, respond with this JSON structure:
         }
 
         try {
-            // Strip markdown code fences if present: ```json ... ```
-            let rawText = textPart.text.trim();
-            if (rawText.startsWith('```')) {
-                rawText = rawText.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
-            }
-            const result = JSON.parse(rawText);
+            const result = extractJson(finalContent);
             return NextResponse.json(result);
         } catch {
-            // If Gemini returned non-JSON, wrap it
+            // If Qwen returned prose instead of JSON, wrap it gracefully.
             return NextResponse.json({
-                message: textPart.text,
+                message: finalContent,
                 intent: "general",
                 shouldEscalate: false,
                 suggestedProducts: []
@@ -410,9 +472,9 @@ After using tools, respond with this JSON structure:
         }
 
     } catch (error: any) {
-        console.error("Ziva Chat Gemini Error (Falling back to local):", error);
+        console.error("Ziva Chat Qwen Error (Falling back to local):", error);
 
-        // FALLBACK LOGIC: If Gemini fails (rate limit, etc.), try to fulfill the request locally
+        // FALLBACK LOGIC: If Qwen is unavailable (no key, rate limit, etc.), fulfill the request locally
         try {
             const lowerMsg = message.toLowerCase();
             
