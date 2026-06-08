@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+import { generateText, isAIConfigured } from "@/lib/ai-text";
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
 const RL_MAX = 20; // Increased from 10
@@ -62,8 +60,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    if (!GEMINI_API_KEY) {
-        return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
+    if (!isAIConfigured()) {
+        return NextResponse.json({ error: "AI provider not configured" }, { status: 500 });
     }
 
     try {
@@ -110,42 +108,13 @@ export async function POST(req: Request) {
         - Generate 3 to 5 unique reviews.
         `;
 
-        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
-            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.8 }
-                })
-            });
-            
-            if ((res.status === 429 || res.status === 503) && attempt < 5) {
-                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                await new Promise(r => setTimeout(r, backoffMs));
-                return fetchWithRetry(attempt + 1);
-            }
-            return res;
-        };
-
-        const response = await fetchWithRetry();
-
-        if (!response.ok) {
-            console.error("Gemini API Error:", response.status);
-            const mock = getMockReviews(productName);
-            // WRITE TO CACHE so we don't keep hitting Gemini for this failing product
-            db.searchCache.upsert({
-                where: { query: cacheKey },
-                create: { query: cacheKey, products: mock as any },
-                update: { products: mock as any },
-            }).catch(() => {});
-            return NextResponse.json(mock, { headers: { "X-Fallback": "MOCK" } });
-        }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
+        // Qwen (qwen-max) by default; AI_PROVIDER=gemini flips back. On any failure
+        // we fall back to realistic mock reviews so the PDP never renders empty.
+        let text: string;
+        try {
+            text = await generateText(prompt, { temperature: 0.8 });
+        } catch (err) {
+            console.error("AI reviews generation failed, using mock:", err);
             const mock = getMockReviews(productName);
             db.searchCache.upsert({
                 where: { query: cacheKey },

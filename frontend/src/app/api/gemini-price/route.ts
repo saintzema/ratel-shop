@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+import { generateText, isAIConfigured } from "@/lib/ai-text";
 
 // Server-side cache TTL: 24h. Dramatically reduces Gemini quota consumption
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
@@ -131,8 +129,8 @@ function makeCacheKey(productName: string, mode: string, category?: string, anch
 
 export async function POST(req: Request) {
 
-    if (!GEMINI_API_KEY) {
-        return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
+    if (!isAIConfigured()) {
+        return NextResponse.json({ error: "AI provider not configured" }, { status: 500 });
     }
 
     try {
@@ -318,58 +316,20 @@ default to NEW from 2024 onwards.
             `;
         }
 
-        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
-        const fetchWithRetry = async (attempt = 0, useGrounding = true): Promise<Response> => {
-            const body: any = {
-                contents: [{ parts: [{ text: prompt }] }]
-            };
-            
-            // Only use grounding if specified (to allow fallback when grounding hits limits)
-            if (useGrounding) {
-                body.tools = [{ google_search: {} }];
-            }
-
-            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
-            });
-
-            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
-            if ((res.status === 429 || res.status === 503) && attempt < 5) {
-                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                await new Promise(r => setTimeout(r, backoffMs));
-                
-                // If we've hit 429 multiple times with grounding, try one without grounding as a last resort
-                const nextUseGrounding = (attempt >= 3 && res.status === 429) ? false : useGrounding;
-                return fetchWithRetry(attempt + 1, nextUseGrounding);
-            }
-            return res;
-        };
-
-        const response = await fetchWithRetry();
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Gemini API Error:", response.status, errorText);
-            // Surface Gemini's rate limit clearly to the client
-            if (response.status === 429) {
-                return NextResponse.json(
-                    { error: "AI search is currently busy. Please try again in 30 seconds." },
-                    { status: 429 }
-                );
-            }
-            return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
+        // Qwen (qwen-max) with web-search grounding by default; AI_PROVIDER=gemini
+        // flips back to Gemini google_search. Retry/backoff is handled inside
+        // generateText. All the price-clamp / image-hydration post-processing below
+        // is provider-agnostic and stays exactly as-is.
+        let textResponse: string;
+        try {
+            textResponse = await generateText(prompt, { search: true, temperature: 0.4 });
+        } catch (err) {
+            console.error("AI price generation failed:", err);
+            return NextResponse.json(
+                { error: "AI search is currently busy. Please try again in 30 seconds." },
+                { status: 429 }
+            );
         }
-
-        const data = await response.json();
-        const candidates = data.candidates;
-
-        if (!candidates || candidates.length === 0) {
-            return NextResponse.json({ error: "No response from Gemini" }, { status: 500 });
-        }
-
-        const textResponse = candidates[0].content.parts[0].text;
 
         // Robust JSON extractor to ignore any accidental conversational text
         let jsonString = textResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
