@@ -468,14 +468,25 @@ export function Navbar() {
                 : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
 
             let rawImageUrl = r.image_url;
-            
+
             // Drop base64 images if they are huge to prevent QuotaExceeded crashes
             if (rawImageUrl && rawImageUrl.startsWith('data:image') && rawImageUrl.length > 5000) {
                  rawImageUrl = null;
             }
 
-            // Share valid image among similar products if missing or placeholder
-            if (!rawImageUrl || rawImageUrl.includes('placeholder') || rawImageUrl.includes('logo.png')) {
+            // Prefer a previously hydrated image from the search cache (localStorage) over the React
+            // state value — applyImageUpdate writes there synchronously, but setState is async, so
+            // the state snapshot in this closure may still carry a placeholder even after hydration.
+            const _isHydrated = (u: string | null | undefined) =>
+                typeof u === 'string' && u.startsWith('http') && u.length < 2000 &&
+                !u.includes('placeholder') && !u.includes('logo.png');
+            if (!_isHydrated(rawImageUrl)) {
+                const cached = DataSyncService.getAllCachedProducts().find((cp: any) => cp.id === productId);
+                if (_isHydrated(cached?.image_url)) rawImageUrl = cached.image_url;
+            }
+
+            // Share valid image among similar products if still missing or placeholder
+            if (!_isHydrated(rawImageUrl)) {
                  rawImageUrl = validSharedImage || rawImageUrl;
             }
 

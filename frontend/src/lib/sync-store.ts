@@ -2403,7 +2403,16 @@ class DataSyncServiceService {
             }
             const idx = existing.findIndex((e: any) => e.id === p.id);
             if (idx >= 0) {
-                existing[idx] = { ...existing[idx], ...p, cached_at: existing[idx].cached_at };
+                const merged = { ...existing[idx], ...p, cached_at: existing[idx].cached_at };
+                // Preserve a previously hydrated image — don't let a placeholder overwrite it
+                const isHydratedImg = (url: string) =>
+                    typeof url === 'string' && url.startsWith('http') && url.length < 2000 &&
+                    !url.includes('placeholder') && !url.includes('logo.png');
+                if (isHydratedImg(existing[idx].image_url) && !isHydratedImg(p.image_url)) {
+                    merged.image_url = existing[idx].image_url;
+                    if (existing[idx].images?.length) merged.images = existing[idx].images;
+                }
+                existing[idx] = merged;
             } else {
                 existing.push({ ...p, cached_at: new Date().toISOString(), cache_query: normalizedQuery });
             }

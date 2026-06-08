@@ -1,4 +1,5 @@
 import { Metadata, ResolvingMetadata } from 'next';
+import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import { db } from '@/lib/db';
 
@@ -107,6 +108,14 @@ export default async function ProductPage({ params }: Props) {
     
     if (!productDetails) {
         productDetails = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === resolvedParams.id);
+    }
+
+    // SEO: return a real 404 for genuinely dead product IDs (e.g. old temu_*, p33) instead
+    // of rendering a thin page Google flags as a "Soft 404". The global auto-generated PDP
+    // feature uses ids prefixed with "global-"/"global_", so those are preserved.
+    const isGlobalAutoGen = /^global[-_]/i.test(decodedId);
+    if (!productDetails && !isGlobalAutoGen) {
+        notFound();
     }
 
     // Filter reviews for this product for schema
