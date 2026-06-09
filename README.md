@@ -1,3 +1,20 @@
+# ZEMA 360 × FairPrice.ng
+
+> **[Global AI Hackathon with Qwen Cloud](https://hackathon.qwen.cloud) — Track 4: Autopilot Agent**  
+> Deadline: July 9, 2026 · Prize: $7,000 + $3,000 Alibaba Cloud credits  
+> 🏗 **[Architecture](docs/architecture.md)** · 📖 **[Build Journey](docs/blog-post.md)** · 🌐 **[Live Demo](https://fairprice.ng/zema360)**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Track 4: Autopilot Agent](https://img.shields.io/badge/Hackathon-Track%204%20Autopilot-orange)](https://hackathon.qwen.cloud)
+[![Qwen](https://img.shields.io/badge/AI-Qwen%20%28DashScope%29-blue)](https://dashscope.aliyuncs.com)
+[![Alibaba Cloud](https://img.shields.io/badge/Deploy-Alibaba%20FC-FF6A00)](https://www.alibabacloud.com/product/function-compute)
+
+**ZEMA 360** is a Qwen-powered autonomous commerce OS built on FairPrice.ng — a live Nigerian escrow marketplace. Three specialised AI agents (Sales · Inventory · Finance) autonomously handle every order, negotiation, and payout end-to-end. Human-in-the-loop approval runs over WhatsApp. Sellers onboard via multimodal Qwen-VL photo + KYC. Everything runs on Alibaba Cloud: Function Compute + OSS + Model Studio.
+
+**Quick links:** [Qwen-VL ingest](backend/app/zema/ingest.py) · [MCP server](backend/app/zema/mcp_server.py) · [Orchestrator](backend/app/zema/orchestrator.py) · [Enterprise API](frontend/src/app/api/zema360/process-order/route.ts) · [Landing page](frontend/src/app/zema360/page.tsx) · [Deploy script](backend/deploy-fc.sh)
+
+---
+
 # FairPrice.ng - The Transactional OS for Africa's Informal Economy
 
 [![Platform](https://img.shields.io/badge/Platform-Next.js%2015-black)](https://fairprice.ng)

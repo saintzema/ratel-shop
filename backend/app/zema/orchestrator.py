@@ -54,10 +54,40 @@ class Orchestrator:
         self.panel = panel or agents.PANEL
 
     async def ingest(self, state: PipelineState, *, image_urls: list[str], kyc_urls: list[str]) -> PipelineState:
-        """Phase 1 — Qwen-VL turns raw photos + KYC docs into a structured listing.
-        W4 implements the real vision call; scaffold records intent."""
+        """Phase 1 — Qwen-VL turns raw photos + KYC docs into a structured listing."""
+        from app.zema.ingest import run_ingest
+
         state.note(f"ingest: {len(image_urls)} photos, {len(kyc_urls)} kyc docs")
-        # TODO(W4): qwen_client.vision_json(...) -> listing + kyc verification
+        try:
+            result = await run_ingest(
+                seller_id=state.seller_id,
+                image_urls=image_urls,
+                kyc_urls=kyc_urls,
+            )
+            state.listing = {
+                "run_id":       result.run_id,
+                "title":        result.title,
+                "category":     result.category,
+                "price_ngn":    result.price_ngn,
+                "condition":    result.condition,
+                "quantity":     result.quantity,
+                "description":  result.description,
+                "tags":         result.tags,
+                "confidence":   result.confidence,
+                "image_oss_paths": result.image_oss_paths,
+                "kyc_oss_paths":   result.kyc_oss_paths,
+                "kyc_verified": result.kyc_verified,
+            }
+            if result.error:
+                state.note(f"ingest warning: {result.error}")
+            state.note(
+                f"ingest complete: title={result.title!r} kyc_verified={result.kyc_verified} "
+                f"confidence={result.confidence}"
+            )
+        except Exception as exc:
+            state.note(f"ingest error: {exc}")
+            state.listing = {"error": str(exc)}
+
         state.phase = Phase.ASSESS
         return state
 

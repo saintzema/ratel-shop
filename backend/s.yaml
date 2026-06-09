@@ -1,0 +1,76 @@
+edition: 3.0.0
+name: zema360-backend
+access: aliyun-default
+
+# ─── ZEMA 360 FastAPI backend on Alibaba Cloud Function Compute ───────────────
+# Custom Container Runtime — Docker image hosted on Alibaba Container Registry
+# Region: Singapore (ap-southeast-1) — same region as the Qwen MaaS endpoint
+#
+# Deploy:
+#   1. s config add --AccountID <ACCOUNT_ID> --AccessKeyID <AKID> --AccessKeySecret <AK_SECRET>
+#   2. docker build -t zema360-backend ./backend
+#   3. docker tag zema360-backend registry-intl.ap-southeast-1.aliyuncs.com/<namespace>/zema360-backend:latest
+#   4. docker push registry-intl.ap-southeast-1.aliyuncs.com/<namespace>/zema360-backend:latest
+#   5. s deploy -y
+#
+# Proof file: backend/deploy/fc-proof.json (written by deploy-fc.sh after deploy)
+
+vars:
+  region: ap-southeast-1
+  image: registry-intl.ap-southeast-1.aliyuncs.com/fairprice/zema360-backend:latest
+
+resources:
+  zema360-api:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: zema360-api
+      description: "ZEMA 360 — Qwen-powered autonomous commerce OS for FairPrice.ng"
+      runtime: custom-container
+      timeout: 120
+      memorySize: 1024
+      cpu: 1.0
+      diskSize: 512
+
+      customContainerConfig:
+        image: ${vars.image}
+        port: 8000
+        command: []
+        args: []
+
+      triggers:
+        - triggerName: http-trigger
+          triggerType: http
+          qualifier: LATEST
+          triggerConfig:
+            authType: anonymous
+            disableURLInternet: false
+            methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+
+      environmentVariables:
+        # ── Qwen / Alibaba Cloud Model Studio ──────────────────────────────────
+        DASHSCOPE_API_KEY:        ${env.DASHSCOPE_API_KEY}
+        QWEN_BASE_URL:            ${env.QWEN_BASE_URL}
+        QWEN_MODEL_REASON:        qwen-max
+        QWEN_MODEL_FAST:          qwen-plus
+        QWEN_MODEL_VISION:        qwen-vl-max
+        # ── Alibaba Cloud OSS ───────────────────────────────────────────────────
+        ALIBABA_CLOUD_ACCESS_KEY_ID:     ${env.ALIBABA_CLOUD_ACCESS_KEY_ID}
+        ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${env.ALIBABA_CLOUD_ACCESS_KEY_SECRET}
+        OSS_BUCKET:               fairprice-zema
+        OSS_ENDPOINT:             https://oss-ap-southeast-1.aliyuncs.com
+        # ── FairPrice Next.js API ───────────────────────────────────────────────
+        FAIRPRICE_API_URL:        ${env.FAIRPRICE_API_URL}
+        ZEMA_SERVICE_TOKEN:       ${env.ZEMA_SERVICE_TOKEN}
+        # ── Human-in-the-loop ──────────────────────────────────────────────────
+        ZEMA_APPROVER_WHATSAPP:   "+2348162816305"
+        # ── Runtime ────────────────────────────────────────────────────────────
+        PYTHONUNBUFFERED:         "1"
+        PORT:                     "8000"
+
+      nasConfig: auto
