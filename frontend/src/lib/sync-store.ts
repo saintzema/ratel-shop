@@ -2395,11 +2395,28 @@ class DataSyncServiceService {
         const cache = this._getSearchCache();
         const normalizedQuery = query.toLowerCase().trim();
         const existing = cache[normalizedQuery] || [];
+
+        // Load persistent image map once for this batch
+        let imgMap: Record<string, string> = {};
+        try { imgMap = JSON.parse(localStorage.getItem('fp_image_map') || '{}'); } catch {}
+
         // Merge: add new products, update existing ones
         products.forEach(p => {
             // Sanitize vertexaisearch image URLs
             if (p.image_url && (p.image_url.includes('vertexaisearch.cloud.google.com') || p.image_url.includes('grounding-api-redirect'))) {
                 p.image_url = '/assets/images/placeholder.png';
+            }
+            // Enrich from persistent image map if product still has a placeholder
+            const isPlaceholder = !p.image_url ||
+                p.image_url.includes('placeholder') ||
+                p.image_url.includes('logo.png') ||
+                p.image_url.length > 2000;
+            if (isPlaceholder && p.id && imgMap[p.id]) {
+                const hydrated = getProxiedImageUrl(imgMap[p.id]);
+                p.image_url = hydrated;
+                if (!p.images || p.images.length === 0 || p.images.every((u: string) => u.includes('placeholder'))) {
+                    p.images = [hydrated];
+                }
             }
             const idx = existing.findIndex((e: any) => e.id === p.id);
             if (idx >= 0) {
@@ -2609,10 +2626,33 @@ class DataSyncServiceService {
         const all = this.getAllCachedProducts();
         const cached = all.find(p => p.id === productId);
         if (!cached) return null;
+
+        // ─── Image resolution: prefer persistent image map over cached placeholder ───
+        // Background hydration writes real images to fp_image_map at fetch time.
+        // At click/promote time the search-cache entry may still have a placeholder
+        // if the user clicked before hydration finished — check the map first.
+        let resolvedImage = cached.image_url;
+        const isPlaceholder = !resolvedImage ||
+            resolvedImage.includes('placeholder') ||
+            resolvedImage.includes('logo.png') ||
+            resolvedImage.length > 2000;
+        if (isPlaceholder) {
+            try {
+                const imgMap: Record<string, string> = JSON.parse(localStorage.getItem('fp_image_map') || '{}');
+                if (imgMap[productId]) {
+                    resolvedImage = getProxiedImageUrl(imgMap[productId]);
+                }
+            } catch { /* non-critical */ }
+        }
+
         // Remove cache-only fields
         const { cached_at, cache_query, _source, ...productData } = cached;
         const product = {
             ...productData,
+            image_url: resolvedImage || productData.image_url,
+            images: resolvedImage && !resolvedImage.includes('placeholder')
+                ? [resolvedImage, ...(productData.images || []).filter((u: string) => u !== resolvedImage)]
+                : (productData.images || []),
             is_active: true,
             seller_id: cached.seller_id || 'global-partners',
             seller_name: cached.seller_name || 'Global Stores',

@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     OSS_BUCKET: str = ""
     OSS_ENDPOINT: str = ""  # e.g. https://oss-ap-southeast-1.aliyuncs.com
 
+    # ─── FairPrice Next.js API (MCP tool targets) ───
+    # The Python agent layer calls these routes with a service token to perform
+    # real store operations (orders, escrow, Paystack, WhatsApp, negotiations).
+    FAIRPRICE_API_URL: str = "https://fairprice.ng"   # override in .env for local dev
+    ZEMA_SERVICE_TOKEN: str = ""                       # Bearer token — see /api/admin/service-token
+
+    # ─── Human-in-the-loop WhatsApp ───
+    ZEMA_APPROVER_WHATSAPP: str = "+2348162816305"
+
+    # ─── Paystack ───
+    PAYSTACK_SECRET_KEY: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

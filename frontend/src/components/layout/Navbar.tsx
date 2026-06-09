@@ -606,8 +606,28 @@ export function Navbar() {
         const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
         if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
 
+        // ─── Pre-navigate image enrichment ───
+        // The background hydration effect fires async; if the user clicked before it
+        // resolved, combinedResults still has placeholder URLs. Fix by pulling any
+        // previously-hydrated images from fp_image_map (written at hydration time)
+        // so the SRP and PDP always receive a real image URL.
+        let imgMap: Record<string, string> = {};
+        try { imgMap = JSON.parse(localStorage.getItem('fp_image_map') || '{}'); } catch {}
+        const enrichedResults = combinedResults.map((p: any) => {
+            const hasRealImg = p.image_url &&
+                p.image_url.startsWith('http') &&
+                !p.image_url.includes('placeholder') &&
+                !p.image_url.includes('logo.png') &&
+                p.image_url.length < 2000;
+            if (!hasRealImg && imgMap[p.id]) {
+                const hydrated = getProxiedImageUrl(imgMap[p.id]);
+                return { ...p, image_url: hydrated, images: [hydrated], _imageHydrated: true };
+            }
+            return p;
+        });
+
         try {
-            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
+            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(enrichedResults));
             sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
             sessionStorage.setItem('fp_nav_search_query', searchQuery);
         } catch (e) { /* quota exceeded */ }
@@ -802,6 +822,20 @@ export function Navbar() {
                     }),
                 }).catch(() => {});
             } catch { /* non-critical */ }
+
+            // ─── Layer 0: Persistent image map (survives navigation + re-searches) ───
+            // This is the ground truth that fixes the race: even if the user clicked
+            // before hydration finished, the NEXT render will find the real image here.
+            try {
+                const imgMap: Record<string, string> = JSON.parse(localStorage.getItem('fp_image_map') || '{}');
+                imgMap[productId] = imageUrl; // raw URL — proxied on read
+                // Keep at most 500 entries to avoid quota blowup
+                const keys = Object.keys(imgMap);
+                if (keys.length > 500) {
+                    keys.slice(0, keys.length - 500).forEach(k => delete imgMap[k]);
+                }
+                localStorage.setItem('fp_image_map', JSON.stringify(imgMap));
+            } catch { /* quota — non-critical */ }
         };
 
         const processNext = () => {

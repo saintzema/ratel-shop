@@ -358,22 +358,38 @@ function SearchContent() {
 
 
   // Hydrate imagePool from Navbar image pool (passed via sessionStorage on nav→SRP transition)
+  // Also merges the persistent fp_image_map (keyed by productId) so previously hydrated
+  // images survive page reloads and cross-session navigations.
   useEffect(() => {
-    try {
-      const savedPool = sessionStorage.getItem('fp_nav_image_pool');
-      if (savedPool) {
-        const navPool: Record<string, string> = JSON.parse(savedPool);
-        setImagePool(prev => {
-          const merged = { ...prev };
+    setImagePool(prev => {
+      const merged = { ...prev };
+
+      // 1. Navbar image pool (product name → url, session-scoped)
+      try {
+        const savedPool = sessionStorage.getItem('fp_nav_image_pool');
+        if (savedPool) {
+          const navPool: Record<string, string> = JSON.parse(savedPool);
           Object.entries(navPool).forEach(([key, url]) => {
             if (!merged[key] && url && !url.includes('placeholder')) {
               merged[key] = { url, urls: [url] };
             }
           });
-          return merged;
+        }
+      } catch { /* fail silently */ }
+
+      // 2. Persistent image map (product id → raw url, localStorage-backed)
+      try {
+        const imgMap: Record<string, string> = JSON.parse(localStorage.getItem('fp_image_map') || '{}');
+        Object.entries(imgMap).forEach(([id, rawUrl]) => {
+          if (!merged[id] && rawUrl && !rawUrl.includes('placeholder')) {
+            const proxied = rawUrl.startsWith('/') ? rawUrl : `/api/image-proxy?url=${encodeURIComponent(rawUrl)}`;
+            merged[id] = { url: proxied, urls: [proxied] };
+          }
         });
-      }
-    } catch { /* fail silently */ }
+      } catch { /* fail silently */ }
+
+      return merged;
+    });
   }, []);
 
   useEffect(() => {

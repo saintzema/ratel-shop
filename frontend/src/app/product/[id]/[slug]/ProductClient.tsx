@@ -390,15 +390,30 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     // DO NOT generate a random price here. This was causing unrealistic prices (like 75k Lexus).
                     // We will initialize with 0 and let the AI hydration below fetch the real market price.
+
+                    // ─── Image bootstrap from persistent image map ───
+                    // If this product was previously NavSearched and its image hydrated,
+                    // fp_image_map already has the real URL — use it so PDP never starts blank.
+                    let bootstrapImage = "";
+                    if (typeof window !== 'undefined') {
+                        try {
+                            const imgMap: Record<string, string> = JSON.parse(localStorage.getItem('fp_image_map') || '{}');
+                            if (imgMap[decodedId]) {
+                                const raw = imgMap[decodedId];
+                                bootstrapImage = raw.startsWith('/') ? raw : `/api/image-proxy?url=${encodeURIComponent(raw)}`;
+                            }
+                        } catch { /* non-critical */ }
+                    }
+
                     product = {
                         id: decodedId,
                         name,
-                        price: 0, 
+                        price: 0,
                         original_price: 0,
                         category: DataSyncService.normalizeCategory("electronics").category,
                         description: generateDescription(name),
-                        image_url: "",
-                        images: [],
+                        image_url: bootstrapImage,
+                        images: bootstrapImage ? [bootstrapImage] : [],
                         seller_id: 'global-partners',
                         seller_name: 'Global Stores',
                         price_flag: 'fair',
