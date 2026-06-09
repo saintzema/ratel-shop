@@ -33,8 +33,8 @@ s config add \
   --AccountID "${ALIBABA_ACCOUNT_ID}" \
   --AccessKeyID "${ALIBABA_CLOUD_ACCESS_KEY_ID}" \
   --AccessKeySecret "${ALIBABA_CLOUD_ACCESS_KEY_SECRET}" \
-  --aliasName aliyun-default \
-  -f
+  2>/dev/null <<< "aliyun-default" || true
+# (s v3 prompts for alias name; we send it via stdin)
 
 # ── Step 2: build Docker image ─────────────────────────────────────────────────
 echo "── Step 2: build Docker image ──"

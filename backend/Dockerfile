@@ -17,7 +17,11 @@ WORKDIR /app
 
 # Install Python deps first (Docker cache layer)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Use Alibaba's PyPI mirror — avoids DNS timeout in linux/amd64 QEMU builds
+RUN pip install --no-cache-dir \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    -r requirements.txt
 
 # Copy application source
 COPY . .
