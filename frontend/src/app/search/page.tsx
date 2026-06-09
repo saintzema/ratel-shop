@@ -874,12 +874,12 @@ function SearchContent() {
                 [normalizedName]: { url: imageUrl, urls: data.imageUrls || [imageUrl] }
               }));
 
-              // ─── POWER FIX: Backfill catalogue if it's a known product ───
-              if (p.seller_id === 'global-partners') {
+              // Persist the hydrated image to Postgres (image-only, no data overwrite)
+              if (p.id) {
                 fetch('/api/products', {
                    method: 'POST',
                    headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({ ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] })
+                   body: JSON.stringify({ id: p.id, image_url: imageUrl, images: data.imageUrls || [imageUrl], _imageOnly: true })
                 }).catch(() => {});
               }
             }
@@ -1044,11 +1044,21 @@ function SearchContent() {
     const seenIds = new Set<string>();
     const combined: any[] = [];
 
-    // 1. Process navResults (safeguard against duplicated IDs/Names in sessionStorage)
+    // Helper: apply imagePool fallback to a product (same logic as enrichWithPool in searchableProducts)
+    const applyPool = (p: any) => {
+      const normalized = (p.name || "").toLowerCase().trim();
+      const pooled = imagePool[normalized];
+      if (pooled && (!p.image_url || p.image_url.includes('placeholder'))) {
+        return { ...p, image_url: pooled.url, images: pooled.urls, _hydratedFromPool: true };
+      }
+      return p;
+    };
+
+    // 1. Process navResults — apply imagePool so hydrated images show immediately
     for (const n of navResults) {
       if (!seenIds.has(n.id)) {
         seenIds.add(n.id);
-        combined.push(n);
+        combined.push(applyPool(n));
       }
     }
 
@@ -1077,7 +1087,7 @@ function SearchContent() {
       const itemPrice = p.price !== undefined ? p.price : (p.approxPrice || 0);
       return itemPrice >= priceRange[0] && itemPrice <= priceRange[1];
     });
-  }, [navResults, paginatedProducts, navClickedId, priceRange]);
+  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool]);
 
   // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
   // When there are no local results and no ongoing search, auto-trigger the

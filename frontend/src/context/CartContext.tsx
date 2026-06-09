@@ -27,6 +27,49 @@ function getCartKey(userEmail?: string | null): string {
     return userEmail ? `fp-cart-${userEmail}` : "fp-cart-guest";
 }
 
+/**
+ * Strip heavy fields before persisting a product to localStorage cart.
+ * Checkout only needs identity, price, image, and seller routing —
+ * not description/highlights/specs/full images array.
+ * Keeps cart storage at ~300 bytes/item instead of 5–10 KB.
+ */
+function leanProduct(product: Product): Product {
+    const {
+        description: _d,
+        highlights: _h,
+        specs: _s,
+        images: _imgs,
+        sold_count: _sc,
+        review_count: _rc,
+        avg_rating: _ar,
+        source_url: _su,
+        recommended_price: _rp,
+        // @ts-ignore — internal hydration flags
+        _imageHydrated: _ih,
+        _hydratedFromPool: _hfp,
+        _source: _src,
+        cached_at: _ca,
+        cache_query: _cq,
+        ...lean
+    } = product as any;
+    // Ensure image_url is set from images array if the field itself is empty
+    if (!lean.image_url && _imgs?.[0]) lean.image_url = _imgs[0];
+    return lean as Product;
+}
+
+/** Safe wrapper — silently swallows QuotaExceededError so it never crashes renders. */
+function safeCartSetItem(key: string, value: string): void {
+    try {
+        localStorage.setItem(key, value);
+    } catch (e: any) {
+        if (e?.name === "QuotaExceededError" || e?.code === 22 || e?.code === 1014) {
+            console.warn(`[Cart] localStorage quota exceeded for ${key} — cart not persisted this write.`);
+        } else {
+            throw e;
+        }
+    }
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
@@ -49,13 +92,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsLoaded(true);
     }, [user?.email]);
 
-    // Save to local storage on change
+    // Save to localStorage on change
     useEffect(() => {
         if (isLoaded) {
             const key = getCartKey(user?.email);
-            localStorage.setItem(key, JSON.stringify(cart));
-            
-            // Trigger a custom event for other tabs/components
+            safeCartSetItem(key, JSON.stringify(cart));
             window.dispatchEvent(new Event("cart-updated"));
         }
     }, [cart, isLoaded, user?.email]);
@@ -71,14 +112,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                         : item
                 );
             } else {
-                next = [...prev, { product, quantity, negotiatedPrice }];
+                next = [...prev, { product: leanProduct(product), quantity, negotiatedPrice }];
             }
 
             // PERSIST IMMEDIATELY: Crucial for redirects (window.location.href)
             const key = getCartKey(user?.email);
-            localStorage.setItem(key, JSON.stringify(next));
+            safeCartSetItem(key, JSON.stringify(next));
             window.dispatchEvent(new Event("cart-updated"));
-            
+
             return next;
         });
     };
@@ -87,7 +128,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCart(prev => {
             const next = prev.filter(item => item.product.id !== productId);
             const key = getCartKey(user?.email);
-            localStorage.setItem(key, JSON.stringify(next));
+            safeCartSetItem(key, JSON.stringify(next));
             window.dispatchEvent(new Event("cart-updated"));
             return next;
         });
@@ -103,7 +144,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 item.product.id === productId ? { ...item, quantity } : item
             );
             const key = getCartKey(user?.email);
-            localStorage.setItem(key, JSON.stringify(next));
+            safeCartSetItem(key, JSON.stringify(next));
             window.dispatchEvent(new Event("cart-updated"));
             return next;
         });
