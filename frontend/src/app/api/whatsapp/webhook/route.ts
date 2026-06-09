@@ -74,6 +74,92 @@ export async function POST(req: Request) {
             }
         }
 
+        // --- 2.5. ZEMA 360 HITL APPROVAL (approve / reject <runId>-approval) ---
+        // The ZEMA approver number (+2348162816305 or normalised variant) sends
+        // "approve <id>" or "reject <id>" to resume a paused agent pipeline.
+        const ZEMA_APPROVER = (process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305").replace(/\D/g, "");
+        const fromDigits = from.replace(/\D/g, "");
+        const isApprover = fromDigits.endsWith(ZEMA_APPROVER) || ZEMA_APPROVER.endsWith(fromDigits);
+
+        if (isApprover) {
+            const lowerText = text.toLowerCase().trim();
+            const approveMatch = lowerText.match(/^approve\s+(\S+)/);
+            const rejectMatch  = lowerText.match(/^reject\s+(\S+)/);
+            const approvalId   = (approveMatch || rejectMatch)?.[1];
+
+            if (approvalId) {
+                const decision = approveMatch ? "approved" : "rejected";
+                try {
+                    const request = await db.zemaApprovalRequest.findUnique({ where: { id: approvalId } });
+                    if (!request) {
+                        await WhatsAppService.sendMessage(from,
+                            `⚠️ ZEMA: Approval request *${approvalId}* not found or already resolved.`);
+                        return NextResponse.json({ ok: true });
+                    }
+                    if (request.status !== "pending") {
+                        await WhatsAppService.sendMessage(from,
+                            `ℹ️ ZEMA: Request *${approvalId}* was already *${request.status}*.`);
+                        return NextResponse.json({ ok: true });
+                    }
+
+                    // Persist the resolution
+                    await db.zemaApprovalRequest.update({
+                        where: { id: approvalId },
+                        data: {
+                            status: decision,
+                            approvedBy: from,
+                            resolvedAt: new Date(),
+                        },
+                    });
+
+                    // Execute post-approval actions when approved
+                    if (decision === "approved") {
+                        const agentData = JSON.parse(request.agentDecision || "{}");
+                        const offer = agentData.offer ?? {};
+
+                        // 1. Release escrow if we have an orderId
+                        if (request.orderId) {
+                            try {
+                                await fetch(`${process.env.NEXTAUTH_URL || "https://www.fairprice.ng"}/api/escrow/release`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${process.env.ZEMA_SERVICE_TOKEN || ""}`,
+                                    },
+                                    body: JSON.stringify({ orderId: request.orderId, releasedBy: "zema_hitl" }),
+                                }).catch(() => {});
+                            } catch { /* non-blocking */ }
+                        }
+
+                        await WhatsAppService.sendMessage(from,
+                            `✅ *ZEMA 360: Approved*\n\n` +
+                            `Run: ${request.runId}\n` +
+                            `Offer: ₦${offer.price?.toLocaleString() ?? "—"}\n` +
+                            `${request.orderId ? `Order: ${request.orderId}\n` : ""}` +
+                            `Escrow release and settlement queued.`);
+                    } else {
+                        await WhatsAppService.sendMessage(from,
+                            `❌ *ZEMA 360: Rejected*\n\nRun ${request.runId} has been cancelled. No funds moved.`);
+                    }
+
+                    // Log for admin visibility
+                    await db.whatsAppInteraction.create({
+                        data: {
+                            phoneNumber: from,
+                            interaction_type: "zema_hitl_resolution",
+                            payload: JSON.stringify({ approvalId, decision, runId: request.runId }),
+                        },
+                    }).catch(() => {});
+
+                } catch (hitlErr: any) {
+                    console.error("[HITL] approval error:", hitlErr);
+                    await WhatsAppService.sendMessage(from,
+                        `⚠️ ZEMA: Error processing *${approvalId}*. Please try again or check the dashboard.`);
+                }
+                return NextResponse.json({ ok: true });
+            }
+        }
+
         // --- 3. COMMANDS (/price, etc) ---
         if (text.startsWith("/")) {
             await handleCommand(from, text);

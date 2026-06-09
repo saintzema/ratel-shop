@@ -762,3 +762,25 @@ model ApiKey {
 
   @@index([sellerId])
 }
+
+// ─── ZEMA 360 Human-in-the-Loop Approval Requests ───────────────────────────
+// Created by /api/zema360/process-order when risk >= 60 or Finance vetoes.
+// Resolved by the inbound WhatsApp webhook when approver replies
+// "approve <id>" or "reject <id>".
+model ZemaApprovalRequest {
+  id              String    @id                  // e.g. "zema-run-xyz-approval"
+  runId           String
+  sellerId        String?
+  buyerId         String?
+  productId       String?
+  orderId         String?
+  agentDecision   String                         // JSON: panel positions + offer
+  status          String    @default("pending")  // pending | approved | rejected
+  approvedBy      String?                        // phone number of approver
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([runId])
+  @@index([status])
+}

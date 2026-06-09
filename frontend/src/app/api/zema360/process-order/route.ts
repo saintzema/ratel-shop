@@ -280,6 +280,25 @@ export async function POST(request: Request) {
     if (requiresHuman) {
         log.push("Phase: AWAITING_APPROVAL — escalating to human approver");
         approvalRequestId = `${runId}-approval`;
+
+        // Persist to DB so the inbound WhatsApp webhook can resolve it
+        try {
+            await db.zemaApprovalRequest.create({
+                data: {
+                    id: approvalRequestId,
+                    runId,
+                    sellerId: sellerId ?? null,
+                    buyerId: buyerId ?? null,
+                    productId: productId ?? null,
+                    orderId: orderId ?? null,
+                    agentDecision: JSON.stringify({ positions, offer }),
+                    status: "pending",
+                },
+            });
+        } catch (dbErr: any) {
+            log.push(`Warning: could not persist approval request: ${dbErr?.message}`);
+        }
+
         const approvalMsg =
             `🔔 ZEMA 360 Approval Required\n\n` +
             `Run: ${runId}\n` +
