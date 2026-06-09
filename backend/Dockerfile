@@ -21,6 +21,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir \
     -i https://mirrors.aliyun.com/pypi/simple/ \
     --trusted-host mirrors.aliyun.com \
+    --timeout 60 \
+    --retries 5 \
     -r requirements.txt
 
 # Copy application source

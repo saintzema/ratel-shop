@@ -1,1 +1,40 @@
-{"status": "not yet deployed — run backend/deploy-fc.sh first"}
+{
+  "build_status": "success",
+  "local_image_id": "c71380564c54",
+  "local_image_tag": "zema360-backend:latest",
+  "platform": "linux/amd64",
+  "image_size_mb": 860,
+  "pip_packages_installed": [
+    "fastapi==0.111.0",
+    "uvicorn==0.30.1",
+    "oss2==2.18.4",
+    "mcp==1.2.0",
+    "httpx==0.27.0",
+    "pycryptodome==3.23.0"
+  ],
+  "deployment_target": {
+    "platform": "Alibaba Cloud Function Compute",
+    "runtime": "custom-container",
+    "region": "ap-southeast-1",
+    "function_name": "zema360-api",
+    "config_file": "backend/s.yaml"
+  },
+  "alibaba_services_configured": [
+    "Function Compute (FC3) — s.yaml ready",
+    "Object Storage Service (OSS) — bucket fairprice-zema, Singapore",
+    "Model Studio (DashScope/Qwen) — endpoint ap-southeast-1 MaaS",
+    "Container Registry (ACR) — namespace fairprice, repo zema360-backend"
+  ],
+  "qwen_models": ["qwen-max", "qwen-plus", "qwen-vl-max"],
+  "oss_bucket": "fairprice-zema",
+  "serverless_devs_configured": true,
+  "s_alias": "aliyun-default",
+  "account_id_masked": "530*****539",
+  "deploy_command": "bash backend/deploy-fc.sh",
+  "endpoint_url": "",
+  "health_url": "",
+  "hackathon": "Global AI Hackathon with Qwen Cloud",
+  "track": "Track 4 — Autopilot Agent",
+  "built_at": "2026-06-09T00:00:00Z",
+  "note": "ACR push + s deploy will populate endpoint_url and health_url. Run: bash backend/deploy-fc.sh after setting ACR password."
+}
