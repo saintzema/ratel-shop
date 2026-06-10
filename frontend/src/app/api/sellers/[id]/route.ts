@@ -80,6 +80,8 @@ export async function PATCH(
         if (Array.isArray(body.currencies))                    sellerData.currencies = body.currencies;
         if (body.whatsapp_number !== undefined)                sellerData.whatsappNumber = body.whatsapp_number;
         if (body.whatsappNumber !== undefined)                 sellerData.whatsappNumber = body.whatsappNumber;
+        if (body.whatsapp_enabled !== undefined)               sellerData.whatsappEnabled = body.whatsapp_enabled;
+        if (body.whatsappEnabled !== undefined)                sellerData.whatsappEnabled = body.whatsappEnabled;
 
         // User-linked fields (name, email)
         const userUpdate: Record<string, any> = {};
@@ -100,7 +102,7 @@ export async function PATCH(
         });
 
         // If active, ensure products are active
-        if (status === "active") {
+        if (body.status === "active") {
             await db.product.updateMany({
                 where: { sellerId: id },
                 data: { isActive: true }

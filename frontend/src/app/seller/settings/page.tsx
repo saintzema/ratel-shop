@@ -66,20 +66,27 @@ export default function SellerSettingsPage() {
             return;
         }
         setSeller(s);
-        const storeUrl = s.store_url || s.slug || s.business_name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || s.id;
+        const storeUrl = (s as any).store_url || (s as any).storeUrl || (s as any).slug || s.business_name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || s.id;
+        // Normalize camelCase DB fields → snake_case form fields (background sync may store either format)
+        const logoUrl = (s as any).logo_url || (s as any).logoUrl || "";
+        const coverUrl = (s as any).cover_image_url || (s as any).coverImageUrl || "";
+        const waEnabled = (s as any).whatsapp_enabled ?? (s as any).whatsappEnabled ?? false;
+        // Strip country code prefix from stored E.164 number for display in the local input
+        const rawWaNumber = (s as any).whatsapp_number || (s as any).whatsappNumber || "";
+        const waNumber = rawWaNumber.startsWith("234") ? rawWaNumber.slice(3) : rawWaNumber;
         setFormData({
-            business_name: s.business_name || "",
+            business_name: s.business_name || (s as any).businessName || "",
             description: s.description || "",
-            logo_url: s.logo_url || "",
-            cover_image_url: s.cover_image_url || "",
+            logo_url: logoUrl,
+            cover_image_url: coverUrl,
             store_url: storeUrl,
             location: s.location || "",
-            weekly_orders: s.weekly_orders || "",
-            staff_count: s.staff_count || "",
-            physical_stores: s.physical_stores || "",
+            weekly_orders: (s as any).weekly_orders || (s as any).weeklyOrders || "",
+            staff_count: (s as any).staff_count || (s as any).staffCount || "",
+            physical_stores: (s as any).physical_stores || (s as any).physicalStores || "",
             currencies: s.currencies || ["NGN (₦)"],
-            whatsapp_enabled: (s as any).whatsapp_enabled ?? false,
-            whatsapp_number: (s as any).whatsapp_number || ""
+            whatsapp_enabled: waEnabled,
+            whatsapp_number: waNumber,
         });
         setLoading(false);
     }, [router]);
@@ -109,6 +116,7 @@ export default function SellerSettingsPage() {
                     staff_count: formData.staff_count,
                     physical_stores: formData.physical_stores,
                     currencies: formData.currencies,
+                    whatsapp_enabled: formData.whatsapp_enabled,
                     // Store full E.164 number so integrations can use it directly
                     whatsapp_number: formData.whatsapp_number
                         ? `${waCountryCode.replace('+', '')}${formData.whatsapp_number.replace(/^0/, '')}`
@@ -121,11 +129,24 @@ export default function SellerSettingsPage() {
                 throw new Error(err.error || `Save failed (${res.status})`);
             }
 
-            // Keep localStorage in sync so sidebar avatar updates immediately
-            DataSyncService.updateSeller(seller.id, formData);
+            // Keep localStorage in sync so sidebar/avatar/PDP update immediately
+            const e164Number = formData.whatsapp_number
+                ? `${waCountryCode.replace('+', '')}${formData.whatsapp_number.replace(/^0/, '')}`
+                : "";
+            DataSyncService.updateSeller(seller.id, {
+                ...formData,
+                whatsapp_enabled: formData.whatsapp_enabled,
+                whatsapp_number: e164Number,
+            } as any);
 
             const refreshed = DataSyncService.getCurrentSeller();
-            if (refreshed) setSeller(refreshed as Seller);
+            if (refreshed) {
+                setSeller(refreshed as Seller);
+                // Re-normalise form so re-visiting the page shows saved values correctly
+                const rLogoUrl = (refreshed as any).logo_url || (refreshed as any).logoUrl || formData.logo_url;
+                const rCoverUrl = (refreshed as any).cover_image_url || (refreshed as any).coverImageUrl || formData.cover_image_url;
+                setFormData(prev => ({ ...prev, logo_url: rLogoUrl, cover_image_url: rCoverUrl }));
+            }
 
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
@@ -196,8 +217,10 @@ export default function SellerSettingsPage() {
                     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
                     body: JSON.stringify({ logo_url: logoUrl, cover_image_url: coverUrl }),
                 });
-                // Sync localStorage so sidebar/header update on next render
+                // Sync localStorage so sidebar/avatar/PDP update immediately (dispatches sync-store-update)
                 DataSyncService.updateSeller(seller!.id, { logo_url: logoUrl, cover_image_url: coverUrl } as any);
+                // Also update the local seller state so the settings page itself stays accurate
+                setSeller(prev => prev ? { ...prev, logo_url: logoUrl, cover_image_url: coverUrl } as any : prev);
             } catch (err: any) {
                 console.error("Upload error:", err);
                 alert(err.message || "Failed to upload image. Please try again.");
