@@ -44,7 +44,7 @@ def _qwen_chat(messages: list, model: str = MODEL_FAST) -> str:
         "model": model,
         "messages": messages,
         "temperature": 0.4,
-        "max_tokens": 512,
+        "max_tokens": 1024,
     }).encode()
     req = urllib.request.Request(
         url=f"{QWEN_BASE_URL.rstrip('/')}/chat/completions",
@@ -55,9 +55,17 @@ def _qwen_chat(messages: list, model: str = MODEL_FAST) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as res:
-        data = json.loads(res.read())
-    return data["choices"][0]["message"]["content"]
+    try:
+        with urllib.request.urlopen(req, timeout=60) as res:
+            data = json.loads(res.read())
+        return data["choices"][0]["message"]["content"]
+    except urllib.error.HTTPError as exc:
+        # Read the actual DashScope error body so we know what went wrong
+        try:
+            err_body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            err_body = "(unreadable)"
+        raise RuntimeError(f"Qwen API {exc.code}: {err_body[:600]}")
 
 
 # ─── route handlers ───────────────────────────────────────────────────────────
@@ -149,13 +157,15 @@ def handle_ingest(body: dict) -> dict:
 
     prompt = (
         "You are a product catalogue analyst for FairPrice.ng. "
-        "Analyse this product image and return ONLY valid JSON:\n"
+        "Analyse this product image and return ONLY valid JSON with no markdown fences:\n"
         '{"title":"...","category":"...","price_ngn":null,"condition":"new|fairly_used|used",'
         '"quantity":1,"description":"...","tags":[],"confidence":0.0}'
     )
-    content = [{"type": "text", "text": prompt}]
+    # Qwen-VL requires image_url entries BEFORE text in the content array
+    content = []
     for url in image_urls[:3]:
         content.append({"type": "image_url", "image_url": {"url": url}})
+    content.append({"type": "text", "text": prompt})
 
     try:
         raw = _qwen_chat(

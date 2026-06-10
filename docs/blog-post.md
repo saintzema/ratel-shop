@@ -181,11 +181,41 @@ ZEMA 360 is production-ready. The plan after the hackathon:
 
 ---
 
-## Try It
+## It's Live — Try It Yourself
 
-- 🌐 **Live**: [fairprice.ng/zema360](https://fairprice.ng/zema360)
+The FC endpoint is deployed and answering right now:
+
+```bash
+# Health check — confirms Qwen + OSS are wired
+curl https://zema-api-nceagrcrdd.ap-southeast-1.fcapp.run/api/v1/zema/health
+
+# 3-agent negotiation panel (Sales / Inventory / Finance on qwen-plus)
+curl -s -X POST https://zema-api-nceagrcrdd.ap-southeast-1.fcapp.run/api/v1/zema/negotiate \
+  -H "Content-Type: application/json" \
+  -d '{"deal":{"title":"iPhone 14","price_ngn":85000,"condition":"fairly_used"}}' \
+  | python3 -m json.tool
+
+# Qwen-VL product photo → structured listing
+curl -s -X POST https://zema-api-nceagrcrdd.ap-southeast-1.fcapp.run/api/v1/zema/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"seller_id":"demo","image_urls":["https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=400"]}' \
+  | python3 -m json.tool
+```
+
+Expected health response:
+```json
+{"status":"ok","qwen_live":true,"qwen_model":"qwen-plus","qwen_vision":"qwen-vl-max","oss_configured":true}
+```
+
+The negotiate call returns Sales/Inventory/Finance positions in parallel with a `requires_human` flag — if any agent vetoes or the finance risk score exceeds 60, the deal goes to WhatsApp HITL before any money moves.
+
+The ingest call feeds a product photo to `qwen-vl-max` and returns a complete structured listing: title, category, condition, price estimate, description, tags, and confidence score. Sellers can now just WhatsApp a photo to list a product — no app, no form needed.
+
+---
+
+- 🌐 **Live landing**: [fairprice.ng/zema360](https://fairprice.ng/zema360)
 - 📦 **Code**: [github.com/fairprice/RatelShop](https://github.com) (branch `hackathon-zema`)
-- 🏥 **Health**: `GET https://<fc-endpoint>/api/v1/zema/health`
+- 🏥 **FC endpoint**: `https://zema-api-nceagrcrdd.ap-southeast-1.fcapp.run`
 
 ---
 
