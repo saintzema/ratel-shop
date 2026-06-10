@@ -40,7 +40,219 @@ export async function POST(req: Request) {
                   || message.button?.text?.trim() 
                   || "";
 
+        // ─────────────────────────────────────────────────────────────────────────
+        // ZEMA 360 — WhatsApp Seller Listing Flow (Photo → Listing → Live Product)
+        //
+        // Conversation state machine stored in WhatsAppInteraction records:
+        //   Step 1 (image message)  → analyse with Qwen-VL, save draft, ask for price
+        //   Step 2 (price reply)    → update draft, confirm listing details
+        //   Step 3 ("YES"/"CONFIRM")→ create product in DB, send live product URL
+        // ─────────────────────────────────────────────────────────────────────────
+
+        const FC_URL   = process.env.ZEMA_FC_URL   || 'https://zema-api-nceagrcrdd.ap-southeast-1.fcapp.run';
+        const WA_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || '';
+        const APP_URL  = process.env.NEXTAUTH_URL   || 'https://www.fairprice.ng';
+
+        // ── Step 1: Image received → Qwen-VL analysis ─────────────────────────
+        if (message.type === 'image' && message.image?.id) {
+            await WhatsAppService.sendMessage(from,
+                '🤖 *ZEMA 360 scanning your product photo...*\n_Powered by Qwen-VL · Alibaba Cloud_'
+            );
+            try {
+                // Resolve + download WhatsApp media (auth required)
+                const metaRes   = await fetch(`https://graph.facebook.com/v18.0/${message.image.id}`,
+                    { headers: { Authorization: `Bearer ${WA_TOKEN}` } });
+                const metaJson  = await metaRes.json() as { url: string; mime_type?: string };
+                const mimeType  = metaJson.mime_type || 'image/jpeg';
+                const imgRes    = await fetch(metaJson.url, { headers: { Authorization: `Bearer ${WA_TOKEN}` } });
+                const base64    = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+                const dataUrl   = `data:${mimeType};base64,${base64}`;
+
+                // Call FC → Qwen-VL
+                const ingestRes  = await fetch(`${FC_URL}/api/v1/zema/ingest`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body:   JSON.stringify({ seller_id: from, image_urls: [dataUrl] }),
+                    signal: AbortSignal.timeout(55_000),
+                });
+                const { listing } = await ingestRes.json() as {
+                    listing?: { title: string; category: string; condition: string;
+                                price_ngn: number | null; description: string;
+                                tags: string[]; confidence: number };
+                };
+
+                if (listing?.title) {
+                    // Cancel any previous in-progress draft for this number
+                    await db.whatsAppInteraction.updateMany({
+                        where: { phoneNumber: from, interaction_type: 'zema_listing_draft' },
+                        data:  { interaction_type: 'zema_listing_draft_expired' }
+                    }).catch(() => {});
+
+                    // Save new draft session
+                    await db.whatsAppInteraction.create({ data: {
+                        phoneNumber: from,
+                        interaction_type: 'zema_listing_draft',
+                        payload: JSON.stringify({
+                            status:   'awaiting_price',
+                            listing,
+                            imageUrl: dataUrl,      // stored as base64; becomes product imageUrl
+                            mediaId:  message.image.id,
+                        })
+                    }});
+
+                    const priceHint = listing.price_ngn
+                        ? `\n💡 ZEMA suggests ≈ ₦${listing.price_ngn.toLocaleString()}` : '';
+                    await WhatsAppService.sendMessage(from,
+                        `✅ *ZEMA 360 — Product Analysed*\n\n` +
+                        `📦 *${listing.title}*\n` +
+                        `📂 ${listing.category}  |  🏷️ ${listing.condition}${priceHint}\n\n` +
+                        `📝 ${listing.description}\n\n` +
+                        `🔖 Tags: ${(listing.tags || []).join(', ')}\n` +
+                        `🎯 Confidence: ${Math.round((listing.confidence || 0) * 100)}%\n\n` +
+                        `*Reply with your asking price* (numbers only, e.g. *45000*) to continue listing this on FairPrice.ng ↓`
+                    );
+                } else {
+                    await WhatsAppService.sendMessage(from,
+                        `⚠️ ZEMA couldn't read that image clearly.\n\nPlease send a well-lit, close-up photo against a plain background.`);
+                }
+            } catch (err: unknown) {
+                console.error('[ZEMA Ingest WhatsApp]', err instanceof Error ? err.message : err);
+                await WhatsAppService.sendMessage(from, `⚠️ ZEMA image scan hit a snag. Please try again in a moment.`);
+            }
+            return NextResponse.json({ ok: true });
+        }
+
         if (!text && !message.interactive) return NextResponse.json({ ok: true });
+
+        // ── Steps 2 & 3: Continue an active listing draft ─────────────────────
+        const activeDraftRow = await db.whatsAppInteraction.findFirst({
+            where: { phoneNumber: from, interaction_type: 'zema_listing_draft' },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (activeDraftRow?.payload) {
+            const draft = JSON.parse(activeDraftRow.payload) as {
+                status: string; listing: Record<string, unknown>;
+                imageUrl: string; price?: number;
+            };
+
+            // ── Step 2: seller replies with their asking price ─────────────────
+            if (draft.status === 'awaiting_price') {
+                const price = parseFloat(text.replace(/[^0-9.]/g, ''));
+                if (!isNaN(price) && price > 100) {
+                    // Update draft with price, move to awaiting_confirm
+                    await db.whatsAppInteraction.update({
+                        where: { id: activeDraftRow.id },
+                        data:  { payload: JSON.stringify({ ...draft, status: 'awaiting_confirm', price }) }
+                    });
+                    const l = draft.listing as { title: string; category: string; condition: string; description: string; tags: string[] };
+                    await WhatsAppService.sendMessage(from,
+                        `📋 *Confirm your listing*\n\n` +
+                        `📦 *${l.title}*\n` +
+                        `💰 Price: ₦${price.toLocaleString()}\n` +
+                        `📂 ${l.category}  |  🏷️ ${l.condition}\n` +
+                        `📝 ${l.description}\n\n` +
+                        `Reply *YES* to publish this live on FairPrice.ng now, or *CANCEL* to start over.`
+                    );
+                    return NextResponse.json({ ok: true });
+                } else {
+                    await WhatsAppService.sendMessage(from,
+                        `⚠️ That doesn't look like a valid price. Reply with just the number (e.g. *45000*).`);
+                    return NextResponse.json({ ok: true });
+                }
+            }
+
+            // ── Step 3: seller confirms → create product in DB ─────────────────
+            if (draft.status === 'awaiting_confirm') {
+                const upper = text.toUpperCase().trim();
+
+                if (upper === 'CANCEL' || upper === 'NO') {
+                    await db.whatsAppInteraction.update({
+                        where: { id: activeDraftRow.id },
+                        data:  { interaction_type: 'zema_listing_draft_cancelled' }
+                    });
+                    await WhatsAppService.sendMessage(from,
+                        `Listing cancelled. Send a new product photo whenever you're ready.`);
+                    return NextResponse.json({ ok: true });
+                }
+
+                if (upper === 'YES' || upper === 'CONFIRM') {
+                    try {
+                        // Look up seller by WhatsApp number (normalised)
+                        const normalised = from.startsWith('+') ? from : `+${from}`;
+                        const user = await db.user.findFirst({
+                            where: { OR: [{ whatsappNumber: normalised }, { whatsappNumber: from }] },
+                            include: { sellers: { where: { status: 'active' }, take: 1 } }
+                        });
+                        const seller = user?.sellers?.[0];
+
+                        if (!seller) {
+                            await WhatsAppService.sendMessage(from,
+                                `⚠️ We couldn't find a FairPrice seller account linked to this number.\n\n` +
+                                `Please visit *${APP_URL}/seller/register* to create your account, then try again.`);
+                            return NextResponse.json({ ok: true });
+                        }
+
+                        const l = draft.listing as {
+                            title: string; category: string; condition: string;
+                            description: string; tags: string[];
+                        };
+
+                        // Map Qwen condition → Prisma enum
+                        const conditionMap: Record<string, 'brand_new' | 'used' | 'refurbished'> = {
+                            new:          'brand_new',
+                            fairly_used:  'refurbished',
+                            used:         'used',
+                        };
+                        const condition = conditionMap[l.condition as string] ?? 'used';
+
+                        // Generate slug
+                        const slug = (l.title || 'product')
+                            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+                        const product = await db.product.create({ data: {
+                            sellerId:     seller.id,
+                            sellerName:   seller.businessName,
+                            name:         l.title,
+                            description:  l.description,
+                            price:        draft.price!,
+                            category:     l.category.split('|')[0].trim(),
+                            subcategory:  l.category.includes('|') ? l.category.split('|')[1].trim() : undefined,
+                            imageUrl:     draft.imageUrl,   // base64 data URL
+                            images:       [draft.imageUrl],
+                            tags:         l.tags || [],
+                            condition,
+                            slug,
+                            stock:        1,
+                            isActive:     true,
+                        }});
+
+                        // Mark draft completed
+                        await db.whatsAppInteraction.update({
+                            where: { id: activeDraftRow.id },
+                            data:  { interaction_type: 'zema_listing_completed',
+                                     payload: JSON.stringify({ ...draft, status: 'completed', productId: product.id }) }
+                        });
+
+                        const productUrl = `${APP_URL}/product/${product.id}/${slug}`;
+                        await WhatsAppService.sendMessage(from,
+                            `🎉 *Your product is LIVE on FairPrice.ng!*\n\n` +
+                            `📦 *${l.title}*\n` +
+                            `💰 ₦${draft.price!.toLocaleString()}\n\n` +
+                            `🔗 View & share your listing:\n${productUrl}\n\n` +
+                            `Buyers can order and pay into escrow right now. You'll be notified when an order comes in. 🚀`
+                        );
+                    } catch (createErr: unknown) {
+                        console.error('[ZEMA CreateProduct]', createErr instanceof Error ? createErr.message : createErr);
+                        await WhatsAppService.sendMessage(from,
+                            `⚠️ Something went wrong creating your listing. Our team has been notified. Please try again or visit ${APP_URL}/seller.`);
+                    }
+                    return NextResponse.json({ ok: true });
+                }
+                // Any other reply during awaiting_confirm — remind them
+                await WhatsAppService.sendMessage(from,
+                    `Reply *YES* to publish your listing, or *CANCEL* to start over.`);
+                return NextResponse.json({ ok: true });
+            }
+        }
 
         // --- 1. ADMIN VISIBILITY: Log Interaction ---
         await db.whatsAppInteraction.create({
@@ -71,6 +283,92 @@ export async function POST(req: Request) {
                     await WhatsAppService.sendMessage(from, `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\n🔗 *Back to FairPrice:* ${APP_URL}/login?wa_code=${code}`);
                     return NextResponse.json({ ok: true });
                 }
+            }
+        }
+
+        // --- 2.5. ZEMA 360 HITL APPROVAL (approve / reject <runId>-approval) ---
+        // The ZEMA approver number (+2348162816305 or normalised variant) sends
+        // "approve <id>" or "reject <id>" to resume a paused agent pipeline.
+        const ZEMA_APPROVER = (process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305").replace(/\D/g, "");
+        const fromDigits = from.replace(/\D/g, "");
+        const isApprover = fromDigits.endsWith(ZEMA_APPROVER) || ZEMA_APPROVER.endsWith(fromDigits);
+
+        if (isApprover) {
+            const lowerText = text.toLowerCase().trim();
+            const approveMatch = lowerText.match(/^approve\s+(\S+)/);
+            const rejectMatch  = lowerText.match(/^reject\s+(\S+)/);
+            const approvalId   = (approveMatch || rejectMatch)?.[1];
+
+            if (approvalId) {
+                const decision = approveMatch ? "approved" : "rejected";
+                try {
+                    const request = await db.zemaApprovalRequest.findUnique({ where: { id: approvalId } });
+                    if (!request) {
+                        await WhatsAppService.sendMessage(from,
+                            `⚠️ ZEMA: Approval request *${approvalId}* not found or already resolved.`);
+                        return NextResponse.json({ ok: true });
+                    }
+                    if (request.status !== "pending") {
+                        await WhatsAppService.sendMessage(from,
+                            `ℹ️ ZEMA: Request *${approvalId}* was already *${request.status}*.`);
+                        return NextResponse.json({ ok: true });
+                    }
+
+                    // Persist the resolution
+                    await db.zemaApprovalRequest.update({
+                        where: { id: approvalId },
+                        data: {
+                            status: decision,
+                            approvedBy: from,
+                            resolvedAt: new Date(),
+                        },
+                    });
+
+                    // Execute post-approval actions when approved
+                    if (decision === "approved") {
+                        const agentData = JSON.parse(request.agentDecision || "{}");
+                        const offer = agentData.offer ?? {};
+
+                        // 1. Release escrow if we have an orderId
+                        if (request.orderId) {
+                            try {
+                                await fetch(`${process.env.NEXTAUTH_URL || "https://www.fairprice.ng"}/api/escrow/release`, {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${process.env.ZEMA_SERVICE_TOKEN || ""}`,
+                                    },
+                                    body: JSON.stringify({ orderId: request.orderId, releasedBy: "zema_hitl" }),
+                                }).catch(() => {});
+                            } catch { /* non-blocking */ }
+                        }
+
+                        await WhatsAppService.sendMessage(from,
+                            `✅ *ZEMA 360: Approved*\n\n` +
+                            `Run: ${request.runId}\n` +
+                            `Offer: ₦${offer.price?.toLocaleString() ?? "—"}\n` +
+                            `${request.orderId ? `Order: ${request.orderId}\n` : ""}` +
+                            `Escrow release and settlement queued.`);
+                    } else {
+                        await WhatsAppService.sendMessage(from,
+                            `❌ *ZEMA 360: Rejected*\n\nRun ${request.runId} has been cancelled. No funds moved.`);
+                    }
+
+                    // Log for admin visibility
+                    await db.whatsAppInteraction.create({
+                        data: {
+                            phoneNumber: from,
+                            interaction_type: "zema_hitl_resolution",
+                            payload: JSON.stringify({ approvalId, decision, runId: request.runId }),
+                        },
+                    }).catch(() => {});
+
+                } catch (hitlErr: any) {
+                    console.error("[HITL] approval error:", hitlErr);
+                    await WhatsAppService.sendMessage(from,
+                        `⚠️ ZEMA: Error processing *${approvalId}*. Please try again or check the dashboard.`);
+                }
+                return NextResponse.json({ ok: true });
             }
         }
 
@@ -150,7 +448,7 @@ export async function POST(req: Request) {
         }
 
         // --- 7. FALLBACK: SMART SEARCH & HELP ---
-        const APP_URL = process.env.NEXTAUTH_URL || "https://www.fairprice.ng";
+        // APP_URL already declared above in the ZEMA 360 block
         const greetings = ["hi", "hello", "hey", "sup", "menu", "start"];
         if (greetings.includes(text.toLowerCase()) || text.length < 3) {
             await WhatsAppService.sendMessage(from, `Welcome to FairPrice! 🚀\n\nHow can I help you today?\n\n- Reply with \`/price [product]\` to check market value\n- Browse our catalogue: ${APP_URL}`);
