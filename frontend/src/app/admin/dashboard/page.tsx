@@ -44,6 +44,16 @@ export default function AdminDashboard() {
 
         setStats(DataSyncService.getAdminStats());
 
+        // Refresh seller count from DB (localStorage may be stale if sellers joined recently)
+        fetch("/api/sellers?all=true")
+            .then(r => r.ok ? r.json() : null)
+            .then((sellers: any) => {
+                if (Array.isArray(sellers)) {
+                    setStats((prev: any) => prev ? { ...prev, active_sellers: sellers.filter((s: any) => s.status === "active").length } : prev);
+                }
+            })
+            .catch(() => {});
+
         // Governance: merge complaints + disputed/cancelled orders
         const rawComplaints = DataSyncService.getComplaints().filter((c: any) => !String(c.id).includes("FP-DEMO-ORD"));
         const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));

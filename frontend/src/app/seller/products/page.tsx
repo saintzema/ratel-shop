@@ -90,6 +90,40 @@ function SellerProductsContent() {
             const all = DataSyncService.getProducts({ includeInactiveSellers: true });
             const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
             setProducts(sellerProducts);
+
+            // Also fetch fresh product images from DB to pick up any admin-updated images
+            // (localStorage may have stale placeholder images if image was changed on another device)
+            fetch(`/api/products?sellerId=${sellerId}&all=true`)
+                .then(r => r.ok ? r.json() : null)
+                .then((data: any) => {
+                    if (!data) return;
+                    const fresh: any[] = Array.isArray(data) ? data : (data.products || []);
+                    if (!fresh.length) return;
+                    // Build image map from fresh DB data
+                    const imageMap: Record<string, string> = {};
+                    fresh.forEach((p: any) => {
+                        const imgUrl = p.image_url || p.imageUrl;
+                        if (imgUrl && !imgUrl.includes("placeholder")) imageMap[p.id] = imgUrl;
+                    });
+                    if (Object.keys(imageMap).length === 0) return;
+                    setProducts(prev =>
+                        prev.map(p => imageMap[p.id] ? { ...p, image_url: imageMap[p.id] } : p)
+                    );
+                    // Also patch localStorage so NavSearch/catalog picks it up
+                    const stored = DataSyncService.getProducts({ includeInactiveSellers: true });
+                    let changed = false;
+                    const patched = stored.map((p: any) => {
+                        if (imageMap[p.id] && p.image_url !== imageMap[p.id]) {
+                            changed = true;
+                            return { ...p, image_url: imageMap[p.id] };
+                        }
+                        return p;
+                    });
+                    if (changed) {
+                        try { localStorage.setItem("fp_products", JSON.stringify(patched)); } catch {}
+                    }
+                })
+                .catch(() => {});
         } catch (error) {
             console.error("Failed to load products:", error);
         } finally {

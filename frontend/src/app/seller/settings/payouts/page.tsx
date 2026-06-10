@@ -56,6 +56,7 @@ export default function PayoutsSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [payoutRequested, setPayoutRequested] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [orders, setOrders] = useState<Order[]>([]);
     const [autoPayoutEnabled, setAutoPayoutEnabled] = useState(false);
@@ -170,6 +171,11 @@ export default function PayoutsSettingsPage() {
         (o) => o.payout_status === "cashed_out"
     );
 
+    // Orders where payout has been requested but not yet paid
+    const payoutRequestedOrders = orders.filter(
+        (o) => (o.payout_status as any) === "payout_requested"
+    );
+
     // Orders ready, but not yet requested or currently in progress
     const pendingPayoutOrders = orders.filter(
         (o) =>
@@ -193,22 +199,22 @@ export default function PayoutsSettingsPage() {
         setSaving(true);
         await new Promise((r) => setTimeout(r, 1000));
 
-        // Mark pending orders as cashed out
+        // Mark pending orders as payout_requested (intermediate state; admin will mark as cashed_out when paid)
         const pendingIds = pendingPayoutOrders.map(o => o.id);
-        
+
         // Update DB for each order
-        await Promise.all(pendingIds.map(id => 
+        await Promise.all(pendingIds.map(id =>
             fetch("/api/orders", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, payout_status: "cashed_out" })
+                body: JSON.stringify({ id, payout_status: "payout_requested" })
             })
         )).catch(console.error);
 
         // Update local state and trigger sync
         const allOrders: Order[] = DataSyncService.getOrders();
         const updatedOrders = allOrders.map(o =>
-            pendingIds.includes(o.id) ? { ...o, payout_status: "cashed_out" as const } : o
+            pendingIds.includes(o.id) ? { ...o, payout_status: "payout_requested" as any } : o
         );
         localStorage.setItem("fp_orders", JSON.stringify(updatedOrders));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -244,8 +250,8 @@ export default function PayoutsSettingsPage() {
         );
         setOrders(refreshedOrders);
         setSaving(false);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 4000);
+        setPayoutRequested(true);
+        setTimeout(() => setPayoutRequested(false), 6000);
     };
 
     if (loading) {
@@ -291,6 +297,26 @@ export default function PayoutsSettingsPage() {
                         <span className="font-bold text-sm">
                             Changes saved successfully!
                         </span>
+                    </motion.div>
+                )}
+                {payoutRequested && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4"
+                    >
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-bold text-sm">Payout request submitted!</p>
+                            <p className="text-xs text-emerald-700 mt-0.5">
+                                Your payout of{" "}
+                                <span className="font-black">
+                                    {formatPrice(pendingPayoutAmount * ((100 - commissionRate) / 100))}
+                                </span>{" "}
+                                has been sent to the FairPrice team. We&apos;ll process it within 1–3 business days.
+                            </p>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -350,7 +376,7 @@ export default function PayoutsSettingsPage() {
                         )}
                     </p>
                     <p className="text-xs text-gray-400 mt-1 font-medium">
-                        {cashedOutOrders.length} completed payout(s)
+                        {cashedOutOrders.length} completed · {payoutRequestedOrders.length} requested
                     </p>
                 </div>
             </div>
@@ -689,18 +715,55 @@ export default function PayoutsSettingsPage() {
                     </h2>
                 </div>
 
-                {cashedOutOrders.length === 0 ? (
+                {cashedOutOrders.length === 0 && payoutRequestedOrders.length === 0 ? (
                     <div className="p-8 text-center">
                         <Clock className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                         <p className="text-sm text-gray-500 font-medium">
                             No payouts yet
                         </p>
                         <p className="text-xs text-gray-400 mt-1">
-                            Completed orders will appear here once cashed out
+                            Completed orders will appear here once you request a payout
                         </p>
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-100">
+                        {payoutRequestedOrders.slice(0, 20).map((order) => (
+                            <div
+                                key={order.id}
+                                className="p-4 px-6 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-amber-50 rounded-lg">
+                                        <Clock className="h-4 w-4 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-900">
+                                            Order #{order.id.substring(0, 8)}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                            {new Date(
+                                                order.updated_at || order.created_at
+                                            ).toLocaleDateString("en-NG", {
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                            })}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-amber-700">
+                                        {formatPrice(
+                                            order.amount *
+                                                ((100 - commissionRate) / 100)
+                                        )}
+                                    </p>
+                                    <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">
+                                        Payout Requested
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
                         {cashedOutOrders.slice(0, 20).map((order) => (
                             <div
                                 key={order.id}
@@ -716,7 +779,7 @@ export default function PayoutsSettingsPage() {
                                         </p>
                                         <p className="text-xs text-gray-400 mt-0.5">
                                             {new Date(
-                                                order.updated_at
+                                                order.updated_at || order.created_at
                                             ).toLocaleDateString("en-NG", {
                                                 month: "short",
                                                 day: "numeric",

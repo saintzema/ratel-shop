@@ -14,6 +14,7 @@ export async function GET(req: Request) {
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
         const cursor = searchParams.get("cursor") || undefined;
+        const sellerIdFilter = searchParams.get("sellerId") || undefined;
         // Keep the limit high for admin, but manageable
         const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
 
@@ -27,6 +28,10 @@ export async function GET(req: Request) {
                     }
                 }
             };
+
+        if (sellerIdFilter) {
+            whereClause.sellerId = sellerIdFilter;
+        }
 
         if (updatedAfter) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };

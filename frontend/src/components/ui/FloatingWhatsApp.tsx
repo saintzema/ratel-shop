@@ -64,10 +64,10 @@ export function FloatingWhatsApp() {
               href="https://wa.me/message/3NZESSNRD2RMP1"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center w-14 h-14 md:w-16 md:h-16 bg-[#25D366] text-white rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] border-2 border-white/20 hover:bg-[#1da851] transition-colors relative"
+              className="flex items-center justify-center w-10 h-10 md:w-11 md:h-11 bg-[#25D366] text-white rounded-full shadow-[0_8px_30px_rgba(37,211,102,0.4)] border-2 border-white/20 hover:bg-[#1da851] transition-colors relative"
               aria-label="Chat with us on WhatsApp"
             >
-              <MessageCircle className="w-7 h-7 md:w-8 md:h-8" />
+              <MessageCircle className="w-5 h-5 md:w-6 md:h-6" />
               
               {/* Pulse Indicator */}
               <span className="absolute -top-1 -right-1 flex h-4 w-4">
