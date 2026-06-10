@@ -18,6 +18,14 @@
     "oss_configured": true,
     "oss_bucket": "fairprice-zema"
   },
+  "negotiate_test": {
+    "deal": {"title": "iPhone 14", "price_ngn": 85000},
+    "agents_fired": ["sales", "inventory", "finance"],
+    "requires_human": true,
+    "finance_veto": true,
+    "sales_reason": "₦85,000 is significantly below fair market value; counterfeit risk",
+    "phase": "awaiting_approval"
+  },
   "alibaba_services_live": [
     "Function Compute (FC3) — Python 3.10, ap-southeast-1",
     "Model Studio (DashScope/Qwen) — qwen-plus + qwen-vl-max, live call verified",
