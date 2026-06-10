@@ -177,18 +177,70 @@ def handle_ingest(body: dict) -> dict:
 
 # ─── FC3 HTTP trigger handler ─────────────────────────────────────────────────
 
+def _parse_fc3_event(event):
+    """
+    Extract path, method, body from an FC3 HTTP trigger event.
+
+    FC3 passes the event as either:
+    - bytes (JSON-encoded HTTPEvent v2.0): {"rawPath":..., "requestContext":..., "body":...}
+    - dict (same structure)
+    - object with attributes (older FC format)
+
+    Returns (path: str, method: str, raw_body: bytes)
+    """
+    path, method, raw_body = "/", "GET", b""
+
+    try:
+        # Decode bytes → dict
+        if isinstance(event, (bytes, bytearray)):
+            event = json.loads(event.decode("utf-8", errors="replace"))
+
+        if isinstance(event, dict):
+            # FC3 HTTP event v2.0 — most common
+            path = (event.get("rawPath")
+                    or event.get("path")
+                    or (event.get("requestContext", {}) or {}).get("http", {}).get("path", "/")
+                    or "/")
+            method = (event.get("httpMethod")
+                      or event.get("method")
+                      or (event.get("requestContext", {}) or {}).get("http", {}).get("method", "GET")
+                      or "GET").upper()
+            body_field = event.get("body") or b""
+            if isinstance(body_field, str):
+                # may be base64-encoded
+                if event.get("isBase64Encoded"):
+                    import base64
+                    raw_body = base64.b64decode(body_field)
+                else:
+                    raw_body = body_field.encode("utf-8")
+            elif isinstance(body_field, (bytes, bytearray)):
+                raw_body = bytes(body_field)
+        else:
+            # Older FC attribute-style event
+            path   = (getattr(event, "rawPath", None)
+                      or getattr(event, "path", None)
+                      or "/")
+            method = (getattr(event, "httpMethod", None)
+                      or getattr(event, "method", None)
+                      or "GET").upper()
+            raw_body = getattr(event, "body", b"") or b""
+            if isinstance(raw_body, str):
+                raw_body = raw_body.encode("utf-8")
+
+    except Exception:
+        pass
+
+    path = (path or "/").split("?")[0].rstrip("/") or "/"
+    return path, method, raw_body
+
+
 def handler(event, context):
     """
     Alibaba Cloud Function Compute 3 — HTTP trigger entry point.
-    event is an fc3 HTTPEvent object.
+    Handles FC3 event format (JSON dict with rawPath / requestContext.http.path).
     """
     try:
-        path    = getattr(event, "path",   "/")
-        method  = getattr(event, "method", "GET").upper()
-        raw_body = getattr(event, "body", b"") or b""
-
-        # normalise path
-        path = path.split("?")[0].rstrip("/") or "/"
+        path, method, raw_body = _parse_fc3_event(event)
 
         # parse JSON body for POST requests
         body: dict = {}
@@ -197,6 +249,17 @@ def handler(event, context):
                 body = json.loads(raw_body)
             except Exception:
                 body = {}
+
+        # ── debug endpoint (remove before production) ─────────────────────────
+        if path == "/debug":
+            evt_repr = event if isinstance(event, dict) else repr(event)[:500]
+            return _json_response({
+                "parsed_path": path,
+                "parsed_method": method,
+                "raw_body_len": len(raw_body),
+                "event_type": type(event).__name__,
+                "event_preview": evt_repr if isinstance(evt_repr, dict) else str(evt_repr)[:300],
+            })
 
         # ── routing ──────────────────────────────────────────────────────────
         if path in ("/", "/api/v1/zema", "/api/v1/zema/health"):
