@@ -71,11 +71,12 @@ export async function generateMetadata(
             siteName: 'FairPrice Nigeria',
             images: [
                 {
-                    url: ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) 
-                        ? (((productDetails as any)?.imageUrl || (productDetails as any)?.image_url).startsWith('http') 
-                            ? ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) 
-                            : `https://www.fairprice.ng${((productDetails as any)?.imageUrl || (productDetails as any)?.image_url).startsWith('/') ? '' : '/'}${((productDetails as any)?.imageUrl || (productDetails as any)?.image_url)}`)
-                        : 'https://www.fairprice.ng/logo.png',
+                    url: (() => {
+                        const raw = (productDetails as any)?.imageUrl || (productDetails as any)?.image_url;
+                        if (!raw || raw.startsWith('data:')) return 'https://www.fairprice.ng/logo.png';
+                        if (raw.startsWith('http')) return `https://www.fairprice.ng/api/image-cdn?url=${encodeURIComponent(raw)}`;
+                        return `https://www.fairprice.ng${raw.startsWith('/') ? '' : '/'}${raw}`;
+                    })(),
                     width: 800,
                     height: 800,
                     alt: titleProductName,
