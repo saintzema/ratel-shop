@@ -319,14 +319,14 @@ After using tools, respond with this JSON structure:
             body: JSON.stringify({
                 contents,
                 tools: toolDeclarations,
-                generationConfig: {
-                    temperature: 0.7,
-                    responseMimeType: "application/json"
-                }
+                generationConfig: { temperature: 0.7 }
             })
         });
 
-        if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
+        if (!response.ok) {
+            const errBody = await response.text().catch(() => response.statusText);
+            throw new Error(`Gemini API Error ${response.status}: ${errBody}`);
+        }
 
         let data = await response.json();
         let candidate = data.candidates?.[0];
@@ -367,14 +367,14 @@ After using tools, respond with this JSON structure:
                 body: JSON.stringify({
                     contents: updatedContents,
                     tools: toolDeclarations,
-                    generationConfig: {
-                        temperature: 0.7,
-                        responseMimeType: "application/json"
-                    }
+                    generationConfig: { temperature: 0.7 }
                 })
             });
 
-            if (!response.ok) throw new Error(`Gemini API Error (tool follow-up): ${response.statusText}`);
+            if (!response.ok) {
+                const errBody = await response.text().catch(() => response.statusText);
+                throw new Error(`Gemini API Error (tool follow-up) ${response.status}: ${errBody}`);
+            }
 
             data = await response.json();
             candidate = data.candidates?.[0];

@@ -2565,7 +2565,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <div className="relative p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
                                     <QRCodeCanvas 
                                         id="product-payment-qr"
-                                        value={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : ''}
+                                        value={typeof window !== 'undefined' ? (() => {
+                                            const safeImage = product?.image_url && !product.image_url.startsWith('data:') ? product.image_url : '';
+                                            const params = new URLSearchParams({ productId: product?.id || '', amount: String(product?.price || 0), name: product?.name || '', category: product?.category || '' });
+                                            if (safeImage) params.set('image', safeImage);
+                                            return `${window.location.origin}/checkout/direct?${params.toString()}`;
+                                        })() : ''}
                                         size={180}
                                         level="H"
                                         imageSettings={{
