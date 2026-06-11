@@ -500,11 +500,18 @@ class DataSyncServiceService {
                         // COMPRESSION: Strip heavy fields for storefront/listing views to save space
                         // These will be re-fetched on the product detail page if needed.
                         const { description, highlights, specs, images, ...lightweight } = p;
-                        
+
+                        // Strip base64 data URLs from localStorage — they're huge and the PDP
+                        // fetches the real image from DB anyway via /api/products/[id].
+                        const rawImgUrl = p.imageUrl || p.image_url;
+                        const safeImgUrl = typeof rawImgUrl === 'string' && rawImgUrl.startsWith('data:')
+                            ? '/assets/images/placeholder.png'
+                            : getProxiedImageUrl(rawImgUrl);
+
                         return {
                             ...lightweight,
                             seller_id: p.sellerId || p.seller_id,
-                            image_url: getProxiedImageUrl(p.imageUrl || p.image_url),
+                            image_url: safeImgUrl,
                             avg_rating: p.avgRating || p.avg_rating || 0,
                             review_count: p.reviewCount || p.review_count || 0,
                             sold_count: p.soldCount || p.sold_count || 0,

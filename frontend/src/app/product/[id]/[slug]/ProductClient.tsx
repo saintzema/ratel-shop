@@ -204,26 +204,29 @@ export default function ProductDetailPage() {
     // 2. Use fetched version if available, otherwise cached
     let product = fetchedProduct || cachedProduct;
 
-    // 3. Lazy fetch full details if cached version is lightweight (missing description)
+    // 3. Lazy fetch full details when product is missing from localStorage or lacks description
     useEffect(() => {
-        if (product && !product.description && !isFetchingFull && mounted) {
-            const getFullDetails = async () => {
-                setIsFetchingFull(true);
-                try {
-                    const res = await fetch(`/api/products/${product.id}`);
-                    if (res.ok) {
-                        const full = await res.json();
-                        setFetchedProduct(full);
-                    }
-                } catch (e) {
-                    console.error("Full product fetch failed:", e);
-                } finally {
-                    setIsFetchingFull(false);
+        if (!mounted || isFetchingFull) return;
+
+        const fetchId = !product ? decodedId : (!product.description ? product.id : null);
+        if (!fetchId) return;
+
+        const getFullDetails = async () => {
+            setIsFetchingFull(true);
+            try {
+                const res = await fetch(`/api/products/${encodeURIComponent(fetchId)}`);
+                if (res.ok) {
+                    const full = await res.json();
+                    if (!full.error) setFetchedProduct(full);
                 }
-            };
-            getFullDetails();
-        }
-    }, [product, isFetchingFull, mounted]);
+            } catch (e) {
+                console.error("Full product fetch failed:", e);
+            } finally {
+                setIsFetchingFull(false);
+            }
+        };
+        getFullDetails();
+    }, [product, isFetchingFull, mounted, decodedId]);
 
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
@@ -1140,7 +1143,19 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     // Wait for client-side hydration before rendering
     if (!mounted) return null;
 
-    // Dynamic features list
+    // While fetching from DB, show spinner instead of "not found"
+    if ((!product || !seller) && isFetchingFull) {
+        return (
+            <div className="min-h-screen flex flex-col">
+                <Navbar />
+                <div className="flex-1 flex items-center justify-center">
+                    <div className="h-10 w-10 border-2 border-gray-200 border-t-brand-green-600 animate-spin rounded-full" />
+                </div>
+                <Footer />
+            </div>
+        );
+    }
+
     if (!product || !seller) {
         return (
             <div className="min-h-screen flex flex-col">
