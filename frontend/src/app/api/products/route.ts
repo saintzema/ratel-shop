@@ -99,14 +99,17 @@ export async function GET(req: Request) {
         }));
 
         // 3. UPDATED: Return 'total' in the response
-        return NextResponse.json({ 
-            success: true, 
-            products: mappedProducts, 
-            total: totalCount, 
-            nextCursor 
+        return NextResponse.json({
+            success: true,
+            products: mappedProducts,
+            total: totalCount,
+            nextCursor
         }, {
             headers: {
-                "Cache-Control": "public, s-maxage=1, stale-while-revalidate=5"
+                // Admin/sync requests bypass cache; public catalog gets 30s CDN cache
+                "Cache-Control": includeInactive
+                    ? "no-store"
+                    : "public, s-maxage=30, stale-while-revalidate=300"
             }
         });
     } catch (error: any) {

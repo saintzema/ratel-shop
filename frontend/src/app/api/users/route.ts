@@ -151,7 +151,9 @@ export async function GET(req: Request) {
             if (!user) {
                 return NextResponse.json({ exists: false, userId: null });
             }
-            return NextResponse.json({ ...user, exists: true, userId: user.id });
+            return NextResponse.json({ ...user, exists: true, userId: user.id }, {
+                headers: { "Cache-Control": "private, max-age=300" }
+            });
         }
         const users = await db.user.findMany();
         return NextResponse.json(users);

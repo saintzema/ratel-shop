@@ -73,8 +73,10 @@ export async function GET(req: Request) {
 
         return NextResponse.json(mappedSellers, {
             headers: {
-                // Reactive cache for hot updates
-                "Cache-Control": "public, s-maxage=1, stale-while-revalidate=5"
+                // Admin/sync requests bypass cache; public store list gets 60s CDN cache
+                "Cache-Control": includeInactive
+                    ? "no-store"
+                    : "public, s-maxage=60, stale-while-revalidate=600"
             }
         });
     } catch (error: any) {

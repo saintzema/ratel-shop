@@ -73,6 +73,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                     // SECURITY LOCKDOWN: Even if local role IS allowed, if it's a high-privilege role (admin/seller), 
                     // double-check with DB to prevent 'localStorage' tampering with a strict 5s timeout.
                     if (user.role === "admin" || (user.role === "seller" && allowedRoles?.includes("seller"))) {
+                        // Session-cache the DB role check for 5 minutes to avoid a round-trip on every page nav
+                        const cacheKey = `fp_rc_${user.email}`;
+                        try {
+                            const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "null");
+                            if (cached && cached.role === user.role && Date.now() - cached.ts < 300_000) {
+                                setIsAuthorized(true);
+                                return;
+                            }
+                        } catch {}
+
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -88,12 +98,14 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
                                 if (!dbUser || dbUser.role !== user.role) {
                                     console.error("SECURITY: Local role mismatch detected! Reverting to DB state.");
+                                    try { sessionStorage.removeItem(cacheKey); } catch {}
                                     if (dbUser && dbUser.role) {
                                         updateUser({ role: dbUser.role });
                                     } else {
                                         router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
                                     }
                                 } else {
+                                    try { sessionStorage.setItem(cacheKey, JSON.stringify({ role: dbUser.role, ts: Date.now() })); } catch {}
                                     setIsAuthorized(true);
                                 }
                             })
