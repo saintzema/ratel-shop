@@ -62,6 +62,56 @@ export class WhatsAppService {
     }
 
     /**
+     * Sends an interactive CTA-URL message — the button opens inside WhatsApp's
+     * built-in browser instead of launching an external app.
+     */
+    static async sendCTALink(to: string, bodyText: string, buttonLabel: string, url: string) {
+        if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+            console.warn("WhatsApp credentials missing. CTA message suppressed.");
+            return null;
+        }
+        const cleanTo = to.replace(/\D/g, "");
+        try {
+            const response = await fetch(
+                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        recipient_type: "individual",
+                        to: cleanTo,
+                        type: "interactive",
+                        interactive: {
+                            type: "cta_url",
+                            body: { text: bodyText },
+                            action: {
+                                name: "cta_url",
+                                parameters: { display_text: buttonLabel, url },
+                            },
+                        },
+                    }),
+                }
+            );
+            const data = await response.json();
+            await db.whatsAppInteraction.create({
+                data: {
+                    phoneNumber: cleanTo,
+                    interaction_type: "outbound_cta",
+                    payload: JSON.stringify({ bodyText, buttonLabel, url, response: data, timestamp: new Date().toISOString() }),
+                },
+            }).catch(() => {});
+            return data;
+        } catch (error) {
+            console.error("WhatsApp CTA Send Error:", error);
+            return null;
+        }
+    }
+
+    /**
      * Sends a negotiation alert to the customer when a seller counters
      */
     static async sendNegotiationUpdate(to: string, data: {
