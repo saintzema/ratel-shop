@@ -730,6 +730,21 @@ model FinancingApplication {
   @@index([status])
   @@index([type])
 }
+model ZemaApprovalRequest {
+  id             String    @id @default(cuid())
+  runId          String
+  orderId        String?
+  status         String    @default("pending")
+  agentDecision  String?
+  approvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([runId])
+  @@index([status])
+}
+
 model WhatsAppNegotiationSession {
   id              String   @id @default(cuid())
   sellerId        String

@@ -35,6 +35,18 @@ export async function POST(req: Request) {
         // WhatsApp profile name from the contacts array (the sender's WA display name)
         const contactName: string = value?.contacts?.[0]?.profile?.name || "";
 
+        // If WA sent us a real name, update any existing user matched by whatsappNumber —
+        // this covers bulk-imported users (wa_) who still show as "WhatsApp User"
+        if (contactName) {
+            db.user.updateMany({
+                where: {
+                    whatsappNumber: from,
+                    name: { in: ["WhatsApp User", "WhatsApp Buyer"] },
+                },
+                data: { name: contactName },
+            }).catch(() => {});
+        }
+
         const text = (
             message.text?.body?.trim()
             || message.interactive?.button_reply?.title?.trim()
@@ -918,7 +930,7 @@ async function startWhatsAppNegotiation(
         data: {
             productId:       product.id,
             customerId:      waUser.id,
-            customerName:    "WhatsApp Buyer",
+            customerName:    displayName,
             sellerId:        product.sellerId,
             proposedPrice:   proposed,
             status:          "pending",

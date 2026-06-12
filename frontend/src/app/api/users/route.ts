@@ -138,6 +138,13 @@ export async function GET(req: Request) {
                 },
             };
             let user = await db.user.findUnique({ where: { id }, include: includeSeller });
+            if (!user && !id.includes("@")) {
+                // id may be a seller ID (admin users list links by seller ID, not user ID)
+                const seller = await db.seller.findUnique({ where: { id }, select: { userId: true } });
+                if (seller?.userId) {
+                    user = await db.user.findUnique({ where: { id: seller.userId }, include: includeSeller });
+                }
+            }
             if (!user && id.includes("@")) {
                 user = await db.user.findUnique({ where: { email: id }, include: includeSeller });
             }

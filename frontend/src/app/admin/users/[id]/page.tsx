@@ -318,7 +318,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
-                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
+                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
                                     // Update by both ID and email for reliable persistence
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus);
@@ -363,7 +363,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = userEntity.role === "seller" ? "frozen" : "banned";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus });
-                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus }) }); } catch { }
+                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) }); } catch { }
                                 } else {
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus as any);
                                 }
