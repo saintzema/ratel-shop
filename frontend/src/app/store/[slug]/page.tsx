@@ -64,28 +64,49 @@ export default function StoreProfile() {
         const slug = params.slug as string;
         if (!slug) return;
 
-        const loadStore = () => {
+        const loadStore = async () => {
             const allSellers = [...DataSyncService.getSellers(), ...SEED_SELLERS];
-            // Deduplicate by id, preferring DataSyncService version
             const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
-            // find by store_url OR by ID OR by slugified business name
-            const foundSeller = uniqueSellers.find(s =>
+            let foundSeller: Seller | null = uniqueSellers.find(s =>
                 s.store_url === slug || s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
-            );
+            ) || null;
+
+            // DB fallback — localStorage may not have this seller yet (first visit / cleared cache)
+            if (!foundSeller) {
+                try {
+                    const res = await fetch(`/api/sellers?slug=${encodeURIComponent(slug)}`);
+                    if (res.ok) {
+                        const dbSeller = await res.json();
+                        if (dbSeller?.id) foundSeller = dbSeller as Seller;
+                    }
+                } catch { /* offline — keep null */ }
+            }
 
             if (foundSeller) {
                 setSeller(foundSeller);
+                // Fetch products from DB for this seller so we always show up-to-date listings
+                try {
+                    const res = await fetch(`/api/products?sellerId=${encodeURIComponent(foundSeller.id)}`);
+                    if (res.ok) {
+                        const dbProducts = await res.json();
+                        if (Array.isArray(dbProducts) && dbProducts.length > 0) {
+                            setProducts(dbProducts);
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                } catch { /* offline fallback */ }
+                // Fallback to localStorage products
                 const allProducts = [...DataSyncService.getProducts(), ...SEED_PRODUCTS];
-                // Deduplicate by id
                 const uniqueProducts = allProducts.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
-                setProducts(uniqueProducts.filter(p => p.seller_id === foundSeller.id));
+                setProducts(uniqueProducts.filter(p => p.seller_id === foundSeller!.id));
             }
             setLoading(false);
         };
 
         loadStore();
-        window.addEventListener("storage", loadStore);
-        return () => window.removeEventListener("storage", loadStore);
+        window.addEventListener("storage", () => loadStore());
+        return () => window.removeEventListener("storage", () => loadStore());
     }, [params.slug]);
 
     const isOwner = user && seller && user.id === seller.user_id;

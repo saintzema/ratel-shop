@@ -9,6 +9,39 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
+        const slugParam = searchParams.get("slug");
+
+        // Public slug lookup — store pages are public, no auth required
+        if (slugParam) {
+            const slugLower = slugParam.toLowerCase();
+            const selFields = {
+                id: true, userId: true, businessName: true, description: true,
+                logoUrl: true, coverImageUrl: true, category: true, verified: true,
+                rating: true, trustScore: true, status: true, kycStatus: true,
+                storeUrl: true, location: true, createdAt: true, ownerName: true,
+                subscriptionPlan: true, planExpiryDate: true,
+            } as const;
+
+            // 1. Match by storeUrl field directly
+            let found = await db.seller.findFirst({ where: { storeUrl: slugLower, status: "active" }, select: selFields });
+
+            // 2. Fallback: match all active sellers by slugified business name
+            if (!found) {
+                const all = await db.seller.findMany({ where: { status: "active" }, select: selFields });
+                found = all.find(s => s.businessName.toLowerCase().replace(/\s+/g, '-') === slugLower) || null;
+            }
+
+            if (!found) return NextResponse.json(null, { headers: { "Cache-Control": "public, s-maxage=10" } });
+            const s = found;
+            return NextResponse.json({
+                ...s, user_id: s.userId, business_name: s.businessName,
+                logo_url: s.logoUrl, cover_image_url: s.coverImageUrl,
+                trust_score: s.trustScore, kyc_status: s.kycStatus,
+                store_url: s.storeUrl, owner_name: s.ownerName,
+                subscription_plan: s.subscriptionPlan,
+                plan_expiry_date: s.planExpiryDate ? s.planExpiryDate.toISOString() : null,
+            }, { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } });
+        }
 
         let whereClause: any = includeInactive ? {} : { status: "active" as const };
 
