@@ -176,13 +176,25 @@ export async function POST(req: Request) {
 
                 if (upper === 'YES' || upper === 'CONFIRM') {
                     try {
-                        // Look up seller by WhatsApp number (normalised)
-                        const normalised = from.startsWith('+') ? from : `+${from}`;
-                        const user = await db.user.findFirst({
-                            where: { OR: [{ whatsappNumber: normalised }, { whatsappNumber: from }] },
-                            include: { sellers: { where: { status: 'active' }, take: 1 } }
+                        // Look up seller by WhatsApp number. Seller settings stores it on
+                        // Seller.whatsappNumber in varying formats (+234…, 0…, 234…), so
+                        // match on the last 10 digits which are format-independent.
+                        const fromDigits10 = from.replace(/\D/g, '').slice(-10);
+                        let seller = await db.seller.findFirst({
+                            where: {
+                                whatsappNumber: { endsWith: fromDigits10 },
+                                status: 'active',
+                            },
                         });
-                        const seller = user?.sellers?.[0];
+                        if (!seller) {
+                            // Fallback: number linked on the User record (WhatsApp login)
+                            const normalised = from.startsWith('+') ? from : `+${from}`;
+                            const user = await db.user.findFirst({
+                                where: { OR: [{ whatsappNumber: normalised }, { whatsappNumber: from }] },
+                                include: { sellers: { where: { status: 'active' }, take: 1 } }
+                            });
+                            seller = user?.sellers?.[0] ?? null;
+                        }
 
                         if (!seller) {
                             await WhatsAppService.sendMessage(from,
