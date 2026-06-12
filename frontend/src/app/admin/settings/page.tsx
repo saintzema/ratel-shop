@@ -51,6 +51,9 @@ export default function AdminSettings() {
     const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
     const [codGlobalThreshold, setCodGlobalThreshold] = useState("50000");
 
+    // AI Provider
+    const [aiProvider, setAiProvider] = useState<"qwen" | "gemini">("qwen");
+
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
     const [kycVerification, setKycVerification] = useState(false);
@@ -147,6 +150,7 @@ export default function AdminSettings() {
                     if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
                     if (initialData.waVerificationEnabled !== undefined) setWaVerificationEnabled(initialData.waVerificationEnabled);
                     if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
+                    if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -247,7 +251,7 @@ export default function AdminSettings() {
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -693,6 +697,32 @@ export default function AdminSettings() {
                                     <p className="text-xs text-gray-400 mt-0.5">Enable OTP codes to be sent via WhatsApp when a user chooses to log in with WhatsApp</p>
                                 </div>
                                 <Switch checked={waVerificationEnabled} onCheckedChange={setWaVerificationEnabled} />
+                            </div>
+
+                            {/* AI Provider toggle */}
+                            <div className="py-4 border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Brain className="h-4 w-4 text-violet-500" />
+                                    <h4 className="text-sm font-bold text-gray-900">Ziva AI Brain</h4>
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-violet-50 text-violet-600">Active: {aiProvider.toUpperCase()}</span>
+                                </div>
+                                <p className="text-xs text-gray-400 mb-3">Switch the AI model powering Ziva chat and WhatsApp intelligence. Changes take effect within 60 seconds — no redeploy needed.</p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setAiProvider("qwen")}
+                                        className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "qwen" ? "border-violet-500 bg-violet-50 text-violet-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
+                                    >
+                                        Qwen (Alibaba)
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">qwen-max · DashScope</p>
+                                    </button>
+                                    <button
+                                        onClick={() => setAiProvider("gemini")}
+                                        className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "gemini" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
+                                    >
+                                        Gemini (Google)
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">gemini-2.5-flash · Vertex</p>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

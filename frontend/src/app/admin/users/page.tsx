@@ -413,24 +413,35 @@ export default function UserDirectory() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">User Directory</h2>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">{participants.length} total accounts</p>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">
+                        {view === "all" ? `${participants.length} total accounts` :
+                         view === "sellers" ? `${participants.filter(p => p.role === "seller").length} sellers` :
+                         view === "buyers" ? `${participants.filter(p => p.role === "buyer" || (p.is_buyer && p.role !== "seller")).length} buyers` :
+                         `${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length} pending`}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="bg-white/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/50 shadow-sm flex gap-1">
-                        {(["all", "sellers", "buyers", "pending"] as const).map((v) => (
-                            <button
-                                key={v}
-                                onClick={() => setView(v)}
-                                className={cn(
-                                    "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
-                                    view === v
-                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
-                                        : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
-                                )}
-                            >
-                                {v === "pending" ? `⏳ Pending (${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length})` : v}
-                            </button>
-                        ))}
+                        {(["all", "sellers", "buyers", "pending"] as const).map((v) => {
+                            const count = v === "all" ? participants.length
+                                : v === "sellers" ? participants.filter(p => p.role === "seller").length
+                                : v === "buyers" ? participants.filter(p => p.role === "buyer" || (p.is_buyer && p.role !== "seller")).length
+                                : participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length;
+                            return (
+                                <button
+                                    key={v}
+                                    onClick={() => setView(v)}
+                                    className={cn(
+                                        "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
+                                        view === v
+                                            ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
+                                            : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    {v === "pending" ? `⏳ ` : ""}{v} ({count})
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

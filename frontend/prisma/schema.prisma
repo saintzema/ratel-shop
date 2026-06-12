@@ -443,6 +443,8 @@ model SystemSetting {
   globalSearchCaching         Boolean  @default(true)
   supportConfig               Json?
   waVerificationEnabled       Boolean  @default(false)
+  whatsappNegotiationBridge   Boolean  @default(true)
+  aiProvider                  String   @default("qwen")
 }
 
 model Discount {

@@ -3,9 +3,21 @@ import { SEED_PRODUCTS } from '@/lib/data';
 import { db } from '@/lib/db';
 
 // ── Provider switch ───────────────────────────────────────────────────────────
-// To switch back to Google Gemini: set AI_PROVIDER=gemini in Vercel env vars.
-// Default is Qwen (DashScope international endpoint).
-const AI_PROVIDER = (process.env.AI_PROVIDER || 'qwen').toLowerCase();
+// Priority: DB setting (admin/settings toggle) → VERCEL env var → default "qwen"
+// Cached for 60 s to avoid a DB hit on every chat message.
+let _cachedProvider: string | null = null;
+let _cacheExpiry = 0;
+async function getAIProvider(): Promise<string> {
+    if (Date.now() < _cacheExpiry && _cachedProvider) return _cachedProvider;
+    try {
+        const s = await db.systemSetting.findUnique({ where: { id: "global" }, select: { aiProvider: true } });
+        _cachedProvider = (s?.aiProvider || process.env.AI_PROVIDER || 'qwen').toLowerCase();
+    } catch {
+        _cachedProvider = (process.env.AI_PROVIDER || 'qwen').toLowerCase();
+    }
+    _cacheExpiry = Date.now() + 60_000;
+    return _cachedProvider!;
+}
 
 // Gemini
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -366,6 +378,7 @@ After using tools, respond with ONLY this JSON (no markdown fences):
     "searchQuery": "optional global search query if nothing found locally"
 }`;
 
+        const AI_PROVIDER = await getAIProvider();
         if (AI_PROVIDER === 'gemini') {
             // ── GEMINI PATH ─────────────────────────────────────────────────────
             const contents = [
@@ -435,7 +448,7 @@ After using tools, respond with ONLY this JSON (no markdown fences):
         }
 
     } catch (error: any) {
-        console.error(`Ziva Chat ${AI_PROVIDER.toUpperCase()} Error (falling back to local):`, error?.message || error);
+        console.error(`Ziva Chat AI Error (falling back to local):`, error?.message || error);
 
         // Local catalog fallback when AI is unavailable
         try {

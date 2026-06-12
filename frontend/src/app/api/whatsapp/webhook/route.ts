@@ -29,6 +29,12 @@ export async function POST(req: Request) {
         if (!message) return NextResponse.json({ ok: true });
 
         const from = message.from;
+        // Guard: ignore malformed messages with no sender phone number
+        if (!from || !from.trim()) return NextResponse.json({ ok: true });
+
+        // WhatsApp profile name from the contacts array (the sender's WA display name)
+        const contactName: string = value?.contacts?.[0]?.profile?.name || "";
+
         const text = (
             message.text?.body?.trim()
             || message.interactive?.button_reply?.title?.trim()
@@ -406,7 +412,7 @@ export async function POST(req: Request) {
                     where: { id: negotiateChoiceRow.id },
                     data: { interaction_type: "zema_negotiate_choice_done" },
                 });
-                await startWhatsAppNegotiation(from, picked);
+                await startWhatsAppNegotiation(from, picked, contactName);
                 return NextResponse.json({ ok: true });
             }
             // If they typed something non-numeric, let it fall through to normal handling
@@ -507,7 +513,7 @@ export async function POST(req: Request) {
         // COMMANDS
         // ─────────────────────────────────────────────────────────────────────
         if (text.startsWith("/")) {
-            await handleCommand(from, text);
+            await handleCommand(from, text, contactName);
             return NextResponse.json({ ok: true });
         }
 
@@ -635,7 +641,7 @@ export async function POST(req: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMAND HANDLER
 // ─────────────────────────────────────────────────────────────────────────────
-async function handleCommand(from: string, text: string) {
+async function handleCommand(from: string, text: string, contactName = "") {
     const parts   = text.trim().split(/\s+/);
     const command = parts[0].toLowerCase();
     const args    = parts.slice(1).join(" ");
@@ -673,7 +679,7 @@ async function handleCommand(from: string, text: string) {
                         select: { id: true, name: true, price: true, slug: true, sellerId: true },
                     });
                     if (product) {
-                        await startWhatsAppNegotiation(from, product);
+                        await startWhatsAppNegotiation(from, product, contactName);
                     } else {
                         await WhatsAppService.sendMessage(from,
                             `Couldn't find that product. It may have been removed.\n\n🔗 Browse: ${SITE}`);
@@ -894,13 +900,16 @@ async function handleSellerDirectReply(from: string, text: string, session: any)
 // ─────────────────────────────────────────────────────────────────────────────
 async function startWhatsAppNegotiation(
     from: string,
-    product: { id: string; name: string; price: number; slug: string | null; sellerId: string }
+    product: { id: string; name: string; price: number; slug: string | null; sellerId: string },
+    contactName?: string
 ) {
+    if (!from?.trim()) return;
+    const displayName = contactName?.trim() || "WhatsApp Buyer";
     const waEmail = `wa-${from}@fairprice.ng`;
     const waUser = await db.user.upsert({
         where: { email: waEmail },
-        update: {},
-        create: { email: waEmail, name: "WhatsApp Buyer", role: "customer" },
+        update: contactName ? { name: displayName } : {},
+        create: { email: waEmail, name: displayName, role: "customer" },
     });
 
     const proposed = Math.round(product.price * 0.9);
