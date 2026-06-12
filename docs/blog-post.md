@@ -1,4 +1,4 @@
-# How We Built an Autonomous Commerce OS for Nigeria's Informal Economy Using Qwen
+# How We Built an Autonomous eCommerce SuperApp OS for Nigeria's Informal Economy Using Qwen
 
 *A build-journey for the Global AI Hackathon with Alibaba Cloud — Track 4: Autopilot Agent*
 
