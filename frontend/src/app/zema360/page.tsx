@@ -437,9 +437,9 @@ export default function Zema360Page() {
           <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-8 md:p-10 text-center">
             <div className="text-xs font-bold text-emerald-400/60 uppercase tracking-widest mb-3">Built on</div>
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 font-bold">
-              <span>Qwen qwen-max</span>
+              <span>Qwen qwen3-max</span>
               <span className="text-white/20">·</span>
-              <span>Qwen qwen-vl-max</span>
+              <span>Qwen qwen3-vl-plus</span>
               <span className="text-white/20">·</span>
               <span>Alibaba DashScope</span>
               <span className="text-white/20">·</span>

@@ -713,7 +713,7 @@ export default function AdminSettings() {
                                         className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "qwen" ? "border-violet-500 bg-violet-50 text-violet-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
                                     >
                                         Qwen (Alibaba)
-                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">qwen-max · DashScope</p>
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">qwen3-max · DashScope</p>
                                     </button>
                                     <button
                                         onClick={() => setAiProvider("gemini")}

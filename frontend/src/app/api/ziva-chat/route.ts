@@ -27,7 +27,8 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
 const QWEN_BASE = process.env.QWEN_BASE_URL || 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 const QWEN_URL = `${QWEN_BASE}/chat/completions`;
-const QWEN_MODEL = 'qwen-max';
+// qwen-max is retiring; qwen3-max is the current flagship with agent/tool-call support
+const QWEN_MODEL = process.env.QWEN_MODEL || 'qwen3-max';
 
 /* ──────────────────────────────────────────────────────────
    Server-Side Tool Implementations
