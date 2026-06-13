@@ -14,8 +14,11 @@ export function formatPrice(amount: number): string {
     }).format(amount);
 }
 
-export function formatDateExact(dateStr: string | number | Date): string {
-    return new Date(dateStr).toLocaleString("en-US", {
+export function formatDateExact(dateStr: string | number | Date | null | undefined): string {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",

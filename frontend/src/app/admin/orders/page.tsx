@@ -140,7 +140,7 @@ export default function AdminOrdersPage() {
                                                     #{order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
                                                 </div>
                                                 <div className="text-[11px] text-gray-500 mt-0.5">
-                                                    {formatDateExact(order.created_at)}
+                                                    {formatDateExact(order.created_at || order.createdAt)}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-bold text-gray-900">
