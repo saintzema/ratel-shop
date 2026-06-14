@@ -161,10 +161,10 @@ export const CATEGORY_CARDS_ROW_3: CategoryCard[] = [
 ];
 
 export const DEFAULT_AD_SLOTS = [
-    { id: 'ad1', title: 'Flash Sales', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400', link: '/deals' },
-    { id: 'ad2', title: 'New Arrivals', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400', link: '/category/new' },
-    { id: 'ad3', title: 'Best Sellers', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400', link: '/search?sort=popular' },
-    { id: 'ad4', title: 'Price Checker', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400', link: '#' }
+    { id: 'ad1', title: 'Flash Deals',   img: '', link: '/deals',              componentId: 'flash-deals'   },
+    { id: 'ad2', title: 'New Arrivals',  img: '', link: '/category/new',       componentId: 'new-arrivals'  },
+    { id: 'ad3', title: 'Top Brands',    img: '', link: '/search?sort=popular', componentId: 'top-brands'   },
+    { id: 'ad4', title: 'Ziva AI Chat',  img: '', link: '#',                   componentId: 'ziva-ai'       },
 ];
 
 export const ADMIN_EMAILS = ['admin@fairprice.ng', 'techzema@gmail.com'];

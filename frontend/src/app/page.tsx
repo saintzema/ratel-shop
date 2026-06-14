@@ -21,12 +21,36 @@ import { getProxiedImageUrl, cn } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import { CategoryPanel } from "@/components/ui/CategoryPanel";
-import { 
-  TEMU_CATEGORIES, 
-  CATEGORY_CARDS_ROW_1, 
+import {
+  TEMU_CATEGORIES,
+  CATEGORY_CARDS_ROW_1,
   CategoryCard,
   DEFAULT_AD_SLOTS
 } from "@/lib/constants";
+import {
+  Zema360HeroBanner,
+  FlashDealsBanner,
+  NewArrivalsBanner,
+  TopBrandsBanner,
+  ZivaAIBanner,
+} from "@/components/HeroBanners";
+
+const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
+  "flash-deals":  FlashDealsBanner,
+  "new-arrivals": NewArrivalsBanner,
+  "top-brands":   TopBrandsBanner,
+  "ziva-ai":      ZivaAIBanner,
+};
+
+// ZEMA360 promo is always prepended to the banner list (code-defined, not admin-configurable)
+const ZEMA360_BANNER = {
+  id: "__zema360",
+  title: "ZEMA360 — Autonomous Commerce OS",
+  type: "component",
+  componentId: "zema360",
+  image_url: "",
+  active: true,
+};
 
 
 
@@ -99,19 +123,19 @@ function HomeContent() {
 
       setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
       
-      // Load Banners
+      // Load Banners — ZEMA360 promo always leads, admin banners follow
       try {
         const savedBanners = localStorage.getItem("ratel_homepage_banners");
-        if (savedBanners) {
-          setBanners(JSON.parse(savedBanners).filter((b: any) => b.active));
-        } else {
-          // Fallback to defaults
-          setBanners([
-            { id: "b1", title: "Mega Sale — Up to 70% Off", subtitle: "Electronics, fashion & more", image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000", link: "/category/deals", active: true },
-            { id: "b2", title: "New Arrivals This Week", subtitle: "Discover trending products", image_url: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=2000", link: "/category/new", active: true }
-          ]);
-        }
-      } catch(e) {}
+        const imageBanners = savedBanners
+          ? JSON.parse(savedBanners).filter((b: any) => b.active)
+          : [
+              { id: "b1", title: "Mega Sale — Up to 70% Off", image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000", link: "/category/deals", active: true },
+              { id: "b2", title: "New Arrivals This Week",    image_url: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=2000", link: "/category/new",   active: true },
+            ];
+        setBanners([ZEMA360_BANNER, ...imageBanners]);
+      } catch(e) {
+        setBanners([ZEMA360_BANNER]);
+      }
     };
     const loadGrids = () => {
       try {
@@ -264,20 +288,27 @@ function HomeContent() {
                 <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200">
                   <div className="absolute inset-0">
                     <AnimatePresence initial={false}>
-                      <motion.img
+                      <motion.div
                         key={currentBannerIndex}
                         initial={{ x: "100%" }}
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
-                        transition={{ 
-                          x: { type: "spring", stiffness: 300, damping: 30 },
-                          opacity: { duration: 0.2 }
-                        }}
-                        src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
-                        onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        alt={banners[currentBannerIndex]?.title || "Hero Banner"}
-                      />
+                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 } }}
+                        className="absolute inset-0 w-full h-full"
+                      >
+                        {banners[currentBannerIndex]?.type === "component" ? (
+                          banners[currentBannerIndex]?.componentId === "zema360" ? (
+                            <Zema360HeroBanner />
+                          ) : null
+                        ) : (
+                          <img
+                            src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
+                            onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            alt={banners[currentBannerIndex]?.title || "Hero Banner"}
+                          />
+                        )}
+                      </motion.div>
                     </AnimatePresence>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
@@ -321,26 +352,33 @@ function HomeContent() {
 
                 {/* Side Ad Grid */}
                 <div className="hidden lg:grid lg:col-span-4 grid-cols-2 grid-rows-2 gap-2 h-full">
-                  {(heroConfig?.adSlots || DEFAULT_AD_SLOTS).map((ad: any) => (
-                    <div 
-                      key={ad.id} 
-                      className="relative rounded-xl md:rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md bg-gray-200"
-                      onClick={() => {
-                        if (ad.id === 'ad4' || ad.link === '#') {
-                          setIsPriceModalOpen(true);
-                        } else if (ad.link) {
-                          router.push(ad.link);
-                        }
-                      }}
-                    >
-                      <img 
-                        src={getProxiedImageUrl(ad.img)} 
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                        alt={ad.title || "Ad slot"} 
-                      />
-                      <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors pointer-events-none" />
-                    </div>
-                  ))}
+                  {(heroConfig?.adSlots || DEFAULT_AD_SLOTS).map((ad: any) => {
+                    const AdComponent = ad.componentId ? AD_SLOT_COMPONENTS[ad.componentId] : null;
+                    return (
+                      <div
+                        key={ad.id}
+                        className="relative rounded-xl md:rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md bg-gray-900"
+                        onClick={() => {
+                          if (ad.componentId === "ziva-ai" || ad.link === "#") {
+                            setIsPriceModalOpen(true);
+                          } else if (ad.link) {
+                            router.push(ad.link);
+                          }
+                        }}
+                      >
+                        {AdComponent ? (
+                          <AdComponent />
+                        ) : (
+                          <img
+                            src={getProxiedImageUrl(ad.img)}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            alt={ad.title || "Ad slot"}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
