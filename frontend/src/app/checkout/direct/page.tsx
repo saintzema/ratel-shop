@@ -130,9 +130,10 @@ function DirectCheckoutContent() {
                 DataSyncService.addRawProduct(product, false);
             } catch { /* best effort */ }
 
-            // Add to cart regardless (CartContext handles quantity increments for same IDs)
-            // But since we use unique IDs for direct payments, they will appear as separate items
-            addToCart(product);
+            // When `amount` differs from the product's listed price (e.g. WhatsApp negotiation),
+            // pass it as negotiatedPrice so checkout shows the agreed price, not the listed price.
+            const negotiatedPrice = amount > 0 && amount !== product.price ? amount : undefined;
+            addToCart(product, 1, negotiatedPrice);
 
             setStatus("redirecting");
 

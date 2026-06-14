@@ -588,15 +588,26 @@ export async function POST(req: Request) {
                 status: { in: ["pending", "countered"] },
             },
             orderBy: { createdAt: "desc" },
-            include: { product: { select: { name: true, price: true } } },
+            include: { product: { select: { name: true, price: true, imageUrl: true, category: true, slug: true } } },
         });
         if (negotiation) {
             const upperText = text.toUpperCase().trim();
             if (upperText === "ACCEPT") {
                 await db.negotiationRequest.update({ where: { id: negotiation.id }, data: { status: "accepted" } });
+                // Agreed price = seller's counter if one exists, otherwise buyer's proposed price
+                const agreedPrice = (negotiation as any).counterPrice || negotiation.proposedPrice;
+                const p = negotiation.product as any;
+                const checkoutParams = new URLSearchParams({
+                    productId: negotiation.productId,
+                    name:      p.name,
+                    amount:    String(Math.round(agreedPrice)),
+                    sellerId:  (negotiation as any).sellerId || "",
+                    category:  p.category || "general",
+                    ...(p.imageUrl ? { image: p.imageUrl } : {}),
+                });
                 await WhatsAppService.sendCTALink(from,
-                    `Deal! 🤝 Your offer for *${negotiation.product.name}* was accepted. Tap below to complete payment safely via escrow.`,
-                    "Complete Payment", `${SITE}/checkout`);
+                    `Deal! 🤝 Your offer for *${p.name}* at ₦${agreedPrice.toLocaleString()} was accepted. Tap below to pay safely via FairPrice Escrow.`,
+                    "Complete Payment Now", `${SITE}/checkout/direct?${checkoutParams.toString()}`);
                 return NextResponse.json({ ok: true });
             }
             if (upperText === "REJECT") {
@@ -915,9 +926,19 @@ async function handleSellerDirectReply(from: string, text: string, session: any)
         await db.negotiationRequest.update({ where: { id: negotiationId }, data: { status: "accepted" } });
         await WhatsAppService.sendMessage(from, `✅ You accepted the offer for *${negotiation.product.name}*. Customer notified to complete payment.`);
         if (session.customerPhone) {
+            const agreedPrice = negotiation.proposedPrice;
+            const prod = negotiation.product as any;
+            const checkoutParams = new URLSearchParams({
+                productId: prod.id,
+                name:      prod.name,
+                amount:    String(Math.round(agreedPrice)),
+                sellerId:  negotiation.sellerId,
+                category:  prod.category || "general",
+                ...(prod.imageUrl ? { image: prod.imageUrl } : {}),
+            });
             await WhatsAppService.sendCTALink(session.customerPhone,
-                `🎉 Your offer for *${negotiation.product.name}* at ₦${negotiation.proposedPrice.toLocaleString()} was accepted!`,
-                "Complete Payment", `${SITE}/checkout`);
+                `🎉 *Deal accepted!*\n\nYour offer for *${prod.name}* at ₦${agreedPrice.toLocaleString()} was accepted by the seller! Tap below to pay safely via FairPrice Escrow.`,
+                "Complete Payment Now", `${SITE}/checkout/direct?${checkoutParams.toString()}`);
         }
     } else if (upperText === "REJECT") {
         await db.negotiationRequest.update({ where: { id: negotiationId }, data: { status: "rejected" } });
