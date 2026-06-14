@@ -59,6 +59,8 @@ async function searchProductImage(query: string, category?: string): Promise<{ i
                !lower.includes("avatar") &&
                !lower.includes("transparent") &&
                !lower.includes("clear.png") &&
+               !lower.includes("wikimedia.org") &&
+               !lower.includes("wikipedia.org") &&
                !lower.endsWith(".svg") &&
                !lower.endsWith(".gif") &&
                lower.startsWith("http");

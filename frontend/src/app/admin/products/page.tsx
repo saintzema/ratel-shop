@@ -252,9 +252,8 @@ export default function CatalogControl() {
                 // Catch proxied placeholders like /api/image-cdn?url=...placeholder...
                 (currentImg.includes('/api/image-cdn') && lower.includes('placeholder')) ||
                 // Wikipedia/Wikimedia are encyclopaedia article images — never real product photos
-                lower.includes('upload.wikimedia.org') ||
-                lower.includes('commons.wikimedia.org') ||
-                lower.includes('en.wikipedia.org');
+                lower.includes('wikimedia.org') ||
+                lower.includes('wikipedia.org');
             
             if (isBroken) {
                 scanned++;

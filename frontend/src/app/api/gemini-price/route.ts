@@ -38,7 +38,7 @@ async function hydrateImageServerSide(productName: string, category?: string): P
                 const data = await res.json();
                 const images = (data?.images || [])
                     .map((img: any) => img.imageUrl)
-                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && url.startsWith("http"));
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && !url.includes("wikimedia.org") && !url.includes("wikipedia.org") && url.startsWith("http"));
                 if (images.length > 0) return images[0];
             }
         } catch (e) { console.warn("Serper hydration pass 1 failed:", e); }
@@ -54,7 +54,7 @@ async function hydrateImageServerSide(productName: string, category?: string): P
                 const data = await res.json();
                 const images = (data?.images || [])
                     .map((img: any) => img.imageUrl)
-                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && url.startsWith("http"));
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && !url.includes("wikimedia.org") && !url.includes("wikipedia.org") && url.startsWith("http"));
                 if (images.length > 0) {
                     console.log(`✅ Serper pass 2 (relaxed) found image for "${productName}"`);
                     return images[0];
@@ -76,28 +76,9 @@ async function hydrateImageServerSide(productName: string, category?: string): P
         } catch (e) { console.warn("Google CSE hydration failed:", e); }
     }
 
-    // Strategy 3: Wikipedia (always free)
-    try {
-        const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(productName)}&utf8=&format=json`);
-        if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            const title = searchData?.query?.search?.[0]?.title;
-            if (title) {
-                const imgRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&format=json&pithumbsize=1000`);
-                if (imgRes.ok) {
-                    const imgData = await imgRes.json();
-                    const pages = imgData?.query?.pages;
-                    if (pages) {
-                        const pageId = Object.keys(pages)[0];
-                        const source = pages[pageId]?.thumbnail?.source;
-                        if (source) return source;
-                    }
-                }
-            }
-        }
-    } catch (e) { console.warn("Wikipedia hydration failed:", e); }
-
-    // Strategy 4: Category-aware premium fallback (never return null → never show grey placeholder)
+    // Strategy 3: Category-aware premium fallback (never return null → never show grey placeholder)
+    // Wikipedia intentionally removed — its article search frequently returns person photos,
+    // building thumbnails, and other non-product images (e.g. "Changan UNI-T" → executive portrait).
     const CATEGORY_FALLBACKS: Record<string, string> = {
         phone: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80",
         electronic: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80",
