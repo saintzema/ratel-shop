@@ -350,6 +350,31 @@ export default function CatalogControl() {
         }
     };
 
+    // Upload a File to Vercel Blob and return the public URL.
+    // Falls back to base64 data-URL if the upload fails so the UI never blocks.
+    const uploadFileToBlob = async (file: File): Promise<string> => {
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const fd = new FormData();
+            fd.append("file", file, file.name || `product-${Date.now()}.jpg`);
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: fd,
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.url) return data.url;
+            }
+        } catch { /* fall through */ }
+        // Fallback: base64 (shown in preview, stripped by sync-store later)
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target?.result as string);
+            reader.readAsDataURL(file);
+        });
+    };
+
     const handleGetImage = async () => {
         if (!editName) return;
         setIsFetchingImage(true);
@@ -1360,13 +1385,9 @@ export default function CatalogControl() {
                                 <ProductImageSlot 
                                     url={editImage} 
                                     onUrlChange={setEditImage}
-                                    onFileSelect={(e) => {
+                                    onFileSelect={async (e) => {
                                         const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (ev) => setEditImage(ev.target?.result as string);
-                                            reader.readAsDataURL(file);
-                                        }
+                                        if (file) setEditImage(await uploadFileToBlob(file));
                                     }}
                                     label="Main Image"
                                 />
@@ -1384,16 +1405,11 @@ export default function CatalogControl() {
                                                     next[i] = newUrl;
                                                     setEditImages(next);
                                                 }}
-                                                onFileSelect={(e) => {
+                                                onFileSelect={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (ev) => {
-                                                            const next = [...editImages];
-                                                            next[i] = ev.target?.result as string;
-                                                            setEditImages(next);
-                                                        };
-                                                        reader.readAsDataURL(file);
+                                                        const url = await uploadFileToBlob(file);
+                                                        setEditImages(prev => { const next = [...prev]; next[i] = url; return next; });
                                                     }
                                                 }}
                                                 className="mb-0"
@@ -1620,16 +1636,11 @@ export default function CatalogControl() {
                                                                 next[index].image_url = newUrl;
                                                                 setEditVariants(next);
                                                             }}
-                                                            onFileSelect={(e) => {
+                                                            onFileSelect={async (e) => {
                                                                 const file = e.target.files?.[0];
                                                                 if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onload = (ev) => {
-                                                                        const next = [...editVariants];
-                                                                        next[index].image_url = ev.target?.result as string;
-                                                                        setEditVariants(next);
-                                                                    };
-                                                                    reader.readAsDataURL(file);
+                                                                    const url = await uploadFileToBlob(file);
+                                                                    setEditVariants(prev => { const next = [...prev]; next[index].image_url = url; return next; });
                                                                 }
                                                             }}
                                                             className="mb-0 w-full rounded-lg"

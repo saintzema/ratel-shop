@@ -279,7 +279,27 @@ function EditProductContent() {
                 canvas.width = width;
                 canvas.height = height;
                 canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
-                callback(canvas.toDataURL("image/jpeg", 0.6));
+                // Upload to Vercel Blob so the URL persists in localStorage/admin.
+                // Base64 data URLs get stripped by sync-store — Blob URLs don't.
+                canvas.toBlob(async (blob) => {
+                    if (blob) {
+                        try {
+                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            const fd = new FormData();
+                            fd.append("file", blob, `product-${Date.now()}.jpg`);
+                            const res = await fetch("/api/upload", {
+                                method: "POST",
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                body: fd,
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.url) { callback(data.url); return; }
+                            }
+                        } catch { /* fall through to base64 */ }
+                    }
+                    callback(canvas.toDataURL("image/jpeg", 0.6));
+                }, "image/jpeg", 0.6);
             };
             img.src = e.target?.result as string;
         };
