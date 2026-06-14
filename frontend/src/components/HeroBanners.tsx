@@ -194,8 +194,8 @@ export function Zema360HeroBanner() {
         }
       `}</style>
 
-      <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-7">
-        {/* Top row */}
+      <div className="absolute inset-0 flex flex-col p-4 md:p-7 pb-16 md:pb-7">
+        {/* Top row: branding + pipeline */}
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
@@ -253,39 +253,41 @@ export function Zema360HeroBanner() {
           </div>
         </div>
 
-        {/* Bottom row: stats + CTA */}
-        <div className="flex items-end justify-between">
+        {/* Middle row: CTA (left) + metrics (right) — vertically centered in remaining space */}
+        <div className="flex-1 flex items-center justify-between mt-3">
           <div>
-            <p className="text-gray-500 text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-1.5">
+            <p className="text-gray-500 text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-2">
               Why sellers choose ZEMA360
             </p>
-            <div className="flex items-center gap-3 md:gap-6">
-              {[
-                { val: "23s", sub: "Order→Payout", color: "#10b981", delay: "0s" },
-                { val: "3×",  sub: "Profit Margin", color: "#fff",     delay: "0.4s" },
-                { val: "99.7%", sub: "Accuracy",   color: "#a78bfa",   delay: "0.8s" },
-              ].map(({ val, sub, color, delay }) => (
-                <div key={sub} style={{ animation: `zemaFloat 2.5s ease-in-out infinite`, animationDelay: delay }}>
-                  <div className="font-black" style={{ color, fontSize: "clamp(1rem,2.5vw,1.5rem)" }}>{val}</div>
-                  <div className="text-gray-500 text-[7px] md:text-[8px] font-bold uppercase tracking-wider">{sub}</div>
-                </div>
-              ))}
-            </div>
+            <a
+              href="/zema360"
+              onClick={e => e.stopPropagation()}
+              className="font-black uppercase tracking-widest rounded-full transition-all active:scale-95 inline-block"
+              style={{
+                background: "linear-gradient(135deg,#10b981,#059669)",
+                color: "#fff",
+                fontSize: "clamp(8px,1.2vw,11px)",
+                padding: "7px 18px",
+                boxShadow: "0 8px 20px -4px rgba(16,185,129,0.45)",
+              }}
+            >
+              GET ACCESS →
+            </a>
           </div>
-          <a
-            href="/zema360"
-            onClick={e => e.stopPropagation()}
-            className="font-black uppercase tracking-widest rounded-full transition-all active:scale-95"
-            style={{
-              background: "linear-gradient(135deg,#10b981,#059669)",
-              color: "#fff",
-              fontSize: "clamp(8px,1.2vw,11px)",
-              padding: "6px 16px",
-              boxShadow: "0 8px 20px -4px rgba(16,185,129,0.45)",
-            }}
-          >
-            Learn More →
-          </a>
+
+          {/* Metrics — right side */}
+          <div className="flex items-center gap-3 md:gap-6">
+            {[
+              { val: "23s", sub: "Order→Payout", color: "#10b981", delay: "0s" },
+              { val: "3×",  sub: "Profit Margin", color: "#fff",    delay: "0.4s" },
+              { val: "99.7%", sub: "Accuracy",    color: "#a78bfa", delay: "0.8s" },
+            ].map(({ val, sub, color, delay }) => (
+              <div key={sub} style={{ animation: `zemaFloat 2.5s ease-in-out infinite`, animationDelay: delay }}>
+                <div className="font-black" style={{ color, fontSize: "clamp(1rem,2.5vw,1.5rem)" }}>{val}</div>
+                <div className="text-gray-500 text-[7px] md:text-[8px] font-bold uppercase tracking-wider">{sub}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

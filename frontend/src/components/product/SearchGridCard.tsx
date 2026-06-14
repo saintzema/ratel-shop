@@ -183,7 +183,7 @@ export const SearchGridCard = ({
     <NextLink
       ref={cardRef}
       href={getProductUrl(product)}
-      className="bg-white rounded-2xl border border-gray-200 hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/10 transition-all group flex flex-col overflow-hidden h-full"
+      className="bg-white rounded-2xl border border-gray-200 hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/10 active:scale-[0.97] active:opacity-80 transition-all duration-150 group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
         {/* Sponsored Badge */}

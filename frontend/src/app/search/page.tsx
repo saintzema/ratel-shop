@@ -633,6 +633,7 @@ function SearchContent() {
   const handleSeeMoreResults = () => {
     setShowGlobalResults(true);
     setGlobalSearchError(null);
+    setPage(p => p + 1); // Reveal more paginated local results immediately
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
@@ -1466,7 +1467,7 @@ function SearchContent() {
 
                   {/* Inline Loading skeletons for global search when active */}
                   {isGlobalSearching &&
-                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, (combinedCurrentResults.length + catalogueFallback.length) > 0 ? 4 : 8).map((i) => (
+                    [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                       <div
                         key={`skeleton-${i}`}
                         className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm h-[320px]"

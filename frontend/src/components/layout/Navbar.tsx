@@ -223,6 +223,24 @@ export function Navbar() {
     const categoryRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
     const hydratedProductIds = useRef<Set<string>>(new Set());
+    const lastNavSyncRef = useRef<number>(0);
+
+    // Background sync: freshen local store from DB so newly added products (e.g. via WhatsApp) appear
+    const triggerNavSync = () => {
+        const now = Date.now();
+        if (now - lastNavSyncRef.current < 60_000) return; // max once per minute
+        lastNavSyncRef.current = now;
+        fetch('/api/products?limit=200')
+            .then(r => r.json())
+            .then(data => {
+                if (data.products && Array.isArray(data.products)) {
+                    data.products.forEach((p: any) => {
+                        try { DataSyncService.addRawProduct(p, false); } catch {}
+                    });
+                }
+            })
+            .catch(() => {});
+    };
     const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -1010,7 +1028,7 @@ export function Navbar() {
                                 placeholder="Search products here..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onFocus={() => setShowSuggestions(true)}
+                                onFocus={() => { setShowSuggestions(true); triggerNavSync(); }}
                                 onKeyDown={handleKeyDown}
                             />
 

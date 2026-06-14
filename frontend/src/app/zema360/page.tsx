@@ -271,12 +271,12 @@ export default function Zema360Page() {
               >
                 Request Access <ArrowRight className="w-4 h-4" />
               </a>
-              <Link
-                href="/admin"
-                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white/70 font-bold text-sm uppercase tracking-wider hover:bg-white/10 transition-all"
+              <button
+                onClick={() => document.getElementById('how')?.scrollIntoView({ behavior: 'smooth' })}
+                className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white/70 font-bold text-sm uppercase tracking-wider hover:bg-white/10 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4" /> View Demo
-              </Link>
+              </button>
             </div>
           </motion.div>
 
