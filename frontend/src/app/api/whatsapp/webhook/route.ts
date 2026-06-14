@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
+import { put } from "@vercel/blob";
 
 // Always link to the production domain in WhatsApp messages — never a Vercel preview URL.
 // Override with FAIRPRICE_URL env var if needed.
@@ -74,8 +75,22 @@ export async function POST(req: Request) {
                 const metaJson = await metaRes.json() as { url: string; mime_type?: string };
                 const mime     = metaJson.mime_type || "image/jpeg";
                 const imgRes   = await fetch(metaJson.url, { headers: { Authorization: `Bearer ${WA_TOKEN}` } });
-                const base64   = Buffer.from(await imgRes.arrayBuffer()).toString("base64");
-                dataUrl = `data:${mime};base64,${base64}`;
+                const arrayBuf = await imgRes.arrayBuffer();
+
+                // Upload to Vercel Blob so the URL is permanent and doesn't bloat localStorage.
+                // WhatsApp media URLs expire after 24 h; base64 gets stripped by sync-store.
+                if (process.env.BLOB_READ_WRITE_TOKEN) {
+                    const ext  = mime.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
+                    const blob = await put(
+                        `wa-products/${from.replace(/\D/g, "")}/${Date.now()}.${ext}`,
+                        arrayBuf,
+                        { access: "public", contentType: mime }
+                    );
+                    dataUrl = blob.url;
+                } else {
+                    // Fallback to base64 if Blob token is absent (dev without env)
+                    dataUrl = `data:${mime};base64,${Buffer.from(arrayBuf).toString("base64")}`;
+                }
             } catch (downloadErr) {
                 console.error("[ZEMA] image download failed", downloadErr);
                 await WhatsAppService.sendMessage(from, "⚠️ Couldn't download your image. Please try again.");
