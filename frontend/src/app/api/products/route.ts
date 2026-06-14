@@ -168,7 +168,8 @@ export async function POST(req: Request) {
         // Instead, do a targeted update on just the image fields.
         if (body._imageOnly && body.id) {
             const imageUpdate: any = {};
-            if (body.image_url) imageUpdate.imageUrl = body.image_url;
+            const isCleanUrl = (u?: string) => u && !u.includes('placeholder') && !u.includes('wikimedia.org') && !u.includes('wikipedia.org');
+            if (isCleanUrl(body.image_url)) imageUpdate.imageUrl = body.image_url;
             if (body.images && Array.isArray(body.images)) imageUpdate.images = body.images;
             
             if (Object.keys(imageUpdate).length === 0) {

@@ -431,6 +431,15 @@ export default function CatalogControl() {
                 editSubcategory || editingProduct.subcategory || ""
             );
 
+            const finalImageUrl = wrapInCDN(
+                (editImage && !editImage.includes('placeholder'))
+                    ? editImage
+                    : (editingProduct.image_url && !editingProduct.image_url.includes('placeholder'))
+                        ? editingProduct.image_url
+                        : editImage || editingProduct.image_url
+            );
+            const finalImages = editImages.filter(Boolean).map(wrapInCDN);
+
             await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
                 category: normCat as ProductCategory,
@@ -441,21 +450,32 @@ export default function CatalogControl() {
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice.replace(/,/g, '')) || editingProduct.price,
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
-                image_url: wrapInCDN(
-                    (editImage && !editImage.includes('placeholder'))
-                        ? editImage
-                        : (editingProduct.image_url && !editingProduct.image_url.includes('placeholder'))
-                            ? editingProduct.image_url
-                            : editImage || editingProduct.image_url
-                ),
+                image_url: finalImageUrl,
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages.filter(Boolean).map(wrapInCDN),
+                images: finalImages,
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
                 financing_config: editFinancingConfig,
                 slug: editSlug,
                 variants: editVariants
             });
+
+            // Belt-and-suspenders: fire a targeted image-only POST so the image
+            // URL always lands in DB even if the full product upsert loses the
+            // updatedAt race against syncWithDB (DB timestamp slightly > local).
+            if (finalImageUrl && !finalImageUrl.includes('placeholder')) {
+                fetch("/api/products", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: editingProduct.id,
+                        image_url: finalImageUrl,
+                        images: finalImages.length ? finalImages : undefined,
+                        _imageOnly: true,
+                    }),
+                }).catch(() => {});
+            }
+
             setEditingProduct(null);
         }
     };

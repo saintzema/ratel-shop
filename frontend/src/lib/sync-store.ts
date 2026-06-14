@@ -546,7 +546,17 @@ class DataSyncServiceService {
                                 const dbTime = new Date(dbProduct.updated_at).getTime();
                                 const localTime = new Date(localVersion.updated_at || 0).getTime();
                                 if (dbTime >= localTime) {
-                                    merged.set(dbProduct.id, dbProduct);
+                                    // DB wins, but if the DB mapper stripped the image to placeholder
+                                    // (e.g. original WhatsApp base64 still in DB) while local has a
+                                    // real URL the admin just saved, keep the local image_url so the
+                                    // admin's edit doesn't get silently reverted.
+                                    const dbIsPlaceholder = !dbProduct.image_url || dbProduct.image_url.includes('placeholder');
+                                    const localHasReal = localVersion.image_url && !localVersion.image_url.includes('placeholder');
+                                    if (dbIsPlaceholder && localHasReal) {
+                                        merged.set(dbProduct.id, { ...dbProduct, image_url: localVersion.image_url });
+                                    } else {
+                                        merged.set(dbProduct.id, dbProduct);
+                                    }
                                 } else {
                                     merged.set(dbProduct.id, localVersion);
                                 }
