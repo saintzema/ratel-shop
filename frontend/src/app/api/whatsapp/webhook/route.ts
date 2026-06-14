@@ -557,11 +557,17 @@ export async function POST(req: Request) {
         // SELLER DIRECT REPLY (negotiation counter/accept/reject)
         // ─────────────────────────────────────────────────────────────────────
         const sellerSession = await db.whatsAppNegotiationSession.findFirst({
-            where: { sellerPhone: normalizedFrom },
+            where: {
+                OR: [
+                    { sellerPhone: normalizedFrom },
+                    { sellerPhone: `+${normalizedFrom}` },
+                    { sellerPhone: from },
+                ],
+            },
             orderBy: { updatedAt: "desc" },
         });
         if (sellerSession) {
-            const upperText = text.toUpperCase();
+            const upperText = text.toUpperCase().trim();
             if (upperText.startsWith("COUNTER") || upperText === "ACCEPT" || upperText === "REJECT") {
                 await handleSellerDirectReply(from, text, sellerSession);
                 return NextResponse.json({ ok: true });
@@ -570,17 +576,22 @@ export async function POST(req: Request) {
 
         // ─────────────────────────────────────────────────────────────────────
         // CUSTOMER NEGOTIATION CONTEXT
+        // Phone numbers may be stored with or without + prefix; check all variants.
         // ─────────────────────────────────────────────────────────────────────
         const negotiation = await db.negotiationRequest.findFirst({
             where: {
-                OR: [{ customerWhatsapp: normalizedFrom }, { customerWhatsapp: from }],
+                OR: [
+                    { customerWhatsapp: normalizedFrom },
+                    { customerWhatsapp: `+${normalizedFrom}` },
+                    { customerWhatsapp: from },
+                ],
                 status: { in: ["pending", "countered"] },
             },
             orderBy: { createdAt: "desc" },
             include: { product: { select: { name: true, price: true } } },
         });
         if (negotiation) {
-            const upperText = text.toUpperCase();
+            const upperText = text.toUpperCase().trim();
             if (upperText === "ACCEPT") {
                 await db.negotiationRequest.update({ where: { id: negotiation.id }, data: { status: "accepted" } });
                 await WhatsAppService.sendCTALink(from,
@@ -593,10 +604,24 @@ export async function POST(req: Request) {
                 await WhatsAppService.sendMessage(from, `Negotiation for *${negotiation.product.name}* closed.`);
                 return NextResponse.json({ ok: true });
             }
-            const price = parseFloat(text.replace(/[^0-9.]/g, ""));
-            if (!isNaN(price) && price > 0) {
+            const price = parseFloat(text.replace(/[^0-9.,]/g, "").replace(/,/g, ""));
+            if (!isNaN(price) && price > 100) {
                 await db.negotiationRequest.update({ where: { id: negotiation.id }, data: { proposedPrice: price, status: "pending" } });
-                await WhatsAppService.sendMessage(from, `📝 Offer updated to *₦${price.toLocaleString()}* for *${negotiation.product.name}*. Seller notified!`);
+                // Notify seller about the updated offer
+                const negSeller = await db.seller.findUnique({
+                    where: { id: negotiation.sellerId },
+                    select: { whatsappNumber: true, businessName: true },
+                }).catch(() => null);
+                if (negSeller?.whatsappNumber) {
+                    await WhatsAppService.sendMessage(negSeller.whatsappNumber,
+                        `🤝 *Counter-offer on FairPrice!*\n\n` +
+                        `📦 ${negotiation.product.name}\n` +
+                        `💰 New offer: ₦${price.toLocaleString()}\n\n` +
+                        `Reply *ACCEPT*, *REJECT*, or *COUNTER [price]* to respond.\n` +
+                        `Negotiation ID: ${negotiation.id}`
+                    );
+                }
+                await WhatsAppService.sendMessage(from, `📝 Counter-offer of *₦${price.toLocaleString()}* sent for *${negotiation.product.name}*. Seller notified!`);
                 return NextResponse.json({ ok: true });
             }
         }
@@ -940,16 +965,18 @@ async function startWhatsAppNegotiation(
     });
 
     const proposed = Math.round(product.price * 0.9);
+    // Store phone in digits-only format so all query variants match
+    const normalizedBuyerPhone = WhatsAppService.normalizePhoneNumber(from);
 
     const neg = await db.negotiationRequest.create({
         data: {
-            productId:       product.id,
-            customerId:      waUser.id,
-            customerName:    displayName,
-            sellerId:        product.sellerId,
-            proposedPrice:   proposed,
-            status:          "pending",
-            customerWhatsapp: from.startsWith("+") ? from : `+${from}`,
+            productId:        product.id,
+            customerId:       waUser.id,
+            customerName:     displayName,
+            sellerId:         product.sellerId,
+            proposedPrice:    proposed,
+            status:           "pending",
+            customerWhatsapp: normalizedBuyerPhone,
         } as any,
     });
 
@@ -960,13 +987,14 @@ async function startWhatsAppNegotiation(
         `${SITE}/product/${product.id}/${product.slug || ""}`
     );
 
-    // Notify seller via WhatsApp if they have a number set
+    // Notify seller via WhatsApp and create a session so their ACCEPT/REJECT/COUNTER works
     try {
         const seller = await db.seller.findUnique({
             where: { id: product.sellerId },
             select: { whatsappNumber: true, businessName: true },
         });
         if (seller?.whatsappNumber) {
+            const normalizedSellerPhone = WhatsAppService.normalizePhoneNumber(seller.whatsappNumber);
             await WhatsAppService.sendMessage(seller.whatsappNumber,
                 `🤝 *New negotiation on FairPrice!*\n\n` +
                 `📦 ${product.name}\n` +
@@ -975,6 +1003,19 @@ async function startWhatsAppNegotiation(
                 `Reply *ACCEPT*, *REJECT*, or *COUNTER [price]* to respond.\n` +
                 `Negotiation ID: ${neg.id}`
             );
+            // Create/upsert seller session so their next reply is routed correctly
+            if (normalizedSellerPhone) {
+                await db.whatsAppNegotiationSession.upsert({
+                    where: { sellerPhone_negotiationId: { sellerPhone: normalizedSellerPhone, negotiationId: neg.id } },
+                    update: { updatedAt: new Date(), customerPhone: normalizedBuyerPhone },
+                    create: {
+                        sellerId:      product.sellerId,
+                        negotiationId: neg.id,
+                        sellerPhone:   normalizedSellerPhone,
+                        customerPhone: normalizedBuyerPhone,
+                    },
+                });
+            }
         }
     } catch { /* seller notification is best-effort */ }
 }
