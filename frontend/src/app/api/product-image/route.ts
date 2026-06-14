@@ -139,34 +139,10 @@ async function searchProductImage(query: string, category?: string): Promise<{ i
         }
     }
 
-    // ─── Strategy 3: Wikipedia free fallback ───
-    try {
-        const searchRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`
-        );
-        if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            const title = searchData?.query?.search?.[0]?.title;
-            if (title) {
-                const imgRes = await fetch(
-                    `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&format=json&pithumbsize=1000`
-                );
-                if (imgRes.ok) {
-                    const imgData = await imgRes.json();
-                    const pages = imgData?.query?.pages;
-                    if (pages) {
-                        const pageId = Object.keys(pages)[0];
-                        const source = pages[pageId]?.thumbnail?.source;
-                        if (source) {
-                            return { imageUrl: source, source: "wikipedia" };
-                        }
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Wikipedia image fallback failed:", e);
-    }
+    // Wikipedia fallback intentionally removed — Wikipedia's article search returns
+    // encyclopaedia articles, not product images, and frequently matches unrelated
+    // pages (e.g. searching "2023 Changan UNI-T" returned a plane photo).
+    // When Serper and Google CSE both fail, we surface no image rather than a wrong one.
 
     return { imageUrl: null };
 }

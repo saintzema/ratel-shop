@@ -60,15 +60,29 @@ export async function GET(req: Request) {
         });
     }
 
-    // Full proxy mode (for CORS-blocked sources or GMC feed images)
+    // Full proxy mode — fetch with realistic browser headers to pass hotlink protection
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8_000);
 
+        // Derive the origin of the image URL to use as Referer (helps with hotlink checks)
+        let referer = imageUrl;
+        try {
+            const parsed = new URL(imageUrl);
+            referer = `${parsed.protocol}//${parsed.host}/`;
+        } catch { /* malformed URL — use full URL as Referer */ }
+
         const upstream = await fetch(imageUrl, {
             headers: {
-                "User-Agent": "Mozilla/5.0 (compatible; FairPrice/1.0; +https://www.fairprice.ng)",
-                "Accept": "image/*,*/*;q=0.8",
+                // Use a generic browser UA instead of the branded FairPrice/1.0 string —
+                // many CDNs/WordPress sites return 403 for custom UA strings.
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": referer,
+                "Sec-Fetch-Dest": "image",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "cross-site",
             },
             signal: controller.signal,
         });
@@ -81,6 +95,14 @@ export async function GET(req: Request) {
         }
 
         const contentType = upstream.headers.get("content-type") || "image/jpeg";
+
+        // Guard: if the server returned HTML/text instead of an image, serve placeholder.
+        // Happens when sites return an error page with a 200 status (soft 404).
+        if (!contentType.startsWith("image/") && !contentType.startsWith("application/octet-stream")) {
+            return NextResponse.redirect(new URL(PLACEHOLDER, req.url), {
+                headers: { "Cache-Control": "no-store, must-revalidate" },
+            });
+        }
 
         // Stream raw bytes — no Sharp, no CPU cost
         return new NextResponse(upstream.body, {
