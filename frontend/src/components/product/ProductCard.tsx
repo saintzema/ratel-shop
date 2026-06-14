@@ -121,7 +121,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
             <div onClick={() => router.push(getProductUrl(product.id, product.name, product.slug))} className="flex flex-col flex-1">
                 <div
-                    className="relative aspect-square object-cover bg-muted"
+                    className="relative aspect-square w-full overflow-hidden flex-shrink-0 bg-muted"
                     onClick={handleDoubleTap}
                 >
                     {/* Bottom Left Badges (Sponsored & Premium Seller) */}

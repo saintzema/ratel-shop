@@ -68,6 +68,7 @@ function HomeContent() {
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
   const [banners, setBanners] = useState<any[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [heroSliderPaused, setHeroSliderPaused] = useState(false);
   const [heroConfig, setHeroConfig] = useState<any>(null);
   // Geo-aware trending label — detected from Vercel's IP header, session-cached
   const [userGeo, setUserGeo] = useState<{ name: string; flag: string } | null>(null);
@@ -178,14 +179,14 @@ function HomeContent() {
     };
   }, [searchParams]); // Only searchParams affects the content (referrals)
 
-  // Slideshow timer
+  // Slideshow timer — pauses on hero hover/tap, resumes on leave/re-tap
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || heroSliderPaused) return;
     const timer = setInterval(() => {
       setCurrentBannerIndex(prev => (prev + 1) % banners.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, [banners]);
+  }, [banners, heroSliderPaused]);
 
   // Geo detection — runs once per session, result cached in sessionStorage
   useEffect(() => {
@@ -285,7 +286,12 @@ function HomeContent() {
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
-                <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200">
+                <div
+                  className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200"
+                  onMouseEnter={() => setHeroSliderPaused(true)}
+                  onMouseLeave={() => setHeroSliderPaused(false)}
+                  onTouchStart={() => setHeroSliderPaused(p => !p)}
+                >
                   <div className="absolute inset-0">
                     <AnimatePresence initial={false}>
                       <motion.div
@@ -336,14 +342,24 @@ function HomeContent() {
                     </Button>
                   </div>
 
-                  {/* Carousel Indicators (Green Slider) */}
-                  <div className="absolute top-4 md:top-6 right-4 md:right-6 z-20 flex gap-1.5 md:gap-2">
+                  {/* Carousel Indicators — clickable, jumps to that slide */}
+                  <div className="absolute top-4 md:top-6 right-4 md:right-6 z-20 flex items-center gap-1.5 md:gap-2">
+                    {heroSliderPaused && (
+                      <div className="w-5 h-5 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mr-1">
+                        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
+                          <rect x="0" y="0" width="2.5" height="9" rx="1"/>
+                          <rect x="5.5" y="0" width="2.5" height="9" rx="1"/>
+                        </svg>
+                      </div>
+                    )}
                     {banners.map((_, idx) => (
-                      <div
+                      <button
                         key={idx}
+                        aria-label={`Go to slide ${idx + 1}`}
+                        onClick={() => { setCurrentBannerIndex(idx); setHeroSliderPaused(false); }}
                         className={cn(
-                          "h-1.5 md:h-2 rounded-full transition-all duration-300",
-                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40"
+                          "h-1.5 md:h-2 rounded-full transition-all duration-300 cursor-pointer hover:opacity-100",
+                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40 hover:bg-white/70"
                         )}
                       />
                     ))}
