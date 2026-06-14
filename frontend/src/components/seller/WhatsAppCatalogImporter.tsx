@@ -42,8 +42,7 @@ export function WhatsAppCatalogImporter() {
         setProducts(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
     };
 
-    // Compress an uploaded image to a small JPEG data URL (max 500px, q0.6) so it
-    // can be stored inline without blowing localStorage/DB limits.
+    // Compress and upload an image to Vercel Blob (falls back to base64 if Blob unavailable).
     const compressImage = (file: File, callback: (url: string) => void) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -56,7 +55,25 @@ export function WhatsAppCatalogImporter() {
                 canvas.width = width;
                 canvas.height = height;
                 canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
-                callback(canvas.toDataURL("image/jpeg", 0.6));
+                canvas.toBlob(async (blob) => {
+                    if (blob) {
+                        try {
+                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            const fd = new FormData();
+                            fd.append("file", blob, `product-${Date.now()}.jpg`);
+                            const res = await fetch("/api/upload", {
+                                method: "POST",
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                body: fd,
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.url) { callback(data.url); return; }
+                            }
+                        } catch { /* fall through to base64 */ }
+                    }
+                    callback(canvas.toDataURL("image/jpeg", 0.6));
+                }, "image/jpeg", 0.6);
             };
             img.src = e.target?.result as string;
         };

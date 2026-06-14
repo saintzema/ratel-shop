@@ -171,6 +171,7 @@ export default function ProductDetailPage() {
     const [aiReviews, setAiReviews] = useState<any[]>([]);
     const [showQrModal, setShowQrModal] = useState(false);
     const [isDeferredReady, setIsDeferredReady] = useState(false);
+    const [fetchedSellerLogoUrl, setFetchedSellerLogoUrl] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -227,6 +228,25 @@ export default function ProductDetailPage() {
         };
         getFullDetails();
     }, [product, isFetchingFull, mounted, decodedId]);
+
+    // Direct seller fetch when localStorage doesn't have the seller's logo yet.
+    // This ensures cross-device avatar display without waiting for a full sync cycle.
+    useEffect(() => {
+        if (!mounted || !product?.seller_id) return;
+        const cachedSeller = DataSyncService.getSellers().find((s: any) => s.id === product.seller_id);
+        if (cachedSeller?.logo_url && !cachedSeller.logo_url.includes('placeholder')) return;
+        let cancelled = false;
+        fetch(`/api/sellers/${encodeURIComponent(product.seller_id)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!cancelled && data && (data.logoUrl || data.logo_url)) {
+                    const url = data.logo_url || data.logoUrl;
+                    if (url && !url.includes('placeholder')) setFetchedSellerLogoUrl(url);
+                }
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [mounted, product?.seller_id]);
 
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
@@ -421,7 +441,10 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     }
 
     let seller = allSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
-    const logoToUse = seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : null;
+    const resolvedLogoUrl = seller?.logo_url && !seller.logo_url.includes('placeholder')
+        ? seller.logo_url
+        : fetchedSellerLogoUrl || null;
+    const logoToUse = resolvedLogoUrl ? getProxiedImageUrl(resolvedLogoUrl) : null;
 
     // Fallback for global sourcing products if global-partners isn't in older localStorage DataSyncService caches
     if (!seller && product?.seller_id === "global-partners") {

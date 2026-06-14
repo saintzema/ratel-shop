@@ -400,17 +400,31 @@ export default function KYCOnboarding() {
                                         <p className="text-[10px] font-bold text-brand-green-600 mt-2 cursor-pointer hover:underline" onClick={() => logoInputRef.current?.click()}>
                                             {logoFile ? "Change Business Logo" : "Upload Business Logo"}
                                         </p>
-                                        <input 
-                                            type="file" 
-                                            ref={logoInputRef} 
-                                            className="hidden" 
-                                            accept="image/*" 
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    const reader = new FileReader();
-                                                    reader.onload = (ev) => setLogoFile(ev.target?.result as string);
-                                                    reader.readAsDataURL(e.target.files[0]);
-                                                }
+                                        <input
+                                            type="file"
+                                            ref={logoInputRef}
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                try {
+                                                    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                                                    const fd = new FormData();
+                                                    fd.append("file", file, file.name || "logo.jpg");
+                                                    const res = await fetch("/api/upload", {
+                                                        method: "POST",
+                                                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                                        body: fd,
+                                                    });
+                                                    if (res.ok) {
+                                                        const data = await res.json();
+                                                        if (data.url) { setLogoFile(data.url); return; }
+                                                    }
+                                                } catch { /* fall through to base64 */ }
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => setLogoFile(ev.target?.result as string);
+                                                reader.readAsDataURL(file);
                                             }}
                                         />
                                     </div>
