@@ -284,6 +284,11 @@ export async function POST(req: Request) {
         if (!body.description && body.description !== "") delete safeUpdate.description;
         if (!body.highlights?.length && !body._fromEditPage) delete safeUpdate.highlights;
         if (!body.images?.length && !body._fromEditPage) delete safeUpdate.images;
+        // Never overwrite a real image with a placeholder or an encyclopaedia image.
+        // Wikimedia/Wikipedia article thumbnails are never valid product images.
+        const isBadImageUrl = (u?: string) =>
+            !!u && (u.includes('placeholder') || u.includes('wikimedia.org') || u.includes('wikipedia.org'));
+        if (isBadImageUrl(safeUpdate.imageUrl)) delete safeUpdate.imageUrl;
         // Always keep specs (even if empty) since they may be intentionally cleared
 
         const product = await (db.product as any).upsert({

@@ -240,7 +240,7 @@ export default function CatalogControl() {
             const lower = currentImg.toLowerCase();
             
             // Comprehensive broken-image detection
-            const isBroken = 
+            const isBroken =
                 currentImg === "" ||
                 currentImg === "/placeholder.png" ||
                 lower.includes('placeholder') ||
@@ -250,7 +250,11 @@ export default function CatalogControl() {
                 lower.includes('n/a') ||
                 currentImg.startsWith('/assets/images') ||
                 // Catch proxied placeholders like /api/image-cdn?url=...placeholder...
-                (currentImg.includes('/api/image-cdn') && lower.includes('placeholder'));
+                (currentImg.includes('/api/image-cdn') && lower.includes('placeholder')) ||
+                // Wikipedia/Wikimedia are encyclopaedia article images — never real product photos
+                lower.includes('upload.wikimedia.org') ||
+                lower.includes('commons.wikimedia.org') ||
+                lower.includes('en.wikipedia.org');
             
             if (isBroken) {
                 scanned++;
@@ -372,8 +376,11 @@ export default function CatalogControl() {
             if (geminiRes.ok) {
                 const geminiData = await geminiRes.json();
                 if (geminiData.image_url && geminiData.image_url.startsWith('http')) {
-                    setEditImage(wrapInCDN(geminiData.image_url));
-                    return;
+                    const wrapped = wrapInCDN(geminiData.image_url);
+                    if (!wrapped.includes('placeholder')) {
+                        setEditImage(wrapped);
+                        return;
+                    }
                 }
             }
 
@@ -409,7 +416,13 @@ export default function CatalogControl() {
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice.replace(/,/g, '')) || editingProduct.price,
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
-                image_url: wrapInCDN(editImage || editingProduct.image_url),
+                image_url: wrapInCDN(
+                    (editImage && !editImage.includes('placeholder'))
+                        ? editImage
+                        : (editingProduct.image_url && !editingProduct.image_url.includes('placeholder'))
+                            ? editingProduct.image_url
+                            : editImage || editingProduct.image_url
+                ),
                 external_url: editExternalUrl || editingProduct.external_url,
                 images: editImages.filter(Boolean).map(wrapInCDN),
                 financing_available: editFinancingAvailable,
