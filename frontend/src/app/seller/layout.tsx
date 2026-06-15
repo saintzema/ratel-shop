@@ -12,7 +12,7 @@ import {
     Bell,
     Menu,
     X,
-    Wallet,
+    Landmark,
     ChevronRight,
     ChevronDown,
     Settings,
@@ -21,7 +21,8 @@ import {
     Users,
     Tag,
     Blocks,
-    Store
+    Store,
+    QrCode
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -77,9 +78,15 @@ export default function SellerLayout({
                 const unreadCount = convs.reduce((acc, c) => acc + (c.unread_count[seller.id] || 0), 0);
                 setUnreadMessages(unreadCount);
 
-                // Load all stores owned by this user
+                // Load all stores owned by THIS user only. Guard against empty values —
+                // matching on `undefined === undefined` previously pulled in every seller
+                // that lacked an owner_email/user_id (other people's stores).
                 const allSellers = DataSyncService.getSellers();
-                const myStores = allSellers.filter(s => s.user_id === seller.user_id || s.owner_email === seller.owner_email);
+                const myStores = allSellers.filter(s =>
+                    s.id === seller.id ||
+                    (!!seller.user_id && s.user_id === seller.user_id) ||
+                    (!!seller.owner_email && s.owner_email === seller.owner_email)
+                );
                 setAllUserStores(myStores);
 
                 // Check for plan expiry and send notifications/deactivate if needed
@@ -194,6 +201,7 @@ export default function SellerLayout({
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);
+
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("sync-store-update", loadData);
@@ -214,7 +222,8 @@ export default function SellerLayout({
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Wallet & Payouts", href: "/seller/wallet", icon: Wallet },
+        { label: "Balance & Settlements", href: "/seller/balance", icon: Landmark },
+        { label: "QR Payments", href: "/seller/dashboard/payments", icon: QrCode },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
     ];
@@ -255,8 +264,10 @@ export default function SellerLayout({
                             onClick={() => setIsSwitchModalOpen(true)}
                             className="w-full flex items-center gap-3 rounded-xl p-2 -m-2 hover:bg-gray-50 transition-colors cursor-pointer group"
                         >
-                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
-                                {currentSeller.business_name.charAt(0).toUpperCase()}
+                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
+                                {currentSeller.logo_url ? (
+                                    <img src={currentSeller.logo_url} alt="" className="h-full w-full object-cover" />
+                                ) : (currentSeller.business_name || "?").charAt(0).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                                 <h2 className="font-bold text-sm text-gray-900 truncate tracking-tight px-1">{currentSeller.business_name}</h2>
@@ -268,9 +279,9 @@ export default function SellerLayout({
                                         </div>
                                     )}
                                     {currentSeller.subscription_plan && currentSeller.subscription_plan !== "Starter" && (
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            <span className="text-[11px] text-amber-600 font-bold tracking-tight">Premium Seller</span>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <Crown className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                            <span className="text-[11px] text-amber-600 font-bold tracking-tight uppercase">Premium Seller</span>
                                         </div>
                                     )}
                                 </div>
@@ -352,13 +363,17 @@ export default function SellerLayout({
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="relative h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer p-0 overflow-hidden">
-                                        {currentSeller.business_name.charAt(0).toUpperCase()}
+                                        {currentSeller.logo_url ? (
+                                            <img src={currentSeller.logo_url} alt="" className="h-full w-full object-cover rounded-2xl" />
+                                        ) : (currentSeller.business_name || "?").charAt(0).toUpperCase()}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 border-gray-100 shadow-xl bg-white/95 backdrop-blur-xl">
                                     <DropdownMenuLabel className="font-bold text-gray-900 px-3 py-2">
                                         {currentSeller.business_name}
-                                        <div className="text-[11px] text-gray-500 font-medium lowercase mt-0.5" >{currentSeller.owner_email || `ID: ${currentSeller.id}`}</div>
+                                        <div className="text-[11px] text-gray-500 font-medium lowercase mt-0.5">
+                                            {currentSeller.owner_email || (() => { try { return JSON.parse(typeof window !== "undefined" ? localStorage.getItem("fp_user") || "" : "")?.email; } catch { return null; } })() || currentSeller.id}
+                                        </div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">
@@ -368,9 +383,9 @@ export default function SellerLayout({
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">
-                                        <Link href="/seller/dashboard/payouts" className="w-full flex items-center font-medium">
-                                            <Wallet className="mr-3 h-4 w-4 text-gray-400" />
-                                            Settings / Setup Payout
+                                        <Link href="/seller/balance" className="w-full flex items-center font-medium">
+                                            <Landmark className="mr-3 h-4 w-4 text-gray-400" />
+                                            Balance & Settlements
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
@@ -396,7 +411,15 @@ export default function SellerLayout({
                                     <DropdownMenuItem
                                         className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium text-xs"
                                         onClick={() => {
-                                            if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                            const limits: Record<string, number> = {
+                                                "Starter": 1,
+                                                "Pro": 2,
+                                                "Growth": 3,
+                                                "Scale": 10
+                                            };
+                                            const currentLimit = limits[currentSeller?.subscription_plan || "Starter"] || 1;
+                                            
+                                            if (allUserStores.length >= currentLimit) {
                                                 router.push("/seller/settings/billing");
                                             } else {
                                                 router.push("/seller/onboarding");
@@ -434,10 +457,26 @@ export default function SellerLayout({
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-2 py-4 mt-2">
-                            {allUserStores.map((store) => (
+                            {allUserStores.map((store, index) => {
+                                const limits: Record<string, number> = {
+                                    "Starter": 1,
+                                    "Pro": 2,
+                                    "Growth": 3,
+                                    "Scale": 10
+                                };
+                                // Determine the highest plan across all user stores to avoid locking them out of a pro store if they are logged into a starter store
+                                const highestLimit = Math.max(...allUserStores.map(s => limits[s.subscription_plan || "Starter"] || 1));
+                                const isLocked = index >= highestLimit && currentSeller.id !== store.id;
+
+                                return (
                                 <button
                                     key={store.id}
                                     onClick={() => {
+                                        if (isLocked) {
+                                            setIsSwitchModalOpen(false);
+                                            router.push("/seller/settings/billing");
+                                            return;
+                                        }
                                         DataSyncService.loginSeller(store.id);
                                         setIsSwitchModalOpen(false);
                                         window.dispatchEvent(new Event("sync-store-update"));
@@ -447,7 +486,9 @@ export default function SellerLayout({
                                         "w-full flex items-center gap-4 p-3 rounded-2xl border transition-all text-left",
                                         currentSeller.id === store.id
                                             ? "border-emerald-500 bg-emerald-50 shadow-sm"
-                                            : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
+                                            : isLocked 
+                                                ? "border-gray-200 bg-gray-50 opacity-70 hover:border-gray-300"
+                                                : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
                                     )}
                                 >
                                     <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shrink-0">
@@ -461,18 +502,32 @@ export default function SellerLayout({
                                             {store.subscription_plan || "Starter"} Plan
                                         </p>
                                     </div>
-                                    {currentSeller.id === store.id && (
+                                    {isLocked ? (
+                                        <div className="bg-gray-200 text-gray-500 p-1 rounded-md shrink-0">
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            </svg>
+                                        </div>
+                                    ) : currentSeller.id === store.id ? (
                                         <div className="h-2 w-2 rounded-full bg-emerald-500 mr-2 shrink-0" />
-                                    )}
+                                    ) : null}
                                 </button>
-                            ))}
+                            )})}
 
                             <Button
                                 variant="outline"
                                 className="w-full mt-4 h-12 rounded-xl border-dashed border-2 font-bold text-gray-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors border-gray-200"
                                 onClick={() => {
                                     setIsSwitchModalOpen(false);
-                                    if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                    const limits: Record<string, number> = {
+                                        "Starter": 1,
+                                        "Pro": 2,
+                                        "Growth": 3,
+                                        "Scale": 10
+                                    };
+                                    const currentLimit = limits[currentSeller?.subscription_plan || "Starter"] || 1;
+                                    
+                                    if (allUserStores.length >= currentLimit) {
                                         router.push("/seller/settings/billing");
                                     } else {
                                         router.push("/seller/onboarding");

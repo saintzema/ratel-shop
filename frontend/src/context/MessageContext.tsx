@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { DataSyncService } from "@/lib/sync-store";
+import { playMessageReceiveSound } from "@/lib/audio";
 
 // ─── Types ───────────────────────────────────────────────
 export interface ChatMessage {
@@ -32,6 +33,7 @@ export interface Conversation {
     productName: string;
     productImage?: string;
     storeName?: string;
+    storeLogo?: string;
     messages: ChatMessage[];
     unreadCount: number;
     lastUpdated: string;
@@ -51,7 +53,7 @@ interface MessageContextType {
     closeMessageBox: () => void;
     dismissNotification: () => void;
     getConversation: (orderId: string) => Conversation | undefined;
-    startConversation: (orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string) => string;
+    startConversation: (orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string, storeLogo?: string) => string;
 }
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
@@ -104,6 +106,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                         if (newMsg.sender !== "user") {
                             setPendingNotification(newMsg);
                             setPendingConversationId(conv.id);
+                            playMessageReceiveSound(); // soft Apple-style chime on real-time inbound message
                         }
                     }
                 }
@@ -160,6 +163,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 if (typeof window !== "undefined") {
                     localStorage.setItem("fp_messages", JSON.stringify(updated));
                 }
+                playMessageReceiveSound(); // chime on real-time negotiation response
                 return updated;
             });
         };
@@ -458,7 +462,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         setPendingConversationId(orderId);
     }, []);
 
-    const startConversation = useCallback((orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string) => {
+    const startConversation = useCallback((orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string, storeLogo?: string) => {
         const existing = conversations.find(c => c.orderId === orderId);
         if (existing) {
             if (initialMessage) {
@@ -481,6 +485,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             productName,
             productImage,
             storeName,
+            storeLogo,
             messages: newMsg ? [newMsg] : [],
             unreadCount: 0,
             lastUpdated: new Date().toISOString()

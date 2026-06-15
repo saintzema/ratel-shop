@@ -1,13 +1,7 @@
 
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import prisma from "../../frontend/src/lib/prisma";
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
-    }
-  }
-});
 
 /**
  * ADOPTION MAP: Maps old common ID patterns to our new 13 core accounts
@@ -64,7 +58,7 @@ async function adoptOrphanedData() {
           sellerId: newSellerId
         }
       });
-      totalRevenueAdopted += Number(order.totalAmount);
+      totalRevenueAdopted += Number(order.amount);
     }
 
     // 4. Adopt Negotiations

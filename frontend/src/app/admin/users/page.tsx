@@ -44,10 +44,21 @@ export default function UserDirectory() {
     const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
     const [deleteLoading, setDeleteLoading] = useState(false);
 
+    // Edit State
+    const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [editFormData, setEditFormData] = useState({
+        display_name: "",
+        business_name: "",
+        owner_email: ""
+    });
+    const [editLoading, setEditLoading] = useState(false);
+
     const [loading, setLoading] = useState(true);
 
-    // Bulk Action State
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [isBroadcastDialogOpen, setIsBroadcastDialogOpen] = useState(false);
+    const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", link: "/", sendViaWhatsapp: false });
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -215,12 +226,27 @@ export default function UserDirectory() {
             return;
         }
         setDeleteLoading(true);
+
+        const performDelete = async (method: string) => {
+            const endpoint = method === "DELETE" ? `/api/users/${deletingUser.id}` : `/api/sellers/${deletingUser.id}`;
+            const options: RequestInit = { method };
+            if (method === "POST") {
+                options.headers = { "Content-Type": "application/json" };
+                options.body = JSON.stringify({ action: "delete" });
+            }
+            return fetch(endpoint, options);
+        };
+
         try {
-            // Try API cascade delete first
-            const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
-            const data = await res.json();
+            let res = await performDelete("DELETE");
+            
+            // Fallback for 405 Method Not Allowed
+            if (res.status === 405) {
+                res = await performDelete("POST");
+            }
 
             if (!res.ok) {
+                const data = await res.json();
                 alert(`Delete failed: ${data.error || "Server error"}`);
                 setDeleteLoading(false);
                 return;
@@ -237,6 +263,109 @@ export default function UserDirectory() {
             setDeleteLoading(false);
             setDeletingUser(null);
             setDeleteConfirmEmail("");
+        }
+    };
+
+    const handleBulkBroadcast = async () => {
+        if (!broadcastForm.title.trim() || !broadcastForm.body.trim() || selectedUserIds.length === 0) return;
+        
+        setIsBroadcasting(true);
+        
+        try {
+            // If WhatsApp is selected, trigger backend endpoint
+            if (broadcastForm.sendViaWhatsapp) {
+                // Get the actual phone numbers for the selected users
+                const targetUsers = participants.filter(p => selectedUserIds.includes(p.id));
+                const phoneNumbers = targetUsers
+                    .map(p => p.phone || p.whatsapp || p.whatsapp_number)
+                    .filter(Boolean); // Keep only those with numbers
+
+                if (phoneNumbers.length > 0) {
+                    await fetch('/api/whatsapp/broadcast', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: `*${broadcastForm.title}*\n\n${broadcastForm.body}\n\n🔗 ${broadcastForm.link}`,
+                            phoneNumbers
+                        })
+                    });
+                }
+            }
+
+            selectedUserIds.forEach(userId => {
+                // Add to notification history for each selected user
+                DataSyncService.addNotification({
+                    userId,
+                    type: "system",
+                    message: broadcastForm.body,
+                    link: broadcastForm.link,
+                });
+            });
+
+            // Dispatch global event for immediate online feedback
+            const event = new CustomEvent("fp-admin-broadcast", {
+                detail: { 
+                    title: broadcastForm.title, 
+                    body: broadcastForm.body, 
+                    link: broadcastForm.link,
+                    targetUserIds: selectedUserIds
+                }
+            });
+            window.dispatchEvent(event);
+
+            setIsBroadcasting(false);
+            setIsBroadcastDialogOpen(false);
+            setBroadcastForm({ title: "", body: "", link: "/", sendViaWhatsapp: false });
+            setSelectedUserIds([]);
+            alert(`Broadcast sent successfully to ${selectedUserIds.length} users.`);
+        } catch (error) {
+            console.error("Broadcast failed:", error);
+            alert("Failed to send broadcast. Please try again.");
+            setIsBroadcasting(false);
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingUser) return;
+        setEditLoading(true);
+        try {
+            const endpoint = editingUser.role === "seller" 
+                ? `/api/sellers/${editingUser.id}` 
+                : `/api/users/${editingUser.id}`;
+            
+            const res = await fetch(endpoint, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(editFormData)
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Update failed");
+            }
+
+            // Update local state
+            setParticipants(prev => prev.map(p => 
+                p.id === editingUser.id 
+                    ? { ...p, ...editFormData } 
+                    : p
+            ));
+            
+            // Also update localStorage if it's a seller
+            if (editingUser.role === "seller") {
+                DataSyncService.updateSeller(editingUser.id, {
+                    business_name: editFormData.business_name,
+                    owner_name: editFormData.display_name,
+                    owner_email: editFormData.owner_email
+                });
+            }
+
+            alert("User details updated successfully.");
+            setEditingUser(null);
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setEditLoading(false);
         }
     };
 
@@ -284,24 +413,35 @@ export default function UserDirectory() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">User Directory</h2>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">{participants.length} total accounts</p>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">
+                        {view === "all" ? `${participants.length} total accounts` :
+                         view === "sellers" ? `${participants.filter(p => p.role === "seller").length} sellers` :
+                         view === "buyers" ? `${participants.filter(p => p.role === "buyer" || (p.is_buyer && p.role !== "seller")).length} buyers` :
+                         `${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length} pending`}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="bg-white/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/50 shadow-sm flex gap-1">
-                        {(["all", "sellers", "buyers", "pending"] as const).map((v) => (
-                            <button
-                                key={v}
-                                onClick={() => setView(v)}
-                                className={cn(
-                                    "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
-                                    view === v
-                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
-                                        : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
-                                )}
-                            >
-                                {v === "pending" ? `⏳ Pending (${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length})` : v}
-                            </button>
-                        ))}
+                        {(["all", "sellers", "buyers", "pending"] as const).map((v) => {
+                            const count = v === "all" ? participants.length
+                                : v === "sellers" ? participants.filter(p => p.role === "seller").length
+                                : v === "buyers" ? participants.filter(p => p.role === "buyer" || (p.is_buyer && p.role !== "seller")).length
+                                : participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length;
+                            return (
+                                <button
+                                    key={v}
+                                    onClick={() => setView(v)}
+                                    className={cn(
+                                        "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
+                                        view === v
+                                            ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
+                                            : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
+                                    )}
+                                >
+                                    {v === "pending" ? `⏳ ` : ""}{v} ({count})
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -322,6 +462,12 @@ export default function UserDirectory() {
                     <div className="px-6 py-4 border-b border-white/40 bg-emerald-50/70 z-20 flex items-center justify-between">
                         <h3 className="text-sm font-black text-emerald-900">{selectedUserIds.length} Users Selected</h3>
                         <div className="flex gap-2">
+                            <Button
+                                onClick={() => setIsBroadcastDialogOpen(true)}
+                                className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg"
+                            >
+                                <Mail className="mr-2 h-3.5 w-3.5" /> Send Broadcast
+                            </Button>
                             <Button
                                 onClick={async () => {
                                     if (confirm(`Suspend ${selectedUserIds.length} selected users?`)) {
@@ -487,6 +633,21 @@ export default function UserDirectory() {
                                                     View
                                                 </Button>
                                             </Link>
+                                            <Button 
+                                                size="sm" 
+                                                variant="ghost" 
+                                                className="h-8 rounded-xl text-xs font-bold text-blue-700 bg-white/50 border-[0.5px] border-white/60 hover:bg-white hover:shadow-lg transition-all"
+                                                onClick={() => {
+                                                    setEditingUser(p);
+                                                    setEditFormData({
+                                                        display_name: p.display_name || "",
+                                                        business_name: p.business_name || "",
+                                                        owner_email: p.owner_email || p.email || ""
+                                                    });
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
                                             {/* Approve: only for pending sellers */}
                                             {p.role === "seller" && (p.status === "pending" || p.kyc_status === "pending") && (
                                                 <Button
@@ -601,6 +762,146 @@ export default function UserDirectory() {
                     <div className="flex justify-end gap-3 mt-4">
                         <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingCommissionSeller(null)}>Cancel</Button>
                         <Button className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveCommission}>Save Rate</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Quick Edit Details Dialog */}
+            <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900">Edit {editingUser?.role === "seller" ? "Seller" : "User"} Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4 mt-2">
+                        <div className="grid gap-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Display Name</Label>
+                            <Input 
+                                value={editFormData.display_name} 
+                                onChange={e => setEditFormData({...editFormData, display_name: e.target.value})}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                            />
+                        </div>
+                        {editingUser?.role === "seller" && (
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Business Name</Label>
+                                <Input 
+                                    value={editFormData.business_name} 
+                                    onChange={e => setEditFormData({...editFormData, business_name: e.target.value})}
+                                    className="h-12 border-gray-200 rounded-xl font-medium"
+                                />
+                            </div>
+                        )}
+                        <div className="grid gap-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Email Address</Label>
+                            <Input 
+                                value={editFormData.owner_email} 
+                                onChange={e => setEditFormData({...editFormData, owner_email: e.target.value})}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                            />
+                        </div>
+                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 mt-2">
+                            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Administrator Note</p>
+                            <p className="text-xs text-amber-600 mt-1">Changing the email will affect the user's login credentials. Ensure the user is notified.</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingUser(null)}>Cancel</Button>
+                        <Button 
+                            className="h-12 px-6 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white" 
+                            onClick={handleSaveEdit}
+                            disabled={editLoading}
+                        >
+                            {editLoading ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Broadcast Dialog */}
+            <Dialog open={isBroadcastDialogOpen} onOpenChange={setIsBroadcastDialogOpen}>
+                <DialogContent className="sm:max-w-[500px] backdrop-blur-3xl bg-white/90">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900 text-xl flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                                <Mail className="w-5 h-5" />
+                            </div>
+                            Targeted Broadcast
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6 space-y-6">
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                            <p className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-1">Target Audience</p>
+                            <p className="text-sm font-medium text-indigo-700">
+                                Sending to <strong>{selectedUserIds.length} selected users</strong>. 
+                                This will appear in their notification history and as a live alert if they are online.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Alert Title</Label>
+                                <Input 
+                                    placeholder="e.g. Exclusive Offer Just For You! 🎁" 
+                                    value={broadcastForm.title}
+                                    onChange={e => setBroadcastForm({...broadcastForm, title: e.target.value})}
+                                    className="h-12 rounded-xl border-gray-200 focus:bg-white font-bold"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Message Body</Label>
+                                <textarea 
+                                    placeholder="Enter your personalized message here..." 
+                                    value={broadcastForm.body}
+                                    onChange={e => setBroadcastForm({...broadcastForm, body: e.target.value})}
+                                    rows={4}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/5 outline-none resize-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Destination Link</Label>
+                                <Input 
+                                    placeholder="/account/offers" 
+                                    value={broadcastForm.link}
+                                    onChange={e => setBroadcastForm({...broadcastForm, link: e.target.value})}
+                                    className="h-12 rounded-xl border-gray-200 focus:bg-white font-bold"
+                                />
+                            </div>
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={broadcastForm.sendViaWhatsapp}
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, sendViaWhatsapp: !prev.sendViaWhatsapp }))}
+                                    className={cn(
+                                        "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2",
+                                        broadcastForm.sendViaWhatsapp ? "bg-indigo-600" : "bg-gray-200"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                        broadcastForm.sendViaWhatsapp ? "translate-x-5" : "translate-x-0"
+                                    )} />
+                                </button>
+                                <Label className="text-sm font-bold text-gray-700 cursor-pointer" onClick={() => setBroadcastForm(prev => ({ ...prev, sendViaWhatsapp: !prev.sendViaWhatsapp }))}>
+                                    Send via WhatsApp
+                                    <p className="text-xs font-normal text-gray-500 mt-0.5">Deliver directly to their WhatsApp inbox if a phone number is linked.</p>
+                                </Label>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pb-2">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setIsBroadcastDialogOpen(false)}>Cancel</Button>
+                        <Button 
+                            className="h-12 px-8 rounded-xl font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-100 disabled:opacity-50"
+                            onClick={handleBulkBroadcast}
+                            disabled={isBroadcasting || !broadcastForm.title.trim() || !broadcastForm.body.trim()}
+                        >
+                            {isBroadcasting ? (
+                                <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                "Send Broadcast Now"
+                            )}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

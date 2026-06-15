@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     try {
         const user = await db.user.findUnique({
             where: { id: payload.userId },
-            include: { seller: true },
+            include: { sellers: true },
         });
 
         if (!user) {
@@ -24,10 +24,12 @@ export async function GET(request: Request) {
                 id: user.id,
                 name: user.name,
                 email: user.email,
+                whatsapp_number: (user as any).whatsappNumber ?? null,
                 role: user.role,
                 avatar_url: user.avatarUrl,
                 location: user.location,
                 birthday: user.birthday,
+                has_password: !!((user as any).password),
                 created_at: user.createdAt.toISOString(),
             },
         });

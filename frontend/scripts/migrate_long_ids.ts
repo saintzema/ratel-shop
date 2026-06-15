@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
+import prisma from "../src/lib/prisma";
 
-const prisma = new PrismaClient();
 
 async function migrate() {
     console.log("🚀 Starting One-Time Product ID Migration (Google Compliance)...");

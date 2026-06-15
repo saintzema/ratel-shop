@@ -4,12 +4,35 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
-import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
+import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins, Phone, Monitor, Shirt, Home, Sofa, Car, Gamepad2, Zap, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, ShoppingBag, Package } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
 import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl, isGroundingUrl } from "@/lib/utils";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    phones: <Phone className="h-10 w-10" />,
+    electronics: <Monitor className="h-10 w-10" />,
+    computing: <Monitor className="h-10 w-10" />,
+    fashion: <Shirt className="h-10 w-10" />,
+    home: <Home className="h-10 w-10" />,
+    furniture: <Sofa className="h-10 w-10" />,
+    cars: <Car className="h-10 w-10" />,
+    gaming: <Gamepad2 className="h-10 w-10" />,
+    energy: <Zap className="h-10 w-10" />,
+    baby: <Baby className="h-10 w-10" />,
+    sports: <Dumbbell className="h-10 w-10" />,
+    books: <BookOpen className="h-10 w-10" />,
+    tools: <Wrench className="h-10 w-10" />,
+    beauty: <Paintbrush className="h-10 w-10" />,
+    grocery: <ShoppingBag className="h-10 w-10" />,
+};
+
+function getCategoryIcon(category: string) {
+    const cat = category?.toLowerCase() || "";
+    return Object.entries(CATEGORY_ICONS).find(([key]) => cat.includes(key))?.[1] || <Package className="h-10 w-10" />;
+}
 
 export const SearchGridCard = ({
   product,
@@ -27,16 +50,37 @@ export const SearchGridCard = ({
   const [hydratedImage, setHydratedImage] = useState<string | null>(null);
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+        setIsVisible(true);
+        return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    
+    if (cardRef.current) observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    
     const isValidImg = (url: string | undefined | null) =>
       !!url &&
-      url.trim().length > 4 &&
+      url.trim().length > 10 && 
       !url.toLowerCase().includes('no photo') &&
       !url.toLowerCase().includes('no image') &&
       !url.toLowerCase().includes('n/a') &&
       !url.toLowerCase().includes('undefined') &&
       !url.toLowerCase().includes('placeholder') &&
+      !url.toLowerCase().includes('grounding-api-redirect') &&
       !isGroundingUrl(url);
 
     const bestExistingImage = isValidImg(product.image_url)
@@ -48,35 +92,43 @@ export const SearchGridCard = ({
     // Skip hydration if we already have a good image or already hydrated this product
     if (bestExistingImage || hydratedImage) return;
 
-    // Only hydrate global / AI-sourced products (local catalog products always have real images)
+    // Only hydrate global / AI-sourced products
     if (product._source !== "global" && product._source !== "cached") return;
 
     const q = encodeURIComponent(product.name);
     const cat = encodeURIComponent(product.category || '');
-    fetch(`/api/product-image?q=${q}&category=${cat}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (!data) return;
-        const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl || null;
-        if (!imageUrl) return;
-        setHydratedImage(imageUrl);
-        // Persist to sessionStorage so back/forward navigation keeps the image
-        try {
-          const cached = sessionStorage.getItem('fp_nav_search_results');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            const updated = parsed.map((p: any) =>
-              p.id === product.id
-                ? { ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] }
-                : p
-            );
-            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
-          }
-        } catch { /* quota */ }
-      })
-      .catch(() => {});
+    
+    // Use a small random delay to stagger the initial batch of visible requests
+    const staggerDelay = Math.random() * 800;
+    const t = setTimeout(() => {
+        fetch(`/api/product-image?q=${q}&category=${cat}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (!data) return;
+            const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl || null;
+            if (!imageUrl || !isValidImg(imageUrl)) return;
+            
+            setHydratedImage(imageUrl);
+            // Persist to sessionStorage so back/forward navigation keeps the image
+            try {
+              const cached = sessionStorage.getItem('fp_nav_search_results');
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                const updated = parsed.map((p: any) =>
+                  p.id === product.id
+                    ? { ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] }
+                    : p
+                );
+                sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+              }
+            } catch { /* quota */ }
+          })
+          .catch(() => {});
+    }, staggerDelay);
+    
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id]);
+  }, [product.id, isVisible]);
 
   const lastTapRef = useRef<number>(0);
   const handleDoubleTap = (e: React.MouseEvent) => {
@@ -129,14 +181,15 @@ export const SearchGridCard = ({
 
   return (
     <NextLink
-      href={getProductUrl(product.id, product.name)}
-      className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
+      ref={cardRef}
+      href={getProductUrl(product)}
+      className="bg-white rounded-2xl border border-gray-200 hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/10 active:scale-[0.97] active:opacity-80 transition-all duration-150 group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
         {/* Sponsored Badge */}
         {product.is_sponsored && (
           <div className="absolute bottom-3 left-3 z-30 bg-gray-900/90 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm border border-white/20 uppercase tracking-widest flex items-center gap-1.5">
-            <span className="h-1 w-1 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
+            <span className="h-1 w-1 rounded-full bg-red-400 animate-pulse" /> Sponsored
           </div>
         )}
 
@@ -188,10 +241,15 @@ export const SearchGridCard = ({
             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
             autoPlayOnHover={true}
           />
+        ) : imageError && !hydratedImage ? (
+          /* Show category icon while background hydration is running — no broken image ever */
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+            <div className="text-gray-200">{getCategoryIcon(product.category || '')}</div>
+          </div>
         ) : (
           <img
             src={(() => {
-              if (imageError) return "/assets/images/placeholder.png";
+              // Prefer freshly-hydrated image over original (which may have just failed)
               if (hydratedImage) return getProxiedImageUrl(hydratedImage);
               const rawUrl = product.image_url || product.images?.[0];
               return getProxiedImageUrl(rawUrl);
@@ -202,20 +260,30 @@ export const SearchGridCard = ({
               isImageLoading ? "opacity-0" : "opacity-100 z-10"
             )}
             loading="lazy"
-            onLoad={() => setIsImageLoading(false)}
-            onError={(e) => {
+            onLoad={() => { setIsImageLoading(false); setImageError(false); }}
+            onError={() => {
               setIsImageLoading(false);
-              if (!imageError) {
-                setImageError(true);
+              setImageError(true);
+              // Immediately trigger hydration on error (don't wait for mount stagger)
+              if (!hydratedImage && product.name) {
+                const q = encodeURIComponent(product.name);
+                const cat = encodeURIComponent(product.category || '');
+                fetch(`/api/product-image?q=${q}&category=${cat}`)
+                  .then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                    if (!data) return;
+                    const url = data.imageUrls?.[0] || data.imageUrl;
+                    if (url) { setHydratedImage(url); setImageError(false); }
+                  })
+                  .catch(() => {});
               }
-              e.currentTarget.src = "/assets/images/placeholder.png";
             }}
           />
         )}
 
       </div>
       <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-brand-green-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
+        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
           {product.name}
         </h4>
 
@@ -249,9 +317,9 @@ export const SearchGridCard = ({
                 </div>
             ) : (
                 <>
-                    <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
-                        <ShieldCheck className="h-2 w-2 text-emerald-600" />
-                        <span className="text-[8px] font-bold text-emerald-700">{product.seller_trust_score || 85}%</span>
+                    <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
+                        <ShieldCheck className="h-2 w-2 text-amber-600" />
+                        <span className="text-[8px] font-bold text-amber-700">{product.seller_trust_score || 85}%</span>
                     </div>
                     <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
                         {product.negotiation_rate || 80}% Accept

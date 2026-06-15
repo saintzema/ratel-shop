@@ -24,6 +24,7 @@ import {
     Edit,
     X,
     Plus,
+    Package,
     Flame,
     Timer,
     Zap,
@@ -34,11 +35,11 @@ import {
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { DataSyncService } from "@/lib/sync-store";
-import { ProductCategory, CATEGORIES } from "@/lib/types";
+import { ProductCategory, CATEGORIES, ProductVariant } from "@/lib/types";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn, wrapInCDN } from "@/lib/utils";
+import { cn, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -88,9 +89,11 @@ export default function CatalogControl() {
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState<string[]>([]);
     const [editTags, setEditTags] = useState<string[]>([]);
+    const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
     const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
     const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
+    const [editSlug, setEditSlug] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
@@ -112,43 +115,73 @@ export default function CatalogControl() {
     const [dealDurationHours, setDealDurationHours] = useState("24");
 
     useEffect(() => {
-        const load = () => {
-            const all = DataSyncService.getProducts();
-            console.log("Admin Catalog detected update. Items:", all.length);
-            setProducts(all);
-            
-            setCachedProducts(DataSyncService.getAllCachedProducts());
-
+        const computeFlags = (all: any[]) => {
             const trending = new Set<string>();
             const sponsored = new Set<string>();
             const deals = new Set<string>();
-            
             all.forEach(p => {
                 if (p.is_trending) trending.add(p.id);
                 if (p.is_sponsored) sponsored.add(p.id);
             });
-
             const activeDeals = DataSyncService.getDeals();
-            activeDeals.forEach(d => {
-                if (d.is_active && d.product_id) {
-                    deals.add(d.product_id);
-                }
-            });
-
+            activeDeals.forEach(d => { if (d.is_active && d.product_id) deals.add(d.product_id); });
             setTrendingIds(trending);
             setSponsoredIds(sponsored);
             setDealProductIds(deals);
-            
-            // Sync Taxonomy and migrate if needed
-            DataSyncService.syncTaxonomy();
-            DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
         };
+
+        const load = () => {
+            // Fast first paint from local cache (may be trimmed by localStorage quota)
+            const local = DataSyncService.getProducts();
+            setProducts(local);
+            setCachedProducts(DataSyncService.getAllCachedProducts());
+            computeFlags(local);
+        };
+
+        // AUTHORITATIVE: fetch the FULL catalog directly from the DB so the admin always
+        // sees every product, even when localStorage has been trimmed to fit its size limit.
+        const loadFromDB = async () => {
+            try {
+                const res = await fetch("/api/products?all=true");
+                if (!res.ok) return;
+                const data = await res.json();
+                const dbProducts: any[] = Array.isArray(data) ? data : (data?.products ?? []);
+                if (dbProducts.length === 0) return;
+
+                // Merge local-only flags (trending/sponsored toggles set locally) onto DB rows
+                const local = DataSyncService.getProducts();
+                const localMap = new Map(local.map((p: any) => [p.id, p]));
+                const merged = dbProducts.map((p: any) => {
+                    const l = localMap.get(p.id);
+                    return l ? { ...p, is_trending: p.is_trending ?? l.is_trending, is_sponsored: p.is_sponsored ?? l.is_sponsored } : p;
+                });
+                console.log("Admin Catalog loaded from DB:", merged.length, "products");
+                setProducts(merged);
+                computeFlags(merged);
+            } catch (e) {
+                console.warn("Admin catalog DB fetch failed, using local cache:", e);
+            }
+        };
+
+        // Initial load
         load();
-        window.addEventListener("storage", load);
-        window.addEventListener("sync-store-update", load);
+        loadFromDB();
+
+        // Run taxonomy management once separately to avoid event loops
+        DataSyncService.syncTaxonomy().then(() => {
+            DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
+        });
+
+        // On live updates: refresh cached products locally + re-pull full catalog from DB
+        const onUpdate = () => {
+            setCachedProducts(DataSyncService.getAllCachedProducts());
+            loadFromDB();
+        };
+        window.addEventListener("storage", onUpdate);
+        window.addEventListener("sync-store-update", onUpdate);
         return () => {
-            window.removeEventListener("storage", load);
-            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("storage", onUpdate);
+            window.removeEventListener("sync-store-update", onUpdate);
         };
     }, []);
 
@@ -162,6 +195,9 @@ export default function CatalogControl() {
     }, [searchTerm, sort]);
 
     let filtered = products.filter(p => {
+        // Hide direct checkout QR codes from the general catalog view
+        if (p.is_direct_payment) return false;
+        
         const matchesSearch = (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.seller_name || "").toLowerCase().includes(searchTerm.toLowerCase());
         const isGlobal = p._source === "global" || p.seller_id === "global-partners" || (p.seller_name || "").toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
@@ -203,7 +239,7 @@ export default function CatalogControl() {
             const lower = currentImg.toLowerCase();
             
             // Comprehensive broken-image detection
-            const isBroken = 
+            const isBroken =
                 currentImg === "" ||
                 currentImg === "/placeholder.png" ||
                 lower.includes('placeholder') ||
@@ -213,7 +249,10 @@ export default function CatalogControl() {
                 lower.includes('n/a') ||
                 currentImg.startsWith('/assets/images') ||
                 // Catch proxied placeholders like /api/image-cdn?url=...placeholder...
-                (currentImg.includes('/api/image-cdn') && lower.includes('placeholder'));
+                (currentImg.includes('/api/image-cdn') && lower.includes('placeholder')) ||
+                // Wikipedia/Wikimedia are encyclopaedia article images — never real product photos
+                lower.includes('wikimedia.org') ||
+                lower.includes('wikipedia.org');
             
             if (isBroken) {
                 scanned++;
@@ -309,6 +348,31 @@ export default function CatalogControl() {
         }
     };
 
+    // Upload a File to Vercel Blob and return the public URL.
+    // Falls back to base64 data-URL if the upload fails so the UI never blocks.
+    const uploadFileToBlob = async (file: File): Promise<string> => {
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const fd = new FormData();
+            fd.append("file", file, file.name || `product-${Date.now()}.jpg`);
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: fd,
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.url) return data.url;
+            }
+        } catch { /* fall through */ }
+        // Fallback: base64 (shown in preview, stripped by sync-store later)
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target?.result as string);
+            reader.readAsDataURL(file);
+        });
+    };
+
     const handleGetImage = async () => {
         if (!editName) return;
         setIsFetchingImage(true);
@@ -319,9 +383,9 @@ export default function CatalogControl() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.imageUrl) {
-                    setEditImage(data.imageUrl);
+                    setEditImage(wrapInCDN(data.imageUrl));
                     if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
-                        setEditImages(data.imageUrls.slice(0, 8));
+                        setEditImages(data.imageUrls.slice(0, 8).map(wrapInCDN));
                     }
                     return;
                 }
@@ -335,8 +399,11 @@ export default function CatalogControl() {
             if (geminiRes.ok) {
                 const geminiData = await geminiRes.json();
                 if (geminiData.image_url && geminiData.image_url.startsWith('http')) {
-                    setEditImage(geminiData.image_url);
-                    return;
+                    const wrapped = wrapInCDN(geminiData.image_url);
+                    if (!wrapped.includes('placeholder')) {
+                        setEditImage(wrapped);
+                        return;
+                    }
                 }
             }
 
@@ -357,23 +424,56 @@ export default function CatalogControl() {
 
     const handleEditSave = async () => {
         if (editingProduct) {
+            const { category: normCat, subcategory: normSub } = DataSyncService.normalizeCategory(
+                editCategory || editingProduct.category,
+                editSubcategory || editingProduct.subcategory || ""
+            );
+
+            const finalImageUrl = wrapInCDN(
+                (editImage && !editImage.includes('placeholder'))
+                    ? editImage
+                    : (editingProduct.image_url && !editingProduct.image_url.includes('placeholder'))
+                        ? editingProduct.image_url
+                        : editImage || editingProduct.image_url
+            );
+            const finalImages = editImages.filter(Boolean).map(wrapInCDN);
+
             await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
-                category: editCategory || editingProduct.category,
-                subcategory: editSubcategory,
+                category: normCat as ProductCategory,
+                subcategory: normSub,
                 tags: editTags,
                 colors: editColors.split(",").map(c => c.trim()).filter(Boolean),
                 description: editDescription || editingProduct.description,
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice.replace(/,/g, '')) || editingProduct.price,
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
-                image_url: editImage || editingProduct.image_url,
+                image_url: finalImageUrl,
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages.filter(Boolean),
+                images: finalImages,
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
-                financing_config: editFinancingConfig
+                financing_config: editFinancingConfig,
+                slug: editSlug,
+                variants: editVariants
             });
+
+            // Belt-and-suspenders: fire a targeted image-only POST so the image
+            // URL always lands in DB even if the full product upsert loses the
+            // updatedAt race against syncWithDB (DB timestamp slightly > local).
+            if (finalImageUrl && !finalImageUrl.includes('placeholder')) {
+                fetch("/api/products", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: editingProduct.id,
+                        image_url: finalImageUrl,
+                        images: finalImages.length ? finalImages : undefined,
+                        _imageOnly: true,
+                    }),
+                }).catch(() => {});
+            }
+
             setEditingProduct(null);
         }
     };
@@ -392,10 +492,17 @@ export default function CatalogControl() {
                 const content = await res.json();
                 if (content.description) setEditDescription(content.description);
                 if (content.specs) setEditSpecs(Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })));
-                if (content.subcategory) setEditSubcategory(content.subcategory);
+                
+                // Canonical Taxonomy Normalization
+                const { category: normCat, subcategory: normSub } = DataSyncService.normalizeCategory(
+                    content.category || editCategory, 
+                    content.subcategory
+                );
+                setEditCategory(normCat);
+                setEditSubcategory(normSub);
+
                 if (content.tags && Array.isArray(content.tags)) setEditTags(content.tags);
                 if (content.colors && Array.isArray(content.colors)) setEditColors(content.colors.join(", "));
-                if (content.category) setEditCategory(content.category.toLowerCase());
             } else {
                 const errData = await res.json().catch(() => ({}));
                 setAiError(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set.`);
@@ -735,7 +842,7 @@ export default function CatalogControl() {
                                                 }}
                                             />
                                             <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
-                                                <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                                <img src={getProxiedImageUrl(p.image_url)} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
@@ -803,8 +910,8 @@ export default function CatalogControl() {
                                 <div className="space-y-4 py-2">
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="text" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
-                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
-                                    {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} onBlur={e => setCacheEditFields(p => ({ ...p, image_url: wrapInCDN(e.target.value) }))} onPaste={e => { const txt = e.clipboardData.getData('text'); if (txt.startsWith('http')) setTimeout(() => setCacheEditFields(p => ({ ...p, image_url: wrapInCDN(txt) })), 0); }} placeholder="https://..." /></div>
+                                    {cacheEditFields.image_url && <img src={getProxiedImageUrl(cacheEditFields.image_url)} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
                                 </div>
                                 <DialogFooter className="gap-2">
@@ -889,7 +996,7 @@ export default function CatalogControl() {
                                             <td className="px-6 py-4 align-middle">
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">
-                                                        <img src={p.image_url || undefined} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                        <img src={getProxiedImageUrl(p.image_url)} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                         {p.price_flag !== "fair" && (
                                                             <div className="absolute top-1 left-1">
                                                                 <div className="h-2 w-2 rounded-full bg-rose-500 shadow-sm"></div>
@@ -1035,9 +1142,11 @@ export default function CatalogControl() {
                                                             setEditExternalUrl(p.external_url || "");
                                                             setEditImages(p.images?.length ? [...p.images] : [""]);
                                                             setEditTags(p.tags || []);
+                                                            setEditVariants(p.variants || []);
                                                             setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
                                                             setEditFinancingAvailable(p.financing_available ?? false);
                                                             setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
+                                                            setEditSlug(p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -1159,7 +1268,7 @@ export default function CatalogControl() {
                                                         </td>
                                                         <td className="px-5 py-4">
                                                             <div className="flex items-center gap-3">
-                                                                <img src={r.image_url || undefined} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                                <img src={getProxiedImageUrl(r.image_url)} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                                 <p className="text-xs font-bold text-gray-900 line-clamp-2 max-w-[200px]">{r.name}</p>
                                                             </div>
                                                         </td>
@@ -1294,13 +1403,9 @@ export default function CatalogControl() {
                                 <ProductImageSlot 
                                     url={editImage} 
                                     onUrlChange={setEditImage}
-                                    onFileSelect={(e) => {
+                                    onFileSelect={async (e) => {
                                         const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (ev) => setEditImage(ev.target?.result as string);
-                                            reader.readAsDataURL(file);
-                                        }
+                                        if (file) setEditImage(await uploadFileToBlob(file));
                                     }}
                                     label="Main Image"
                                 />
@@ -1318,16 +1423,11 @@ export default function CatalogControl() {
                                                     next[i] = newUrl;
                                                     setEditImages(next);
                                                 }}
-                                                onFileSelect={(e) => {
+                                                onFileSelect={async (e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (ev) => {
-                                                            const next = [...editImages];
-                                                            next[i] = ev.target?.result as string;
-                                                            setEditImages(next);
-                                                        };
-                                                        reader.readAsDataURL(file);
+                                                        const url = await uploadFileToBlob(file);
+                                                        setEditImages(prev => { const next = [...prev]; next[i] = url; return next; });
                                                     }
                                                 }}
                                                 className="mb-0"
@@ -1389,11 +1489,11 @@ export default function CatalogControl() {
                                         >
                                             <option value="">Select Category</option>
                                             {DataSyncService.getTaxonomy().map(cat => (
-                                                <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
                                             ))}
-                                            {/* Legacy Fallback */}
-                                            {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
-                                                <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                            {/* Minimal Fallback: Only show hardcoded if DB is totally empty */}
+                                            {DataSyncService.getTaxonomy().length === 0 && CATEGORIES.map(cat => (
+                                                <option key={cat.value} value={cat.label}>{cat.label}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -1427,11 +1527,11 @@ export default function CatalogControl() {
                                             onChange={(e) => setEditSubcategory(e.target.value)}
                                         >
                                             <option value="">Select Subcategory</option>
-                                            {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === editCategory.toLowerCase())?.subcategories.map((sub: any) => (
+                                            {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === editCategory.toLowerCase())?.children?.map((sub: any) => (
                                                 <option key={sub.id} value={sub.name}>{sub.name}</option>
                                             ))}
-                                            {/* Legacy Fallback */}
-                                            {CATEGORIES.find(c => c.value === editCategory)?.subcategories.map(sub => (
+                                            {/* Minimal Fallback: Only show hardcoded if DB is totally empty */}
+                                            {DataSyncService.getTaxonomy().length === 0 && CATEGORIES.find(c => c.label.toLowerCase() === editCategory.toLowerCase())?.subcategories.map(sub => (
                                                 <option key={sub} value={sub}>{sub}</option>
                                             ))}
                                         </select>
@@ -1519,6 +1619,102 @@ export default function CatalogControl() {
                                 </div>
 
                                 <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Variants & Bundles</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Manage options like colors, sizes, or packages</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-3 text-[10px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg gap-1.5"
+                                            onClick={() => setEditVariants([...editVariants, { id: `var_${Date.now()}_${editVariants.length}`, name: "", price: 0, image_url: "", original_price: 0 }])}
+                                        >
+                                            <Plus className="h-3 w-3" /> Add Variant
+                                        </Button>
+                                    </div>
+                                    
+                                    {editVariants.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {editVariants.map((variant, index) => (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-3 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 relative group">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditVariants(editVariants.filter((_, i) => i !== index))}
+                                                        className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                    >
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                    <div className="w-[120px] shrink-0">
+                                                        <ProductImageSlot
+                                                            url={variant.image_url || ""}
+                                                            onUrlChange={(newUrl) => {
+                                                                const next = [...editVariants];
+                                                                next[index].image_url = newUrl;
+                                                                setEditVariants(next);
+                                                            }}
+                                                            onFileSelect={async (e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const url = await uploadFileToBlob(file);
+                                                                    setEditVariants(prev => { const next = [...prev]; next[index].image_url = url; return next; });
+                                                                }
+                                                            }}
+                                                            className="mb-0 w-full rounded-lg"
+                                                            hideInput={true}
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div className="space-y-1 sm:col-span-2">
+                                                            <Input
+                                                                placeholder='Variant Name (e.g., "128GB - Space Gray")'
+                                                                value={variant.name}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].name = e.target.value;
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-bold bg-white border-gray-200"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Input
+                                                                placeholder="Price (₦)"
+                                                                value={variant.price}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].price = Number(e.target.value.replace(/\D/g, ""));
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-bold bg-white border-gray-200"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Input
+                                                                placeholder="Original Price (Optional)"
+                                                                value={variant.original_price}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].original_price = Number(e.target.value.replace(/\D/g, ""));
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-medium bg-white border-gray-200 text-gray-500 line-through"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 bg-gray-50/50 border border-dashed border-gray-200 rounded-xl">
+                                            <Package className="h-5 w-5 text-gray-300 mx-auto mb-1" />
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No variants configured</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Financing & Ownership</p>
@@ -1556,13 +1752,28 @@ export default function CatalogControl() {
                                     )}
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gallery Images (Comma separated URLs)</label>
-                                    <textarea
-                                        value={editImages.join(", ")}
-                                        onChange={(e) => setEditImages(e.target.value.split(",").map(u => u.trim()))}
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="https://img1.com, https://img2.com..."
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">URL Slug <span className="text-gray-300 normal-case">— SEO clean URL</span></label>
+                                    <Input
+                                        value={editSlug}
+                                        onChange={(e) => {
+                                            const val = e.target.value.toLowerCase()
+                                                .replace(/[^a-z0-9]+/g, "-")
+                                                .replace(/(^-|-$)/g, "");
+                                            setEditSlug(val);
+                                        }}
+                                        onPaste={(e) => {
+                                            // Handle paste specifically for WordPress-like behavior
+                                            setTimeout(() => {
+                                                const val = (e.target as HTMLInputElement).value.toLowerCase()
+                                                    .replace(/[^a-z0-9]+/g, "-")
+                                                    .replace(/(^-|-$)/g, "");
+                                                setEditSlug(val);
+                                            }, 0);
+                                        }}
+                                        className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-medium"
+                                        placeholder="product-name-slug"
                                     />
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">https://www.fairprice.ng/product/{editingProduct?.id}/{editSlug || 'slug'}</p>
                                 </div>
                             </div>
                         </div>

@@ -20,7 +20,6 @@ import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
-import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
@@ -28,6 +27,7 @@ import { Analytics } from "@vercel/analytics/next";
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
 import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
+import { FloatingWhatsApp } from "@/components/ui/FloatingWhatsApp";
 
 export const metadata: Metadata = {
   title: {
@@ -37,14 +37,14 @@ export const metadata: Metadata = {
   description: "FairPrice Shop: The official gold standard for price verification, negotiation, and secure selling in Nigeria. Buy or sell products with real-time market prices, negotiate deals, and secure transactions with Escrow protection. The smartest way to trade in Nigeria.",
   keywords: ["price verification Nigeria", "negotiate price Nigeria", "how much is it in Nigeria", "FairPrice Shop", "Jumia vs Konga vs FairPrice", "verify Jiji prices", "escrow service Nigeria", "buy phones Nigeria", "market price index Africa"],
   manifest: "/manifest.json",
-  metadataBase: new URL("https://fairprice.ng"),
+  metadataBase: new URL("https://www.fairprice.ng"),
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     locale: "en_NG",
-    url: "https://fairprice.ng",
+    url: "https://www.fairprice.ng",
     siteName: "FairPrice Shop Negotiate & Verify Market Prices",
     title: "FairPrice Shop | Nigeria's #1 Price Verification & Negotiation Marketplace",
     description: "Don't overpay or undersell. Verify real market prices, negotiate the best deals, or start selling to millions of buyers in Nigeria. Secure transactions with built-in Escrow protection.",
@@ -84,12 +84,12 @@ export default function RootLayout({
         <style dangerouslySetInnerHTML={{
           __html: `
            #fp-splash{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#ffffff;transition:opacity .4s ease-out;pointer-events:all}
-          #fp-splash .logo-container{width:100px;height:100px;border-radius:24px;background:#ffffff;padding:12px;box-shadow:0 12px 30px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);animation:fp-pulse 2s ease-in-out infinite}
+          #fp-splash .logo-container{width:100px;height:100px;border-radius:24px;background:#ffffff;padding:12px;box-shadow:0 0 0 1.5px rgba(16,185,129,0.18), 0 0 28px 6px rgba(16,185,129,0.22), 0 0 60px 12px rgba(16,185,129,0.10), 0 12px 30px rgba(0,0,0,0.08);animation:fp-pulse 2s ease-in-out infinite}
           #fp-splash img{width:100%;height:100%;object-fit:cover;scale:1.1;border-radius:12px}
           #fp-splash .fp-name{color:#111827;font-size:26px;font-weight:900;letter-spacing:-0.03em;margin-top:24px;font-family:system-ui,-apple-system,sans-serif;}
           #fp-splash .fp-tagline{color:#6B7280;font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-top:8px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:300px;}
           #fp-splash .fp-spin{margin-top:40px;width:24px;height:24px;border-radius:50%;border:3px solid #f3f4f6;border-top-color:#10b981;animation:fp-spin .8s linear infinite}
-          @keyframes fp-pulse{0%,100%{transform:scale(1);box-shadow:0 12px 30px rgba(0,0,0,0.08)}50%{transform:scale(0.97);box-shadow:0 8px 20px rgba(0,0,0,0.04)}}
+          @keyframes fp-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 1.5px rgba(16,185,129,0.18),0 0 28px 6px rgba(16,185,129,0.22),0 0 60px 12px rgba(16,185,129,0.10),0 12px 30px rgba(0,0,0,0.08)}50%{transform:scale(0.97);box-shadow:0 0 0 1.5px rgba(16,185,129,0.10),0 0 16px 3px rgba(16,185,129,0.30),0 0 40px 8px rgba(16,185,129,0.14),0 8px 20px rgba(0,0,0,0.04)}}
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
         `}} />
@@ -121,8 +121,8 @@ export default function RootLayout({
               '@context': 'https://schema.org',
               '@type': 'Organization',
               'name': 'FairPrice Shop Nigeria',
-              'url': 'https://fairprice.ng',
-              'logo': 'https://fairprice.ng/logo.png',
+              'url': 'https://www.fairprice.ng',
+              'logo': 'https://www.fairprice.ng/logo.png',
               'contactPoint': {
                 '@type': 'ContactPoint',
                 'telephone': '+234-816-281-6305',
@@ -146,9 +146,9 @@ export default function RootLayout({
               '@context': 'https://schema.org',
               '@type': 'LocalBusiness',
               'name': 'FairPrice Shop Headquarters',
-              'image': 'https://fairprice.ng/logo.png',
-              '@id': 'https://fairprice.ng',
-              'url': 'https://fairprice.ng',
+              'image': 'https://www.fairprice.ng/logo.png',
+              '@id': 'https://www.fairprice.ng',
+              'url': 'https://www.fairprice.ng',
               'telephone': '+234-816-281-6305',
               'address': {
                 '@type': 'PostalAddress',
@@ -210,6 +210,7 @@ export default function RootLayout({
                           <CurrencyBanner />
                           {children}
                           <ZivaChat />
+                          <FloatingWhatsApp />
                           <DynamicPillNotification />
                           <MessageBox />
                         </NotificationProvider>

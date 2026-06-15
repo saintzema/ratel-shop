@@ -21,16 +21,22 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { type, name, categoryId, slug } = await req.json();
-    const generatedSlug = slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const body = await req.json();
+    const { type, name, categoryId, slug } = body;
+    const generatedSlug = name ? (slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-')) : null;
 
     if (type === "category") {
       // Check for duplicates
       const existing = await (prisma as any).marketplaceCategory.findFirst({
-        where: { OR: [{ name }, { slug: generatedSlug }] }
+        where: { 
+          OR: [
+            { name: { equals: name, mode: 'insensitive' } }, 
+            { slug: generatedSlug }
+          ] 
+        }
       });
       if (existing) {
-        return NextResponse.json({ success: false, error: "Category already exists" }, { status: 400 });
+        return NextResponse.json({ success: true, category: existing, message: "Category already exists" });
       }
 
       const category = await (prisma as any).marketplaceCategory.create({
@@ -45,11 +51,14 @@ export async function POST(req: Request) {
       const existing = await (prisma as any).marketplaceSubcategory.findFirst({
         where: { 
           categoryId,
-          OR: [{ name }, { slug: generatedSlug }]
+          OR: [
+            { name: { equals: name, mode: 'insensitive' } }, 
+            { slug: generatedSlug }
+          ]
         }
       });
       if (existing) {
-        return NextResponse.json({ success: false, error: "Subcategory already exists in this category" }, { status: 400 });
+        return NextResponse.json({ success: true, subcategory: existing, message: "Subcategory already exists" });
       }
 
       const subcategory = await (prisma as any).marketplaceSubcategory.create({
@@ -62,7 +71,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, subcategory });
     }
 
-    return NextResponse.json({ success: false, error: "Invalid type" }, { status: 400 });
+    // FALLBACK: Handle deletion via POST if DELETE method is blocked
+    if (body.action === "delete" && body.id && body.type) {
+      if (body.type === "category") {
+        await (prisma as any).marketplaceCategory.delete({ where: { id: body.id } });
+      } else {
+        await (prisma as any).marketplaceSubcategory.delete({ where: { id: body.id } });
+      }
+      return NextResponse.json({ success: true, message: "Taxonomy item deleted via POST fallback" });
+    }
+
+    return NextResponse.json({ success: false, error: "Invalid type or action" }, { status: 400 });
   } catch (error) {
     console.error("Failed to create taxonomy item:", error);
     return NextResponse.json({ success: false, error: "Failed to create taxonomy item" }, { status: 500 });
@@ -94,5 +113,33 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("Failed to delete taxonomy item:", error);
     return NextResponse.json({ success: false, error: "Failed to delete taxonomy item" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const { id, type, name, slug } = await req.json();
+    if (!id || !type || !name) {
+      return NextResponse.json({ success: false, error: "ID, type, and name are required" }, { status: 400 });
+    }
+
+    const generatedSlug = slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+    if (type === "category") {
+      const category = await (prisma as any).marketplaceCategory.update({
+        where: { id },
+        data: { name }
+      });
+      return NextResponse.json({ success: true, category });
+    } else {
+      const subcategory = await (prisma as any).marketplaceSubcategory.update({
+        where: { id },
+        data: { name }
+      });
+      return NextResponse.json({ success: true, subcategory });
+    }
+  } catch (error) {
+    console.error("Failed to update taxonomy item:", error);
+    return NextResponse.json({ success: false, error: "Failed to update taxonomy item" }, { status: 500 });
   }
 }

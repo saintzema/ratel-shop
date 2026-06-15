@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isIframeVideoUrl } from "@/lib/utils";
 
 interface VideoPlayerProps {
   src: string;
@@ -25,9 +25,23 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isIframe = isIframeVideoUrl(src);
+
+  const getEmbedUrl = (url: string) => {
+    if (url.includes('youtube.com/watch')) {
+      const id = new URL(url).searchParams.get('v');
+      return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1`;
+    }
+    if (url.includes('youtu.be/')) {
+      const id = url.split('/').pop();
+      return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1`;
+    }
+    return url;
+  };
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isIframe) return;
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -40,6 +54,7 @@ export function VideoPlayer({
   };
 
   const handleMouseEnter = () => {
+    if (isIframe) return;
     if (autoPlayOnHover && videoRef.current && !isPlaying) {
       videoRef.current.play().catch(console.error);
       setIsPlaying(true);
@@ -47,11 +62,25 @@ export function VideoPlayer({
   };
 
   const handleMouseLeave = () => {
+    if (isIframe) return;
     if (autoPlayOnHover && videoRef.current && isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
     }
   };
+
+  if (isIframe) {
+    return (
+      <div className={cn("relative overflow-hidden rounded-xl bg-black aspect-video", className)}>
+        <iframe
+          src={getEmbedUrl(src)}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
 
   return (
     <div 

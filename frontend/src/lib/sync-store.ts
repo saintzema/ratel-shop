@@ -1,10 +1,12 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal, ProductCategory } from "./types";
 export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
 import { TEMU_PRODUCTS } from "./demo-data-temu";
+import { SEED_PRODUCTS, SEED_SELLERS } from "./data";
+import { ADMIN_EMAILS, SECURITY_EMAILS } from "./constants";
 
 export interface Category {
     id: string;
@@ -87,6 +89,7 @@ class DataSyncServiceService {
     // Track product IDs with local edits not yet confirmed by DB
     private _pendingEdits: Set<string> = new Set();
     private _pendingSellerEdits: Set<string> = new Set();
+    private _pendingOrderEdits: Set<string> = new Set();
     private _deletedProductIds: Set<string> = new Set();
     private _deletedSellerIds: Set<string> = new Set();
     private _lastFullSync: number = 0;
@@ -102,9 +105,17 @@ class DataSyncServiceService {
         
         const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
         if (currentProducts.length === 0) {
-            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding TEMU_PRODUCTS fallback.");
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(TEMU_PRODUCTS));
+            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding full SEED_PRODUCTS catalog.");
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
             
+            // Also seed sellers to ensure getApprovedProducts works
+            const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+            if (currentSellers.length === 0) {
+                // Ensure all seeded sellers are marked as verified/active for the demo
+                const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
+                this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
+            }
+
             // Trigger UI update
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("sync-store-update"));
@@ -116,8 +127,9 @@ class DataSyncServiceService {
     // Track negotiation IDs with local edits not confirmed by DB
     private _pendingNegotiationEdits: Set<string> = new Set();
     private readonly _PENDING_NEGOTIATION_KEY = "fp_pending_negotiations";
+    private readonly _PENDING_ORDER_KEY = "fp_pending_order_edits";
     private _isRegisteringSeller = false;
-    private _autoReleaseActive = false;
+    private _syncDebounceTimer: any = null;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -134,20 +146,22 @@ class DataSyncServiceService {
         REFERRALS: "fairprice_demo_referrals",
         REVIEWS: "fairprice_demo_reviews",
         RETURNS: "fairprice_demo_returns",
+        PROMOTIONS: "fairprice_demo_promotions",
         USERS: "fp_user",
         USER_OVERRIDES: "fp_user_overrides",
         SEARCH_CACHE: "fairprice_search_cache",
         CONVERSATIONS: "fp_conversations",
         CHAT_MESSAGES: "fp_chat_messages",
-        CATEGORIES: "fairprice_demo_categories",
+        CATEGORIES: "fp_marketplace_taxonomy",
         TRENDING_CURATION: "fp_trending_ids",
         DEALS: "fairprice_demo_deals",
-        PROMOTIONS: "fairprice_demo_promotions",
         AD_CREDITS: "fairprice_demo_ad_credits",
         DELETED_STUBS: "fp_deleted_stubs",
         PENDING_NEGOTIATIONS: "fp_pending_negotiations",
         PLATFORM_SETTINGS: "fp_platform_settings",
-        TAXONOMY: "fp_marketplace_taxonomy"
+        TAXONOMY: "fp_marketplace_taxonomy",
+        OFF_LISTING_INVOICES: "fairprice_demo_off_listing_invoices",
+        RESTOCK_SUBSCRIPTIONS: "fairprice_restock_subscriptions"
     };
 
     private selfHeal() {
@@ -172,7 +186,7 @@ class DataSyncServiceService {
                                 );
                             });
                             if (filtered.length !== data.length) {
-                                localStorage.setItem(key, JSON.stringify(filtered));
+                                this.safeSetItem(key, JSON.stringify(filtered));
                                 healed = true;
                             }
                         }
@@ -209,13 +223,15 @@ class DataSyncServiceService {
                 if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
                 const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
                 if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
+                const savedOrders = localStorage.getItem(this._PENDING_ORDER_KEY);
+                if (savedOrders) this._pendingOrderEdits = new Set(JSON.parse(savedOrders));
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
 
             // Re-sync EVERYTHING when user logs in or switches accounts
             window.addEventListener("fp-auth-update", () => {
-                this.syncWithDB();
+                this.syncWithDB(undefined, true); // Bypass throttle on auth change
             });
 
             // Listen for buyer messages from floating chat to hot-sync to DB
@@ -236,7 +252,7 @@ class DataSyncServiceService {
 
                     // Update local storage
                     const updated = negs.map(n => n.id === neg.id ? { ...n, chat_messages: existingMessages } : n);
-                    localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+                    this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
                     
                     // Hot sync to DB
                     fetch("/api/negotiations", {
@@ -265,56 +281,63 @@ class DataSyncServiceService {
         // v17: Reset all stats, purge orphaned products/sellers/orders
         // v18: EXTREMELY IMPORTANT - Marketplace consolidation. Reassigned all products to Global Stores and purged demo stores/users.
         // v19: Clean Sweep Synchronization. Forced cache flush after database reset and cascading rules update.
-        const DATA_VERSION = "19";
+        const DATA_VERSION = "20";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
             // Clear all stale data and re-seed with latest
             Object.values(this.STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-            localStorage.setItem("fairprice_data_version", DATA_VERSION);
+            this.safeSetItem("fairprice_data_version", DATA_VERSION);
         }
 
         this.selfHeal();
 
         if (!localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-            localStorage.setItem(this.STORAGE_KEYS.ORDERS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.ORDERS, "[]");
         }
         // NOTE: Products & Sellers are NO LONGER seeded from hardcoded constants.
         // They will be populated exclusively by syncWithDB() from the Neon database.
         // This ensures all users see the same prices regardless of browser/session.
         if (!localStorage.getItem(this.STORAGE_KEYS.KYC)) {
-            localStorage.setItem(this.STORAGE_KEYS.KYC, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.KYC, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PAYOUTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.RETURNS)) {
-            localStorage.setItem(this.STORAGE_KEYS.RETURNS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.RETURNS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
-            localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+            this.safeSetItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.TAXONOMY)) {
-            localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
-            localStorage.setItem(this.STORAGE_KEYS.DEALS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.DEALS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PROMOTIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS)) {
-            localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
+            this.safeSetItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
         }
         
-        // Start auto-release worker
-        this.runAutoReleaseWorker();
+        if (!localStorage.getItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES)) {
+            this.safeSetItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, "[]");
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS)) {
+            this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, "[]");
+        }
+        
+        // Resilience: Seed demo data if storage is empty to avoid blank UI
+        this.seedDemoData();
     }
 
     private startRealtimeSync() {
@@ -325,17 +348,20 @@ class DataSyncServiceService {
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log("Real-time update received:", data);
+                if (data.type === "ping") return;
 
                 let collectionToSync: string | undefined = undefined;
                 if (data.type === "product_updated") collectionToSync = "products";
                 else if (data.type === "seller_updated") collectionToSync = "sellers";
-                else if (data.type === "order_updated") collectionToSync = "orders";
+                else if (data.type === "order_updated" || data.type === "order_message_sync") collectionToSync = "orders";
                 else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
                 else if (data.type === "notification") collectionToSync = "notifications";
 
-                // On any change, trigger a CRITICAL sync to refresh localStorage
-                this.syncWithDB(collectionToSync, true);
+                // Debounce to prevent rapid-fire DB compute spikes and UI jank
+                if (this._syncDebounceTimer) clearTimeout(this._syncDebounceTimer);
+                this._syncDebounceTimer = setTimeout(() => {
+                    this.syncWithDB(collectionToSync, true);
+                }, 2000); 
             } catch (e) {
                 console.warn("Failed to parse real-time event:", e);
             }
@@ -356,9 +382,9 @@ class DataSyncServiceService {
     public async syncWithDB(collection?: string, isCritical: boolean = false) {
         if (typeof window === "undefined" || this.isSyncing) return;
         
-        // Throttle heavy syncs to prevent UI hanging
+        // Throttle heavy syncs to prevent UI hanging (Shortened to 30s for better reactivity)
         const now = Date.now();
-        if (!collection && !isCritical && now - this._lastFullSync < 600000) { // 10 min throttle for full sync
+        if (!collection && !isCritical && now - this._lastFullSync < 30000) { 
             return;
         }
 
@@ -366,7 +392,7 @@ class DataSyncServiceService {
         try {
             const fetchWithTimeout = async (url: string, options: any = {}) => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s hard timeout
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s hard timeout for 6k+ products
                 try {
                     const response = await fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timeoutId);
@@ -384,8 +410,8 @@ class DataSyncServiceService {
             const syncAll = !collection;
             const fetchProducts = syncAll || collection === "products";
             const fetchSellers = syncAll || collection === "sellers";
-            // Search Cache is HEAVY — ONLY fetch if it's a full sync OR specifically requested
-            const fetchSearchCache = (syncAll && !isCritical) || collection === "search_cache";
+            // Search Cache is HEAVY — ONLY fetch if specifically requested (Lazy)
+            const fetchSearchCache = collection === "search_cache";
             const fetchOrders = syncAll || collection === "orders" || isCritical;
             const fetchNegotiations = syncAll || collection === "negotiations" || isCritical;
             const fetchNotifications = syncAll || collection === "notifications" || isCritical;
@@ -398,17 +424,27 @@ class DataSyncServiceService {
             const lastSync = localStorage.getItem("fp_last_sync_time");
             const hasLocalProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]').length > 0;
             const hasLocalSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]').length > 0;
-            const updatedAfter = (lastSync && hasLocalProducts && hasLocalSellers) ? `&updated_after=${lastSync}` : "";
+            // Force full sync for products to ensure deleted items are removed from local cache
+            const updatedAfter = "";
 
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
             const sellerId = this.getCurrentSeller()?.id || this.getCurrentSeller()?.user_id;
-            const ordersUrl = sellerId ? `/api/orders?sellerId=${sellerId}` : "/api/orders?all=true";
+            const customerId = user?.id;
+            const customerEmail = user?.email;
+            
+            let ordersUrl = "/api/orders?all=true";
+            if (sellerId) {
+                ordersUrl = `/api/orders?sellerId=${sellerId}`;
+            } else if (customerId) {
+                ordersUrl = `/api/orders?customerId=${customerId}${customerEmail ? `&customerEmail=${encodeURIComponent(customerEmail)}` : ''}`;
+            }
 
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
                 negotiationsResult, notificationsResult, conversationsResult,
-                disputesResult, complaintsResult, kycResult, reviewsResult
+                disputesResult, complaintsResult, kycResult, reviewsResult,
+                promotionsResult, payoutsResult
             ] = await Promise.allSettled([
                 fetchProducts ? fetchWithTimeout(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
@@ -420,7 +456,9 @@ class DataSyncServiceService {
                 fetchDisputes ? fetchWithTimeout("/api/disputes?all=true") : mockUnfetched,
                 fetchComplaints ? fetchWithTimeout("/api/complaints?all=true") : mockUnfetched,
                 fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
-                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched
+                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched,
+                fetchWithTimeout("/api/promotions?all=true"), // Always fetch ads for admin/seller awareness
+                fetchWithTimeout("/api/payouts?all=true")    // Always fetch payouts
             ]);
 
             // Resilience Check: If any critical results are 503 (offline), 
@@ -441,7 +479,7 @@ class DataSyncServiceService {
             this._isDbOffline = false;
 
             if (!collection) {
-                localStorage.setItem("fp_last_sync_time", new Date().toISOString());
+                this.safeSetItem("fp_last_sync_time", new Date().toISOString());
             }
 
             // ── Process Products ──
@@ -458,61 +496,87 @@ class DataSyncServiceService {
                         console.warn("🛡️ Resilience: API returned 0 products but local cache has", localProducts.length, "— preserving cache.");
                     } else if (dbProducts.length > 0 || localProducts.length === 0) {
                     // MAP CamelCase to snake_case for senior tech lead consistency
-                    const mappedDbProducts = dbProducts.map((p: any) => ({
-                        ...p,
-                        seller_id: p.sellerId || p.seller_id,
-                        image_url: getProxiedImageUrl(p.imageUrl || p.image_url),
-                        avg_rating: p.avgRating || p.avg_rating || 0,
-                        review_count: p.reviewCount || p.review_count || 0,
-                        sold_count: p.soldCount || p.sold_count || 0,
-                        is_trending: p.isTrending || p.is_trending || false,
-                        is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
-                        is_sponsored: p.isSponsored || p.is_sponsored || false,
-                        original_price: p.originalPrice || p.original_price,
-                        seller_name: p.sellerName || p.seller_name || "Global Store",
-                        tags: p.tags || [],
-                        subcategory: p.subcategory || "",
-                        updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
-                    }));
-                    
-                    // MERGE STRATEGY:
-                    // If this is a FULL sync (no updated_after), we start fresh BUT keep user-pending edits.
-                    // If this is an INCREMENTAL sync (updated_after), we overlay DB changes on local data.
-                    const isIncremental = !!updatedAfter;
-                    const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
-                    const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
-                    
-                    // Apply DB updates (overwrite or add)
-                    for (const dbProduct of mappedDbProducts) {
-                        // Skip if recently deleted locally
-                        if (this._deletedProductIds.has(dbProduct.id)) continue;
+                    const mappedDbProducts = dbProducts.map((p: any) => {
+                        // COMPRESSION: Strip heavy fields for storefront/listing views to save space
+                        // These will be re-fetched on the product detail page if needed.
+                        const { description, highlights, specs, images, ...lightweight } = p;
 
-                        const localVersion = localMap.get(dbProduct.id);
-                        if (localVersion) {
-                            // Smart Merge: Only overwrite if DB version is newer or if we're forcing it
-                            const dbTime = new Date(dbProduct.updated_at).getTime();
-                            const localTime = new Date(localVersion.updated_at || 0).getTime();
-                            
-                            if (dbTime >= localTime || !isIncremental) {
+                        // Strip base64 data URLs from localStorage — they're huge and the PDP
+                        // fetches the real image from DB anyway via /api/products/[id].
+                        const rawImgUrl = p.imageUrl || p.image_url;
+                        const safeImgUrl = typeof rawImgUrl === 'string' && rawImgUrl.startsWith('data:')
+                            ? '/assets/images/placeholder.png'
+                            : getProxiedImageUrl(rawImgUrl);
+
+                        return {
+                            ...lightweight,
+                            seller_id: p.sellerId || p.seller_id,
+                            image_url: safeImgUrl,
+                            avg_rating: p.avgRating || p.avg_rating || 0,
+                            review_count: p.reviewCount || p.review_count || 0,
+                            sold_count: p.soldCount || p.sold_count || 0,
+                            is_trending: p.isTrending || p.is_trending || false,
+                            is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
+                            is_sponsored: p.isSponsored || p.is_sponsored || false,
+                            original_price: p.originalPrice || p.original_price,
+                            financing_down_payment: p.financingDownPayment || p.financing_down_payment,
+                            financing_deposit_pct: p.financingDepositPct || p.financing_deposit_pct,
+                            is_direct_payment: p.isDirectPayment || p.is_direct_payment || false,
+                            seller_name: p.sellerName || p.seller_name || "Global Store",
+                            tags: p.tags || [],
+                            subcategory: p.subcategory || "",
+                            updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
+                        };
+                    });
+                    
+                    // ASYNC MERGE: Prevent UI hanging for large catalogs (6k+ items)
+                    setTimeout(() => {
+                        // isIncremental is false because updatedAfter is forced empty
+                        const isIncremental = !!updatedAfter;
+                        const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
+                        const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
+                        
+                        const deletedStubs = this.getDeletedStubs();
+
+                        for (const dbProduct of mappedDbProducts) {
+                            if (this._deletedProductIds.has(dbProduct.id) || deletedStubs.includes(dbProduct.id)) continue;
+
+                            const localVersion = localMap.get(dbProduct.id);
+                            if (localVersion) {
+                                const dbTime = new Date(dbProduct.updated_at).getTime();
+                                const localTime = new Date(localVersion.updated_at || 0).getTime();
+                                if (dbTime >= localTime) {
+                                    // DB wins, but if the DB mapper stripped the image to placeholder
+                                    // (e.g. original WhatsApp base64 still in DB) while local has a
+                                    // real URL the admin just saved, keep the local image_url so the
+                                    // admin's edit doesn't get silently reverted.
+                                    const dbIsPlaceholder = !dbProduct.image_url || dbProduct.image_url.includes('placeholder');
+                                    const localHasReal = localVersion.image_url && !localVersion.image_url.includes('placeholder');
+                                    if (dbIsPlaceholder && localHasReal) {
+                                        merged.set(dbProduct.id, { ...dbProduct, image_url: localVersion.image_url });
+                                    } else {
+                                        merged.set(dbProduct.id, dbProduct);
+                                    }
+                                } else {
+                                    merged.set(dbProduct.id, localVersion);
+                                }
+                            } else {
                                 merged.set(dbProduct.id, dbProduct);
                             }
-                        } else {
-                            merged.set(dbProduct.id, dbProduct);
                         }
-                    }
 
-                    // Preserve user's pending edits over DB versions (absolute priority)
-                    for (const pendingId of this._pendingEdits) {
-                        const localVersion = localMap.get(pendingId);
-                        if (localVersion) merged.set(pendingId, localVersion);
-                    }
-                    
-                    const newDataStr = JSON.stringify(Array.from(merged.values()));
-                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
-                        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
-                    }
+                        for (const pendingId of this._pendingEdits) {
+                            const localVersion = localMap.get(pendingId);
+                            if (localVersion) merged.set(pendingId, localVersion);
+                        }
+                        
+                        const newDataStr = JSON.stringify(Array.from(merged.values()));
+                        if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
+                            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
+                    }, 0);
                     }
                 }
             }
@@ -540,6 +604,11 @@ class DataSyncServiceService {
                         if (localVersion) {
                             const mergedSeller = { ...localVersion, ...(dbSeller as any) };
                             for (const field of LOCAL_ONLY_FIELDS) {
+                                // subscription_plan is DB-authoritative: the billing flow writes
+                                // it to Postgres, so a downgrade (Pro -> Starter) MUST be reflected.
+                                // We previously kept the local paid plan over a DB 'Starter', which
+                                // froze the UI on 'Premium Seller' after a downgrade. Only fall back
+                                // to local when the DB genuinely has no value for the field.
                                 if (localVersion[field] !== undefined && (dbSeller[field] === undefined || dbSeller[field] === null)) {
                                     mergedSeller[field] = localVersion[field];
                                 }
@@ -559,7 +628,7 @@ class DataSyncServiceService {
                     const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
                     const newDataStr = JSON.stringify(sortedSellers);
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
-                        localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
+                        this.safeSetItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -594,6 +663,13 @@ class DataSyncServiceService {
                         customer_email: dbOrder.customerEmail || dbOrder.customer_email,
                         seller_name: dbOrder.sellerName || dbOrder.seller_name,
                         payout_status: dbOrder.payoutStatus || dbOrder.payout_status || 'none',
+                        is_direct_payment: dbOrder.isDirectPayment || dbOrder.is_direct_payment || false,
+                        status_note: dbOrder.statusNote || dbOrder.status_note || undefined,
+                        tracking_id: dbOrder.trackingId || dbOrder.tracking_id || undefined,
+                        carrier: dbOrder.carrier || undefined,
+                        tracking_steps: dbOrder.trackingSteps || dbOrder.tracking_steps || undefined,
+                        tracking_status: dbOrder.trackingStatus || dbOrder.tracking_status || undefined,
+                        quantity: dbOrder.quantity || 1,
                         product: dbOrder.product ? {
                             id: dbOrder.product.id,
                             name: dbOrder.product.name,
@@ -603,19 +679,30 @@ class DataSyncServiceService {
                             category: dbOrder.product.category,
                         } : undefined,
                     };
+                    // 🛡️ Data Integrity: If local order is terminal ('delivered', 'cancelled'), don't let remote fetch revert it
+                    const localVersion = localMap.get(dbOrder.id);
+                    if (localVersion && (localVersion.status === 'delivered' || localVersion.status === 'cancelled') && dbOrder.status !== localVersion.status) {
+                        mapped.status = localVersion.status;
+                        mapped.escrow_status = localVersion.escrow_status;
+                    }
+
                     mergedOrders.set(dbOrder.id, mapped);
+                }
+                
+                // 🛡️ Preserve user's pending order edits over DB versions (absolute priority)
+                for (const pendingId of this._pendingOrderEdits) {
+                    const localVersion = localMap.get(pendingId);
+                    if (localVersion) mergedOrders.set(pendingId, localVersion);
                 }
 
                 const newDataArray = Array.from(mergedOrders.values());
                 const newDataStr = JSON.stringify(newDataArray);
                 if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-                    localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
+                    this.safeSetItem(this.STORAGE_KEYS.ORDERS, newDataStr);
                     window.dispatchEvent(new Event("storage"));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
-                // Run auto-release check after syncing orders
-                this.runAutoReleaseWorker();
-            }
+                }
             
 
             // ── Process Negotiations ──
@@ -700,7 +787,7 @@ class DataSyncServiceService {
                     }
 
                     if (hasNewUpdate) {
-                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+                        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                         window.dispatchEvent(new Event("negotiation-updated-remote"));
@@ -733,7 +820,7 @@ class DataSyncServiceService {
                         }
                     }
                     if (changed) {
-                        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
+                        this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -744,7 +831,7 @@ class DataSyncServiceService {
             if (searchCacheResult.status === "fulfilled" && searchCacheResult.value.ok) {
                 const dbSearchCache = await searchCacheResult.value.json();
                 if (Object.keys(dbSearchCache).length > 0) {
-                    localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
+                    this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
                 }
             }
 
@@ -765,7 +852,7 @@ class DataSyncServiceService {
                             timestamp: n.created_at || new Date().toISOString()
                         });
                     });
-                    localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
+                    this.safeSetItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -774,7 +861,7 @@ class DataSyncServiceService {
             if (disputesResult.status === "fulfilled" && disputesResult.value.ok) {
                 const data = await disputesResult.value.json();
                 if (data.success && Array.isArray(data.disputes)) {
-                    localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
+                    this.safeSetItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -783,7 +870,7 @@ class DataSyncServiceService {
             if (complaintsResult.status === "fulfilled" && complaintsResult.value.ok) {
                 const data = await complaintsResult.value.json();
                 if (data.success && Array.isArray(data.complaints)) {
-                    localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
+                    this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -792,7 +879,7 @@ class DataSyncServiceService {
             if (kycResult.status === "fulfilled" && kycResult.value.ok) {
                 const data = await kycResult.value.json();
                 if (data.success && Array.isArray(data.submissions)) {
-                    localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
+                    this.safeSetItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -802,8 +889,26 @@ class DataSyncServiceService {
                 const data = await reviewsResult.value.json();
                 if (data.success && Array.isArray(data.reviews)) {
                     // Reviews might be handled differently, check key
-                    localStorage.setItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
+                    this.safeSetItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
                     window.dispatchEvent(new Event("storage"));
+                }
+            }
+
+            // ── Process Promotions ──
+            if (promotionsResult.status === "fulfilled" && promotionsResult.value.ok) {
+                const data = await promotionsResult.value.json();
+                const promos = data.promotions || data || [];
+                if (Array.isArray(promos)) {
+                    this.safeSetItem(this.STORAGE_KEYS.PROMOTIONS, JSON.stringify(promos));
+                }
+            }
+
+            // ── Process Payouts ──
+            if (payoutsResult.status === "fulfilled" && payoutsResult.value.ok) {
+                const data = await payoutsResult.value.json();
+                const payouts = data.payouts || data || [];
+                if (Array.isArray(payouts)) {
+                    this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payouts));
                 }
             }
 
@@ -846,7 +951,12 @@ class DataSyncServiceService {
             const dbNegotiations: any[] = negData.negotiations || [];
             
             if (dbNegotiations.length > 0) {
-                const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+                let localNegotiations: any[] = [];
+                try {
+                    localNegotiations = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+                } catch (e) {
+                    console.warn("Failed to parse local negotiations", e);
+                }
                 const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
 
                 for (const dbNeg of dbNegotiations) {
@@ -911,11 +1021,15 @@ class DataSyncServiceService {
                     }
                 }
                     const newDataStr = JSON.stringify(Array.from(localMap.values()));
-                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
-                    if (newDataStr !== oldDataStr) {
-                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
+                    try {
+                        const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
+                        if (newDataStr !== oldDataStr) {
+                            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
+                    } catch (e) {
+                        console.warn("Failed to persist negotiations to localStorage", e);
                     }
                 }
             // Success: reset breaker
@@ -947,7 +1061,7 @@ class DataSyncServiceService {
                             name: neg.customer_name,
                             productName: product.name,
                             discountPercent,
-                            link: `https://fairprice.ng/account/negotiations`
+                            link: `https://www.fairprice.ng/account/negotiations`
                         })
                     }).catch(() => {});
                     
@@ -971,20 +1085,61 @@ class DataSyncServiceService {
         }
     }
 
+    /**
+     * Maps any loose string (from AI, User, or Search) to a canonical 
+     * category/subcategory pair from the synced database taxonomy.
+     */
+    normalizeCategory(category: string, subcategory?: string): { category: ProductCategory; subcategory: string } {
+        const taxonomy = this.getTaxonomy();
+        const normCat = category.trim().toLowerCase();
+        const normSub = subcategory?.trim().toLowerCase();
+
+        // 1. Find canonical category
+        const canonicalCat = taxonomy.find((c: Category) => 
+            c.name.toLowerCase() === normCat || 
+            c.slug.toLowerCase() === normCat
+        );
+
+        if (!canonicalCat) {
+            // Fallback: return original lowercase if not found
+            return { category: normCat as ProductCategory, subcategory: normSub || "" };
+        }
+
+        // 2. Find canonical subcategory if provided
+        if (normSub && canonicalCat.children) {
+            const canonicalSub = canonicalCat.children.find((s: Category) => 
+                s.name.toLowerCase() === normSub || 
+                s.slug.toLowerCase() === normSub
+            );
+            if (canonicalSub) {
+                return { category: canonicalCat.name as ProductCategory, subcategory: canonicalSub.name };
+            }
+        }
+
+        return { category: canonicalCat.name as ProductCategory, subcategory: normSub || "" };
+    }
+
     setCategories(categories: Category[]) {
-        localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
+        this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
         window.dispatchEvent(new Event("sync-store-update"));
         window.dispatchEvent(new Event("storage"));
     }
 
-    async syncTaxonomy() {
+    async syncTaxonomy(silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy");
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
-                    localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(data.categories));
-                    window.dispatchEvent(new Event("sync-store-update"));
+                    // Map backend 'subcategories' to frontend 'children' for consistency
+                    const mapped = (data.categories || []).map((cat: any) => ({
+                        ...cat,
+                        children: cat.subcategories || []
+                    }));
+                    this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(mapped));
+                    if (!silent) {
+                        window.dispatchEvent(new Event("sync-store-update"));
+                    }
                 }
             }
         } catch (e) {
@@ -996,48 +1151,61 @@ class DataSyncServiceService {
         return this.getCategories();
     }
 
-    async createPersistentCategory(name: string) {
+    async createPersistentCategory(name: string, silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ type: "category", name })
             });
-            if (res.ok) await this.syncTaxonomy();
+            if (res.ok) await this.syncTaxonomy(silent);
         } catch (e) {
             console.error("Failed to create category:", e);
         }
     }
 
-    async createPersistentSubcategory(categoryId: string, name: string) {
+    async createPersistentSubcategory(categoryId: string, name: string, silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ type: "subcategory", categoryId, name })
             });
-            if (res.ok) await this.syncTaxonomy();
+            if (res.ok) await this.syncTaxonomy(silent);
         } catch (e) {
             console.error("Failed to create subcategory:", e);
         }
     }
 
     // Helper to migrate hardcoded categories to DB if DB is empty
+    // Helper to migrate hardcoded categories to DB if DB is empty
     async migrateTaxonomyIfNeeded(hardcodedCategories: any[]) {
         const current = this.getTaxonomy();
+        
+        // If we have some categories but significantly fewer than the hardcoded list,
+        // we might be in a partial state. But for now, 0 is the safest trigger.
         if (current.length === 0) {
-            console.log("🛠️ Migrating hardcoded categories to database...");
+            console.log("🛠️ Taxonomy: Database is empty. Migrating hardcoded categories...");
             for (const cat of hardcodedCategories) {
-                await this.createPersistentCategory(cat.label);
-                // After creating category, find its ID in the newly synced list
-                const refreshed = this.getTaxonomy();
-                const dbCat = refreshed.find(c => c.name === cat.label);
-                if (dbCat && cat.subcategories) {
-                    for (const sub of cat.subcategories) {
-                        await this.createPersistentSubcategory(dbCat.id, sub);
+                try {
+                    await this.createPersistentCategory(cat.label, true);
+                    const refreshed = this.getTaxonomy();
+                    // Case-insensitive search for the category we just created/found
+                    const dbCat = refreshed.find(c => c.name.toLowerCase() === cat.label.toLowerCase());
+                    
+                    if (dbCat && cat.subcategories) {
+                        for (const sub of cat.subcategories) {
+                            await this.createPersistentSubcategory(dbCat.id, sub, true);
+                        }
                     }
+                } catch (e) {
+                    console.error(`🛠️ Taxonomy Migration Failed for "${cat.label}":`, e);
                 }
             }
+            // Final sync and dispatch once everything is migrated
+            await this.syncTaxonomy();
+            window.dispatchEvent(new Event("sync-store-update"));
+            console.log("🛠️ Taxonomy: Migration complete.");
         }
     }
 
@@ -1047,29 +1215,38 @@ class DataSyncServiceService {
      * Taxonomy should be managed via the Admin Category page.
      */
     ensureCategoryExists(categoryName: string, subCategoryName?: string) {
-        if (!categoryName) return;
+        if (!categoryName || typeof window === "undefined") return;
 
-        const categories = this.getCategories();
-        const catIndex = categories.findIndex(c => c.name.toLowerCase() === categoryName.toLowerCase());
+        try {
+            const categories = this.getTaxonomy(); // Use getTaxonomy which is synced from DB
+            if (categories.length === 0) return; // Wait for sync
 
-        if (catIndex === -1) {
-            console.warn(`🛡️ Data Integrity: Product uses unknown category "${categoryName}". Auto-creation skipped.`);
-            return;
-        }
+            const catIndex = categories.findIndex(c => c && c.name && c.name.toLowerCase() === categoryName.toLowerCase());
 
-        const parent = categories[catIndex];
-        parent.product_count = (parent.product_count || 0) + 1;
-
-        if (subCategoryName) {
-            const subIndex = parent.children.findIndex(c => c.name.toLowerCase() === subCategoryName.toLowerCase());
-            if (subIndex !== -1) {
-                parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
-            } else {
-                console.warn(`🛡️ Data Integrity: Product uses unknown subcategory "${subCategoryName}" in "${categoryName}".`);
+            if (catIndex === -1) {
+                console.warn(`🛡️ Data Integrity: Product uses unknown category "${categoryName}". Auto-creation skipped.`);
+                return;
             }
-        }
 
-        this.setCategories(categories);
+            const parent = categories[catIndex];
+            if (!parent) return;
+            
+            // Increment local count for UI responsiveness
+            parent.product_count = (parent.product_count || 0) + 1;
+
+            if (subCategoryName && parent.children) {
+                const subIndex = parent.children.findIndex((c: Category) => c && c.name && c.name.toLowerCase() === subCategoryName.toLowerCase());
+                if (subIndex !== -1) {
+                    parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
+                } else {
+                    console.warn(`🛡️ Data Integrity: Product uses unknown subcategory "${subCategoryName}" in "${categoryName}".`);
+                }
+            }
+
+            this.setCategories(categories);
+        } catch (e) {
+            console.error("🛡️ ensureCategoryExists error:", e);
+        }
     }
 
     // --- Negotiations ---
@@ -1082,7 +1259,11 @@ class DataSyncServiceService {
     getNegotiations(sellerId?: string, buyerId?: string): NegotiationRequest[] {
         if (typeof window === "undefined") return [];
         let all: any[] = [];
-        try { all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); } catch { /* corrupted */ }
+        try { 
+            all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); 
+        } catch (e) { 
+            console.warn("Corrupted negotiations in storage", e);
+        }
         
         let filtered = all;
         
@@ -1123,7 +1304,7 @@ class DataSyncServiceService {
             seller_id: product?.seller_id || '',
             chat_messages: request.chat_messages || [{
                 sender: "buyer",
-                text: request.message || `Initial offer of ₦${request.proposed_price.toLocaleString()}`,
+                text: request.message || `Initial offer of ₦${(request.proposed_price || 0).toLocaleString()}`,
                 timestamp: new Date().toISOString(),
                 readByRecipient: false
             }]
@@ -1131,7 +1312,11 @@ class DataSyncServiceService {
         
         const current = this.getNegotiations();
         const updated = [enrichedRequest, ...current];
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        try {
+            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        } catch (e) {
+            console.warn("Failed to add negotiation to localStorage", e);
+        }
 
         // Persist to Postgres (queued if offline)
         resilientFetch("/api/negotiations", { method: "POST", body: enrichedRequest, type: "general" });
@@ -1166,6 +1351,25 @@ class DataSyncServiceService {
                 });
             }
 
+            // --- CRITICAL: Send Real Email via API ---
+            if (sellerEmail) {
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: sellerEmail,
+                        type: 'NEGOTIATION_REQUEST',
+                        payload: {
+                            name: seller?.business_name || "Seller",
+                            customerName: request.customer_name,
+                            productName: product.name,
+                            amount: `₦${request.proposed_price.toLocaleString()}`,
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
+                        }
+                    })
+                }).catch(err => console.error("Negotiation email failed:", err));
+            }
+
             // Email seller
             fetch("/api/email", {
                 method: "POST",
@@ -1190,6 +1394,24 @@ class DataSyncServiceService {
                 message: `Negotiation: ${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" (${seller?.business_name || 'Unknown Store'})`,
                 link: "/admin/governance"
             });
+
+            // ─── ZIVA AI-WHATSAPP BRIDGE ───
+            if (seller?.ziva_whatsapp_bridge && seller.whatsapp) {
+                const cleanPhone = seller.whatsapp.replace(/\D/g, '');
+                if (cleanPhone) {
+                    const waMsg = `🚀 *New Negotiation from FairPrice!*\n\nCustomer *${request.customer_name}* offered *₦${request.proposed_price.toLocaleString()}* for *${product.name}*.\n\nReply directly here or manage on your dashboard: https://www.fairprice.ng/seller/dashboard/messages`;
+                    
+                    fetch("/api/marketing/whatsapp", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: cleanPhone,
+                            message: waMsg,
+                            type: "NEGOTIATION_ALERT"
+                        })
+                    }).catch(() => {});
+                }
+            }
         }
 
         // Also trigger storage event for other tabs
@@ -1197,12 +1419,13 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
+    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased", actor: "buyer" | "seller" = "seller") {
         const current = this.getNegotiations();
         const negotiation = current.find(n => n.id === id);
         if (!negotiation) return;
 
-        const isRespondingToCounter = negotiation.status === "countered" && negotiation.counter_status === "pending";
+        // Only the buyer can respond to a seller's counter-offer using this path
+        const isRespondingToCounter = actor === "buyer" && negotiation.status === "countered" && negotiation.counter_status === "pending";
 
         const updated = current.map(n => {
             if (n.id !== id) return n;
@@ -1212,6 +1435,10 @@ class DataSyncServiceService {
                 updatedNeg.counter_status = status;
             } else {
                 updatedNeg.status = status;
+                // If seller accepts original offer while a counter is pending, clear the pending counter.
+                if (actor === "seller" && n.status === "countered" && n.counter_status === "pending") {
+                    updatedNeg.counter_status = undefined;
+                }
             }
 
             // Append a chat message so the response is visible in the chat thread
@@ -1225,13 +1452,19 @@ class DataSyncServiceService {
                         ? `✅ You accepted the counter offer of ₦${n.counter_price?.toLocaleString()}! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
                         : `❌ You rejected the counter offer of ₦${n.counter_price?.toLocaleString()}.`;
                 } else {
-                    text = status === "accepted"
-                        ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
-                        : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`;
+                    if (actor === "seller") {
+                        text = status === "accepted"
+                            ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
+                            : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`;
+                    } else {
+                        text = status === "accepted"
+                            ? `✅ I've accepted your offer for ${product?.name || 'this item'}.`
+                            : `❌ I've rejected your offer for ${product?.name || 'this item'}.`;
+                    }
                 }
 
                 existingMessages.push({
-                    sender: isRespondingToCounter ? "buyer" as const : "seller" as const,
+                    sender: actor === "buyer" ? "buyer" as const : "seller" as const,
                     text: text,
                     timestamp: new Date().toISOString(),
                     readByRecipient: false
@@ -1240,7 +1473,7 @@ class DataSyncServiceService {
             }
             return updatedNeg;
         });
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         // Let's add the resilientFetch here!
         const updatedNegRef = updated.find(n => n.id === id);
@@ -1428,7 +1661,7 @@ class DataSyncServiceService {
             updated_at: new Date().toISOString()
         };
         requests.unshift(newReq);
-        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(requests));
+        this.safeSetItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(requests));
 
         // Update order status
         this.updateOrderStatus(orderId, "return_requested");
@@ -1452,7 +1685,7 @@ class DataSyncServiceService {
             updated_at: new Date().toISOString()
         } : r);
 
-        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(updated));
 
         // Sync to order status & escrow
         if (status === "approved") {
@@ -1503,7 +1736,7 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
@@ -1583,12 +1816,12 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         const updatedNeg = updated.find(n => n.id === negId);
         
         // Mark as pending to prevent sync overwrite
         this._pendingNegotiationEdits.add(negId);
-        try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+        try { this.safeSetItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
 
         // Persist to Postgres
         fetch("/api/negotiations", {
@@ -1606,7 +1839,7 @@ class DataSyncServiceService {
         }).then(res => {
             if (res.ok) {
                 this._pendingNegotiationEdits.delete(negId);
-                try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+                try { this.safeSetItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
             }
         }).catch(console.error);
 
@@ -1689,7 +1922,7 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         // Persist to Postgres
         fetch("/api/negotiations", {
@@ -1729,7 +1962,7 @@ class DataSyncServiceService {
                         customerName: negotiation.customer_name || "Buyer",
                         productName: product.name,
                         amount: `₦${(negotiation.counter_price || 0).toLocaleString()}`,
-                        dashboardUrl: `https://fairprice.ng/seller/dashboard/messages?customer=${negotiation.customer_id}&order=${negotiation.id}`
+                        dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages?customer=${negotiation.customer_id}&order=${negotiation.id}`
                     }
                 })
             }).catch(console.error);
@@ -1751,7 +1984,7 @@ class DataSyncServiceService {
 
     // --- Login ---
     loginSeller(sellerId: string) {
-        localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, sellerId);
+        this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, sellerId);
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -1774,7 +2007,7 @@ class DataSyncServiceService {
             const byUser = sellers.find(s => s.user_id === userId);
             if (byUser) {
                 // Auto-heal: update the stored seller ID to the canonical DB ID
-                localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);
+                this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);
                 return byUser;
             }
         }
@@ -1813,11 +2046,11 @@ class DataSyncServiceService {
         if (!guestId) {
             // Unify with AuthContext pattern: gst_<timestamp>_<random_string>
             guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-            localStorage.setItem("fp_guest_id", guestId);
+            this.safeSetItem("fp_guest_id", guestId);
             
             // Also initialize a matching guest name if not already set
             if (!localStorage.getItem("fp_guest_name")) {
-                localStorage.setItem("fp_guest_name", "Guest Buyer");
+                this.safeSetItem("fp_guest_name", "Guest Buyer");
             }
             console.log(`👤 SyncStore: Initialized unique guest identity: ${guestId}`);
         }
@@ -1861,9 +2094,9 @@ class DataSyncServiceService {
         if (!this._pendingSellerEdits.has(id)) {
             this._pendingSellerEdits.add(id);
         }
-        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+        try { this.safeSetItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
 
-        localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         
         // Only dispatch if something actually changed (beyond the guard above)
         window.dispatchEvent(new Event("storage"));
@@ -1877,7 +2110,7 @@ class DataSyncServiceService {
         }).then(res => {
             if (res.ok) {
                 this._pendingSellerEdits.delete(id);
-                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+                try { this.safeSetItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
             }
         }).catch(() => {
             // Keep in pendingSellerEdits so syncWithDB doesn't overwrite
@@ -1912,7 +2145,7 @@ class DataSyncServiceService {
                     { min: 5000000, rate: 0.02 }
                 ]
             };
-            localStorage.setItem(this.STORAGE_KEYS.PLATFORM_SETTINGS, JSON.stringify(defaults));
+            this.safeSetItem(this.STORAGE_KEYS.PLATFORM_SETTINGS, JSON.stringify(defaults));
             return defaults;
         }
         return JSON.parse(stored);
@@ -2016,10 +2249,25 @@ class DataSyncServiceService {
     // --- Deals Management ---
     getDeals(): Deal[] {
         if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        if (!stored) return [];
+
         try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DEALS) || "[]");
+            const deals: Deal[] = JSON.parse(stored);
+            const now = new Date().getTime();
+
+            // Auto-cleanup expired deals
+            const validDeals = deals.filter(d => {
+                if (!d.end_at) return true;
+                return new Date(d.end_at).getTime() > now;
+            });
+
+            if (validDeals.length !== deals.length) {
+                this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(validDeals));
+            }
+
+            return validDeals;
         } catch {
-            localStorage.removeItem(this.STORAGE_KEYS.DEALS);
             return [];
         }
     }
@@ -2034,7 +2282,7 @@ class DataSyncServiceService {
             deal_priority: deal.deal_priority || 999 // Default to low priority
         };
         const updated = [newDeal, ...current];
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
     }
@@ -2045,7 +2293,7 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: any[] = JSON.parse(stored);
         const updated = current.filter(d => d.id !== dealId);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -2056,7 +2304,7 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: any[] = JSON.parse(stored);
         const updated = current.filter(d => (d.product_id || d.productId) !== productId);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -2067,13 +2315,36 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: Deal[] = JSON.parse(stored);
         const updated = current.map(d => d.id === dealId ? { ...d, ...updates } : d);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- Restock Subscriptions ---
+    getRestockSubscriptions(): { productId: string, userId: string, userEmail?: string, timestamp: string }[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS) || "[]");
+    }
+
+    addRestockSubscription(productId: string, userId: string, userEmail?: string) {
+        if (typeof window === "undefined") return;
+        const subs = this.getRestockSubscriptions();
+        if (!subs.some(s => s.productId === productId && s.userId === userId)) {
+            subs.push({ productId, userId, userEmail, timestamp: new Date().toISOString() });
+            this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
+            window.dispatchEvent(new Event("sync-store-update"));
+        }
+    }
+
+    removeRestockSubscriptionsByProduct(productId: string) {
+        if (typeof window === "undefined") return;
+        const subs = this.getRestockSubscriptions().filter(s => s.productId !== productId);
+        this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
     }
 
     // --- Getters ---
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return [];
+        const user = this.getCurrentUser();
         const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
         let allProducts: Product[] = [];
         try {
@@ -2091,19 +2362,22 @@ class DataSyncServiceService {
             if (s.userId || s.user_id) sellerMap.set(s.userId || s.user_id, s);
         });
 
-        const derivedProducts = allProducts.map((p: Product) => {
-            const seller = sellerMap.get(p.seller_id);
-            if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
-                return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
-            }
-            return p;
-        });
+        const deletedStubs = this.getDeletedStubs();
+        const derivedProducts = allProducts
+            .filter((p: Product) => !deletedStubs.includes(p.id) && !p.is_direct_payment)
+            .map((p: Product) => {
+                const seller = sellerMap.get(p.seller_id);
+                if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
+                    return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
+                }
+                return p;
+            });
 
-        if (options?.includeInactiveSellers) return derivedProducts;
+        const isAdmin = user?.role === "admin";
+        if (options?.includeInactiveSellers || isAdmin) return derivedProducts;
 
         // By default, filter out products belonging to inactive/unverified sellers 
         // to prevent unapproved sellers from showing up in global search or catalogs.
-        const user = this.getCurrentUser();
         const activeSellerIds = new Set<string>();
         allSellers.forEach((s: any) => {
             // Handle both camelCase (from DB API) and snake_case (from localStorage)
@@ -2113,13 +2387,17 @@ class DataSyncServiceService {
             
             const isVerified = s.status === "active" || s.verified || kycStatus === "approved" || s.id === "global-partners";
             const isOwner = user && (user.id === userId || user.email === ownerEmail);
-            const isAdmin = user?.role === "admin";
 
-            if (isVerified || isOwner || isAdmin) {
+            if (isVerified || isOwner) {
                 if (s.id) activeSellerIds.add(s.id);
                 if (userId) activeSellerIds.add(userId);
+                if (ownerEmail) activeSellerIds.add(ownerEmail);
             }
         });
+
+        // Add special case for system sellers that might not be in the sellers list
+        activeSellerIds.add("global-partners");
+        activeSellerIds.add("fairprice-official");
 
         return derivedProducts.filter((p: Product) => activeSellerIds.has(p.seller_id));
     }
@@ -2142,7 +2420,16 @@ class DataSyncServiceService {
             }
             const idx = existing.findIndex((e: any) => e.id === p.id);
             if (idx >= 0) {
-                existing[idx] = { ...existing[idx], ...p, cached_at: existing[idx].cached_at };
+                const merged = { ...existing[idx], ...p, cached_at: existing[idx].cached_at };
+                // Preserve a previously hydrated image — don't let a placeholder overwrite it
+                const isHydratedImg = (url: string) =>
+                    typeof url === 'string' && url.startsWith('http') && url.length < 2000 &&
+                    !url.includes('placeholder') && !url.includes('logo.png');
+                if (isHydratedImg(existing[idx].image_url) && !isHydratedImg(p.image_url)) {
+                    merged.image_url = existing[idx].image_url;
+                    if (existing[idx].images?.length) merged.images = existing[idx].images;
+                }
+                existing[idx] = merged;
             } else {
                 existing.push({ ...p, cached_at: new Date().toISOString(), cache_query: normalizedQuery });
             }
@@ -2157,7 +2444,7 @@ class DataSyncServiceService {
         }
 
         try {
-            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+            this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
 
             // Persist to Postgres database for Admin visibility across devices
             fetch("/api/search-cache", {
@@ -2176,7 +2463,19 @@ class DataSyncServiceService {
 
     getTrendingIds(): string[] {
         if (typeof window === "undefined") return [];
-        return this.getProducts().filter(p => p.is_trending).map(p => p.id);
+        const products = this.getProducts();
+        
+        // 1. Admin Curated (Fire Button)
+        const curated = products.filter(p => p.is_trending);
+        
+        // 2. Intelligent Organically Trending (High Demand, High Sold Count/Reviews)
+        const organic = products
+            .filter(p => !p.is_trending && p.is_active && (p.sold_count > 10 || p.review_count > 5))
+            .sort((a, b) => (b.sold_count * 2 + b.review_count) - (a.sold_count * 2 + a.review_count))
+            .slice(0, 15); // Top 15 organic trending
+            
+        // Combine and map to IDs
+        return [...curated, ...organic].map(p => p.id);
     }
 
     async toggleTrending(productId: string): Promise<boolean> {
@@ -2197,7 +2496,7 @@ class DataSyncServiceService {
                 if (product) {
                     product.is_trending = data.isTrending;
                     newStatus = data.isTrending;
-                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+                    this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
             } else {
@@ -2254,78 +2553,80 @@ class DataSyncServiceService {
 
     /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
     /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
-searchCacheFuzzyMatch(query: string): any[] {
-    if (typeof window === "undefined") return [];
-    
-    // Fallback to empty object if cache is missing to avoid crashes
-    const cache = this._getSearchCache() || {};
-    const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
+    searchCacheFuzzyMatch(query: string): any[] {
+        if (typeof window === "undefined") return [];
+        
+        // Fallback to empty object if cache is missing to avoid crashes
+        const cache = this._getSearchCache() || {};
+        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
 
-    // If query is empty or too short, don't show random cache items
-    if (tokens.length === 0) return [];
+        // If query is empty or too short, don't show random cache items
+        if (tokens.length === 0) return [];
 
-    const results: any[] = [];
-    const seenIds = new Set<string>();
+        const results: any[] = [];
+        const seenIds = new Set<string>();
 
-    Object.values(cache).forEach((products) => {
-        // CRITICAL FIX: Ensure 'products' is an array before iterating.
-        // This prevents the "e.forEach is not a function" error.
-        if (Array.isArray(products)) {
-            products.forEach(p => {
-                if (!p || !p.id || seenIds.has(p.id)) return;
-                
-                const name = (p.name || '').toLowerCase();
-                const category = (p.category || '').toLowerCase();
+        Object.values(cache).forEach((products) => {
+            // CRITICAL FIX: Ensure 'products' is an array before iterating.
+            // This prevents the "e.forEach is not a function" error.
+            if (Array.isArray(products)) {
+                products.forEach(p => {
+                    if (!p || !p.id || seenIds.has(p.id)) return;
+                    
+                    const name = (p.name || '').toLowerCase();
+                    const category = (p.category || '').toLowerCase();
 
-                // Ensure ALL typed words exist in either the product name or category
-                const matchesAll = tokens.every(t => name.includes(t) || category.includes(t));
+                    // Ensure ALL typed words exist in either the product name or category
+                    const matchesAll = tokens.every(t => name.includes(t) || category.includes(t));
 
-                if (matchesAll) {
-                    results.push(p);
-                    seenIds.add(p.id);
-                }
-            });
-        }
-    });
+                    if (matchesAll) {
+                        results.push(p);
+                        seenIds.add(p.id);
+                    }
+                });
+            }
+        });
 
-    // Return max 4 most relevant (sorted by name length to prefer tighter matches)
-    return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
-}
+        // Return max 4 most relevant (sorted by name length to prefer tighter matches)
+        return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
+    }
 
-/** Direct access to the raw search cache */
-getAllSearchCache(): Record<string, any[]> {
-    return this._getSearchCache() || {};
-}
+    /** Direct access to the raw search cache */
+    getAllSearchCache(): Record<string, any[]> {
+        return this._getSearchCache() || {};
+    }
 
-/** Flat list of all cached products (crucial for Admin view stability) */
-getAllCachedProducts(): any[] {
-    const cache = this._getSearchCache() || {};
-    const seen = new Set<string>();
-    const all: any[] = [];
+    /** Flat list of all cached products (crucial for Admin view stability) */
+    getAllCachedProducts(): any[] {
+        const cache = this._getSearchCache() || {};
+        const seen = new Set<string>();
+        const all: any[] = [];
 
-    Object.values(cache).forEach((products) => {
-        // DEFENSIVE FIX: Guard against non-array values sitting in the store
-        if (Array.isArray(products)) {
-            products.forEach(p => {
-                if (p && p.id && !seen.has(p.id)) {
-                    seen.add(p.id);
-                    all.push(p);
-                }
-            });
-        }
-    });
-    return all;
-}
+        Object.values(cache).forEach((products) => {
+            // DEFENSIVE FIX: Guard against non-array values sitting in the store
+            if (Array.isArray(products)) {
+                products.forEach(p => {
+                    if (p && p.id && !seen.has(p.id)) {
+                        seen.add(p.id);
+                        all.push(p);
+                    }
+                });
+            }
+        });
+        return all;
+    }
     /** Update a product in the search cache (admin edits) */
     updateSearchCacheProduct(productId: string, updates: Partial<any>) {
         if (typeof window === "undefined") return;
         const cache = this._getSearchCache();
         Object.keys(cache).forEach(q => {
-            cache[q] = cache[q].map((p: any) =>
-                p.id === productId ? { ...p, ...updates } : p
-            );
+            if (Array.isArray(cache[q])) {
+                cache[q] = cache[q].map((p: any) =>
+                    p.id === productId ? { ...p, ...updates } : p
+                );
+            }
         });
-        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
@@ -2351,10 +2652,12 @@ getAllCachedProducts(): any[] {
         if (typeof window === "undefined") return;
         const cache = this._getSearchCache();
         Object.keys(cache).forEach(q => {
-            cache[q] = cache[q].filter((p: any) => p.id !== productId);
-            if (cache[q].length === 0) delete cache[q];
+            if (Array.isArray(cache[q])) {
+                cache[q] = cache[q].filter((p: any) => p.id !== productId);
+                if (cache[q].length === 0) delete cache[q];
+            }
         });
-        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
@@ -2367,7 +2670,7 @@ getAllCachedProducts(): any[] {
 
     /** Returns only products whose seller has kyc_status === "approved" (or verified === true). 
      *  Use this for public-facing views (Homepage, Search, Category pages). */
-    getApprovedProducts(): Product[] {
+    public getApprovedProducts(): Product[] {
         const products = this.getProducts();
         const sellers = this.getSellers();
         
@@ -2391,6 +2694,11 @@ getAllCachedProducts(): any[] {
         return products.filter(p => p.is_active !== false && approvedIds.has(p.seller_id));
     }
 
+    /** Manually inject a product into the local store (used by integrations) */
+    public addApprovedProduct(product: Product) {
+        this.addRawProduct(product, true);
+    }
+
     getSellers(): Seller[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
@@ -2411,12 +2719,12 @@ getAllCachedProducts(): any[] {
             console.log("Registration locked - attempt too recent");
             return;
         }
-        localStorage.setItem(lockKey, Date.now().toString());
+        this.safeSetItem(lockKey, Date.now().toString());
 
         this._isRegisteringSeller = true;
         const sellers = this.getSellers();
         sellers.push(seller);
-        localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
+        this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
@@ -2553,7 +2861,7 @@ getAllCachedProducts(): any[] {
 
         const orders = this.getOrders();
         const updated = [newOrder, ...orders];
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Gamification: Post-Purchase Delight
         if (order.source && order.source.startsWith("negotiation_")) {
@@ -2582,7 +2890,7 @@ getAllCachedProducts(): any[] {
                             orderId: orderId,
                             productName: `${product.name} (Negotiated Savings: ₦${amountSaved.toLocaleString()})`,
                             amount: order.amount,
-                            trackingUrl: `https://fairprice.ng/account/orders`
+                            trackingUrl: `https://www.fairprice.ng/account/orders`
                         }
                     })
                 }).catch(console.error);
@@ -2591,7 +2899,7 @@ getAllCachedProducts(): any[] {
             // Mark negotiation as purchased
             if (neg) {
                 const updatedNegs = negotiations.map(n => n.id === negId ? { ...n, purchased: true } : n);
-                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updatedNegs));
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updatedNegs));
             }
         }
 
@@ -2605,6 +2913,33 @@ getAllCachedProducts(): any[] {
             message: `Your order #${orderId.substring(0, 8)} for ${product.name} has been placed successfully.`,
             link: `/account/orders`
         });
+
+        // ─── DIRECT PAYMENT NOTIFICATION (QR) ───
+        // @ts-ignore
+        if (product.is_direct_payment) {
+            const seller = this.getSellers().find(s => s.id === product.seller_id);
+            if (seller && seller.whatsapp) {
+                const cleanPhone = seller.whatsapp.replace(/\D/g, '');
+                if (cleanPhone) {
+                    // @ts-ignore
+                    const memoText = product.memo ? `\nMemo: ${product.memo}` : "";
+                    // @ts-ignore
+                    const refText = product.ref ? `\nRef: ${product.ref}` : "";
+                    
+                    const waMsg = `✅ *Payment Received via QR!*\n\nAmount: *₦${order.amount.toLocaleString()}*\nProduct: *${product.name}*${memoText}${refText}\n\nCustomer: ${customerName}\nOrder ID: #${orderId}\n\nView details: https://www.fairprice.ng/seller/orders?id=${orderId}`;
+                    
+                    fetch("/api/marketing/whatsapp", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: cleanPhone,
+                            message: waMsg,
+                            type: "DIRECT_PAYMENT_ALERT"
+                        })
+                    }).catch(() => {});
+                }
+            }
+        }
 
         // Email Buyer
         const customerEmail = `user_${order.customer_id}@fairprice.ng`;
@@ -2625,7 +2960,7 @@ getAllCachedProducts(): any[] {
                     orderId: orderId,
                     productName: product.name,
                     amount: order.amount,
-                    trackingUrl: `https://fairprice.ng/account/orders`
+                    trackingUrl: `https://www.fairprice.ng/account/orders`
                 }
             })
         }).catch(console.error);
@@ -2652,7 +2987,7 @@ getAllCachedProducts(): any[] {
                             productName: product.name,
                             businessName: seller.business_name || "Seller",
                             amount: order.amount,
-                            dashboardUrl: `https://fairprice.ng/seller/orders`
+                            dashboardUrl: `https://www.fairprice.ng/seller/orders`
                         }
                     })
                 }).catch(console.error);
@@ -2670,12 +3005,65 @@ getAllCachedProducts(): any[] {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                to: "techzema@gmail.com",
+                to: SECURITY_EMAILS,
                 subject: `New Order: ${product.name} — ₦${order.amount.toLocaleString()}`,
                 type: "security_alert",
                 data: { storeName: "FairPrice Admin", message: `New order #${orderId.substring(0, 8)} for "${product.name}" — ₦${order.amount.toLocaleString()} from ${seller?.business_name || 'Unknown Store'}.` }
             })
         }).catch(() => {});
+
+        // ─── STOCK DEDUCTION & RESTOCK ALERTS ───
+        const orderQty = (order as any).quantity || 1;
+        const currentStock = product.stock ?? 999;
+        const newStock = Math.max(0, currentStock - orderQty);
+        this.updateProduct(product.id, { stock: newStock, sold_count: (product.sold_count || 0) + orderQty });
+
+        // Low stock alert (≤ 3 remaining)
+        if (newStock > 0 && newStock <= 3 && seller) {
+            this.addNotification({
+                userId: seller.owner_email || seller.id,
+                type: "order",
+                message: `⚠️ Low Stock Alert: "${product.name}" has only ${newStock} unit${newStock > 1 ? 's' : ''} left. Consider restocking soon.`,
+                link: "/seller/dashboard"
+            });
+        }
+
+        // Out of stock alert (0 remaining)
+        if (newStock === 0 && seller) {
+            this.addNotification({
+                userId: seller.owner_email || seller.id,
+                type: "order",
+                message: `🚨 Out of Stock: "${product.name}" is now sold out (0 units). Restock immediately to avoid lost sales.`,
+                link: "/seller/dashboard"
+            });
+
+            // Email seller about restock
+            if (seller.owner_email) {
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: seller.owner_email,
+                        type: "SELLER_NEW_ORDER",
+                        payload: {
+                            orderId: orderId,
+                            productName: `⚠️ RESTOCK NEEDED: ${product.name}`,
+                            businessName: seller.business_name || "Seller",
+                            amount: 0,
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard`
+                        }
+                    })
+                }).catch(console.error);
+            }
+
+            // Notify admin
+            this.addNotification({
+                userId: "admin",
+                type: "order",
+                message: `📦 Stock Depleted: "${product.name}" from ${seller?.business_name} is now at 0 units.`,
+                link: "/admin/products"
+            });
+        }
 
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
@@ -2697,7 +3085,7 @@ getAllCachedProducts(): any[] {
         const orders = this.getOrders();
 
         const updated = orders.map(o => {
-            if (o.id === orderId) {
+            if (o.id === orderId || o.tracking_id === orderId) {
                 const msg = {
                     id: Date.now().toString(),
                     sender,
@@ -2718,7 +3106,7 @@ getAllCachedProducts(): any[] {
             return o;
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // CRITICAL: Push to DB immediately for Concierge messages to ensure persistence and notifications
         fetch("/api/orders/sync-messages", {
@@ -2747,16 +3135,57 @@ getAllCachedProducts(): any[] {
                         message: `💬 Customer message on order #${orderId}: "${msgPreview}"`,
                         link: `/seller/dashboard/messages?order=${orderId}`
                     });
+
+                    // --- Send Email to Seller ---
+                    const seller = this.getSellers().find(s => s.id === order.seller_id || s.user_id === order.seller_id);
+                    const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email;
+                    if (sellerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: sellerEmail,
+                                type: 'ORDER_INQUIRY',
+                                payload: {
+                                    sellerName: seller?.business_name || "Seller",
+                                    orderId: order.id,
+                                    message: text,
+                                    dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages?order=${orderId}`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
             } else if (sender === 'admin') {
                 // Admin sent: notify customer and seller
                 if (order?.customer_id) {
+                    const customerUser = this.getUser(order.customer_id);
+                    const customerEmail = customerUser?.email || (order.customer_id.includes('@') ? order.customer_id : undefined);
+                    
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
                         message: `💬 Admin replied to your order #${orderId}`,
-                        link: `/account/orders`
+                        link: `/account/orders?orderId=${orderId}&openConcierge=true`
                     });
+
+                    if (customerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: customerEmail,
+                                type: 'BUYER_ORDER_MESSAGE',
+                                payload: {
+                                    name: customerUser?.name || "Customer",
+                                    sellerName: "FairPrice Support",
+                                    orderId: orderId,
+                                    message: text,
+                                    dashboardUrl: `https://www.fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
                 if (order?.seller_id) {
                     this.addNotification({
@@ -2769,12 +3198,34 @@ getAllCachedProducts(): any[] {
             } else if (sender === 'seller') {
                 // Seller sent: notify customer and admin
                 if (order?.customer_id) {
+                    const customerUser = this.getUser(order.customer_id);
+                    const customerEmail = customerUser?.email || (order.customer_id.includes('@') ? order.customer_id : undefined);
+                    const seller = this.getSellers().find(s => s.id === order.seller_id);
+
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
                         message: `💬 Seller replied to your order #${orderId}`,
-                        link: `/account/orders`
+                        link: `/account/orders?orderId=${orderId}&openConcierge=true`
                     });
+
+                    if (customerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: customerEmail,
+                                type: 'BUYER_ORDER_MESSAGE',
+                                payload: {
+                                    name: customerUser?.name || "Customer",
+                                    sellerName: seller?.business_name || "the Seller",
+                                    orderId: orderId,
+                                    message: text,
+                                    dashboardUrl: `https://www.fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
                 this.addNotification({
                     userId: 'admin',
@@ -2801,7 +3252,7 @@ getAllCachedProducts(): any[] {
                                 sellerName: seller.business_name || "Seller",
                                 orderId: orderId,
                                 message: text,
-                                dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                                dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
                             }
                         })
                     }).catch(console.error);
@@ -2816,7 +3267,7 @@ getAllCachedProducts(): any[] {
     markOrderReadAsAdmin(orderId: string) {
         const orders = this.getOrders();
         const updated = orders.map(o => o.id === orderId ? { ...o, unread_admin: false } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -2850,13 +3301,20 @@ getAllCachedProducts(): any[] {
         };
 
         const updated = [newProduct, ...products];
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
         return newProduct;
     }
 
     addRawProduct(product: Product, persist: boolean = true) {
+        if (typeof window === "undefined") return;
+
+        // Canonical Taxonomy Normalization
+        const { category, subcategory } = this.normalizeCategory(product.category, product.subcategory || "");
+        product.category = category as ProductCategory;
+        product.subcategory = subcategory;
+
         // Enforce 50-character limit for GMC compliance on all newly added products
         if (product.id.length > 50) {
             product.id = product.id.slice(0, 50).replace(/-+$/, "");
@@ -2881,6 +3339,16 @@ getAllCachedProducts(): any[] {
         }
 
         const existingIdx = products.findIndex(p => p.id === product.id);
+        
+        // ─── PERSISTENT DELETION BLOCK ───
+        // If this product was explicitly deleted by the user, do NOT allow it to be re-added
+        // via automated search or global discovery.
+        const deletedStubs = this.getDeletedStubs();
+        if (deletedStubs.includes(product.id)) {
+            console.warn(`🛡️ Resilience: Blocked re-addition of deleted product ${product.id}`);
+            return null; 
+        }
+
         if (existingIdx >= 0) {
             const existing = products[existingIdx];
             
@@ -2917,7 +3385,7 @@ getAllCachedProducts(): any[] {
             // 🔥 REAL-TIME GOOGLE INDEXING: Ping Google Indexing API whenever a 
             // brand new product enters the platform (via Seller add or Admin promotion).
             if (typeof window !== "undefined") {
-                const absoluteUrl = getProductUrl(product.id, product.name);
+                const absoluteUrl = getProductUrl(product);
                 fetch("/api/google-index", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2928,11 +3396,11 @@ getAllCachedProducts(): any[] {
         if (products.length > 500) products.length = 500; // soft limit
 
         try {
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         } catch (e) {
             // Force aggressive trim if quota exceeded
             products.length = 150;
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
         // Persist to Postgres if allowed (queued if offline)
@@ -2949,7 +3417,45 @@ getAllCachedProducts(): any[] {
         return product;
     }
 
+    /**
+     * targeted sync for a single product to ensure hot-updates are visible
+     */
+    public async syncProduct(id: string) {
+        if (typeof window === "undefined") return;
+        try {
+            const res = await fetch(`/api/products/${id}`);
+            if (res.ok) {
+                const product = await res.json();
+                if (product && product.id) {
+                    const products = this.getProducts();
+                    const updated = products.map(p => p.id === product.id ? { ...p, ...product } : p);
+                    this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new Event("sync-store-update"));
+                    return product;
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to sync individual product", id, e);
+        }
+        return null;
+    }
+
     async updateProduct(id: string, updates: Partial<Product>) {
+        if (typeof window === "undefined") return;
+
+        // Canonical Taxonomy Normalization
+        if (updates.category) {
+            const { category, subcategory } = this.normalizeCategory(
+                updates.category, 
+                updates.subcategory || ""
+            );
+            updates.category = category as ProductCategory;
+            if (updates.subcategory !== undefined) {
+                updates.subcategory = subcategory;
+            }
+        }
+
         const products = this.getProducts();
         const existingProduct = products.find(p => p.id === id);
 
@@ -2966,16 +3472,100 @@ getAllCachedProducts(): any[] {
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
         this._pendingEdits.add(id);
-        try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+        try { this.safeSetItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
 
         // Write to localStorage for instant UI feedback
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
         // Clear stale NavSearch sessionStorage cache so thumbnails update immediately
         try {
             sessionStorage.removeItem('nav_search_results');
             sessionStorage.removeItem('nav_search_clicked_id');
         } catch { /* ignore */ }
+
+        // Also update the search cache so NavSearch shows fresh data immediately
+        this.updateSearchCacheProduct(id, mergedProduct);
+
+        // ─── RESTOCK NOTIFICATION ───
+        // If stock was 0 and is now > 0, notify all subscribed users
+        if (existingProduct && existingProduct.stock === 0 && updates.stock !== undefined && updates.stock > 0) {
+            const subs = this.getRestockSubscriptions().filter(s => s.productId === id);
+            if (subs.length > 0) {
+                subs.forEach(sub => {
+                    // Bell Notification
+                    this.addNotification({
+                        userId: sub.userId,
+                        type: "order",
+                        message: `🔔 Good News! "${mergedProduct.name}" is back in stock. Order now before it runs out again!`,
+                        link: `/product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+                    });
+                    
+                    // Simulate Push / Email Notification
+                    console.log(`[Push/Email Triggered] To: ${sub.userEmail || sub.userId} | Subject: "${mergedProduct.name}" is Back in Stock! | Link: /product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+                    
+                    if (sub.userEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: sub.userEmail,
+                                type: 'RESTOCK_ALERT',
+                                payload: {
+                                    name: "Customer",
+                                    productName: mergedProduct.name,
+                                    productLink: `/product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+                                }
+                            })
+                        }).catch(e => console.error("Restock email dispatch failed", e));
+                    }
+                });
+                // Clear subscriptions for this product since they have been notified
+                this.removeRestockSubscriptionsByProduct(id);
+            }
+        }
+
+        // ─── PRICE DROP DETECTION & AUTO-DEAL ───
+        // When a seller reduces price by 10%+, auto-add to Best Deals & notify interested buyers
+        if (existingProduct && updates.price && updates.price < existingProduct.price) {
+            const dropPct = Math.round(((existingProduct.price - updates.price) / existingProduct.price) * 100);
+            
+            if (dropPct >= 10) {
+                // Auto-create a deal for the Best Deals section (48hr visibility)
+                const existingDeals = this.getDeals();
+                const alreadyHasDeal = existingDeals.some(d => d.product_id === id && d.is_active);
+                
+                if (!alreadyHasDeal) {
+                    this.addDeal({
+                        product_id: id,
+                        product: mergedProduct,
+                        discount_pct: dropPct,
+                        start_at: new Date().toISOString(),
+                        end_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48 hours
+                        is_active: true,
+                        deal_priority: dropPct >= 30 ? 1 : dropPct >= 20 ? 2 : 3
+                    });
+                }
+
+                // Notify seller their product is now in Best Deals
+                const seller = this.getSellers().find(s => s.id === mergedProduct.seller_id || s.user_id === mergedProduct.seller_id);
+                if (seller) {
+                    this.addNotification({
+                        userId: seller.owner_email || seller.id,
+                        type: "promo",
+                        message: `🔥 Price Drop! "${mergedProduct.name}" (-${dropPct}%) has been auto-promoted to Best Deals for 48 hours.`,
+                        link: "/deals"
+                    });
+                }
+
+                // Notify buyers who may have viewed similar products (push notification simulation)
+                this.addNotification({
+                    userId: "all_buyers",
+                    type: "promo",
+                    message: `💰 Price Drop Alert: "${mergedProduct.name}" is now ₦${(updates.price).toLocaleString()} (-${dropPct}% off!)`,
+                    link: `/product/${id}/${mergedProduct.slug || id}`
+                });
+            }
+        }
 
         // Dispatch events IMMEDIATELY — UI resolves at this point, DB write is fire-and-forget
         window.dispatchEvent(new Event("storage"));
@@ -2996,7 +3586,7 @@ getAllCachedProducts(): any[] {
                 if (res.ok) {
                     console.log(`✅ Persisted product update to DB: ${id}`);
                     this._pendingEdits.delete(id);
-                    try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+                    try { this.safeSetItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
                 } else {
                     const errData = await res.json().catch(() => ({}));
                     console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
@@ -3016,14 +3606,14 @@ getAllCachedProducts(): any[] {
 
     setCachedGlobalResults(query: string, products: Product[]) {
         const normalizedQuery = query.toLowerCase().trim();
-        localStorage.setItem(`fairprice_global_search_${normalizedQuery}`, JSON.stringify(products));
+        this.safeSetItem(`fairprice_global_search_${normalizedQuery}`, JSON.stringify(products));
 
         // Also save to the central SEARCH_CACHE for the Admin portal
         try {
             const centralCacheStr = localStorage.getItem(this.STORAGE_KEYS.SEARCH_CACHE) || "{}";
             const centralCache = JSON.parse(centralCacheStr);
             centralCache[normalizedQuery] = products;
-            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
+            this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
             window.dispatchEvent(new Event("sync-store-update"));
         } catch (e) {
             console.error("Failed to update central search cache for admin", e);
@@ -3039,45 +3629,86 @@ getAllCachedProducts(): any[] {
     addToHistory(product: Product) {
         if (typeof window === "undefined") return;
         try {
+            // 1. Update Global Search History
             const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
             let history = JSON.parse(historyJson);
-
-            // Remove if already exists so it gets bumped to the top
             history = history.filter((h: any) => h.productId !== product.id);
-
             history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
             if (history.length > 50) history.length = 50;
-            localStorage.setItem("fairprice_demo_global_search_history", JSON.stringify(history));
+            this.safeSetItem("fairprice_demo_global_search_history", JSON.stringify(history));
+
+            // 2. Update Legacy Browsing History (used for recommendation scoring)
+            const saved = localStorage.getItem("fp_browsing_history");
+            let fpHistory = saved ? JSON.parse(saved) : [];
+            fpHistory = fpHistory.filter((p: any) => p.id !== product.id);
+            fpHistory.unshift({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image_url: product.image_url,
+                category: product.category,
+                seller_id: product.seller_id,
+                seller_name: product.seller_name,
+                avg_rating: product.avg_rating,
+                review_count: product.review_count,
+                price_flag: product.price_flag,
+                original_price: product.original_price
+            });
+            this.safeSetItem("fp_browsing_history", JSON.stringify(fpHistory.slice(0, 20)));
         } catch (e) { }
     }
 
     getSearchHistoryProducts(): Product[] {
         if (typeof window === "undefined") return [];
         const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
-        const history = JSON.parse(historyJson);
+        const fpHistoryJson = localStorage.getItem("fp_browsing_history") || "[]";
+        
+        let history = JSON.parse(historyJson);
+        const fpHistory = JSON.parse(fpHistoryJson);
+
+        // Merge both history systems into one list of unique IDs
+        const allIds = new Set([
+            ...history.map((h: any) => h.productId),
+            ...fpHistory.map((h: any) => h.id)
+        ]);
+
         const products = this.getProducts();
 
-        // Return recently viewed products from history that exist in the products array.
-        // History is already unshifted (newest first).
-        const historyProducts = history
-            .map((h: any) => products.find((p) => p.id === h.productId))
-            .filter(Boolean);
+        // Re-hydrate from fresh catalog to avoid stale prices/images
+        const historyProducts = Array.from(allIds)
+            .map((id) => products.find((p) => p.id === id))
+            .filter((p): p is Product => !!p);
 
-        // Deduplicate by id (already done in addToHistory but good measure)
-        return historyProducts.filter((v: Product, i: number, a: Product[]) => a.findIndex(t => (t.id === v.id)) === i);
+        // Sort by recency (if possible, otherwise just use order of discovery)
+        // For simplicity, we just return the matches found in 'products'
+        return historyProducts.slice(0, 20);
     }
 
     deleteProduct(id: string) {
-        const products = this.getProducts();
-        const updated = products.filter(p => p.id !== id);
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        if (typeof window === "undefined") return;
         
-        // Mark as deleted so syncWithDB doesn't add it back from stale DB response
+        // 1. Local cleanup
+        const products = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || "[]");
+        const filtered = products.filter((p: any) => p.id !== id);
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
+        
+        // 2. Persistent Tombstone (Prevents re-syncing from DB in current session)
         this._deletedProductIds.add(id);
-        setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min tombstone
+        // PERSISTENT TOMBSTONE: Add to DELETED_STUBS so it never comes back via automated discovery
+        const deleted = this.getDeletedStubs();
+        if (!deleted.includes(id)) {
+            deleted.push(id);
+            this.safeSetItem(this.STORAGE_KEYS.DELETED_STUBS, JSON.stringify(deleted));
+        }
 
-        // Sync deletion to Postgres
-        resilientFetch(`/api/products?id=${id}`, { method: "DELETE", type: "product_update" });
+        setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min memory tombstone
+
+        // Sync deletion to Postgres via POST fallback (more reliable than DELETE method)
+        resilientFetch(`/api/products`, { 
+            method: "POST", 
+            body: { action: "delete", id },
+            type: "product_update" 
+        });
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -3089,7 +3720,7 @@ getAllCachedProducts(): any[] {
      * Automated Full Sync: Pulls all relevant entities from the DB and merges them locally.
      * Designed to be called on page mount or periodically.
      */
-    async autoSync() {
+    async autoSync(forceRefresh: boolean = false) {
         if (typeof window === "undefined") return;
         
         const sellerId = this.getCurrentSellerId();
@@ -3098,6 +3729,21 @@ getAllCachedProducts(): any[] {
 
         if (!identity) return;
 
+        if (forceRefresh) {
+            console.log(`🧹 Clearing stale local cache for ${identity} before refresh...`);
+            // We don't wipe everything, just items matching this identity to avoid affecting other accounts
+            if (sellerId) {
+                const orders = this.getOrders().filter(o => o.seller_id !== sellerId);
+                this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                const negs = this.getNegotiationsRaw().filter((n: any) => n.seller_id !== sellerId);
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+            } else if (userId) {
+                const orders = this.getOrders().filter(o => o.customer_id !== userId);
+                this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                const negs = this.getNegotiationsRaw().filter((n: any) => n.customer_id !== userId);
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+            }
+        }
         try {
             console.log(`🔄 AutoSync started for ${identity}...`);
             
@@ -3140,6 +3786,8 @@ getAllCachedProducts(): any[] {
                         tracking_id: o.trackingId,
                         carrier: o.carrier,
                         tracking_steps: o.trackingSteps || [],
+                        chat_messages: o.chatMessages || [],
+                        zivaActive: o.zivaActive,
                         created_at: o.createdAt,
                         updated_at: o.updatedAt
                     });
@@ -3172,14 +3820,14 @@ getAllCachedProducts(): any[] {
             if (sellerId) {
                 const payoutsRes = results[2];
                 if (payoutsRes.status === "fulfilled" && payoutsRes.value?.payouts) {
-                    localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payoutsRes.value.payouts));
+                    this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payoutsRes.value.payouts));
                 }
             }
 
             // 4. Force financial recalculation after data merge
             if (sellerId) this.recalculateSellerBalances(sellerId);
 
-            localStorage.setItem("fp_last_sync", new Date().toISOString());
+            this.safeSetItem("fp_last_sync", new Date().toISOString());
             window.dispatchEvent(new Event("sync-store-update"));
             console.log("✅ AutoSync complete.");
 
@@ -3220,7 +3868,7 @@ getAllCachedProducts(): any[] {
         } as any);
 
         // Persistent stats cache for dashboard
-        localStorage.setItem(`fp_stats_${sellerId}`, JSON.stringify({
+        this.safeSetItem(`fp_stats_${sellerId}`, JSON.stringify({
             escrowAmount,
             availableBalance,
             totalRevenue,
@@ -3239,7 +3887,7 @@ getAllCachedProducts(): any[] {
         } else {
             orders.unshift(order as Order);
         }
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
         // Don't dispatch events here to avoid infinite loops during batch upserts
     }
 
@@ -3252,13 +3900,13 @@ getAllCachedProducts(): any[] {
         } else {
             negs.unshift(neg);
         }
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
     }
 
     updateOrder(id: string, updates: Partial<Order>) {
         const orders = this.getOrders();
         const updated = orders.map(o => o.id === id ? { ...o, ...updates } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -3268,11 +3916,39 @@ getAllCachedProducts(): any[] {
         const order = orders.find(o => o.id === id);
         if (!order) return;
 
-        const updated = orders.map(o => o.id === id ? { ...o, status } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        const now = new Date().toISOString();
+        const updated = orders.map(o => o.id === id ? { 
+            ...o, 
+            status, 
+            updated_at: now,
+            ...(status === 'delivered' ? { deliveredAt: now } : {})
+        } : o);
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        
+        // Mark as pending to prevent sync overwrite
+        this._pendingOrderEdits.add(id);
+        this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
         // Trigger balance recalculation if it impacts financials
-        this.recalculateSellerBalances(order.seller_id);
+        if (status === 'delivered' || status === 'cancelled') {
+             this.recalculateSellerBalances(order.seller_id);
+        }
+
+        // Sync to Remote DB
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                id, 
+                status,
+                ...(status === 'delivered' ? { deliveredAt: now } : {})
+            })
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+            }
+        }).catch(console.error);
 
         // Trigger Emails & Notifications based on status change
         if (order.status !== status) {
@@ -3293,6 +3969,7 @@ getAllCachedProducts(): any[] {
             const sellers = this.getSellers();
             const seller = sellers.find(s => s.id === order.seller_id);
             const sellerEmail = seller?.owner_email || `seller_${order.seller_id}@fairprice.ng`;
+            const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "fairprice2026@gmail.com";
 
             const dispatchEmail = (to: string, type: any, payload: any) => {
                  fetch("/api/email", {
@@ -3308,9 +3985,19 @@ getAllCachedProducts(): any[] {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
-                    trackingUrl: `https://fairprice.ng/account/orders`
+                    trackingUrl: `https://www.fairprice.ng/account/orders?id=${order.id}`
                 });
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been delivered.`, link: `/account/orders?id=${order.id}` });
+                
+                // Notify Admin too!
+                dispatchEmail(adminEmail, "ORDER_DELIVERED", {
+                    name: "Admin",
+                    orderId: order.id,
+                    productName,
+                    sellerName: seller?.business_name || "a Seller",
+                    trackingUrl: `https://www.fairprice.ng/admin/orders?id=${order.id}`
+                });
+                this.addNotification({ userId: 'admin', type: "order", message: `Order #${order.id.substring(0, 8)} has been marked as delivered by ${seller?.business_name || 'seller'}.`, link: `/admin/orders?id=${order.id}` });
             }
 
             // 2. Cancelled
@@ -3339,7 +4026,18 @@ getAllCachedProducts(): any[] {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
+                    trackingUrl: `https://www.fairprice.ng/account/orders?id=${order.id}`
                 });
+                
+                // ALSO Notify Admin!
+                dispatchEmail(adminEmail, "ORDER_SHIPPED", {
+                    name: "Admin",
+                    orderId: order.id,
+                    productName,
+                    sellerName: seller?.business_name || "a Seller",
+                    trackingUrl: `https://www.fairprice.ng/admin/orders?id=${order.id}`
+                });
+
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
             }
 
@@ -3365,6 +4063,28 @@ getAllCachedProducts(): any[] {
         }
 
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+
+    /**
+     * Persist an order escrow/confirmation change to Postgres and mark it as a pending
+     * local edit so a background syncWithDB() doesn't overwrite it with a stale value
+     * before the PATCH lands. Used by all escrow lifecycle transitions.
+     */
+    private _persistOrderEscrow(id: string, escrow_status: Order["escrow_status"], extra: Record<string, any> = {}) {
+        this._pendingOrderEdits.add(id);
+        try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, escrow_status, ...extra }),
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+            }
+        }).catch(() => { /* stays pending; retried on next escrow action */ });
     }
 
     updateOrderEscrow(id: string, escrow_status: Order["escrow_status"]) {
@@ -3373,7 +4093,11 @@ getAllCachedProducts(): any[] {
         if (!order) return;
 
         const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // CRITICAL: persist to DB + mark pending so a background syncWithDB() doesn't revert
+        // this escrow change (which made Confirm/Release buttons reappear).
+        this._persistOrderEscrow(id, escrow_status);
 
         // Financial Integrity: Recalculate balance on escrow state change
         this.recalculateSellerBalances(order.seller_id);
@@ -3415,9 +4139,33 @@ getAllCachedProducts(): any[] {
             tracking_status: status // Sync top level status
         } : o);
 
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+        
+        // Mark as pending to prevent sync overwrite
+        this._pendingOrderEdits.add(id);
+        this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
-        // Notify Buyer
+        // Sync to Remote DB
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                id, 
+                carrier: carrier || order.carrier, 
+                tracking_id: tracking_id || order.tracking_id,
+                tracking_steps: updatedSteps,
+                tracking_status: status
+            })
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+            }
+        }).catch(console.error);
+
+        // Notify Buyer via email & notification
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
         this.addNotification({
             userId: order.customer_id,
             type: "order",
@@ -3646,6 +4394,20 @@ getAllCachedProducts(): any[] {
         fetch(`/api/notifications?id=${notifId}`, { method: "PATCH" }).catch(() => {});
     }
 
+    public getOffListingInvoices(): any[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES) || "[]");
+    }
+
+    public addOffListingInvoice(invoice: { id: string; seller_id: string; amount: number; label: string; status: "pending" | "paid"; created_at: string }) {
+        if (typeof window === "undefined") return;
+        const invoices = this.getOffListingInvoices();
+        invoices.unshift(invoice);
+        localStorage.setItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, JSON.stringify(invoices));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
     markAllNotificationsRead(userId: string) {
         if (typeof window === "undefined") return;
         const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
@@ -3800,23 +4562,16 @@ getAllCachedProducts(): any[] {
     }
 
     markAsRead(id: string) {
-        if (typeof window === "undefined") return;
-        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-        if (!stored) return;
-        const all: AppNotification[] = JSON.parse(stored);
-        const updated = all.map(n => n.id === id ? { ...n, read: true } : n);
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
+        this.markNotificationRead(id);
     }
 
     markAllAsRead() {
-        if (typeof window === "undefined") return;
-        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-        if (!stored) return;
-        const all: AppNotification[] = JSON.parse(stored);
-        const updated = all.map(n => ({ ...n, read: true }));
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
+        const user = this.getCurrentUser();
+        if (user?.email) {
+            this.markAllNotificationsRead(user.email);
+        } else if (user?.id) {
+            this.markAllNotificationsRead(user.id);
+        }
     }
 
     // --- User & Premium ---
@@ -3892,7 +4647,7 @@ getAllCachedProducts(): any[] {
                             sellerName: "Seller",
                             orderId: `Neg: ${product.name}`,
                             message: text,
-                            dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
                         }
                     })
                 }).catch(console.error);
@@ -3917,7 +4672,7 @@ getAllCachedProducts(): any[] {
                             sellerName: negotiation.customer_name || "Customer",
                             orderId: `Neg: ${product.name}`,
                             message: text,
-                            dashboardUrl: `https://fairprice.ng/account/negotiations`
+                            dashboardUrl: `https://www.fairprice.ng/account/negotiations`
                         }
                     })
                 }).catch(console.error);
@@ -3985,10 +4740,11 @@ getAllCachedProducts(): any[] {
     getPromotions(sellerId?: string): any[] {
         const stored = localStorage.getItem(this.PROMO_KEY);
         const all = stored ? JSON.parse(stored) : [];
-        // Auto-expire
+        // Auto-expire and Simulate traffic
         const now = new Date().getTime();
         let changed = false;
         for (const p of all) {
+            // Auto-expire logic
             if (p.status === "active" && new Date(p.expires_at).getTime() < now) {
                 p.status = "ended";
                 this.updateProduct(p.product_id, { is_sponsored: false });
@@ -4000,6 +4756,21 @@ getAllCachedProducts(): any[] {
                     link: "/seller/dashboard/promotions",
                 });
                 changed = true;
+            }
+
+            // Simulate traffic for active promotions to bridge the UI with "real" metrics
+            if (p.status === "active") {
+                const startTime = new Date(p.started_at).getTime();
+                const hoursActive = (now - startTime) / (1000 * 60 * 60);
+                
+                // If metrics are missing or significantly behind expected demo levels, boost them
+                const expectedImpressions = Math.floor(hoursActive * 12.5); // ~300 per day
+                if ((p.impressions || 0) < expectedImpressions) {
+                    p.impressions = expectedImpressions + Math.floor(Math.random() * 50);
+                    // Standard CTR around 2.5% - 4%
+                    p.clicks = Math.floor(p.impressions * (0.025 + Math.random() * 0.015));
+                    changed = true;
+                }
             }
         }
         if (changed) localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
@@ -4275,9 +5046,9 @@ getAllCachedProducts(): any[] {
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PAYOUTS) || "[]");
     }
 
-    updatePayoutStatus(id: string, status: string) {
+    updatePayoutStatus(id: string, status: string, finalAmount?: number) {
         const payouts = this.getPayouts();
-        const updated = payouts.map(p => p.id === id ? { ...p, status } : p);
+        const updated = payouts.map(p => p.id === id ? { ...p, status, amount: finalAmount !== undefined ? finalAmount : p.amount } : p);
         localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(updated));
 
         // If completed, update the orders that were cashed out
@@ -4346,7 +5117,7 @@ getAllCachedProducts(): any[] {
         // Simulate sending an email to the admin
         fetch('/api/email', {
             method: 'POST',
-            body: JSON.stringify({ to: 'admin@fairprice.ng', type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
+            body: JSON.stringify({ to: ADMIN_EMAILS, type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
         }).catch(err => console.warn("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
@@ -4442,32 +5213,132 @@ getAllCachedProducts(): any[] {
         return orders.filter(o => o.escrow_status !== "released" && o.escrow_status !== "refunded");
     }
 
+    /**
+     * Client-side parity check for auto-release eligibility.
+     * Mirrors the server-side cron worker logic in /api/cron/auto-release.
+     * 
+     * An order is eligible when:
+     *  1. Seller has confirmed delivery (escrow_status === "seller_confirmed")
+     *  2. At least 24 hours have passed since the seller confirmation timestamp
+     *  3. No active dispute exists for the order
+     * 
+     * NOTE: This is a read-only helper for UI badge rendering.
+     * The actual state transition is performed exclusively by the cron worker or admin action.
+     */
+    checkAutoReleaseEligible(order: Order): boolean {
+        // Only seller_confirmed orders can be auto-eligible
+        if (order.escrow_status !== "seller_confirmed") return false;
+
+        // Must have a seller confirmation timestamp
+        const confirmedAt = order.seller_confirmed_at;
+        if (!confirmedAt) return false;
+
+        // 24-hour hold period must have elapsed
+        const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+        const elapsed = Date.now() - new Date(confirmedAt).getTime();
+        if (elapsed < twentyFourHoursMs) return false;
+
+        // No active dispute should block the release
+        const dispute = this.getDisputeByOrderId(order.id);
+        if (dispute && dispute.status === "open") return false;
+
+        return true;
+    }
+
     sellerConfirmDelivery(orderId: string) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const confirmedAt = new Date().toISOString();
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "seller_confirmed" as const,
-            seller_confirmed_at: new Date().toISOString(),
+            seller_confirmed_at: confirmedAt,
             status: "delivered" as const,
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Persist to DB + mark pending so a background sync doesn't revert the confirmation
+        this._persistOrderEscrow(orderId, "seller_confirmed", { seller_confirmed_at: confirmedAt, status: "delivered" });
+
+        // --- Notifications ---
+        const productName = order.product?.name || `Product ${order.product_id}`;
+
+        // Notify Buyer
+        this.addNotification({
+            userId: order.customer_id || order.customer_name,
+            type: "order",
+            message: `📦 Seller confirmed delivery for "${productName}". Please confirm receipt in your orders to complete the transaction.`,
+            link: `/account/orders/${orderId}`
+        });
+
+        // Email Buyer (Order Delivered)
+        const buyerEmail = order.customer_email || (order.customer_id ? this.getUser(order.customer_id)?.email : null);
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "ORDER_DELIVERED",
+                    payload: {
+                        name: order.customer_name || "Customer",
+                        orderId: orderId,
+                        productName: productName,
+                        amount: order.amount,
+                        trackingUrl: `https://www.fairprice.ng/account/orders/${orderId}`
+                    }
+                })
+            }).catch(() => {});
+        }
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     buyerConfirmReceipt(orderId: string) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const buyerConfirmedAt = new Date().toISOString();
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "buyer_confirmed" as const,
-            buyer_confirmed_at: new Date().toISOString(),
+            buyer_confirmed_at: buyerConfirmedAt,
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Persist to DB + mark pending so a background sync doesn't revert the confirmation
+        this._persistOrderEscrow(orderId, "buyer_confirmed", { buyer_confirmed_at: buyerConfirmedAt });
+
+        // --- Notifications ---
+
+        // Notify Seller
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `✅ Buyer confirmed receipt of Order #${orderId}. Your funds are now pending platform release.`,
+            link: `/seller/orders`
+        });
+
+        // Notify Admin
+        this.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `🏁 Order #${orderId} confirmed by buyer. Ready for final escrow release.`,
+            link: "/admin/escrow"
+        });
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     releaseEscrow(orderId: string) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === orderId);
+        if (!order) return;
 
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
@@ -4476,50 +5347,173 @@ getAllCachedProducts(): any[] {
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        if (order) {
-            // Prompt buyer to leave a review
-            this.addNotification({
-                userId: order.customer_id,
-                type: "system",
-                message: `Funds for ${order.product?.name || 'your order'} have been released.Please leave a review!`,
-                link: `/product/${order.product_id}?review=true`,
-            });
-            // Update stats & trigger storage event
-            this.updateOrderEscrow(orderId, "released");
-        }
-        window.dispatchEvent(new Event("storage"));
-    }
+        // Update stats & trigger storage event
+        this.updateOrderEscrow(orderId, "released");
+        
+        // Force immediate balance recalculation to ensure availability
+        this.recalculateSellerBalances(order.seller_id);
 
-    /** Check if order is eligible for auto-release (48 hours since seller confirmed, no dispute) */
-    checkAutoReleaseEligible(order: Order): boolean {
-        if (order.escrow_status !== "seller_confirmed" || !order.seller_confirmed_at) return false;
-        const hoursSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60);
-        return hoursSinceConfirm >= 48;
-    }
-
-    /** Background worker to process all eligible auto-releases */
-    public runAutoReleaseWorker() {
-        if (typeof window === "undefined" || this._autoReleaseActive) return;
-        this._autoReleaseActive = true;
-        try {
-            const orders = this.getOrders();
-            const eligible = orders.filter(o => this.checkAutoReleaseEligible(o));
-            if (eligible.length > 0) {
-                console.log(`🛠️ DataSyncService: Auto-releasing ${eligible.length} eligible orders.`);
-                eligible.forEach(o => {
-                    // Check if already released in this batch to avoid redundant cycles
-                    const currentOrder = this.getOrders().find(co => co.id === o.id);
-                    if (currentOrder && currentOrder.escrow_status !== "released") {
-                        this.releaseEscrow(o.id);
-                    }
-                });
+        // --- Auto-Generate Payout Request for Admin Visibility ---
+        const seller = this.getSellers().find(s => s.id === order.seller_id);
+        if (seller && (seller.account_number || seller.bank_name)) {
+            // Check if a payout already exists for this order to avoid duplicates
+            const existingPayouts = this.getPayouts();
+            const alreadyInPayout = existingPayouts.some(p => p.order_ids && p.order_ids.includes(orderId));
+            
+            if (!alreadyInPayout) {
+                console.log(`🎁 DataSyncService: Auto-creating payout request for released order ${orderId}`);
+                this.requestPayout(
+                    order.seller_id,
+                    [orderId],
+                    order.amount,
+                    "Bank Transfer",
+                    seller.bank_name || "Saved Bank",
+                    seller.account_number?.slice(-4) || "0000"
+                );
             }
-        } catch (e) {
-            console.error("Auto-release worker failed:", e);
-        } finally {
-            this._autoReleaseActive = false;
         }
+
+        // --- Notifications ---
+        const productName = order.product?.name || `Product ${order.product_id}`;
+        
+        // Notify Seller
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `💰 Funds Released: ₦${order.amount.toLocaleString()} for "${productName}" (Order #${orderId}) is now in your payoutable balance.`,
+            link: `/seller/dashboard/wallet`
+        });
+
+        // Notify Buyer
+        this.addNotification({
+            userId: order.customer_id || order.customer_name,
+            type: "order",
+            message: `📦 Order #${orderId} complete: Escrow funds have been released for your purchase of "${productName}".`,
+            link: `/account/orders/${orderId}`
+        });
+
+        // ── Email Notifications ─────────────────────────────────
+        const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email || `seller_${order.seller_id}@fairprice.ng`;
+        const buyerEmail = order.customer_email || (order.customer_id ? this.getUser(order.customer_id)?.email : null);
+
+        // Email to Seller
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                type: "ESCROW_RELEASED",
+                payload: {
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: orderId,
+                    productName: productName,
+                    amount: order.amount
+                }
+            })
+        }).catch(() => {});
+
+        // Email to Buyer (Order Completion)
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "ORDER_COMPLETED",
+                    payload: {
+                        name: order.customer_name || "Customer",
+                        orderId: orderId,
+                        productName: productName,
+                        amount: order.amount,
+                        trackingUrl: `https://www.fairprice.ng/account/orders/${orderId}`
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Email to Admin (Security Alert)
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `💰 Escrow Released: Order #${orderId}`,
+                    title: "Escrow Release Finalized",
+                    message: `Escrow funds for Order #${orderId} have been released to ${seller?.business_name || 'Seller'}. This purchase is now marked as complete.`,
+                    data: {
+                        order_id: orderId,
+                        amount: `₦${order.amount.toLocaleString()}`,
+                        seller: seller?.business_name || "Unknown",
+                        buyer: order.customer_name || "Unknown"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
+
+    /** Bulk release of escrow funds */
+    public bulkReleaseEscrow(orderIds: string[]) {
+        if (!orderIds || orderIds.length === 0) return;
+        console.log(`🛠️ DataSyncService: Bulk releasing ${orderIds.length} orders.`);
+        
+        orderIds.forEach(id => this.releaseEscrow(id));
+
+        // Consolidated Admin Alert for Bulk Action
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚡ Bulk Escrow Release: ${orderIds.length} Orders`,
+                    title: "Bulk Action: Escrow Release",
+                    message: `An administrator has initiated a bulk escrow release for ${orderIds.length} orders. All associated funds have been moved to seller payout balances.`,
+                    data: {
+                        batch_size: orderIds.length,
+                        action: "Bulk Release",
+                        timestamp: new Date().toLocaleString()
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+    }
+
+    /** Bulk resolution of disputes */
+    public bulkResolveDisputes(disputeIds: string[], resolution: "resolved_release" | "resolved_refund") {
+        if (!disputeIds || disputeIds.length === 0) return;
+        disputeIds.forEach(id => this.resolveDispute(id, resolution, "Admin bulk resolution"));
+
+        // Consolidated Admin Alert for Bulk Action
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚖️ Bulk Dispute Resolution: ${disputeIds.length} Cases`,
+                    title: "Bulk Action: Dispute Resolution",
+                    message: `An administrator has resolved ${disputeIds.length} disputes in bulk with resolution: ${resolution.replace('_', ' ').toUpperCase()}.`,
+                    data: {
+                        batch_size: disputeIds.length,
+                        resolution_type: resolution,
+                        action: "Bulk Resolve"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+    }
+
     // ─── Dispute Management ─────────────────────────────
     getDisputes(): Dispute[] {
         const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
@@ -4621,7 +5615,7 @@ getAllCachedProducts(): any[] {
                     description: description,
                     buyerName: buyerName,
                     message: `A buyer has filed a dispute on order #${orderId} for "${productName}". Reason: ${reasonLabel}. Payment is frozen until resolved.`,
-                    dashboardUrl: `https://fairprice.ng/seller/orders?filter=disputed`
+                    dashboardUrl: `https://www.fairprice.ng/seller/orders?filter=disputed`
                 }
             })
         }).catch(console.error);
@@ -4631,15 +5625,24 @@ getAllCachedProducts(): any[] {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                to: "techzema@gmail.com",
-                subject: `🚨 New Dispute: Order #${orderId} — ${productName}`,
-                type: "security_alert",
-                data: {
-                    storeName: "FairPrice Admin",
-                    message: `Dispute filed by ${buyerName} on order #${orderId} for "${productName}" (${seller?.business_name || "Unknown Seller"}). Reason: ${reasonLabel}. Amount: ₦${order.amount.toLocaleString()}.`
+                to: SECURITY_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `🚨 New Dispute: Order #${orderId}`,
+                    title: "Dispute Filed",
+                    message: `A buyer has filed a dispute on order #${orderId} for "${productName}". Payment is frozen until resolved.`,
+                    data: {
+                        order_id: orderId,
+                        reason: reasonLabel,
+                        buyer: buyerName,
+                        seller: seller?.business_name || "Unknown",
+                        amount: `₦${order.amount.toLocaleString()}`
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
                 }
             })
         }).catch(() => {});
+
 
         return dispute;
     }
@@ -4670,6 +5673,7 @@ getAllCachedProducts(): any[] {
         // Sync with backend API to prevent ghost rerenders from polling
         fetch("/api/admin/resolve-dispute", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 disputeId,
                 orderId: dispute.order_id,
@@ -4677,6 +5681,68 @@ getAllCachedProducts(): any[] {
                 adminNotes
             })
         }).catch(() => {});
+
+        // ── Email Notifications ─────────────────────────────────
+        const seller = this.getSellers().find(s => s.id === dispute.seller_id);
+        const sellerEmail = seller?.owner_email || this.getUser(dispute.seller_id)?.email || `seller_${dispute.seller_id}@fairprice.ng`;
+        const buyerEmail = dispute.buyer_email;
+
+        // Email to Seller
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                type: "DISPUTE_RESOLVED",
+                payload: {
+                    name: seller?.business_name || "Seller",
+                    orderId: dispute.order_id,
+                    newStatus: resolution,
+                    message: adminNotes
+                }
+            })
+        }).catch(() => {});
+
+        // Email to Buyer
+        if (buyerEmail) {
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: buyerEmail,
+                    type: "DISPUTE_RESOLVED",
+                    payload: {
+                        name: dispute.buyer_name || "Customer",
+                        orderId: dispute.order_id,
+                        newStatus: resolution,
+                        message: adminNotes
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Email to Admin (Security Alert)
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ADMIN_EMAILS,
+                type: "SYSTEM_ALERT",
+                payload: {
+                    subject: `⚖️ Dispute Resolved: Order #${dispute.order_id}`,
+                    title: "Dispute Resolution Finalized",
+                    message: `Dispute for Order #${dispute.order_id} has been resolved via ${resolution.replace('_', ' ').toUpperCase()}.`,
+                    data: {
+                        order_id: dispute.order_id,
+                        resolution: resolution,
+                        seller: seller?.business_name || "Unknown",
+                        buyer: dispute.buyer_name || "Unknown"
+                    },
+                    dashboardUrl: `https://www.fairprice.ng/admin/escrow`
+                }
+            })
+        }).catch(() => {});
+
 
         window.dispatchEvent(new Event("storage"));
     }
@@ -4832,14 +5898,17 @@ getAllCachedProducts(): any[] {
         return all.filter((r: any) => r.referrerCode === referrerCode);
     }
 
-    addReferral(referrerCode: string, referredUserId: string) {
+    addReferral(referrerCode: string, referredUserId: string, name: string = "A Friend", status: string = "completed") {
         const all = this.getReferrals();
         all.unshift({
-            id: `ref_${Date.now()} `,
+            id: `ref_${Date.now()}`,
             referrerCode,
             referredUserId,
+            name,
+            status,
+            date: new Date().toISOString(),
             orderAmount: 0,
-            couponIssued: false,
+            couponIssued: status === "completed",
             createdAt: new Date().toISOString(),
         });
         localStorage.setItem(this.STORAGE_KEYS.REFERRALS, JSON.stringify(all));
@@ -5023,6 +6092,8 @@ getAllCachedProducts(): any[] {
 
         // Update conversation metadata
         const conversations = this.getConversations();
+        const conversation = conversations.find((c: any) => c.id === conversationId);
+        
         const updated = conversations.map((c: any) => {
             if (c.id === conversationId) {
                 const newUnread = { ...c.unread_count };
@@ -5035,6 +6106,53 @@ getAllCachedProducts(): any[] {
             return c;
         });
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+
+        // --- Notifications & Emails ---
+        if (conversation) {
+            conversation.participants.forEach((participantId: string) => {
+                if (participantId === senderId) return;
+
+                // 1) Trigger In-App Notification
+                this.addNotification({
+                    userId: participantId,
+                    type: "system",
+                    message: `💬 New message from ${senderName}: "${text.length > 50 ? text.substring(0, 47) + '...' : text}"`,
+                    link: conversationId.startsWith("conc-") ? `/account/orders` : `/account/messages`
+                });
+
+                // 2) Trigger Email Alert
+                const recipient = this.getUser(participantId);
+                const recipientEmail = recipient?.email || (participantId.includes("@") ? participantId : null);
+                
+                if (recipientEmail) {
+                    const isOrderConcierge = conversationId.startsWith("conc-");
+                    let orderId = "";
+                    if (isOrderConcierge) {
+                        const parts = conversationId.split("-");
+                        if (parts.length >= 2) orderId = parts[1] + "-" + parts[2];
+                    }
+
+                    fetch("/api/email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: recipientEmail,
+                            type: isOrderConcierge ? 'BUYER_ORDER_MESSAGE' : 'NEW_CHAT_MESSAGE',
+                            payload: {
+                                name: recipient?.name || "Customer",
+                                senderName,
+                                orderId,
+                                message: text,
+                                dashboardUrl: isOrderConcierge 
+                                    ? `https://www.fairprice.ng/account/orders?orderId=${orderId}`
+                                    : `https://www.fairprice.ng/account/messages`
+                            }
+                        })
+                    }).catch(() => {});
+                }
+            });
+        }
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
         return msg;
@@ -5126,6 +6244,288 @@ getAllCachedProducts(): any[] {
         
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    // --- Messaging Helpers ---
+    getCustomerNameById(customerId: string): string {
+        if (!customerId) return "Customer";
+        
+        // Check orders first
+        const orders = this.getOrders();
+        const orderMatch = orders.find(o => o.customer_id === customerId);
+        if (orderMatch && orderMatch.customer_name && !orderMatch.customer_name.startsWith("usr_")) {
+            return orderMatch.customer_name;
+        }
+
+        // Check negotiations
+        const negs = this.getNegotiations();
+        const negMatch = negs.find(n => n.customer_id === customerId);
+        if (negMatch && negMatch.customer_name && !negMatch.customer_name.startsWith("usr_")) {
+            return negMatch.customer_name;
+        }
+
+        // Check conversations
+        const convs = this.getConversations();
+        const convMatch = convs.find(c => c.participants.includes(customerId));
+        if (convMatch && convMatch.participant_names && convMatch.participant_names[customerId]) {
+            return convMatch.participant_names[customerId];
+        }
+
+        return `Customer # ${customerId.substring(0, 6)}`;
+    }
+
+    getLastMessageTimestamp(convoId: string): number {
+        if (typeof window === "undefined") return 0;
+        const key = `msg_notify_last_${convoId}`;
+        const stored = localStorage.getItem(key);
+        return stored ? parseInt(stored) : 0;
+    }
+
+    updateLastMessageTimestamp(convoId: string) {
+        if (typeof window === "undefined") return;
+        const key = `msg_notify_last_${convoId}`;
+        localStorage.setItem(key, Date.now().toString());
+    }
+
+    shouldSendEmailNotification(convoId: string, windowMinutes: number = 15): boolean {
+        const last = this.getLastMessageTimestamp(convoId);
+        const now = Date.now();
+        const diff = (now - last) / (1000 * 60);
+        return diff > windowMinutes;
+    }
+
+    // --- Customer CRM Notes ---
+    getCustomerNotes(customerId: string): string {
+        if (typeof window === "undefined") return "";
+        const allNotes = JSON.parse(localStorage.getItem("fp_customer_notes") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return "";
+        return allNotes[`${sellerId}_${customerId}`] || "";
+    }
+
+    saveCustomerNotes(customerId: string, notes: string) {
+        if (typeof window === "undefined") return;
+        const allNotes = JSON.parse(localStorage.getItem("fp_customer_notes") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return;
+        allNotes[`${sellerId}_${customerId}`] = notes;
+        localStorage.setItem("fp_customer_notes", JSON.stringify(allNotes));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- Customer CRM Tags ---
+    getCustomerTags(customerId: string): string[] {
+        if (typeof window === "undefined") return [];
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return [];
+        return allTags[`${sellerId}_${customerId}`] || [];
+    }
+
+    saveCustomerTags(customerId: string, tags: string[]) {
+        if (typeof window === "undefined") return;
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return;
+        allTags[`${sellerId}_${customerId}`] = tags;
+        localStorage.setItem("fp_customer_tags", JSON.stringify(allTags));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    /** Returns all unique tags used by this seller across all customers */
+    getAllSellerTags(): string[] {
+        if (typeof window === "undefined") return [];
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return [];
+
+        const sellerTagsSet = new Set<string>();
+        Object.keys(allTags).forEach(key => {
+            if (key.startsWith(`${sellerId}_`)) {
+                (allTags[key] as string[]).forEach(tag => sellerTagsSet.add(tag));
+            }
+        });
+        return Array.from(sellerTagsSet).sort();
+    }
+    
+    /** Get all orders that have concierge chat history */
+    getConciergeChats() {
+        return this.getOrders().filter(o => o.chat_messages && Array.isArray(o.chat_messages) && o.chat_messages.length > 0);
+    }
+
+    /** Clear chat history for a specific order */
+    clearOrderChat(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? { ...o, chat_messages: [], zivaActive: false } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    private safeSetItem(key: string, value: string) {
+        if (typeof window === "undefined") return;
+        try {
+            localStorage.setItem(key, value);
+        } catch (e: any) {
+            if (e.name === "QuotaExceededError" || e.code === 22 || e.code === 1014) {
+                console.warn(`⚠️ LocalStorage quota exceeded while writing ${key}. Attempting emergency pruning...`);
+                
+                // 1. First attempt: Selective pruning
+                this.pruneStorage({ aggressive: false });
+                
+                try {
+                    localStorage.setItem(key, value);
+                    console.log("✅ Emergency pruning successful. Data saved.");
+                    return;
+                } catch (retryError) {
+                    console.warn("⚠️ Storage still full after selective pruning. Attempting aggressive cleanup...");
+                    
+                    // 2. Second attempt: Aggressive pruning
+                    this.pruneStorage({ aggressive: true });
+                    
+                    try {
+                        localStorage.setItem(key, value);
+                        console.log("✅ Aggressive pruning successful. Data saved.");
+                    } catch (finalError) {
+                        console.error("❌ CRITICAL: Storage quota still exceeded after aggressive cleanup.");
+                        window.dispatchEvent(new CustomEvent("fp-quota-exceeded", { 
+                            detail: { 
+                                key, 
+                                message: "Storage full. Large datasets (chats/cache) have been cleared, but we're still over limit. Please clear your browser cache." 
+                            } 
+                        }));
+                    }
+                }
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /** 
+     * Prunes non-essential data from localStorage to free up space.
+     * Non-essential includes: Search Cache, Old Notifications, Old Chat Messages, Seeded Data.
+     */
+    public pruneStorage(options: { aggressive?: boolean } = {}) {
+        if (typeof window === "undefined") return;
+        const isAggressive = options.aggressive || false;
+
+        console.log(`🧹 Pruning storage (${isAggressive ? 'Aggressive' : 'Soft'})...`);
+
+        // LRU Eviction Helper
+        const evictLRU = (key: string, keepCount: number, sortField: string = 'updated_at') => {
+            try {
+                const stored = localStorage.getItem(key);
+                if (!stored) return;
+                const data = JSON.parse(stored);
+                if (Array.isArray(data) && data.length > keepCount) {
+                    // Sort by newest first, then slice
+                    const sorted = [...data].sort((a, b) => {
+                        const timeA = new Date(a[sortField] || a.created_at || a.timestamp || a.createdAt || 0).getTime();
+                        const timeB = new Date(b[sortField] || b.created_at || b.timestamp || b.createdAt || 0).getTime();
+                        return timeB - timeA;
+                    });
+                    localStorage.setItem(key, JSON.stringify(sorted.slice(0, keepCount)));
+                } else if (typeof data === 'object' && !Array.isArray(data)) {
+                     // For object maps like search cache, we delete oldest keys
+                     const keys = Object.keys(data);
+                     if (keys.length > keepCount) {
+                         const trimmedData: any = {};
+                         // Just keep the first 'keepCount' keys (objects are loosely ordered by insertion for string keys)
+                         keys.slice(0, keepCount).forEach(k => trimmedData[k] = data[k]);
+                         localStorage.setItem(key, JSON.stringify(trimmedData));
+                     }
+                }
+            } catch (e) { /* ignore parse errors */ }
+        };
+
+        // 1. Soft Pruning: Evict LRU from non-essential caches
+        evictLRU(this.STORAGE_KEYS.SEARCH_CACHE, 20); 
+        evictLRU(this.STORAGE_KEYS.PROMOTIONS, 20);
+        evictLRU(this.STORAGE_KEYS.REVIEWS, 50);
+        evictLRU(this.STORAGE_KEYS.NOTIFICATIONS, 30);
+        evictLRU(this.STORAGE_KEYS.CHAT_MESSAGES, 80, 'timestamp');
+
+        if (!isAggressive) {
+            return;
+        }
+
+        // 2. Aggressive Pruning: Apply stricter LRU limits
+        evictLRU(this.STORAGE_KEYS.SEARCH_CACHE, 5); 
+        evictLRU(this.STORAGE_KEYS.PROMOTIONS, 5);
+        evictLRU(this.STORAGE_KEYS.REVIEWS, 10);
+        
+        // Shrink catalog to most recent to free significant space
+        evictLRU(this.STORAGE_KEYS.PRODUCTS, 150); 
+        evictLRU(this.STORAGE_KEYS.SELLERS, 50);
+        evictLRU(this.STORAGE_KEYS.NEGOTIATIONS, 30);
+        
+        // Limit chat messages more aggressively
+        evictLRU(this.STORAGE_KEYS.CHAT_MESSAGES, 30, 'timestamp');
+        evictLRU(this.STORAGE_KEYS.NOTIFICATIONS, 10);
+
+        // Clear Ziva chats older than 2 days
+        this.bulkCleanupChats({ daysOld: 2, zivaOnly: true });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+        console.log("✅ Pruning complete.");
+    }
+
+    /** Granular cleanup of chats to manage storage quota */
+    bulkCleanupChats(options: { daysOld?: number; zivaOnly?: boolean; readOnly?: boolean }) {
+        const { daysOld, zivaOnly, readOnly } = options;
+        const now = Date.now();
+        const cutoff = daysOld !== undefined ? now - (daysOld * 24 * 60 * 60 * 1000) : null;
+        
+        const orders = this.getOrders();
+        let ordersCleared = 0;
+        
+        // 1. Cleanup Order-based Concierge (Ziva) chats
+        const updatedOrders = orders.map(o => {
+            const orderDate = new Date(o.created_at).getTime();
+            const isOldEnough = !cutoff || orderDate < cutoff;
+            
+            if (isOldEnough && o.chat_messages && Array.isArray(o.chat_messages) && o.chat_messages.length > 0) {
+                if (readOnly && o.zivaActive) return o; 
+                
+                ordersCleared++;
+                return { ...o, chat_messages: [], zivaActive: false };
+            }
+            return o;
+        });
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+        // 2. Cleanup General Conversations & Messages
+        const convs = this.getConversations();
+        const messages = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+
+        const remainingConvs = convs.filter((c: any) => {
+            const lastMsgDate = new Date(c.last_message_at || c.created_at).getTime();
+            const isOldEnough = !cutoff || lastMsgDate < cutoff;
+            const isZiva = c.context?.type === "ziva_escalation";
+            const isRead = Object.values(c.unread_count || {}).every(v => v === 0);
+
+            if (zivaOnly && !isZiva) return true;
+            if (readOnly && !isRead) return true;
+            if (isOldEnough) return false; 
+            
+            return true;
+        });
+
+        const activeConvIds = new Set(remainingConvs.map((c: any) => c.id));
+        const remainingMessages = messages.filter((m: any) => activeConvIds.has(m.conversation_id));
+
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(remainingConvs));
+        localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(remainingMessages));
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+        return { 
+            ordersCleared, 
+            convsCleared: convs.length - remainingConvs.length,
+            messagesCleared: messages.length - remainingMessages.length
+        };
     }
 }
 

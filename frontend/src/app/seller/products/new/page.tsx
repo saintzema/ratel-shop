@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2 } from "lucide-react";
-import { formatPrice, wrapInCDN } from "@/lib/utils";
+import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2, Package } from "lucide-react";
+import { formatPrice, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
@@ -14,7 +14,7 @@ import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 
-export default function NewProduct() {
+function NewProductContent() {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
@@ -36,27 +36,43 @@ export default function NewProduct() {
         external_url: "",
         financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
-        contact_info: { show: false, phone: "", whatsapp: "" }
+        contact_info: { show: false, phone: "", whatsapp: "" },
+        variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
     });
 
     const [savedNumbers, setSavedNumbers] = useState<string[]>([]);
+    const [minFinancingPrice, setMinFinancingPrice] = useState(300000);
+    const [isPremium, setIsPremium] = useState(false);
 
     useEffect(() => {
-        const seller = DataSyncService.getCurrentSeller();
-        const user = DataSyncService.getCurrentUser();
-        const numbers = new Set<string>();
-        if (seller?.phone_numbers) seller.phone_numbers.forEach(n => numbers.add(n));
-        if (seller?.phone_number) numbers.add(seller.phone_number);
-        if (user?.phone) numbers.add(user.phone);
-        if (user?.phone_numbers) user.phone_numbers.forEach((n: string) => numbers.add(n));
-        setSavedNumbers(Array.from(numbers).filter(Boolean));
-        
-        if (numbers.size > 0 && !formData.contact_info.phone) {
-            const defaultNum = Array.from(numbers)[0];
-            setFormData(prev => ({
-                ...prev,
-                contact_info: { ...prev.contact_info, phone: defaultNum, whatsapp: defaultNum }
-            }));
+        try {
+            const adminSettings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+            if (adminSettings.minFinancingPrice) setMinFinancingPrice(Number(adminSettings.minFinancingPrice));
+        } catch {}
+
+        try {
+            const seller = DataSyncService.getCurrentSeller();
+            if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+                setIsPremium(true);
+            }
+            const user = DataSyncService.getCurrentUser();
+            const numbers = new Set<string>();
+            // phone_numbers could be a string in legacy data — guard with Array.isArray
+            if (Array.isArray(seller?.phone_numbers)) seller.phone_numbers.forEach((n: string) => numbers.add(n));
+            if (seller?.phone_number) numbers.add(seller.phone_number);
+            if (user?.phone) numbers.add(user.phone);
+            if (Array.isArray(user?.phone_numbers)) user.phone_numbers.forEach((n: string) => numbers.add(n));
+            setSavedNumbers(Array.from(numbers).filter(Boolean));
+
+            if (numbers.size > 0 && !formData.contact_info.phone) {
+                const defaultNum = Array.from(numbers)[0];
+                setFormData(prev => ({
+                    ...prev,
+                    contact_info: { ...prev.contact_info, phone: defaultNum, whatsapp: defaultNum }
+                }));
+            }
+        } catch (err) {
+            console.warn("NewProduct: seller/user data load error", err);
         }
     }, []);
 
@@ -97,7 +113,10 @@ export default function NewProduct() {
 
     // --- AI Content Generation ---
     const handleAIGenerate = async () => {
-        if (!formData.name) return;
+        if (!formData.name) {
+            setAiErrorMsg("Enter a product name first so AI knows what to fill in.");
+            return;
+        }
         setIsGenerating(true);
         setAiErrorMsg(null);
         try {
@@ -154,12 +173,83 @@ export default function NewProduct() {
         }
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
         if (!formData.name) {
-            alert("Please enter a product name first.");
+            setAiErrorMsg("Please enter a product name first.");
             return;
         }
-        setIsPriceDiscoveryOpen(true);
+        setIsCalculatingBestPrice(true);
+        setAiErrorMsg(null);
+        try {
+            const currentPrice = parseInt(formData.price.replace(/,/g, "")) || 0;
+            const res = await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    productName: formData.name,
+                    mode: "analyze",
+                    anchorPrice: currentPrice || undefined,
+                    category: formData.category
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.recommendedPrice) {
+                    const recommended = data.recommendedPrice;
+                    const marketAvg = data.marketAverage || Math.round(recommended * 1.15);
+
+                    // Map category from response
+                    let mappedCat = formData.category;
+                    let mappedSub = data.subcategory || formData.subcategory;
+                    if (data.category) {
+                        const match = taxonomy.find((c: any) =>
+                            c.name.toLowerCase() === data.category.toLowerCase() ||
+                            data.category.toLowerCase().includes(c.name.toLowerCase())
+                        );
+                        if (match) {
+                            mappedCat = match.name.toLowerCase();
+                            if (mappedSub) {
+                                const subMatch = match.subcategories?.find((s: any) =>
+                                    s.name.toLowerCase() === mappedSub.toLowerCase() ||
+                                    mappedSub.toLowerCase().includes(s.name.toLowerCase())
+                                );
+                                if (subMatch) mappedSub = subMatch.name;
+                            }
+                        } else {
+                            mappedCat = data.category.toLowerCase();
+                        }
+                    }
+
+                    setFormData(prev => ({
+                        ...prev,
+                        price: recommended.toLocaleString(),
+                        original_price: marketAvg.toLocaleString(),
+                        category: mappedCat,
+                        subcategory: mappedSub,
+                        ...(data.tags?.length ? { tags: data.tags } : {})
+                    }));
+
+                    setPriceAnalysis({
+                        marketAvg,
+                        fairRangeLow: recommended,
+                        status: "fair",
+                        demand: "High",
+                        salesProbability: "85%"
+                    });
+                } else {
+                    setAiErrorMsg("Best Price returned no data. Try a more specific product name.");
+                }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setAiErrorMsg(errData.error || `Best Price failed (${res.status}). Please try again.`);
+            }
+        } catch (error) {
+            console.error("Best price calculation failed", error);
+            setAiErrorMsg("Best Price request failed. Check your connection.");
+        } finally {
+            setIsCalculatingBestPrice(false);
+        }
     };
 
     const handlePriceSelect = (suggestion: ProductSuggestion) => {
@@ -210,7 +300,17 @@ export default function NewProduct() {
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, price: formatPriceWithCommas(e.target.value) }));
+        const newPriceFormatted = formatPriceWithCommas(e.target.value);
+        const numericPrice = parseInt(newPriceFormatted.replace(/,/g, ""));
+        
+        setFormData(prev => {
+            const next = { ...prev, price: newPriceFormatted };
+            // Auto-disable financing if price falls below min limit
+            if (prev.financing_available && !isPremium && !isNaN(numericPrice) && numericPrice < minFinancingPrice) {
+                next.financing_available = false;
+            }
+            return next;
+        });
     };
 
     const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,7 +346,27 @@ export default function NewProduct() {
                 canvas.width = width;
                 canvas.height = height;
                 canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
-                callback(canvas.toDataURL("image/jpeg", 0.6));
+                // Upload to Vercel Blob so the URL persists in localStorage/admin.
+                // Base64 data URLs get stripped by sync-store — Blob URLs don't.
+                canvas.toBlob(async (blob) => {
+                    if (blob) {
+                        try {
+                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            const fd = new FormData();
+                            fd.append("file", blob, `product-${Date.now()}.jpg`);
+                            const res = await fetch("/api/upload", {
+                                method: "POST",
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                body: fd,
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.url) { callback(data.url); return; }
+                            }
+                        } catch { /* fall through to base64 */ }
+                    }
+                    callback(canvas.toDataURL("image/jpeg", 0.6));
+                }, "image/jpeg", 0.6);
             };
             img.src = e.target?.result as string;
         };
@@ -337,7 +457,15 @@ export default function NewProduct() {
                 created_at: new Date().toISOString(),
                 financing_available: formData.financing_available,
                 financing_config: { ...formData.financing_config, enabled: formData.financing_available },
-                contact_info: formData.contact_info
+                contact_info: formData.contact_info,
+                variants: formData.variants.filter(v => v.name.trim() !== "").map((v, i) => ({
+                    id: `var_${Date.now()}_${i}`,
+                    name: v.name.trim(),
+                    price: parseInt(v.price.replace(/,/g, "")) || 0,
+                    original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
+                    image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
+                    is_default: false
+                }))
             };
 
             // Save new numbers to seller profile for next time
@@ -481,68 +609,57 @@ export default function NewProduct() {
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
-                                <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
+                                <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid. Up to 8 images.</p>
                             </div>
                         </div>
-                
-                        <div className="space-y-6">
-                    {/* Fast URL Add */}
-                    <div>
-                        <Input 
-                            placeholder="Paste image URLs (comma separated) & hit Enter to add"
-                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const val = e.currentTarget.value;
-                                    if (!val) return;
-                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
-                                    setFormData(prev => {
-                                        const current = prev.images.filter(x => x.trim() !== "");
-                                        return { ...prev, images: [...current, ...newUrls] };
-                                    });
-                                    e.currentTarget.value = "";
-                                }
-                            }}
-                        />
-                    </div>
 
-                    {/* Visual Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {formData.images.filter(url => url.trim() !== "").map((url, i) => (
-                            <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
-                                <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
-                                
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => {
-                                        const newImages = formData.images.filter(x => x.trim() !== "");
-                                        newImages.splice(i, 1);
-                                        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
-                                    }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {formData.images.map((url, i) => (
+                                <div key={i} className="relative group">
+                                    <ProductImageSlot
+                                        url={url}
+                                        onUrlChange={(newUrl) => {
+                                            const next = [...formData.images];
+                                            next[i] = newUrl;
+                                            setFormData(prev => ({ ...prev, images: next }));
+                                        }}
+                                        onFileSelect={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    const next = [...formData.images];
+                                                    next[i] = ev.target?.result as string;
+                                                    setFormData(prev => ({ ...prev, images: next }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                        className="mb-0"
+                                    />
+                                    {formData.images.length > 1 && (
+                                        <button
+                                            onClick={() => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    images: prev.images.filter((_, idx) => idx !== i)
+                                                }));
+                                            }}
+                                            className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                        >
+                                            <X className="h-2.5 w-2.5" />
+                                        </button>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
-
-                        {/* Add New Slot (Upload File) */}
-                        <div 
-                            className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
-                            onClick={() => galleryFileRefs.current.get(999)?.click()}
-                        >
-                            <ImagePlus className="h-6 w-6 mb-2" />
-                            <span className="text-xs font-semibold">Upload Photo</span>
-                            <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                    compressImage(file, (url) => {
-                                        setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
-                                    });
-                                }
-                                e.target.value = ''; // Reset
-                            }} />
-                        </div>
-                    </div>
+                            ))}
+                            {formData.images.length < 8 && (
+                                <button
+                                    onClick={() => setFormData(prev => ({ ...prev, images: [...prev.images, ""] }))}
+                                    className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </button>
+                            )}
                         </div>
                     </motion.section>
 
@@ -685,6 +802,124 @@ export default function NewProduct() {
                         </div>
                     </motion.section>
 
+                    {/* Section 4.5: Variants & Bundles */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Variants & Bundles <span className="text-xs ml-2 font-medium bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">Optional</span></h2>
+                                <p className="text-sm text-gray-500 mt-1">Add options like "Solar Panel Included" or different models. These will be selectable on the product page.</p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setFormData(p => ({
+                                    ...p,
+                                    variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "" }]
+                                }))}
+                                className="h-9 gap-1.5 text-sm"
+                            >
+                                <Plus className="h-4 w-4" /> Add Option
+                            </Button>
+                        </div>
+
+                        {formData.variants.length > 0 ? (
+                            <div className="space-y-4">
+                                {formData.variants.map((variant, index) => (
+                                    <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData(p => ({
+                                                ...p,
+                                                variants: p.variants.filter((_, i) => i !== index)
+                                            }))}
+                                            className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+
+                                        {/* Variant Image */}
+                                        <div className="w-[120px] shrink-0">
+                                            <ProductImageSlot
+                                                url={variant.image_url}
+                                                onUrlChange={(newUrl) => {
+                                                    const next = [...formData.variants];
+                                                    next[index].image_url = newUrl;
+                                                    setFormData(p => ({ ...p, variants: next }));
+                                                }}
+                                                onFileSelect={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => {
+                                                            const next = [...formData.variants];
+                                                            next[index].image_url = ev.target?.result as string;
+                                                            setFormData(p => ({ ...p, variants: next }));
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }}
+                                                className="mb-0 w-full rounded-lg"
+                                            />
+                                        </div>
+
+                                        {/* Variant Details */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                                            <div className="space-y-1.5 sm:col-span-2">
+                                                <label className="text-xs font-medium text-gray-600">Option Name</label>
+                                                <Input
+                                                    placeholder='e.g., "RIVER 3 Plus + Solar Panel"'
+                                                    value={variant.name}
+                                                    onChange={(e) => {
+                                                        const next = [...formData.variants];
+                                                        next[index].name = e.target.value;
+                                                        setFormData(p => ({ ...p, variants: next }));
+                                                    }}
+                                                    className="h-10 text-sm bg-white border-gray-200"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-medium text-gray-600">Price (₦)</label>
+                                                <Input
+                                                    placeholder="0"
+                                                    value={variant.price}
+                                                    onChange={(e) => {
+                                                        const next = [...formData.variants];
+                                                        next[index].price = e.target.value.replace(/\D/g, "");
+                                                        setFormData(p => ({ ...p, variants: next }));
+                                                    }}
+                                                    className="h-10 text-sm bg-white border-gray-200"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-medium text-gray-600">Original Price (₦)</label>
+                                                <Input
+                                                    placeholder="Optional"
+                                                    value={variant.original_price}
+                                                    onChange={(e) => {
+                                                        const next = [...formData.variants];
+                                                        next[index].original_price = e.target.value.replace(/\D/g, "");
+                                                        setFormData(p => ({ ...p, variants: next }));
+                                                    }}
+                                                    className="h-10 text-sm bg-white border-gray-200 text-gray-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                                <Package className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                                <p className="text-sm text-gray-500 font-medium">No variants added yet</p>
+                            </div>
+                        )}
+                    </motion.section>
+
                     {/* Section 5: Pricing & Inventory */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
@@ -763,11 +998,20 @@ export default function NewProduct() {
                                             </div>
                                             <div className="space-y-1">
                                                 <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
-                                                <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
+                                                <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans. <br/><span className="text-[10px] text-gray-400 font-semibold italic mt-1 inline-block">Note: Products must be above ₦{minFinancingPrice.toLocaleString()} unless you are on a premium plan.</span></p>
                                             </div>
                                         </div>
                                         <div 
-                                            onClick={() => handleChange("financing_available", !formData.financing_available)}
+                                            onClick={() => {
+                                                const currentPrice = parseInt(formData.price.replace(/,/g, ""));
+                                                if (!formData.financing_available && !isPremium && (isNaN(currentPrice) || currentPrice < minFinancingPrice)) {
+                                                    if (confirm(`Product price must be at least ₦${minFinancingPrice.toLocaleString()} to enable financing. Upgrade to a premium plan to bypass this limit. Click OK to view plans.`)) {
+                                                        router.push("/seller/settings/billing");
+                                                    }
+                                                    return;
+                                                }
+                                                handleChange("financing_available", !formData.financing_available);
+                                            }}
                                             className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
                                         >
                                             <span
@@ -1014,12 +1258,25 @@ export default function NewProduct() {
                     </div>
                 </div>
             </div>
-            <PriceDiscoveryModal 
+            <PriceDiscoveryModal
                 isOpen={isPriceDiscoveryOpen}
                 onClose={() => setIsPriceDiscoveryOpen(false)}
                 productName={formData.name}
                 onSelect={handlePriceSelect}
             />
         </div>
+    );
+}
+
+import { Suspense } from "react";
+export default function NewProduct() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto py-20 flex items-center justify-center">
+                <div className="h-6 w-6 border-2 border-gray-300 border-t-emerald-600 rounded-full animate-spin" />
+            </div>
+        }>
+            <NewProductContent />
+        </Suspense>
     );
 }

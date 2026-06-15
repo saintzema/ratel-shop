@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins, TrendingUp, Crown } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, isVideoUrl, getProxiedImageUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
@@ -141,7 +141,7 @@ export function SearchResultCard({
                         <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
                     </div>
                 )}
-                <Link href={getProductUrl(product.id, product.name)} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
+                <Link href={getProductUrl(product.id, product.name, product.slug)} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     {!imgError ? (
                         (() => {
                             const mediaUrl = (() => {
@@ -180,9 +180,11 @@ export function SearchResultCard({
                             );
                         })()
                     ) : (
-                        <div className="w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
-                            {getCategoryIcon(product.category)}
-                        </div>
+                        <img
+                            src="/assets/images/placeholder.png"
+                            alt="Product Placeholder"
+                            className="w-full h-full object-contain"
+                        />
                     )}
                 </Link>
             </div>
@@ -191,7 +193,7 @@ export function SearchResultCard({
             <div className="flex-1 flex flex-col pt-1">
                 {isSponsored && <span className="text-[10px] text-gray-400 font-medium mb-1">Sponsored</span>}
 
-                <Link href={getProductUrl(product.id, product.name)} className="group-hover:text-brand-green-600 transition-colors">
+                <Link href={getProductUrl(product.id, product.name, product.slug)} className="group-hover:text-brand-green-600 transition-colors">
                     <h2 className="text-xl font-medium leading-tight mb-1 line-clamp-2">
                         {product.name}
                     </h2>
@@ -202,15 +204,15 @@ export function SearchResultCard({
                     {/* Phase 5: Trust Shield & Acceptance Rate OR Financing */}
                     <div className="flex items-center gap-1.5 ml-1">
                         {financingResult ? (
-                             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
-                                <Coins className="h-3 w-3 text-emerald-600" />
-                                <span className="text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                             <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
+                                <TrendingUp className="h-3 w-3 text-blue-600" />
+                                <span className="text-[11px] font-black text-blue-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
                              </div>
                         ) : (
                             <>
-                                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
-                                   <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                                   <span className="text-[10px] font-bold text-emerald-700">{seller?.trust_score || 80}%</span>
+                                <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
+                                   <ShieldCheck className="h-3 w-3 text-amber-600" />
+                                   <span className="text-[10px] font-bold text-amber-700">{seller?.trust_score || 80}%</span>
                                 </div>
                                 <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
                                     85% Acceptance
@@ -223,7 +225,9 @@ export function SearchResultCard({
                         <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
                     )}
                     {seller?.subscription_plan && seller.subscription_plan !== "Starter" && (
-                        <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4">Premium Seller</Badge>
+                        <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4 flex items-center gap-1">
+                            <Crown className="h-2.5 w-2.5" /> Premium Seller
+                        </Badge>
                     )}
                 </div>
 
@@ -283,7 +287,7 @@ export function SearchResultCard({
                 {/* Action Section */}
                 <div className="flex items-center gap-3">
                     <Button
-                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToCart(product); }}
                     >
                         <ShoppingCart className="h-4 w-4" /> Add to cart

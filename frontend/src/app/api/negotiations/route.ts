@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"; // REBUILD_TRIGGER_ENV_FIX
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Negotiations GET Error:", error);
         return NextResponse.json({ success: true, negotiations: [] }, {
-            status: 503,
+            status: 500,
             headers: { 
                 "X-DB-Status": "offline",
                 "Cache-Control": "no-store"
@@ -127,9 +128,19 @@ export async function POST(request: Request) {
                 proposedPrice: body.proposed_price,
                 message: body.message || null,
                 status: 'pending',
+                customerWhatsapp: body.customer_whatsapp || null,
                 chatMessages: body.chat_messages || []
-            }
+            } as any
         });
+
+        // Trigger WhatsApp Confirmation
+        if (body.customer_whatsapp) {
+            await WhatsAppService.sendNegotiationStarted(body.customer_whatsapp, {
+                productName: product.name,
+                proposedPrice: body.proposed_price,
+                negotiationId: newNeg.id
+            }).catch(e => console.error("WhatsApp Notification Error:", e));
+        }
 
         // Broadcast update for real-time sync
         broadcast({ type: "negotiation_updated", id: newNeg.id });
@@ -144,6 +155,34 @@ export async function POST(request: Request) {
                     link: "/seller/dashboard/messages"
                 }
             }).catch(e => console.error("Failed to create seller notification:", e));
+
+            // --- WhatsApp Direct DM Routing (PREMIUM) ---
+            const sellerFull = await (db.seller as any).findUnique({
+                where: { id: product.sellerId },
+                select: { whatsappNumber: true, whatsappDirectDM: true, tier: true, subscriptionPlan: true }
+            });
+
+            const isPremium = sellerFull?.subscriptionPlan !== "Starter";
+            if ((sellerFull as any)?.whatsappDirectDM && sellerFull.whatsappNumber && isPremium) {
+                const waRes = await WhatsAppService.sendSellerNegotiationDM(sellerFull.whatsappNumber, {
+                    customerName: body.customer_name || "A buyer",
+                    productName: product.name,
+                    proposedPrice: body.proposed_price,
+                    negotiationId: newNeg.id
+                });
+
+                if (waRes?.messages?.[0]?.id) {
+                    await (db as any).whatsAppNegotiationSession.create({
+                        data: {
+                            sellerId: product.sellerId,
+                            negotiationId: newNeg.id,
+                            sellerPhone: WhatsAppService.normalizePhoneNumber(sellerFull.whatsappNumber),
+                            customerPhone: body.customer_whatsapp || null,
+                            lastMessageId: waRes.messages[0].id
+                        }
+                    }).catch((e: any) => console.error("Failed to create WA session:", e));
+                }
+            }
         }
 
         return NextResponse.json({ success: true, negotiation: newNeg });
@@ -194,7 +233,7 @@ export async function PATCH(request: Request) {
             include: { 
                 product: true, 
                 customer: true,
-                seller: { select: { userId: true } }
+                seller: { select: { businessName: true, userId: true } }
             }
         });
 
@@ -225,6 +264,17 @@ export async function PATCH(request: Request) {
                          }
                      })
                  }).catch(e => console.error("Failed to trigger counter-offer email:", e));
+             }
+
+             // --- WhatsApp Notification for Counter ---
+             const customerNum = (updated as any).customerWhatsapp;
+             if (customerNum) {
+                 await WhatsAppService.sendNegotiationUpdate(customerNum, {
+                     productName: updated.product?.name || "Product",
+                     newPrice: counterPrice,
+                     sellerName: (updated.seller as any)?.businessName || "Seller",
+                     negotiationId: updated.id
+                 }).catch(e => console.error("WhatsApp Counter-Offer Alert Error:", e));
              }
         }
 

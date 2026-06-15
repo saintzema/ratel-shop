@@ -38,43 +38,91 @@ export default function CategoryPage() {
         setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
     }, []);
 
-    // Filter & Sort logic
-    const products = allProducts.filter(p => {
-        const categoryMatch = slug === "all" || 
-                             p.category === slug || 
-                             p.subcategory?.toLowerCase() === slug.toLowerCase() ||
-                             (slug === "verified" && p.seller_name.includes("TechHub"));
+    // 1. Pagination State
+    const [displayLimit, setDisplayLimit] = useState(20);
+
+    // 2. Intelligent Filter & Sort logic
+    const filteredProducts = allProducts.filter(p => {
+        const lowerSlug = slug.toLowerCase();
+        const lowerCat = (p.category || "").toLowerCase();
+        const lowerSub = (p.subcategory || "").toLowerCase();
+        const lowerName = (p.name || "").toLowerCase();
+        const lowerDesc = (p.description || "").toLowerCase();
+
+        // Check for direct match first
+        let isMatch = slug === "all" || 
+                     lowerCat === lowerSlug || 
+                     lowerSub === lowerSlug;
+        
+        // Keyword fallback for specific pills (like streaming-kits, home-office)
+        if (!isMatch && lowerSlug.includes("-")) {
+            const keywords = lowerSlug.split("-");
+            isMatch = keywords.every(kw => lowerName.includes(kw) || lowerDesc.includes(kw) || lowerCat.includes(kw));
+        }
+
+        // Special slugs
+        if (!isMatch) {
+            if (slug === "new") {
+                isMatch = !!p.is_new || (p.created_at && new Date(p.created_at).getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000);
+            } else if (slug === "deals") {
+                isMatch = !!(p.original_price && p.original_price > p.price);
+            } else if (slug === "verified") {
+                isMatch = p.price_flag === "fair" || p.seller_name?.includes("TechHub") || p.is_sponsored;
+            }
+        }
+
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
-        return categoryMatch && priceMatch;
+        return isMatch && priceMatch;
     }).sort((a, b) => {
         switch (sortBy) {
             case "price_asc": return a.price - b.price;
             case "price_desc": return b.price - a.price;
             case "rating": return b.avg_rating - a.avg_rating;
             case "newest": return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            default: return 0;
+            default: {
+                // "featured" sort: loose relevancy boost for sponsored/trending
+                let scoreA = a.sold_count * 2 + a.review_count;
+                let scoreB = b.sold_count * 2 + b.review_count;
+                if (a.is_sponsored) scoreA += 500;
+                if (b.is_sponsored) scoreB += 500;
+                if (a.is_trending) scoreA += 200;
+                if (b.is_trending) scoreB += 200;
+                // Add a small randomization factor to make it feel organic
+                const randA = (a.id.charCodeAt(0) || 0) % 10;
+                const randB = (b.id.charCodeAt(0) || 0) % 10;
+                return (scoreB + randB) - (scoreA + randA);
+            }
         }
     });
+
+    // 3. Slice for pagination
+    const products = filteredProducts.slice(0, displayLimit);
+    const hasMore = filteredProducts.length > displayLimit;
 
     const handlePreset = useCallback((min: number, max: number) => {
         setPriceMin(min);
         setPriceMax(max);
+        setDisplayLimit(20); // Reset limit on filter change
     }, []);
 
     const handleReset = useCallback(() => {
         setPriceMin(MIN_PRICE);
         setPriceMax(MAX_PRICE);
+        setDisplayLimit(20);
     }, []);
+
+    const loadMore = () => {
+        setDisplayLimit(prev => prev + 20);
+    };
 
     return (
         <div className="min-h-screen bg-brand-green-50 flex flex-col font-sans text-gray-900">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-6 flex gap-6">
+            <main className="flex-1 container mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
                 {/* Sidebar Filters */}
                 <div className="hidden lg:block w-64 flex-shrink-0 space-y-6 text-gray-900">
-
-                    {/* Categories */}
+                    {/* ... (Categories, Price, etc. remain the same) */}
                     <div>
                         <h3 className="font-bold text-sm mb-2 text-black border-b border-gray-200 pb-1">Departments</h3>
                         <ul className="text-sm space-y-2">
@@ -95,29 +143,18 @@ export default function CategoryPage() {
                         </ul>
                     </div>
 
-                    {/* ─── Price Range Slider ─── */}
                     <div>
                         <h3 className="font-bold text-sm mb-3 text-black border-b border-gray-200 pb-1">Price</h3>
-
-                        {/* Display selected range */}
                         <div className="text-center mb-3">
                             <span className="text-sm font-semibold text-brand-green-700 bg-brand-green-50 px-3 py-1 rounded-full border border-brand-green-200">
                                 {formatNaira(priceMin)} — {formatNaira(priceMax)}
                             </span>
                         </div>
-
-                        {/* Dual Range Slider */}
                         <DualRangeSlider
-                            min={MIN_PRICE}
-                            max={MAX_PRICE}
-                            step={STEP}
-                            valueMin={priceMin}
-                            valueMax={priceMax}
-                            onChangeMin={setPriceMin}
-                            onChangeMax={setPriceMax}
+                            min={MIN_PRICE} max={MAX_PRICE} step={STEP}
+                            valueMin={priceMin} valueMax={priceMax}
+                            onChangeMin={setPriceMin} onChangeMax={setPriceMax}
                         />
-
-                        {/* Quick Presets */}
                         <div className="flex flex-wrap gap-1.5 mt-3">
                             {[
                                 { label: "Under ₦20k", min: 0, max: 20000 },
@@ -130,68 +167,23 @@ export default function CategoryPage() {
                                     onClick={() => handlePreset(preset.min, preset.max)}
                                     className={cn(
                                         "text-xs px-2.5 py-1 rounded-full border transition-colors font-medium",
-                                        priceMin === preset.min && priceMax === preset.max
-                                            ? "bg-brand-green-600 text-white border-brand-green-600"
-                                            : "bg-white text-gray-600 border-gray-300 hover:border-brand-green-400 hover:text-brand-green-600"
+                                        priceMin === preset.min && priceMax === preset.max ? "bg-brand-green-600 text-white" : "bg-white text-gray-600"
                                     )}
                                 >
                                     {preset.label}
                                 </button>
                             ))}
                         </div>
-
-                        {/* Reset */}
-                        {(priceMin > MIN_PRICE || priceMax < MAX_PRICE) && (
-                            <button
-                                onClick={handleReset}
-                                className="text-xs text-blue-600 hover:underline mt-2 font-medium"
-                            >
-                                Reset price filter
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Rating Filter */}
-                    <div>
-                        <h3 className="font-bold text-sm mb-2 text-black border-b border-gray-200 pb-1">Avg. Customer Review</h3>
-                        <div className="space-y-1">
-                            {[4, 3, 2, 1].map(rating => (
-                                <div key={rating} className="flex items-center gap-1 text-sm cursor-pointer hover:text-brand-green-600 group">
-                                    <div className="flex text-amber-400">
-                                        {[...Array(5)].map((_, i) => (
-                                            <Star key={i} className={cn("h-4 w-4", i < rating ? "fill-current" : "text-gray-300")} />
-                                        ))}
-                                    </div>
-                                    <span className="text-gray-700 group-hover:text-brand-green-600 font-medium">& Up</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Seller Type */}
-                    <div>
-                        <h3 className="font-bold text-sm mb-2 text-black border-b border-gray-200 pb-1">Seller Type</h3>
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-brand-green-600 group">
-                                <input type="checkbox" className="rounded border-gray-400 text-brand-green-600 focus:ring-brand-green-600" />
-                                <span className="flex items-center gap-1 text-gray-800"><ShieldCheck className="h-3 w-3 text-brand-green-600" /> Superadmin Verified</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-brand-green-600 group">
-                                <input type="checkbox" className="rounded border-gray-400 text-brand-green-600 focus:ring-brand-green-600" />
-                                <span className="text-gray-800">FairPrice Fulfillment</span>
-                            </label>
-                        </div>
                     </div>
                 </div>
 
-                {/* Product Grid */}
+                {/* Product Grid Area */}
                 <div className="flex-1">
                     <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                         <h1 className="font-bold text-lg capitalize mb-2 sm:mb-0 text-black">
-                            {products.length} results for <span className="text-brand-green-700">"{categoryLabel}"</span>
+                            {filteredProducts.length} results for <span className="text-brand-green-700">"{categoryLabel}"</span>
                         </h1>
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600 font-medium">Sort by:</span>
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
@@ -208,34 +200,30 @@ export default function CategoryPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {products.map(product => (
-                            <ProductCard
-                                key={product.id}
-                                product={product}
-                                className="bg-white border-gray-200 text-black shadow-sm"
-                            />
+                            <ProductCard key={product.id} product={product} className="bg-white" />
                         ))}
                     </div>
 
-                    {products.length === 0 && (
-                        <div className="text-center py-16">
-                            <p className="text-gray-500 text-lg mb-2">No products found in this price range</p>
+                    {filteredProducts.length === 0 && (
+                        <div className="text-center py-16 bg-white rounded-lg border border-dashed border-gray-300">
+                            <p className="text-gray-500 text-lg mb-2">No products found in this category or price range</p>
                             <button onClick={handleReset} className="text-brand-green-600 hover:underline font-semibold">
-                                Reset price filter
+                                Reset filters
                             </button>
                         </div>
                     )}
 
-                    {/* Pagination Mock */}
-                    {products.length > 0 && (
-                        <div className="mt-8 flex justify-center">
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" disabled>Previous</Button>
-                                <Button variant="outline" className="bg-gray-100">1</Button>
-                                <Button variant="outline">2</Button>
-                                <Button variant="outline">3</Button>
-                                <span className="text-gray-400">...</span>
-                                <Button variant="outline">Next</Button>
-                            </div>
+                    {/* REAL Load More Action */}
+                    {hasMore && (
+                        <div className="mt-12 flex flex-col items-center gap-4">
+                            <p className="text-sm text-gray-500">Showing {products.length} of {filteredProducts.length} products</p>
+                            <Button 
+                                onClick={loadMore}
+                                size="lg"
+                                className="rounded-full px-12 bg-[#047857] hover:bg-[#065f46] text-white font-bold shadow-lg h-12"
+                            >
+                                LOAD MORE RESULTS
+                            </Button>
                         </div>
                     )}
 

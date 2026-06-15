@@ -5,12 +5,14 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft, LogOut } from "lucide-react";
+import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft, LogOut, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { useLocation } from "@/context/LocationContext";
 import { DataSyncService } from "@/lib/sync-store";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+import { COUNTRY_CODES } from "@/lib/constants/countries";
 
 export default function ProfilePage() {
     const { user, updateUser, logout } = useAuth();
@@ -18,11 +20,29 @@ export default function ProfilePage() {
     const { showNotification } = useNotification();
     const { location: globalLocation, setLocation } = useLocation();
 
-    // Form State
+    // Parse a stored E.164 digits string (e.g. "2348012345678") into {code:"+234", local:"8012345678"}
+    const splitWaNumber = (stored: string): { code: string; local: string } => {
+        if (!stored) return { code: "+234", local: "" };
+        const digits = stored.replace(/^\+/, "");
+        // Try to match the longest country code first
+        const sorted = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+        for (const c of sorted) {
+            const cc = c.code.replace(/^\+/, "");
+            if (digits.startsWith(cc)) {
+                return { code: c.code, local: digits.substring(cc.length) };
+            }
+        }
+        return { code: "+234", local: digits };
+    };
+
+    // Form State — reads whatsappNumber (DB field) with fallback to legacy whatsapp key
+    const getWaNumber = (u: any) => u?.whatsappNumber || u?.whatsapp || "";
+
     const [formData, setFormData] = useState({
         name: user?.name || "",
         email: user?.email || "",
         phone: (user as any)?.phone || "",
+        whatsapp: getWaNumber(user),
         address: (user as any)?.address || "",
         password: "",
         location: user?.location || globalLocation || "Lagos, Nigeria"
@@ -35,11 +55,23 @@ export default function ProfilePage() {
                 name: user.name || "",
                 email: user.email || "",
                 phone: (user as any)?.phone || "",
+                whatsapp: getWaNumber(user),
                 address: (user as any)?.address || "",
                 location: user.location || prev.location || globalLocation || "Lagos, Nigeria"
             }));
         }
     }, [user, globalLocation]);
+
+    // WhatsApp country code + local number (split for the picker)
+    const [waCountryCode, setWaCountryCode] = useState(() => splitWaNumber(getWaNumber(user)).code);
+    const [waLocal, setWaLocal] = useState(() => splitWaNumber(getWaNumber(user)).local);
+
+    // Sync WA fields when user loads from context
+    useEffect(() => {
+        const { code, local } = splitWaNumber(getWaNumber(user));
+        setWaCountryCode(code);
+        setWaLocal(local);
+    }, [(user as any)?.whatsappNumber]); // eslint-disable-line
 
     // State to track editing
     const [editingField, setEditingField] = useState<string | null>(null);
@@ -52,49 +84,82 @@ export default function ProfilePage() {
 
     useEffect(() => {
         const saved = localStorage.getItem('fp_profile_pic');
-        if (saved) setProfilePic(saved);
-    }, []);
+        if (saved) {
+            setProfilePic(saved);
+        } else if (user?.avatar_url) {
+            setProfilePic(user.avatar_url);
+        }
+    }, [user?.avatar_url]);
 
     const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
         const reader = new FileReader();
         reader.onloadend = () => {
             const dataUrl = reader.result as string;
             setProfilePic(dataUrl);
             localStorage.setItem('fp_profile_pic', dataUrl);
+            
+            // Persist to AuthContext and DB
+            updateUser({ avatar_url: dataUrl });
+            
             showNotification({
-                title: "Profile Picture Updated Successfully",
-                message: "Your avatar has been synced across all devices.",
+                title: "Avatar Updated",
+                message: "Your profile picture has been saved successfully.",
                 type: "success"
             });
         };
         reader.readAsDataURL(file);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         setIsLoading(true);
-        updateUser({
-            name: formData.name,
-            email: formData.email,
-            location: formData.location,
-            phone: formData.phone,
-            address: formData.address
-        } as any);
+        try {
+            // Persist to DB
+            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+            await fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({
+                    id: user?.id,
+                    email: formData.email,
+                    name: formData.name,
+                    location: formData.location,
+                    // Combine country code + local into full number; server normalises to E.164
+                    whatsappNumber: waLocal.trim()
+                        ? `${waCountryCode}${waLocal.replace(/\D/g, '')}`
+                        : undefined,
+                }),
+            });
 
-        if (formData.location) {
-            setLocation(formData.location);
-        }
+            // Update local auth context
+            const combinedWa = waLocal.trim()
+                ? `${waCountryCode.replace(/^\+/, '')}${waLocal.replace(/\D/g, '')}`
+                : undefined;
+            updateUser({
+                name: formData.name,
+                email: formData.email,
+                location: formData.location,
+                ...(combinedWa ? { whatsappNumber: combinedWa } : {}),
+            } as any);
 
-        setTimeout(() => {
-            setIsLoading(false);
+            if (formData.location) setLocation(formData.location);
+
             setEditingField(null);
             showNotification({
                 title: "Profile Updated",
-                message: "Your profile details have been saved successfully.",
-                type: "success"
+                message: "Your profile details have been saved.",
+                type: "success",
             });
-        }, 300);
+        } catch {
+            showNotification({ title: "Error", message: "Could not save profile. Please try again.", type: "error" });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handlePasswordChange = () => {
@@ -151,10 +216,10 @@ export default function ProfilePage() {
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
                         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                             <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30 text-white overflow-hidden">
-                                {profilePic ? (
-                                    <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                                {profilePic || user?.avatar_url ? (
+                                    <img src={profilePic || user?.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                                 ) : (
-                                    formData.name.charAt(0)
+                                    formData.name.charAt(0) || "U"
                                 )}
                             </div>
                             <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -170,8 +235,14 @@ export default function ProfilePage() {
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold">{formData.name}</h2>
-                            <p className="text-emerald-200 text-sm">Personal Member</p>
+                            <p className="text-emerald-100 text-xs font-medium bg-white/10 px-2.5 py-0.5 rounded-full inline-block backdrop-blur-sm mt-1">
+                                {user?.role === 'seller' ? 'Elite Seller' : user?.role === 'admin' ? 'Administrator' : 'Premium Member'}
+                            </p>
                         </div>
+                    </div>
+
+                    <div className="p-1 px-6 bg-emerald-50 text-[10px] font-bold text-emerald-700 uppercase tracking-tighter flex items-center justify-center gap-1 border-b border-emerald-100">
+                        <Camera className="h-3 w-3" /> Tap avatar to change photo
                     </div>
 
                     <div className="p-6 space-y-6">
@@ -247,6 +318,55 @@ export default function ProfilePage() {
                                 onClick={() => setEditingField(editingField === "phone" ? null : "phone")}
                             >
                                 {editingField === "phone" ? "Cancel" : "Edit"}
+                            </Button>
+                        </div>
+
+                        {/* WhatsApp */}
+                        <div className="flex gap-4 items-start pb-6 border-b border-gray-100">
+                            <div className="mt-1"><MessageSquare className="h-5 w-5 text-emerald-500" /></div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">
+                                    WhatsApp Number
+                                    {waLocal && (
+                                        <span className="ml-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ LINKED</span>
+                                    )}
+                                </label>
+                                {editingField === "whatsapp" ? (
+                                    <div className="space-y-1">
+                                        <div className="flex gap-2">
+                                            <CountryCodeSelect value={waCountryCode} onChange={setWaCountryCode} />
+                                            <Input
+                                                value={waLocal}
+                                                onChange={e => setWaLocal(e.target.value.replace(/\D/g, ''))}
+                                                placeholder="8012345678"
+                                                className="flex-1 h-12 border-emerald-400 focus:ring-emerald-500/20"
+                                                type="tel"
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-gray-400">
+                                            Select your country flag, then enter digits only — e.g. <strong>8012345678</strong> for +234
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-900 h-10 flex items-center gap-2">
+                                        {waLocal ? (
+                                            <>
+                                                <span className="text-base">{COUNTRY_CODES.find(c => c.code === waCountryCode)?.flag}</span>
+                                                <span className="font-semibold">{waCountryCode} {waLocal}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-gray-400 italic text-sm">Not linked — add to receive order updates &amp; broadcasts via WhatsApp</span>
+                                        )}
+                                    </p>
+                                )}
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="mt-6 shrink-0"
+                                onClick={() => setEditingField(editingField === "whatsapp" ? null : "whatsapp")}
+                            >
+                                {editingField === "whatsapp" ? "Cancel" : (waLocal ? "Edit" : "Add")}
                             </Button>
                         </div>
 

@@ -71,105 +71,112 @@ export default function AdminUserDetailPage() {
     const loadData = async () => {
         if (!id) return;
         setLoading(true);
-        let found = false;
-        let localStatus: string | null | undefined = null;
 
-        const dsSeller = DataSyncService.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
-        if (dsSeller) {
-            const dsOrders = DataSyncService.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
-            
-            // Check for KYC submissions (robust matching)
-            const kycList = DataSyncService.getKYCSubmissions();
-            const kyc = kycList.find((k: any) => 
-                k.seller_id === dsSeller.id || 
-                k.seller_id === id || 
-                k.user_id === id || 
-                k.email === dsSeller.owner_email ||
-                k.email === id ||
-                k.business_name === dsSeller.business_name
-            );
-            if (kyc) {
-                setKycSubmission(kyc);
-            }
-
-            localStatus = dsSeller.status;
-            setUserEntity({ ...dsSeller, role: "seller" });
-            setOrders(dsOrders);
-            found = true;
-        }
-
-        // ── Step 2: If not a seller, check if buyer from orders or getAllUsers ──
-        if (!found) {
-            const dsOrders = DataSyncService.getOrders();
-            const buyerOrders = dsOrders.filter((o: any) => o.customer_id === id || o.customer_email === id);
-
-            // Also check getAllUsers for registered users who may have no orders yet
-            const dsUser = DataSyncService.getAllUsers().find((u: any) => u.id === id || u.email === id);
-
-            if (buyerOrders.length > 0 || dsUser) {
-                const first = buyerOrders[0];
-                const resolvedStatus = dsUser?.status || "active";
-                localStatus = resolvedStatus;
-                setUserEntity({
-                    id,
-                    name: dsUser?.name || first?.customer_name || id.split("@")[0],
-                    email: dsUser?.email || first?.customer_email || id,
-                    role: "buyer",
-                    status: resolvedStatus,
-                    created_at: dsUser?.created_at || first?.created_at || new Date().toISOString(),
-                    avatarUrl: dsUser?.avatarUrl || null,
-                });
-                setOrders(buyerOrders);
-                found = true;
-            }
-        }
-
-        // ── Step 3: Enrich from API but never overwrite locally-set status ──
+        // ── DB-AUTHORITATIVE: fetch the user WITH their seller record + KYC docs ──
+        // This is the source of truth. localStorage is only a fast fallback because it
+        // may not contain newly-registered sellers (which made them show as "BUYER"
+        // with no business/KYC details).
+        let resolved = false;
         try {
-            const sellerRes = await fetch(`/api/sellers/${dsSeller ? dsSeller.id : id}`);
-            if (sellerRes.ok) {
-                const data = await sellerRes.json();
-                if (data && data.id) {
-                    setUserEntity((prev: any) => {
-                        const merged = { ...prev };
-                        for (const key in data) {
-                            if (data[key] !== null && data[key] !== undefined && data[key] !== "") {
-                                // Never let API overwrite locally-authoritative status
-                                if (key === "status" && localStatus) continue;
-                                merged[key] = data[key];
-                            }
-                        }
-                        merged.role = "seller";
-                        if (data.businessName && !merged.business_name) merged.business_name = data.businessName;
-                        if (data.logoUrl && !merged.logo_url) merged.logo_url = data.logoUrl;
-                        if (data.coverImageUrl && !merged.cover_image_url) merged.cover_image_url = data.coverImageUrl;
-                        return merged;
-                    });
-                    if (data.orders?.length) setOrders(data.orders);
-                    found = true;
-                }
-            } else if (!found) {
-                const userRes = await fetch(`/api/users?id=${id}`);
-                if (userRes.ok) {
-                    const data = await userRes.json();
-                    if (data && data.id) {
-                        setUserEntity((prev: any) => {
-                            const merged = { ...(prev || {}) };
-                            for (const key in data) {
-                                if (data[key] !== null && data[key] !== undefined && data[key] !== "") {
-                                    if (key === "status" && localStatus) continue;
-                                    merged[key] = data[key];
-                                }
-                            }
-                            merged.role = "buyer";
-                            return merged;
+            const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`);
+            if (res.ok) {
+                const u = await res.json();
+                if (u && u.id) {
+                    const sellerRec = Array.isArray(u.sellers) && u.sellers.length > 0 ? u.sellers[0] : null;
+                    const isSeller = !!sellerRec || u.role === "seller";
+
+                    if (isSeller && sellerRec) {
+                        // Map DB seller (camelCase) → entity (snake_case) the page expects
+                        setUserEntity({
+                            id: sellerRec.id,
+                            user_id: u.id,
+                            role: "seller",
+                            name: sellerRec.businessName || u.name,
+                            business_name: sellerRec.businessName,
+                            owner_name: sellerRec.ownerName || u.name,
+                            owner_email: sellerRec.ownerEmail || u.email,
+                            email: sellerRec.ownerEmail || u.email,
+                            description: sellerRec.description,
+                            logo_url: sellerRec.logoUrl,
+                            cover_image_url: sellerRec.coverImageUrl,
+                            category: sellerRec.category,
+                            status: sellerRec.status,
+                            verified: sellerRec.verified,
+                            kyc_status: sellerRec.kycStatus,
+                            bank_name: sellerRec.bankName,
+                            account_number: sellerRec.accountNumber,
+                            account_name: sellerRec.accountName,
+                            store_url: sellerRec.storeUrl,
+                            location: sellerRec.location,
+                            city: sellerRec.city,
+                            state: sellerRec.state,
+                            street_address: sellerRec.streetAddress,
+                            phone_number: sellerRec.whatsappNumber,
+                            whatsapp_number: sellerRec.whatsappNumber,
+                            weekly_orders: sellerRec.weeklyOrders,
+                            staff_count: sellerRec.staffCount,
+                            physical_stores: sellerRec.physicalStores,
+                            cac_number: sellerRec.cacNumber,
+                            cac_document_url: sellerRec.cacDocumentUrl,
+                            id_document_url: sellerRec.idDocumentUrl,
+                            created_at: u.createdAt || sellerRec.createdAt,
+                            avatarUrl: u.avatarUrl,
                         });
-                        found = true;
+                        // KYC submissions (uploaded CAC / ID docs)
+                        const kyc = Array.isArray(sellerRec.kycSubmissions) && sellerRec.kycSubmissions.length > 0
+                            ? sellerRec.kycSubmissions[0] : null;
+                        if (kyc) {
+                            setKycSubmission({
+                                ...kyc,
+                                document_url: kyc.documentUrl,
+                                cac_document_url: kyc.cacDocumentUrl || kyc.documentUrl,
+                                id_document_url: kyc.idDocumentUrl,
+                            });
+                        }
+                    } else {
+                        // Genuine buyer
+                        setUserEntity({
+                            id: u.id,
+                            name: u.name || u.email?.split("@")[0],
+                            email: u.email,
+                            role: u.role === "admin" ? "admin" : "buyer",
+                            status: u.status || "active",
+                            created_at: u.createdAt,
+                            avatarUrl: u.avatarUrl,
+                        });
                     }
+                    resolved = true;
                 }
             }
         } catch {
-            // API unavailable — DataSyncService data is already loaded
+            // DB unreachable — fall through to localStorage
+        }
+
+        // Orders: from DataSyncService (synced) — match by seller id, user id, or email
+        const allOrders = DataSyncService.getOrders();
+        setOrders(allOrders.filter((o: any) =>
+            o.seller_id === id || o.customer_id === id || o.customer_email === id
+        ));
+
+        // ── Fallback to localStorage only if DB fetch failed ──
+        if (!resolved) {
+            const dsSeller = DataSyncService.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
+            if (dsSeller) {
+                setUserEntity({ ...dsSeller, role: "seller" });
+                const kycList = DataSyncService.getKYCSubmissions();
+                const kyc = kycList.find((k: any) => k.seller_id === dsSeller.id || k.seller_id === id || k.user_id === id || k.email === dsSeller.owner_email);
+                if (kyc) setKycSubmission(kyc);
+            } else {
+                const dsUser = DataSyncService.getAllUsers().find((u: any) => u.id === id || u.email === id);
+                setUserEntity({
+                    id,
+                    name: dsUser?.name || id.split("@")[0],
+                    email: dsUser?.email || id,
+                    role: dsUser?.role || "buyer",
+                    status: dsUser?.status || "active",
+                    created_at: dsUser?.created_at || new Date().toISOString(),
+                });
+            }
         }
 
         setLoading(false);
@@ -292,7 +299,7 @@ export default function AdminUserDetailPage() {
                                 Approve Seller
                             </Button>
                             <Button
-                                onClick={() => router.push(`/admin/inbox?user_id=${id}`)}
+                                onClick={() => router.push(`/admin/inbox?user_id=${encodeURIComponent(userEntity?.owner_email || userEntity?.email || userEntity?.user_id || id)}&name=${encodeURIComponent(userEntity?.business_name || userEntity?.name || "")}`)}
                                 variant="outline"
                                 className="h-11 px-5 rounded-2xl border-amber-200 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-wider hover:bg-amber-100 shadow-sm"
                             >
@@ -300,7 +307,7 @@ export default function AdminUserDetailPage() {
                             </Button>
                         </>
                     )}
-                    <Button onClick={() => router.push(`/admin/inbox?user_id=${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                    <Button onClick={() => router.push(`/admin/inbox?user_id=${encodeURIComponent(userEntity?.owner_email || userEntity?.email || userEntity?.user_id || id)}&name=${encodeURIComponent(userEntity?.business_name || userEntity?.name || "")}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Mail className="h-4 w-4 mr-2" /> Message
                     </Button>
                     {/* Activate — for pending users (buyers or sellers not yet approved) */}
@@ -311,7 +318,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
-                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
+                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
                                     // Update by both ID and email for reliable persistence
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus);
@@ -356,7 +363,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = userEntity.role === "seller" ? "frozen" : "banned";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus });
-                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus }) }); } catch { }
+                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) }); } catch { }
                                 } else {
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus as any);
                                 }

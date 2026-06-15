@@ -67,7 +67,7 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
         <tr><td style="padding:12px;background:#f0fdfa;border-radius:12px;" valign="top"><strong style="color:#0d9488;font-size:14px;">Start Selling</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Register as a seller, open your store in minutes, and reach millions.</p></td></tr>
       </table>
       <div style="text-align:center;margin-top:28px;">
-        <a href="https://fairprice.ng" style="display:inline-block;background:linear-gradient(135deg,#059669,#10b981);color:white;text-decoration:none;padding:14px 36px;border-radius:14px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(5,150,105,0.3);">Visit FairPrice.ng</a>
+        <a href="https://www.fairprice.ng" style="display:inline-block;background:linear-gradient(135deg,#059669,#10b981);color:white;text-decoration:none;padding:14px 36px;border-radius:14px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(5,150,105,0.3);">Visit FairPrice.ng</a>
       </div>
       <p style="color:#9ca3af;font-size:12px;text-align:center;margin-top:24px;line-height:1.5;">We'll email you as soon as we launch.<br>Stay tuned — fair pricing is coming.</p>
     </div>

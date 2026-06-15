@@ -18,11 +18,13 @@ import {
     Truck,
     Brain,
     TrendingUp,
-    Sparkles
+    Sparkles,
+    LayoutGrid
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { HeroManager } from "@/components/admin/HeroManager";
 
 export default function AdminSettings() {
     const [platformMargin, setPlatformMargin] = useState("15");
@@ -39,14 +41,18 @@ export default function AdminSettings() {
     const [lowCostFlatFee, setLowCostFlatFee] = useState("250");
     const [highCostThreshold, setHighCostThreshold] = useState("500000");
     const [highCostCap, setHighCostCap] = useState("15000");
+    const [minFinancingPrice, setMinFinancingPrice] = useState("300000");
 
     // COD Settings
     const [codThreshold, setCodThreshold] = useState("50000");
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // Global COD Settings
-    const [codGlobalEnabled, setCodGlobalEnabled] = useState(false);
-    const [codGlobalThreshold, setCodGlobalThreshold] = useState("15000");
+    const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState("50000");
+
+    // AI Provider
+    const [aiProvider, setAiProvider] = useState<"qwen" | "gemini">("qwen");
 
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
@@ -54,13 +60,17 @@ export default function AdminSettings() {
     const [escrowRelease, setEscrowRelease] = useState(true);
     const [strictSeller, setStrictSeller] = useState(true);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
+    const [waVerificationEnabled, setWaVerificationEnabled] = useState(false);
 
     // Support Configuration
     const [supportEmail, setSupportEmail] = useState("hello@fairprice.ng");
     const [supportWhatsapp, setSupportWhatsapp] = useState("2348162816305");
+    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2348162816305");
     const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
     const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
+    const [whatsappNegotiationBridge, setWhatsappNegotiationBridge] = useState(true);
     const [serviceCenters, setServiceCenters] = useState<{name: string, address: string, phone: string}[]>([]);
+    const [heroConfig, setHeroConfig] = useState<any>(null);
 
     const [isSavingCommission, setIsSavingCommission] = useState(false);
     const [isSavingShipping, setIsSavingShipping] = useState(false);
@@ -138,6 +148,9 @@ export default function AdminSettings() {
                     if (initialData.escrowRelease !== undefined) setEscrowRelease(initialData.escrowRelease);
                     if (initialData.strictSeller !== undefined) setStrictSeller(initialData.strictSeller);
                     if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
+                    if (initialData.waVerificationEnabled !== undefined) setWaVerificationEnabled(initialData.waVerificationEnabled);
+                    if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
+                    if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -150,15 +163,18 @@ export default function AdminSettings() {
                     if (initialData.lowCostFlatFee) setLowCostFlatFee(initialData.lowCostFlatFee.toString());
                     if (initialData.highCostThreshold) setHighCostThreshold(initialData.highCostThreshold.toString());
                     if (initialData.highCostCap) setHighCostCap(initialData.highCostCap.toString());
+                    if (initialData.minFinancingPrice !== undefined) setMinFinancingPrice(initialData.minFinancingPrice.toString());
 
                     if (initialData.supportConfig) {
                         const sc = initialData.supportConfig;
                         if (sc.email) setSupportEmail(sc.email);
                         if (sc.whatsapp) setSupportWhatsapp(sc.whatsapp);
+                        if (sc.whatsappOrderNumber) setWhatsappOrderNumber(sc.whatsappOrderNumber);
                         if (sc.office) setSupportOffice(sc.office);
                         if (sc.hours) setSupportHours(sc.hours);
                         if (sc.serviceCenters) setServiceCenters(sc.serviceCenters);
                     }
+                    if (initialData.heroConfig) setHeroConfig(initialData.heroConfig);
                 }
             } catch (err) {
                 console.error("Failed to load settings from DB", err);
@@ -219,6 +235,7 @@ export default function AdminSettings() {
             lowCostFlatFee: parseFloat(lowCostFlatFee) || 250,
             highCostThreshold: parseFloat(highCostThreshold) || 500000,
             highCostCap: parseFloat(highCostCap) || 15000,
+            minFinancingPrice: parseFloat(minFinancingPrice) || 300000,
         }, setIsSavingCommission);
     };
 
@@ -226,26 +243,29 @@ export default function AdminSettings() {
         doorstepFee: parseFloat(doorstepFee) || 4000,
         pickupFee: parseFloat(pickupFee) || 2500,
         stateShipping,
-        codThreshold: parseFloat(codThreshold) || 20000,
+        codThreshold: parseFloat(codThreshold) || 50000,
         codEnabled,
         codAllowExpensiveCategories,
         codGlobalEnabled,
-        codGlobalThreshold: parseFloat(codGlobalThreshold) || 15000
+        codGlobalThreshold: parseFloat(codGlobalThreshold) || 50000
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
         supportConfig: {
             email: supportEmail,
             whatsapp: supportWhatsapp,
+            whatsappOrderNumber: whatsappOrderNumber,
             office: supportOffice,
             hours: supportHours,
             serviceCenters
         }
     }, setIsSavingSupport);
+
+    const handleSaveHero = (config: any) => saveSection({ heroConfig: config }, () => {});
 
     const handleReset = () => {
         setAiMonitoring(true);
@@ -317,6 +337,13 @@ export default function AdminSettings() {
                                     </div>
                                     <Input value={vehicleDepositPct} onChange={(e) => setVehicleDepositPct(e.target.value)} type="number" min="5" max="50" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-amber-200 ring-2 ring-amber-50" />
                                     <p className="text-[10px] text-gray-400 pl-1">Buyers pay this % upfront for vehicle transactions (default: 15%)</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Min. Financing Price (₦)</label>
+                                        <InfoTooltip content="The minimum price a product must have to be eligible for BNPL financing." />
+                                    </div>
+                                    <Input value={minFinancingPrice} onChange={(e) => setMinFinancingPrice(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Standard Commission (%)</label>
@@ -657,6 +684,46 @@ export default function AdminSettings() {
                                 </div>
                                 <Switch checked={globalSearchCaching} onCheckedChange={setGlobalSearchCaching} />
                             </div>
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                                <div className="max-w-md">
+                                    <h4 className="text-sm font-bold text-gray-900">Ziva AI-WhatsApp Bridge</h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Enable real-time negotiations and alerts via WhatsApp Cloud API</p>
+                                </div>
+                                <Switch checked={whatsappNegotiationBridge} onCheckedChange={setWhatsappNegotiationBridge} />
+                            </div>
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                                <div className="max-w-md">
+                                    <h4 className="text-sm font-bold text-gray-900">WhatsApp OTP Verification</h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Enable OTP codes to be sent via WhatsApp when a user chooses to log in with WhatsApp</p>
+                                </div>
+                                <Switch checked={waVerificationEnabled} onCheckedChange={setWaVerificationEnabled} />
+                            </div>
+
+                            {/* AI Provider toggle */}
+                            <div className="py-4 border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Brain className="h-4 w-4 text-violet-500" />
+                                    <h4 className="text-sm font-bold text-gray-900">Ziva AI Brain</h4>
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-violet-50 text-violet-600">Active: {aiProvider.toUpperCase()}</span>
+                                </div>
+                                <p className="text-xs text-gray-400 mb-3">Switch the AI model powering Ziva chat and WhatsApp intelligence. Changes take effect within 60 seconds — no redeploy needed.</p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setAiProvider("qwen")}
+                                        className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "qwen" ? "border-violet-500 bg-violet-50 text-violet-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
+                                    >
+                                        Qwen (Alibaba)
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">qwen3-max · DashScope</p>
+                                    </button>
+                                    <button
+                                        onClick={() => setAiProvider("gemini")}
+                                        className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "gemini" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
+                                    >
+                                        Gemini (Google)
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">gemini-2.5-flash · Vertex</p>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="mt-8 flex justify-end pt-6 border-t border-gray-100">
@@ -703,6 +770,16 @@ export default function AdminSettings() {
                         </div>
                     </div>
 
+                    {/* Homepage Hero Grid Management */}
+                    <HeroManager 
+                        config={heroConfig} 
+                        onSave={async (config) => {
+                            setHeroConfig(config);
+                            await handleSaveHero(config);
+                        }}
+                        isLoading={isLoading}
+                    />
+
                     {/* Support & Contact Management */}
                     <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm mt-8 xl:col-span-2">
                         <div className="flex items-center gap-3 mb-8">
@@ -721,9 +798,17 @@ export default function AdminSettings() {
                                     <Input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} placeholder="hello@fairprice.ng" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">WhatsApp Target (Format: 234...)</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">WhatsApp Support (Format: 234...)</label>
                                     <Input value={supportWhatsapp} onChange={(e) => setSupportWhatsapp(e.target.value)} placeholder="2348162816305" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
                                     <p className="text-[10px] text-gray-400 pl-1">Don't include '+', spaces, or hyphens</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">WhatsApp Order Number</label>
+                                        <InfoTooltip content="This is the WhatsApp Business number used for the 'Order via WhatsApp' checkout flow. Customers will send their order summary to this number." />
+                                    </div>
+                                    <Input value={whatsappOrderNumber} onChange={(e) => setWhatsappOrderNumber(e.target.value)} placeholder="2349131767484" className="h-12 bg-gray-50 border-none rounded-xl font-medium border-emerald-200 ring-2 ring-emerald-50" />
+                                    <p className="text-[10px] text-gray-400 pl-1">Format: 234... (no +, spaces, or hyphens). This powers the checkout WhatsApp button.</p>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Head Office Address</label>
@@ -736,9 +821,9 @@ export default function AdminSettings() {
                             </div>
                             <div className="pt-6 border-t border-gray-50">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-bold text-gray-900">Registered Service Centers</h4>
+                                    <h4 className="text-sm font-bold text-gray-900">Warehouses & Logistics Hubs</h4>
                                     <Button onClick={() => setServiceCenters([...serviceCenters, { name: "", address: "", phone: "" }])} variant="outline" size="sm" className="h-8 text-xs font-bold rounded-xl text-cyan-600 border-cyan-200 hover:bg-cyan-50">
-                                        + Add Location
+                                        + Add Warehouse Location
                                     </Button>
                                 </div>
                                 <div className="space-y-4">

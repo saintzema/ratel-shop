@@ -1,4 +1,5 @@
 import { Metadata, ResolvingMetadata } from 'next';
+import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import { db } from '@/lib/db';
 
@@ -47,6 +48,15 @@ export async function generateMetadata(
     const rawFallback = decodedSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const titleProductName = (productDetails?.name || rawFallback || 'Product').replace(/^undefined$/i, 'Product');
 
+    // Canonical slug — MUST match the URL the app links to (getProductUrl) and the sitemap:
+    // prefer the product's stored slug, else derive from the name. This keeps the
+    // self-referencing canonical identical to the real indexable URL, fixing Google's
+    // "Page with redirect" + "Duplicate without user-selected canonical".
+    const canonicalSlug = ((productDetails as any)?.slug && String((productDetails as any).slug).trim())
+        ? String((productDetails as any).slug).trim()
+        : (productDetails?.name || decodedSlug || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const canonicalPath = `/product/${resolvedParams.id}/${canonicalSlug}`;
+
     // Fallback Price representation
     const formattedPrice = price > 0 ? `₦${price.toLocaleString()}` : "Compare Rates";
 
@@ -57,7 +67,23 @@ export async function generateMetadata(
         openGraph: {
             title: `${titleProductName} - Verified FairPrice in Nigeria`,
             description: `Check the 30-day price trend for ${titleProductName}. Real market data from FairPrice.ng.`,
-            images: ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) ? [((productDetails as any)?.imageUrl || (productDetails as any)?.image_url)] : [],
+            url: `https://www.fairprice.ng${canonicalPath}`,
+            siteName: 'FairPrice Nigeria',
+            images: [
+                {
+                    url: (() => {
+                        const raw = (productDetails as any)?.imageUrl || (productDetails as any)?.image_url;
+                        if (!raw || raw.startsWith('data:')) return 'https://www.fairprice.ng/logo.png';
+                        if (raw.startsWith('http')) return `https://www.fairprice.ng/api/image-cdn?url=${encodeURIComponent(raw)}`;
+                        return `https://www.fairprice.ng${raw.startsWith('/') ? '' : '/'}${raw}`;
+                    })(),
+                    width: 800,
+                    height: 800,
+                    alt: titleProductName,
+                }
+            ],
+            locale: 'en_NG',
+            type: 'website',
         },
         twitter: {
             card: 'summary_large_image',
@@ -65,7 +91,7 @@ export async function generateMetadata(
             description: `Save money on ${titleProductName} with FairPrice verification.`,
         },
         alternates: {
-            canonical: `/product/${resolvedParams.id}`,
+            canonical: canonicalPath,
         }
     };
 }
@@ -85,8 +111,22 @@ export default async function ProductPage({ params }: Props) {
         productDetails = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === resolvedParams.id);
     }
 
+    // SEO: return a real 404 for genuinely dead product IDs (e.g. old temu_*, p33) instead
+    // of rendering a thin page Google flags as a "Soft 404". The global auto-generated PDP
+    // feature uses ids prefixed with "global-"/"global_", so those are preserved.
+    const isGlobalAutoGen = /^global[-_]/i.test(decodedId);
+    if (!productDetails && !isGlobalAutoGen) {
+        notFound();
+    }
+
     // Filter reviews for this product for schema
     const productReviews = DEMO_REVIEWS.filter(r => r.product_id === decodedId || r.product_id === resolvedParams.id);
+
+    // Canonical URL (must match generateMetadata's canonical + getProductUrl + the sitemap slug)
+    const canonicalSlug = ((productDetails as any)?.slug && String((productDetails as any).slug).trim())
+        ? String((productDetails as any).slug).trim()
+        : (productDetails?.name || (resolvedParams.slug ? decodeURIComponent(resolvedParams.slug) : '') || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const canonicalUrl = `https://www.fairprice.ng/product/${resolvedParams.id}/${canonicalSlug}`;
 
     const breadcrumbListJsonLd = {
         '@context': 'https://schema.org',
@@ -96,19 +136,19 @@ export default async function ProductPage({ params }: Props) {
                 '@type': 'ListItem',
                 position: 1,
                 name: 'All Stores',
-                item: 'https://fairprice.ng/stores'
+                item: 'https://www.fairprice.ng/stores'
             },
             {
                 '@type': 'ListItem',
                 position: 2,
                 name: (productDetails as any)?.seller_name || 'Store',
-                item: `https://fairprice.ng/store/${(productDetails as any)?.seller_id}`
+                item: `https://www.fairprice.ng/store/${(productDetails as any)?.seller_id}`
             },
             {
                 '@type': 'ListItem',
                 position: 3,
                 name: productDetails?.name || 'Product',
-                item: `https://fairprice.ng/product/${resolvedParams.id}`
+                item: canonicalUrl
             }
         ]
     };
@@ -128,7 +168,7 @@ export default async function ProductPage({ params }: Props) {
         '@context': 'https://schema.org',
         '@type': 'Product',
         name: productDetails?.name || 'Product',
-        image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://fairprice.ng/logo.png',
+        image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://www.fairprice.ng/logo.png',
         description: productDetails?.description || 'Price verification and secure marketplace for premium products in Nigeria.',
         sku: productDetails?.id,
         brand: {
@@ -137,7 +177,7 @@ export default async function ProductPage({ params }: Props) {
         },
         offers: {
             '@type': 'Offer',
-            url: `https://fairprice.ng/product/${resolvedParams.id}`,
+            url: canonicalUrl,
             priceCurrency: 'NGN',
             price: productDetails?.price || 0,
             itemCondition: 'https://schema.org/NewCondition',
@@ -178,32 +218,24 @@ export default async function ProductPage({ params }: Props) {
                 returnMethod: 'https://schema.org/ReturnByMail',
                 returnFees: 'https://schema.org/FreeReturn'
             },
-            // Elite tier: Price History
-            priceSpecification: priceHistory.map(h => ({
-                '@type': 'UnitPriceSpecification',
-                price: h.price,
-                priceCurrency: 'NGN',
-                validFrom: h.date
-            }))
         },
-        aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: (productDetails as any)?.avg_rating || 4.5,
-            reviewCount: (productDetails as any)?.review_count || (productReviews.length || 128)
-        },
-        review: productReviews.map(r => ({
-            '@type': 'Review',
-            author: {
-                '@type': 'Person',
-                name: r.user_name
+        // Only emit aggregateRating/review when REAL review data exists. Fabricated
+        // ratings (the old hardcoded 4.5 / 128) are flagged by Google as spammy structured
+        // data and hurt indexing — this keeps the markup honest and policy-compliant.
+        ...((((productDetails as any)?.review_count || 0) > 0 || productReviews.length > 0) ? {
+            aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: (productDetails as any)?.avg_rating || (productReviews.length ? (productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length).toFixed(1) : 4.5),
+                reviewCount: (productDetails as any)?.review_count || productReviews.length,
             },
-            datePublished: r.created_at,
-            reviewBody: r.body,
-            reviewRating: {
-                '@type': 'Rating',
-                ratingValue: r.rating
-            }
-        }))
+            review: productReviews.map(r => ({
+                '@type': 'Review',
+                author: { '@type': 'Person', name: r.user_name },
+                datePublished: r.created_at,
+                reviewBody: r.body,
+                reviewRating: { '@type': 'Rating', ratingValue: r.rating }
+            }))
+        } : {})
     };
 
     const faqJsonLd = {

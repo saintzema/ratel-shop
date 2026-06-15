@@ -2,11 +2,109 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 // Server-side cache TTL: 24h. Dramatically reduces Gemini quota consumption
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ─── Server-Side Image Hydration Engine ───
+// Mirrors /api/product-image logic but callable directly without HTTP roundtrip.
+// Priority: Serper.dev → Google Custom Search → Wikipedia
+const SERPER_API_KEY = process.env.SERPER_API_KEY;
+const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX;
+
+async function hydrateImageServerSide(productName: string, category?: string): Promise<string | null> {
+    const cat = (category || "").toLowerCase();
+    let searchModifier = " official product image high resolution";
+    if (cat.includes("car") || cat.includes("vehicle")) {
+        searchModifier = " professional exterior photo site:cars45.com OR site:jiji.ng";
+    } else if (cat.includes("phone") || cat.includes("electronic") || cat.includes("computing")) {
+        searchModifier = " official white background product shot high resolution";
+    } else if (cat.includes("fashion")) {
+        searchModifier = " high resolution studio fashion photography";
+    }
+
+    // ─── PASS 1: Serper.dev with strict modifier ───
+    if (SERPER_API_KEY) {
+        try {
+            const res = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ q: productName + searchModifier, num: 10 }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const images = (data?.images || [])
+                    .map((img: any) => img.imageUrl)
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && !url.includes("wikimedia.org") && !url.includes("wikipedia.org") && url.startsWith("http"));
+                if (images.length > 0) return images[0];
+            }
+        } catch (e) { console.warn("Serper hydration pass 1 failed:", e); }
+
+        // ─── PASS 2: Serper.dev with RELAXED query (just the product name) ───
+        try {
+            const res = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ q: productName + " product photo", num: 10 }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const images = (data?.images || [])
+                    .map((img: any) => img.imageUrl)
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && !url.includes("wikimedia.org") && !url.includes("wikipedia.org") && url.startsWith("http"));
+                if (images.length > 0) {
+                    console.log(`✅ Serper pass 2 (relaxed) found image for "${productName}"`);
+                    return images[0];
+                }
+            }
+        } catch (e) { console.warn("Serper hydration pass 2 failed:", e); }
+    }
+
+    // Strategy 2: Google Custom Search
+    if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_CX) {
+        try {
+            const res = await fetch(
+                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(productName + " product")}&searchType=image&num=3`
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data.items?.[0]?.link) return data.items[0].link;
+            }
+        } catch (e) { console.warn("Google CSE hydration failed:", e); }
+    }
+
+    // Strategy 3: Category-aware premium fallback (never return null → never show grey placeholder)
+    // Wikipedia intentionally removed — its article search frequently returns person photos,
+    // building thumbnails, and other non-product images (e.g. "Changan UNI-T" → executive portrait).
+    const CATEGORY_FALLBACKS: Record<string, string> = {
+        phone: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80",
+        electronic: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80",
+        computing: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+        car: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80",
+        vehicle: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80",
+        fashion: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=400&q=80",
+        beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&q=80",
+        energy: "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&q=80",
+        home: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80",
+        fitness: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80",
+        gaming: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=400&q=80",
+        health: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=80",
+        satellite: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=400&q=80",
+    };
+    const fallbackKey = Object.keys(CATEGORY_FALLBACKS).find(k => cat.includes(k) || productName.toLowerCase().includes(k));
+    if (fallbackKey) {
+        console.log(`📷 Using category fallback image for "${productName}" (category: ${fallbackKey})`);
+        return CATEGORY_FALLBACKS[fallbackKey];
+    }
+
+    // Ultimate fallback: generic tech product
+    console.log(`📷 Using generic fallback image for "${productName}"`);
+    return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80";
+}
+
 
 function makeCacheKey(productName: string, mode: string, category?: string, anchorPrice?: number): string {
     return `v1:${mode}:${(category || 'any').toLowerCase()}:${productName.trim().toLowerCase()}${anchorPrice ? `:a${anchorPrice}` : ''}`;
@@ -91,6 +189,7 @@ export async function POST(req: Request) {
             - NEVER mention any real store name in the product *name*.
             - YOU HAVE GOOGLE SEARCH ENABLED. You MUST find REAL product assets.
             - SEARCH AGGRESSIVELY for high-resolution, professional image links from official manufacturer sites, press kits, or major retailers (Alibaba/AliExpress CDN, Amazon, cars45.com, jiji.ng).
+            - MANDATORY IMAGE REQUIREMENT: You MUST find at least ONE high-quality permanent image URL for the products in your list. If you find one good image for the model, use it for all variations of that model.
             - For the sourceUrl, provide the REAL product listing URL (e.g., https://www.alibaba.com/product-detail/...).
             - For the image_url, you MUST provide a DIRECT, PERMANENT image URL that loads without authentication.
               REQUIRED format examples: https://s.alicdn.com/kf/.../image.jpg  OR  https://m.media-amazon.com/images/I/xxx.jpg  OR  https://cars45.com/cdn/images/xxx.jpg
@@ -201,20 +300,30 @@ default to NEW from 2024 onwards.
         }
 
         // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
-        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+        const fetchWithRetry = async (attempt = 0, useGrounding = true): Promise<Response> => {
+            const body: any = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            
+            // Only use grounding if specified (to allow fallback when grounding hits limits)
+            if (useGrounding) {
+                body.tools = [{ google_search: {} }];
+            }
+
             const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    tools: [{ google_search: {} }]
-                })
+                body: JSON.stringify(body)
             });
-            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 2 times
-            if ((res.status === 429 || res.status === 503) && attempt < 2) {
-                const backoffMs = Math.pow(2, attempt) * 800 + Math.random() * 500; // 800ms, 1.6s + jitter
+
+            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
+            if ((res.status === 429 || res.status === 503) && attempt < 5) {
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 await new Promise(r => setTimeout(r, backoffMs));
-                return fetchWithRetry(attempt + 1);
+                
+                // If we've hit 429 multiple times with grounding, try one without grounding as a last resort
+                const nextUseGrounding = (attempt >= 3 && res.status === 429) ? false : useGrounding;
+                return fetchWithRetry(attempt + 1, nextUseGrounding);
             }
             return res;
         };
@@ -224,10 +333,10 @@ default to NEW from 2024 onwards.
         if (!response.ok) {
             const errorText = await response.text();
             console.error("Gemini API Error:", response.status, errorText);
-            // Surface Gemini's rate limit clearly to the client so the UI can show a helpful message
+            // Surface Gemini's rate limit clearly to the client
             if (response.status === 429) {
                 return NextResponse.json(
-                    { error: "AI search is rate-limited right now. Please wait a moment and try again." },
+                    { error: "AI search is currently busy. Please try again in 30 seconds." },
                     { status: 429 }
                 );
             }
@@ -254,7 +363,7 @@ default to NEW from 2024 onwards.
         try {
             const parsedData = JSON.parse(jsonString);
 
-            // ─── INTELLIGENT VEHICLE PRICE HALLUCINATION DEFENSE (zero-latency) ───
+            // ─── INTELLIGENT PRODUCT PRICE HALLUCINATION DEFENSE (zero-latency) ───
             if (mode === "search" && parsedData.suggestions && Array.isArray(parsedData.suggestions)) {
                 const queryYearMatch = productName.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
                 const queryYear = queryYearMatch ? parseInt(queryYearMatch[0], 10) : null;
@@ -263,30 +372,39 @@ default to NEW from 2024 onwards.
                     const name = (item.name || "").toLowerCase();
                     const cat = (item.category || "").toLowerCase();
                     const price = item.approxPrice || 0;
-                    
+
                     const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
                     const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
 
-                    // ─── YEAR FILTER ───
-                    // Prioritize queryYear, but allow variety on the SRP (Don't auto-block older models)
-                    // if (queryYear && itemYear && itemYear < queryYear) {
-                    //     console.warn(`🚫 YEAR MISMATCH BLOCKED: Query=${queryYear}, Result=${itemYear} for "${item.name}"`);
-                    //     return false;
-                    // }
-
                     // ─── VEHICLE HALLUCINATION FLOOR ───
-                    const VEHICLE_FLOOR = (itemYear && itemYear >= 2020) ? 12_000_000 : 5_000_000;
-                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+                    // 2022+ cars should never be below 18M. 2015-2021 should never be below 8M. Older cars at 5M.
+                    const VEHICLE_FLOOR = (itemYear && itemYear >= 2022) ? 18_000_000 : (itemYear && itemYear >= 2015) ? 8_000_000 : 5_000_000;
+                    
+                    // ─── PREMIUM PHONE FLOOR (iPhone 13+, Galaxy S22+) ───
+                    const isPremiumPhone = /\b(iphone\s*(13|14|15|16)|galaxy\s*s(22|23|24|25|26))\b/i.test(name);
+                    const PHONE_FLOOR = (name.includes("pro max") || name.includes("ultra") || name.includes("fold")) ? 650_000 : 350_000;
 
-                    if (price >= VEHICLE_FLOOR) return true;
-                    if (PART_KEYWORDS.test(name)) return true;
+                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories|iron|serum|tv|television|smart\s*tv|screen|display|monitor|inverter|battery\s*system|solar|kit|toy|scale\s*model|diecast|miniature)\b/i;
+                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7|lexus|rx\s*350|gx\s*460|lx\s*570|lx\s*600|benz|mercedes|bmw|audi|porsche)\b/i;
 
                     const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
                     const isWholeVehicle = WHOLE_VEHICLE.test(name);
 
-                    if ((isVehicleCategory || isWholeVehicle) && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
+                    // Block suspicious whole vehicle prices
+                    if (isWholeVehicle && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
                         console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
+                        return false;
+                    }
+
+                    // Block suspicious premium phone prices
+                    if (isPremiumPhone && !PART_KEYWORDS.test(name) && price < PHONE_FLOOR) {
+                         console.warn(`🚫 PHONE PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${PHONE_FLOOR.toLocaleString()})`);
+                         return false;
+                    }
+
+                    // Generic sanity check: Nothing over ₦100,000 should be called a "toy" or "replica" if it's meant to be a real product
+                    if (price > 100_000 && (name.includes("toy") || name.includes("replica") || name.includes("model car"))) {
+                        console.warn(`🚫 TOY/REPLICA BLOCKED: "${item.name}" at ₦${price.toLocaleString()}`);
                         return false;
                     }
 
@@ -318,8 +436,10 @@ default to NEW from 2024 onwards.
                 // image among variants of the same search query (related products).
                 const isValidPermanentUrl = (url: any) =>
                     url && typeof url === 'string' && url.trim() !== '' &&
+                    url.startsWith('http') &&
                     !url.toLowerCase().includes('no photo') &&
                     !url.toLowerCase().includes('n/a') &&
+                    !url.toLowerCase().includes('placeholder') &&
                     !GROUNDING_PATTERNS.some(p => url.toLowerCase().includes(p));
 
                 const validImages = parsedData.suggestions
@@ -327,6 +447,7 @@ default to NEW from 2024 onwards.
                     .filter(isValidPermanentUrl);
 
                 if (validImages.length > 0) {
+                    // Use the most frequent valid image or the first one
                     const fallbackImage = validImages[0];
                     parsedData.suggestions = parsedData.suggestions.map((item: any) => {
                         if (!isValidPermanentUrl(item.image_url)) {
@@ -334,7 +455,39 @@ default to NEW from 2024 onwards.
                         }
                         return item;
                     });
+                } else {
+                    // ─── POWER FIX: Server-Side Image Hydration via Serper/Google CSE ───
+                    // Gemini returned ZERO valid images. Call our image search pipeline
+                    // server-side (no Gemini quota used) to fetch a real product image.
+                    console.log(`🔍 No Gemini images for "${productName}". Hydrating via Serper...`);
+                    try {
+                        const hydratedImage = await hydrateImageServerSide(productName, category);
+                        if (hydratedImage) {
+                            // CDN-wrap the image so it routes through our domain
+                            const cdnImage = hydratedImage.startsWith('http')
+                                ? `/api/image-cdn?url=${encodeURIComponent(hydratedImage)}`
+                                : hydratedImage;
+                            // Propagate to ALL suggestions
+                            parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                                if (!isValidPermanentUrl(item.image_url)) {
+                                    item.image_url = cdnImage;
+                                }
+                                return item;
+                            });
+                            console.log(`✅ Hydrated ${parsedData.suggestions.length} products with image from Serper`);
+                        }
+                    } catch (imgErr) {
+                        console.warn(`⚠️ Server-side image hydration failed:`, imgErr);
+                    }
                 }
+
+                // ─── CDN-WRAP ALL IMAGES (ensure every image routes through our domain) ───
+                parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                    if (item.image_url && item.image_url.startsWith('http') && !item.image_url.includes('/api/image-cdn')) {
+                        item.image_url = `/api/image-cdn?url=${encodeURIComponent(item.image_url)}`;
+                    }
+                    return item;
+                });
             }
 
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)
@@ -363,7 +516,28 @@ default to NEW from 2024 onwards.
                 where: { query: cacheKey },
                 create: { query: cacheKey, products: parsedData as any },
                 update: { products: parsedData as any },
-            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.code));
+            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+
+            // ─── FIRE-AND-FORGET: Backfill DB product images ───
+            // SAFETY: Only updates global-partners products that CURRENTLY have a
+            // placeholder image. Never touches other sellers or manually-updated images.
+            if (mode === "search" && parsedData.suggestions) {
+                for (const item of parsedData.suggestions) {
+                    if (item.image_url && !item.image_url.includes('placeholder')) {
+                        const slug = (item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
+                        const productId = `global-${slug}`;
+                        db.product.updateMany({
+                            where: {
+                                id: { startsWith: productId.slice(0, 30) },
+                                sellerId: 'global-partners',
+                                imageUrl: { contains: 'placeholder' },
+                            },
+                            data: { imageUrl: item.image_url },
+                        }).catch(() => {}); // Silent — best effort
+                    }
+                }
+            }
+
 
             return NextResponse.json(parsedData, { headers: { "X-Cache": "MISS" } });
         } catch (parseError) {

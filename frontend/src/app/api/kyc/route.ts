@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 
 export const runtime = "nodejs";
 
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("KYC API Error:", error);
         return NextResponse.json({ success: true, submissions: [] }, {
-            status: 503,
+            status: 500,
             headers: { "X-DB-Status": "offline" }
         });
     }

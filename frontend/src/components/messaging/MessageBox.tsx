@@ -81,33 +81,45 @@ const groupMessagesByDate = (messages: ChatMessage[]) => {
 };
 
 // ─── Memoized Sub-components ─────────────────────────────
-
 const ChatMessageItem = React.memo(({ 
     msg, 
     onReply, 
     onAcceptCounter, 
-    onRejectCounter,
-    onRenegotiate
+    onRejectCounter, 
+    onRenegotiate,
+    storeName,
+    storeLogo
 }: { 
     msg: ChatMessage, 
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
-    onRenegotiate: (productId: string, price: number) => void
+    onRenegotiate: (productId: string, price: number) => void,
+    storeName?: string,
+    storeLogo?: string
 }) => {
     const isUser = msg.sender === "user";
     
     return (
         <div className={`flex mb-2 ${isUser ? "justify-end" : "justify-start"}`}>
             {!isUser && (
-                <div className="h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700">
-                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />}
+                <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 overflow-hidden",
+                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
+                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700" :
+                    "bg-gray-100 text-gray-700"
+                )}>
+                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : (
+                        msg.sender === "seller" && storeLogo ? (
+                            <img src={storeLogo} alt="S" className="w-full h-full object-cover" />
+                        ) : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />
+                    )}
                 </div>
             )}
             <div className={`max-w-[85%] relative flex flex-col items-${isUser ? "end" : "start"}`}>
                 {!isUser && (
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
-                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
+                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : (storeName || "Seller")}
                     </p>
                 )}
                 <div
@@ -182,7 +194,10 @@ const ChatMessageItem = React.memo(({
                         <p className={`font-black text-[13px] mb-1.5 flex items-center justify-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
                             <Coins className="h-4 w-4" /> {msg.negotiation.type === 'accepted' ? "Offer Accepted!" : msg.negotiation.type === 'rejected' ? "Offer Rejected" : "Counter Offer"}
                         </p>
-                        <p className={`text-xs text-center mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-500'}`}>{msg.negotiation.productName}</p>
+                        {/* Only show product name when it's a real name, not the "Product" default placeholder */}
+                        {msg.negotiation.productName && msg.negotiation.productName !== "Product" && (
+                            <p className={`text-xs text-center mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-500'}`}>{msg.negotiation.productName}</p>
+                        )}
                         <p className={`text-center text-2xl font-black mb-3 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</p>
                         
                         {msg.negotiation.type === 'countered' && (
@@ -244,15 +259,29 @@ const ChatMessageItem = React.memo(({
                         )}
                         
                         {msg.negotiation.type === 'accepted' && (
-                            <Button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
-                                }}
-                                className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-10 rounded-2xl font-black shadow-md transition-all"
-                            >
-                                Proceed to Checkout
-                            </Button>
+                            <div className="flex flex-col gap-2">
+                                <Button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
+                                    }}
+                                    className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-10 rounded-2xl font-black shadow-md transition-all"
+                                >
+                                    Proceed to Checkout
+                                </Button>
+                                <Button 
+                                    variant="outline"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const text = encodeURIComponent(`Hi, my offer for ${msg.negotiation?.productName} was accepted at ₦${msg.negotiation?.counterPrice.toLocaleString()}. I'd like to finalize this.`);
+                                        window.open(`https://wa.me/2348162816305?text=${text}`, '_blank');
+                                    }}
+                                    className="w-full bg-emerald-600/20 border-white/30 text-white hover:bg-emerald-600/30 text-[10px] h-9 rounded-2xl font-bold flex items-center justify-center gap-2"
+                                >
+                                    <MessageCircle className="h-3.5 w-3.5 fill-white" />
+                                    Finalize on WhatsApp
+                                </Button>
+                            </div>
                         )}
                     </div>
                 )}
@@ -268,13 +297,17 @@ const ChatMessageList = React.memo(({
     onReply,
     onAcceptCounter,
     onRejectCounter,
-    onRenegotiate
+    onRenegotiate,
+    storeName,
+    storeLogo
 }: { 
     messages: ChatMessage[], 
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
-    onRenegotiate: (productId: string, price: number) => void
+    onRenegotiate: (productId: string, price: number) => void,
+    storeName?: string,
+    storeLogo?: string
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const groups = React.useMemo(() => groupMessagesByDate(messages), [messages]);
@@ -286,6 +319,28 @@ const ChatMessageList = React.memo(({
     }, [messages]);
 
     return (
+        <div className="flex flex-col flex-1 min-h-0">
+            {/* ── Sticky WhatsApp pill — stays visible while messages scroll ── */}
+            <div className="shrink-0 px-4 pt-3 pb-2 bg-white border-b border-gray-100">
+                <button
+                    className="w-full bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 text-emerald-700 h-10 rounded-2xl flex items-center justify-center gap-2.5 font-black text-[11px] shadow-sm transition-all group"
+                    onClick={() => {
+                        const firstMsg = messages[0]?.text || "";
+                        const text = encodeURIComponent(`Hi FairPrice, I'm interested in discussing this deal: ${firstMsg.slice(0, 50)}...`);
+                        window.open(`https://wa.me/2348162816305?text=${text}`, '_blank');
+                    }}
+                >
+                    {/* Real WhatsApp icon */}
+                    <div className="w-5 h-5 bg-[#25D366] rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0">
+                        <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                        </svg>
+                    </div>
+                    CONTINUE IN WHATSAPP
+                    <span className="text-emerald-400 font-medium text-[9px] uppercase tracking-widest ml-1 hidden sm:inline">· Secure & Private</span>
+                </button>
+            </div>
+
         <div
             ref={scrollRef}
             className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-4 py-4 space-y-2 bg-gray-50/30"
@@ -306,10 +361,13 @@ const ChatMessageList = React.memo(({
                             onAcceptCounter={onAcceptCounter}
                             onRejectCounter={onRejectCounter}
                             onRenegotiate={onRenegotiate}
+                            storeName={storeName}
+                            storeLogo={storeLogo}
                         />
                     ))}
                 </div>
             ))}
+        </div>
         </div>
     );
 });
@@ -400,9 +458,10 @@ const ChatInputBar = React.memo(({
                     className="flex-1 rounded-full h-10 text-sm bg-white border-0 shadow-sm focus-visible:ring-1 focus-visible:ring-emerald-300 px-4"
                 />
                 <Button
-                    className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0 flex items-center justify-center"
+                    onClick={onSend}
+                    className="rounded-full h-11 w-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 shrink-0 flex items-center justify-center transition-all active:scale-95"
                 >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-5 w-5" />
                 </Button>
             </div>
         </div>
@@ -631,16 +690,64 @@ export function MessageBox() {
     const unreadNotifCount = sortedNotifications.filter(n => !n.read).length;
     const totalChatUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
     
+    // ─── Contact Info Masking ─────────────────────────────────
+    // Prevents buyers and sellers from sharing direct contact info
+    // (phone numbers, emails, social handles) to keep transactions on-platform.
+    const maskContactInfo = useCallback((text: string): { masked: string; wasBlocked: boolean } => {
+        let wasBlocked = false;
+        let masked = text;
+        
+        // Phone numbers: Nigerian (0xxx, +234xxx, 234xxx) and international formats
+        const phoneRegex = /(\+?\d{1,4}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,5}/g;
+        if (phoneRegex.test(masked)) {
+            masked = masked.replace(phoneRegex, '***-***-****');
+            wasBlocked = true;
+        }
+        
+        // Email addresses
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        if (emailRegex.test(masked)) {
+            masked = masked.replace(emailRegex, '****@****.***');
+            wasBlocked = true;
+        }
+        
+        // Social handles (@username patterns)
+        const socialRegex = /@[a-zA-Z0-9_]{3,}/g;
+        if (socialRegex.test(masked)) {
+            masked = masked.replace(socialRegex, '@*****');
+            wasBlocked = true;
+        }
+        
+        // WhatsApp/Telegram explicit mentions
+        const waRegex = /\b(whatsapp|telegram|signal|dm\s*me|call\s*me|text\s*me|my\s*number|my\s*phone)\b/gi;
+        if (waRegex.test(masked)) {
+            wasBlocked = true;
+            // Don't replace the word, just flag it
+        }
+
+        return { masked, wasBlocked };
+    }, []);
+
+    const [contactWarning, setContactWarning] = useState(false);
+
     const handleSend = useCallback(() => {
         if (!input.trim() && selectedImagePreviews.length === 0) return;
         if (!selectedConvId) return;
+
+        // Apply contact info masking
+        const { masked, wasBlocked } = maskContactInfo(input.trim());
+        
+        if (wasBlocked) {
+            setContactWarning(true);
+            setTimeout(() => setContactWarning(false), 4000);
+        }
 
         // If this is a negotiation thread, sync the message to the negotiation history
         if (activeNegotiation) {
             DataSyncService.addNegotiationMessage(
                 activeNegotiation.id, 
                 "buyer", 
-                input.trim(), 
+                masked, 
                 selectedImagePreviews[0] || undefined, 
                 replyingTo ? { sender: replyingTo.sender, text: replyingTo.text } : undefined,
                 selectedImagePreviews
@@ -649,14 +756,14 @@ export function MessageBox() {
 
         sendMessage(selectedConvId, { 
             sender: "user", 
-            text: input.trim(), 
+            text: masked, 
             replyTo: replyingTo || undefined,
             imageUrls: selectedImagePreviews
         });
         setInput("");
         setReplyingTo(null);
         setSelectedImagePreviews([]);
-    }, [input, selectedConvId, activeNegotiation, replyingTo, sendMessage, selectedImagePreviews]);
+    }, [input, selectedConvId, activeNegotiation, replyingTo, sendMessage, selectedImagePreviews, maskContactInfo]);
 
     const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -799,6 +906,8 @@ export function MessageBox() {
                                     onAcceptCounter={handleAcceptCounter}
                                     onRejectCounter={handleRejectCounter}
                                     onRenegotiate={handleRenegotiate}
+                                    storeName={selectedConversation.storeName}
+                                    storeLogo={selectedConversation.storeLogo}
                                 />
                                 
                                 {activeNegotiation && (
@@ -876,6 +985,26 @@ export function MessageBox() {
                                         </form>
                                     </div>
                                 )}
+
+                                {/* Contact Info Warning */}
+                                <AnimatePresence>
+                                    {contactWarning && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 10 }}
+                                            className="mx-4 mb-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2 shadow-sm"
+                                        >
+                                            <ShoppingBag className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-amber-800">Contact info masked for your safety</p>
+                                                <p className="text-[10px] text-amber-600 leading-relaxed mt-0.5">
+                                                    Phone numbers, emails, and social handles are automatically hidden. Use FairPrice's secure checkout to complete transactions.
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
                                 {/* Memoized Input Bar */}
                                 <ChatInputBar 

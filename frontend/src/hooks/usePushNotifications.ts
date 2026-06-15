@@ -130,7 +130,8 @@ export function usePushNotifications() {
 
             const isForMe = notification.userId === "all" || 
                             notification.userId === user?.id || 
-                            notification.userId === user?.email;
+                            notification.userId === user?.email ||
+                            (notification.userId === "admin" && user?.role === "admin");
             
             if (!isForMe && user?.role === 'seller') {
                 const seller = DataSyncService.getSellers().find(s => s.user_id === user.id);

@@ -15,34 +15,50 @@ export async function GET() {
             return NextResponse.json({ error: "Gemini API Key missing" }, { status: 500 });
         }
 
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
-            tools: [{ googleSearch: {} } as any]
-        });
+        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+            const model = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash",
+                tools: [{ googleSearch: {} } as any]
+            });
 
-        const prompt = `
-            Act as a Nigerian economic analyst. Provide exactly 5 punchy, real-time economic trend points for Nigeria for mid-April 2026.
-            Focus on:
-            1. Current Petrol (Fuel) pump price estimate in major cities.
-            2. USD/NGN Exchange rate (Official and Parallel/Black Market).
-            3. Latest GDP growth projections or IMF updates for Nigeria.
-            4. Food inflation or general consumer price index trends.
-            5. Any major recent policy change affecting trade or imports (e.g. customs duties).
+            const prompt = `
+                Act as a Nigerian economic analyst. Provide exactly 5 punchy, real-time economic trend points for Nigeria for mid-April 2026.
+                Focus on:
+                1. Current Petrol (Fuel) pump price estimate in major cities.
+                2. USD/NGN Exchange rate (Official and Parallel/Black Market).
+                3. Latest GDP growth projections or IMF updates for Nigeria.
+                4. Food inflation or general consumer price index trends.
+                5. Any major recent policy change affecting trade or imports (e.g. customs duties).
 
-            Format each point as a short, catchy sentence (max 15 words) that a shopper or seller would find relevant.
-            Return a JSON object: { "trends": ["string", "string", "string", "string", "string"] }
-            Ensure the data is as real-time as possible.
-        `;
+                Format each point as a short, catchy sentence (max 15 words) that a shopper or seller would find relevant.
+                Return a JSON object: { "trends": ["string", "string", "string", "string", "string"] }
+                Ensure the data is as real-time as possible.
+            `;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        
-        // Extract JSON from response (handling potential markdown formatting)
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[0]);
-            return NextResponse.json({...data, lastUpdated: new Date().toISOString() });
-        }
+            try {
+                const result = await model.generateContent(prompt);
+                const text = result.response.text();
+                // Extract JSON from response
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const data = JSON.parse(jsonMatch[0]);
+                    return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } });
+                }
+                throw new Error("Failed to parse JSON from Gemini");
+            } catch (err: any) {
+                // Handle 429 or 503 by retrying
+                if (attempt < 3 && (err.message?.includes("429") || err.message?.includes("503"))) {
+                    const backoffMs = Math.pow(2, attempt) * 1500 + Math.random() * 500;
+                    await new Promise(r => setTimeout(r, backoffMs));
+                    return fetchWithRetry(attempt + 1);
+                }
+                throw err;
+            }
+        };
+
+        const response = await fetchWithRetry();
+        const data = await response.json();
+        return NextResponse.json({ ...data, lastUpdated: new Date().toISOString() });
 
         return NextResponse.json({ error: "Failed to parse trends" }, { status: 500 });
     } catch (error) {

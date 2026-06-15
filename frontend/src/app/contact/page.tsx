@@ -30,9 +30,9 @@ export default function ContactPage() {
 
     const contactMethods = [
         { icon: Mail, label: "Email", value: config.email, href: `mailto:${config.email}` },
-        { icon: Phone, label: "WhatsApp", value: `+${config.whatsapp.startsWith('+') ? config.whatsapp.slice(1) : config.whatsapp}`, href: `https://wa.me/${config.whatsapp.replace(/\D/g, '')}` },
+        { icon: MessageSquare, label: "WhatsApp Direct", value: "Chat with Sales & Support", href: "https://wa.me/message/3NZESSNRD2RMP1" },
+        { icon: Phone, label: "WhatsApp Number", value: `+${config.whatsapp.startsWith('+') ? config.whatsapp.slice(1) : config.whatsapp}`, href: `https://wa.me/${config.whatsapp.replace(/\D/g, '')}` },
         { icon: MapPin, label: "Office", value: config.office, href: "#" },
-        { icon: Clock, label: "Hours", value: config.hours, href: "#" },
     ];
 
     if (config.serviceCenters.length > 0) {

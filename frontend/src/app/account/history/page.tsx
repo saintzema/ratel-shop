@@ -29,7 +29,7 @@ export default function BrowsingHistoryPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 pt-24 pb-20">
+            <main className="flex-1 container mx-auto px-4 py-8 pt-[140px] md:pt-32 pb-24">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="flex items-center gap-4 mb-8">

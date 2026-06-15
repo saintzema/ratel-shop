@@ -39,10 +39,13 @@ export default function EscrowManagement() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
 
+    // Selection State
+    const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
     // Action Modal State
     const [actionModal, setActionModal] = useState<{
         isOpen: boolean;
-        type: "release" | "refund" | "releaseDisputed" | null;
+        type: "release" | "refund" | "releaseDisputed" | "bulk_release" | "bulk_resolve_release" | "bulk_resolve_refund" | null;
         orderId: string | null;
         message: string;
     }>({ isOpen: false, type: null, orderId: null, message: "" });
@@ -161,13 +164,24 @@ export default function EscrowManagement() {
         setActionModal({ isOpen: true, type: "releaseDisputed", orderId, message: "Release funds to seller despite dispute? Buyer's dispute will be marked as resolved." });
     };
 
+    const handleBulkRelease = () => {
+        setActionModal({ isOpen: true, type: "bulk_release", orderId: null, message: `Are you sure you want to bulk release escrow funds for ${selectedOrderIds.length} selected orders?` });
+    };
+
+    const handleBulkResolveRelease = () => {
+        setActionModal({ isOpen: true, type: "bulk_resolve_release", orderId: null, message: `Are you sure you want to resolve disputes and RELEASE funds for ${selectedOrderIds.length} selected orders?` });
+    };
+
+    const handleBulkResolveRefund = () => {
+        setActionModal({ isOpen: true, type: "bulk_resolve_refund", orderId: null, message: `Are you sure you want to resolve disputes and REFUND buyers for ${selectedOrderIds.length} selected orders?` });
+    };
+
     const confirmAction = () => {
-        if (!actionModal.orderId) return;
         const { type, orderId } = actionModal;
 
-        if (type === "release") {
+        if (type === "release" && orderId) {
             DataSyncService.releaseEscrow(orderId);
-        } else if (type === "refund") {
+        } else if (type === "refund" && orderId) {
             const dispute = DataSyncService.getDisputeByOrderId(orderId);
             if (dispute) {
                 DataSyncService.resolveDispute(dispute.id, "resolved_refund", "Admin issued refund");
@@ -180,13 +194,24 @@ export default function EscrowManagement() {
                     body: JSON.stringify({ orderId, status: "refunded" })
                 }).catch(() => {});
             }
-        } else if (type === "releaseDisputed") {
+        } else if (type === "releaseDisputed" && orderId) {
             const dispute = DataSyncService.getDisputeByOrderId(orderId);
             if (dispute) {
                 DataSyncService.resolveDispute(dispute.id, "resolved_release", "Admin released funds to seller");
             } else {
                 DataSyncService.releaseEscrow(orderId);
             }
+        } else if (type === "bulk_release") {
+            DataSyncService.bulkReleaseEscrow(selectedOrderIds);
+            setSelectedOrderIds([]);
+        } else if (type === "bulk_resolve_release" || type === "bulk_resolve_refund") {
+            const resolution = type === "bulk_resolve_release" ? "resolved_release" : "resolved_refund";
+            const disputes = DataSyncService.getDisputes();
+            const relevantDisputeIds = disputes
+                .filter(d => selectedOrderIds.includes(d.order_id))
+                .map(d => d.id);
+            DataSyncService.bulkResolveDisputes(relevantDisputeIds, resolution);
+            setSelectedOrderIds([]);
         }
 
         setOrders(DataSyncService.getOrders());
@@ -201,6 +226,20 @@ export default function EscrowManagement() {
     const handleBuyerConfirm = (orderId: string) => {
         DataSyncService.buyerConfirmReceipt(orderId);
         setOrders(DataSyncService.getOrders());
+    };
+
+    const toggleSelection = (orderId: string) => {
+        setSelectedOrderIds(prev => 
+            prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedOrderIds.length === paginatedOrders.length) {
+            setSelectedOrderIds([]);
+        } else {
+            setSelectedOrderIds(paginatedOrders.map(o => o.id));
+        }
     };
 
     const getStatusBadge = (order: Order) => {
@@ -239,13 +278,39 @@ export default function EscrowManagement() {
     };
 
     return (
-        <div className="space-y-6 max-w-6xl">
+        <div className="space-y-6 max-w-6xl pb-24 relative">
             {/* Header */}
-            <div>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Escrow Management</h2>
-                <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">
-                    Order funds held in trust until confirmed delivery
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Escrow Management</h2>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">
+                        Order funds held in trust until confirmed delivery
+                    </p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Button 
+                        onClick={async () => {
+                            const res = await fetch('/api/cron/auto-release');
+                            const data = await res.json();
+                            alert(data.message || `Processed ${data.processed} orders.`);
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }}
+                        className="h-10 px-5 rounded-2xl bg-[#1A261D] hover:bg-[#233528] text-white border border-emerald-500/20 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-emerald-500/10 flex items-center gap-2 group"
+                    >
+                        <Zap className="h-4 w-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                        Run Auto-Release Worker
+                    </Button>
+                    {selectedOrderIds.length > 0 && (
+                        <motion.div 
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center gap-2 bg-white/50 backdrop-blur-md p-1 rounded-2xl border border-indigo-100"
+                        >
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest px-3">{selectedOrderIds.length} Selected</span>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedOrderIds([])} className="h-8 px-3 rounded-xl text-gray-500 font-bold text-[10px] uppercase">Clear</Button>
+                        </motion.div>
+                    )}
+                </div>
             </div>
 
             {/* Summary Cards */}
@@ -304,7 +369,7 @@ export default function EscrowManagement() {
                     ] as const).map(f => (
                         <button
                             key={f.key}
-                            onClick={() => { setFilter(f.key); setCurrentPage(1); }}
+                            onClick={() => { setFilter(f.key); setCurrentPage(1); setSelectedOrderIds([]); }}
                             className={cn(
                                 "px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
                                 filter === f.key
@@ -345,6 +410,14 @@ export default function EscrowManagement() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-gray-100 bg-gray-50/50">
+                                    <th className="pl-6 py-4 w-10">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedOrderIds.length === paginatedOrders.length && paginatedOrders.length > 0}
+                                            onChange={toggleSelectAll}
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                    </th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Order</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Product</th>
                                     <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Seller</th>
@@ -359,9 +432,19 @@ export default function EscrowManagement() {
                                     const isAutoEligible = DataSyncService.checkAutoReleaseEligible(order);
                                     const days = getDaysSinceOrder(order.created_at);
                                     const dispute = order.escrow_status === "disputed" ? DataSyncService.getDisputeByOrderId(order.id) : null;
+                                    const isSelected = selectedOrderIds.includes(order.id);
+
                                     return (
                                         <Fragment key={order.id}>
-                                            <tr className="hover:bg-gray-50/30 transition-colors group cursor-pointer" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
+                                            <tr className={cn("hover:bg-gray-50/30 transition-colors group cursor-pointer", isSelected && "bg-indigo-50/20")} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
+                                                <td className="pl-6 py-5" onClick={(e) => e.stopPropagation()}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelection(order.id)}
+                                                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                </td>
                                                 <td className="px-6 py-5 align-middle">
                                                     <div>
                                                         <p className="text-xs font-black text-indigo-600 uppercase tracking-wider hover:underline">#{order.id}</p>
@@ -417,7 +500,7 @@ export default function EscrowManagement() {
                                                     <div className="flex items-center justify-end gap-2 transition-opacity">
                                                         {order.escrow_status === "held" && (
                                                             <Button
-                                                                onClick={() => handleSellerConfirm(order.id)}
+                                                                onClick={(e) => { e.stopPropagation(); handleSellerConfirm(order.id); }}
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                             >
@@ -427,20 +510,20 @@ export default function EscrowManagement() {
                                                         )}
                                                         {(order.escrow_status === "seller_confirmed" || order.escrow_status === "buyer_confirmed" || isAutoEligible) && (
                                                             <Button
-                                                                onClick={() => handleRelease(order.id)}
-                                                                size="sm"
-                                                                className={cn(
-                                                                    "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
-                                                                    isAutoEligible ? "bg-emerald-600 hover:bg-emerald-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
-                                                                )}
-                                                            >
-                                                                <Unlock className="h-3 w-3 mr-1" />
-                                                                Release to Seller
-                                                            </Button>
-                                                        )}
+                                                                 onClick={(e) => { e.stopPropagation(); handleRelease(order.id); }}
+                                                                 size="sm"
+                                                                 className={cn(
+                                                                     "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
+                                                                     isAutoEligible ? "bg-indigo-600 hover:bg-indigo-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
+                                                                 )}
+                                                             >
+                                                                 <Unlock className="h-3 w-3 mr-1" />
+                                                                 {isAutoEligible ? "Admin Force Release (24h+)" : "Release to Seller"}
+                                                             </Button>
+                                                         )}
                                                         {order.escrow_status === "seller_confirmed" && !isAutoEligible && (
                                                             <Button
-                                                                onClick={() => handleBuyerConfirm(order.id)}
+                                                                onClick={(e) => { e.stopPropagation(); handleBuyerConfirm(order.id); }}
                                                                 size="sm"
                                                                 variant="outline"
                                                                 className="h-8 px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest"
@@ -457,7 +540,7 @@ export default function EscrowManagement() {
                                                         {order.escrow_status === "disputed" && (
                                                             <div className="flex items-center gap-2">
                                                                 <Button
-                                                                    onClick={() => setChatModal({ isOpen: true, orderId: order.id })}
+                                                                    onClick={(e) => { e.stopPropagation(); setChatModal({ isOpen: true, orderId: order.id }); }}
                                                                     size="sm"
                                                                     variant="outline"
                                                                     className="h-8 px-3 rounded-lg border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-widest"
@@ -465,14 +548,14 @@ export default function EscrowManagement() {
                                                                     <MessageSquare className="h-3 w-3 mr-1" /> View Chat
                                                                 </Button>
                                                                 <Button
-                                                                    onClick={() => handleRefund(order.id)}
+                                                                    onClick={(e) => { e.stopPropagation(); handleRefund(order.id); }}
                                                                     size="sm"
                                                                     className="h-8 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                                 >
                                                                     <DollarSign className="h-3 w-3 mr-1" /> Issue Refund
                                                                 </Button>
                                                                 <Button
-                                                                    onClick={() => handleReleaseDisputed(order.id)}
+                                                                    onClick={(e) => { e.stopPropagation(); handleReleaseDisputed(order.id); }}
                                                                     size="sm"
                                                                     variant="outline"
                                                                     className="h-8 px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest"
@@ -493,7 +576,7 @@ export default function EscrowManagement() {
                                             {
                                                 expandedOrderId === order.id && (
                                                     <tr>
-                                                        <td colSpan={7} className="bg-indigo-50/30 px-6 py-5 border-b-2 border-indigo-100">
+                                                        <td colSpan={8} className="bg-indigo-50/30 px-6 py-5 border-b-2 border-indigo-100">
                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                                 <div className="space-y-3">
                                                                     <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Order Details</h4>
@@ -521,7 +604,7 @@ export default function EscrowManagement() {
                                                                     </div>
                                                                     <div className="flex gap-2 mt-3">
                                                                         <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3 border-indigo-200 text-indigo-600" onClick={(e) => { e.stopPropagation(); setChatModal({ isOpen: true, orderId: order.id }); }}>View Chat</Button>
-                                                                        <Link href={`/admin/users/${order.customer_id || order.customer_name}`}>
+                                                                        <Link href={`/admin/users/${order.customer_id || order.customer_name}`} onClick={(e) => e.stopPropagation()}>
                                                                             <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3">Message Buyer</Button>
                                                                         </Link>
                                                                     </div>
@@ -550,12 +633,72 @@ export default function EscrowManagement() {
                 />
             </div>
 
+            {/* Bulk Action Bar - Sticky at bottom */}
+            <AnimatePresence>
+                {selectedOrderIds.length > 0 && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40 w-full max-w-2xl px-4"
+                    >
+                        <div className="bg-slate-900 text-white rounded-2xl shadow-2xl p-4 flex items-center justify-between border border-slate-800 backdrop-blur-md">
+                            <div className="flex items-center gap-4 px-2">
+                                <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black">
+                                    {selectedOrderIds.length}
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">Bulk Actions</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold">Orders Selected</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {filter === "disputed" ? (
+                                    <>
+                                        <Button 
+                                            onClick={handleBulkResolveRefund}
+                                            size="sm" 
+                                            className="h-10 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 font-black text-[10px] uppercase tracking-widest"
+                                        >
+                                            <DollarSign className="h-3 w-3 mr-1" /> Bulk Refund
+                                        </Button>
+                                        <Button 
+                                            onClick={handleBulkResolveRelease}
+                                            size="sm" 
+                                            className="h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-widest"
+                                        >
+                                            <Unlock className="h-3 w-3 mr-1" /> Bulk Release
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <Button 
+                                        onClick={handleBulkRelease}
+                                        size="sm" 
+                                        className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-black text-[10px] uppercase tracking-widest"
+                                    >
+                                        <Unlock className="h-3 w-3 mr-1" /> Release Funds
+                                    </Button>
+                                )}
+                                <Button 
+                                    onClick={() => setSelectedOrderIds([])}
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-10 px-4 rounded-xl text-slate-400 hover:text-white font-black text-[10px] uppercase tracking-widest"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Info Banner */}
             <div className="bg-indigo-600 rounded-2xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="text-center md:text-left">
                     <h3 className="text-xl font-black tracking-tight">Escrow Release Protocol</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">
-                        Funds auto-eligible for release 48 hours after seller confirms delivery if no dispute is raised. Final release requires admin approval.
+                        Funds auto-eligible for release 24 hours after seller confirms delivery if no dispute is raised. Final release requires admin approval or buyer confirmation.
                     </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -571,7 +714,7 @@ export default function EscrowManagement() {
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-indigo-200">
                         <Timer className="h-4 w-4" />
-                        <span>48 Hour Hold</span>
+                        <span>24 Hour Hold</span>
                     </div>
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-white">
@@ -590,17 +733,20 @@ export default function EscrowManagement() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setActionModal({ isOpen: false, type: null, orderId: null, message: "" })}
-                            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
                         />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
+                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100"
                         >
                             <div className="p-6">
-                                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
-                                    <AlertTriangle className="h-6 w-6" />
+                                <div className={cn(
+                                    "w-12 h-12 rounded-full flex items-center justify-center mb-4",
+                                    actionModal.type?.includes("refund") ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                                )}>
+                                    {actionModal.type?.includes("refund") ? <DollarSign className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
                                 </div>
                                 <h3 className="text-xl font-black text-gray-900 mb-2">Confirm Action</h3>
                                 <p className="text-sm text-gray-600 font-medium">{actionModal.message}</p>
@@ -608,7 +754,10 @@ export default function EscrowManagement() {
                             <div className="bg-gray-50/80 p-5 flex flex-col-reverse sm:flex-row justify-end gap-3 border-t border-gray-100">
                                 <Button variant="ghost" onClick={() => setActionModal({ isOpen: false, type: null, orderId: null, message: "" })} className="font-bold text-gray-500">Cancel</Button>
                                 <Button
-                                    className={cn("font-bold shadow-md", actionModal.type === "refund" ? "bg-rose-600 hover:bg-rose-700 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white")}
+                                    className={cn(
+                                        "font-bold shadow-md", 
+                                        actionModal.type?.includes("refund") ? "bg-rose-600 hover:bg-rose-700 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    )}
                                     onClick={confirmAction}
                                 >
                                     Confirm Proceed

@@ -10,7 +10,7 @@ export default function AffiliatePage() {
     const [copied, setCopied] = useState(false);
     const handleCopy = async () => {
         const { copyToClipboard } = await import("@/lib/utils");
-        const success = await copyToClipboard("https://fairprice.ng/affiliate/apply");
+        const success = await copyToClipboard("https://www.fairprice.ng/affiliate/apply");
         if (success) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);

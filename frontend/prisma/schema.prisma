@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 model User {
@@ -20,6 +18,7 @@ model User {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   isPremium       Boolean              @default(false)
+  whatsappNumber  String?              @unique
   premiumExpiresAt DateTime?
   accounts        Account[]
   addresses       Address[]
@@ -29,10 +28,12 @@ model User {
   notifications   Notification[]
   orders          Order[]
   reviews         Review[]
-  seller          Seller?
+  sellers         Seller[]
   sessions        Session[]
   supportMessages SupportMessage[]
   discountUsages  UserDiscountUsage[]
+  whatsAppVerifications WhatsAppVerification[]
+  financingApplications FinancingApplication[]
 }
 
 model Account {
@@ -84,7 +85,7 @@ model Address {
 
 model Seller {
   id             String               @id @default(cuid())
-  userId         String               @unique
+  userId         String
   businessName   String
   ownerName      String?
   ownerEmail     String?
@@ -113,6 +114,14 @@ model Seller {
   joinedAt       DateTime             @default(now())
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
+  whatsappEnabled Boolean             @default(false)
+  whatsappNumber String?
+  autoPayoutEnabled Boolean            @default(false)
+  whatsappDirectDM  Boolean            @default(false)
+  instagramAccessToken  String?
+  instagramUserId       String?
+  instagramUsername     String?
+  instagramTokenExpiry  DateTime?
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
@@ -123,6 +132,10 @@ model Seller {
   priceAlerts    PriceAlert[]
   products       Product[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([category])
 }
 
 model Product {
@@ -150,10 +163,13 @@ model Product {
   specs            Json?
   tags             String[]             @default([])
   subcategory      String?
+  slug             String?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   financingAvailable Boolean            @default(false)
   financingDownPayment Float?
+  financingDepositPct  Float?             @map("financing_deposit_pct")
+  isDirectPayment      Boolean            @default(false) @map("is_direct_payment")
   isTrending       Boolean              @default(false)
   deals            Deal[]
   negotiations     NegotiationRequest[]
@@ -161,6 +177,14 @@ model Product {
   priceAlerts      PriceAlert[]
   seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   reviews          Review[]
+  financingApplications FinancingApplication[]
+
+  @@index([sellerId])
+  @@index([category])
+  @@index([isActive])
+  @@index([isTrending])
+  @@index([isSponsored])
+  @@index([slug])
 }
 
 model MarketplaceCategory {
@@ -195,6 +219,7 @@ model Order {
   escrowStatus      EscrowStatus   @default(held)
   shippingAddress   String
   paymentMethod     String         @default("paystack")
+  isDirectPayment   Boolean        @default(false) @map("is_direct_payment")
   trackingStatus    TrackingStatus @default(pending)
   trackingId        String?        @unique
   carrier           String?
@@ -206,8 +231,10 @@ model Order {
   sellerName        String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  deliveredAt       DateTime?
   chatMessages      Json?
   payoutStatus      String?        @default("none")
+  statusNote        String?        // Seller-added note visible to buyer & admin (e.g. "held in customs")
   unreadAdmin       Boolean?       @default(false)
   zivaActive        Boolean?       @default(false)
   financing         Json?
@@ -215,20 +242,28 @@ model Order {
   customer          User           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([trackingId])
 }
 
 model Payout {
-  id            String   @id @default(cuid())
-  sellerId      String
-  amount        Float
-  status        String   @default("pending")
-  bankName      String
-  accountNumber String
-  accountName   String
-  orderIds      String[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  seller        Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  sellerId         String
+  amount           Float
+  status           String   @default("pending")
+  bankName         String
+  accountNumber    String
+  accountName      String
+  orderIds         String[]
+  paymentReference String?  // Links to the original Paystack charge reference for audit
+  transferCode     String?  // Paystack transfer code for tracking
+  isAutoPayout     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  seller           Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model NegotiationRequest {
@@ -240,6 +275,7 @@ model NegotiationRequest {
   proposedPrice  Float
   message        String?
   status         NegotiationStatus  @default(pending)
+  customerWhatsapp String?
   counterPrice   Float?
   counterMessage String?
   counterStatus  NegotiationStatus?
@@ -249,6 +285,11 @@ model NegotiationRequest {
   customer       User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product        Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([status])
 }
 
 model Review {
@@ -391,6 +432,7 @@ model SystemSetting {
   escrowRelease               Boolean  @default(true)
   strictSeller                Boolean  @default(true)
   categoryMargins             Json?
+  heroConfig                  Json?
   updatedAt                   DateTime @updatedAt
   codAllowExpensiveCategories Boolean  @default(true)
   codEnabled                  Boolean  @default(true)
@@ -400,6 +442,9 @@ model SystemSetting {
   stateShipping               Json?
   globalSearchCaching         Boolean  @default(true)
   supportConfig               Json?
+  waVerificationEnabled       Boolean  @default(false)
+  whatsappNegotiationBridge   Boolean  @default(true)
+  aiProvider                  String   @default("qwen")
 }
 
 model Discount {
@@ -573,4 +618,144 @@ enum IDType {
   drivers_license
   voters_card
   passport
+}
+
+model WhatsAppInteraction {
+  id               String   @id @default(cuid())
+  phoneNumber      String
+  interaction_type String
+  payload          String?
+  createdAt        DateTime @default(now())
+}
+
+model WhatsAppVerification {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  phoneNumber String
+  userId      String?
+  status      VerificationStatus @default(pending)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+  @@index([phoneNumber])
+}
+
+enum VerificationStatus {
+  pending
+  verified
+  expired
+  used
+}
+
+enum FinancingType {
+  individual
+  business
+}
+
+enum FinancingStatus {
+  draft
+  pending
+  under_review
+  approved
+  rejected
+  disbursed
+}
+
+model FinancingApplication {
+  id                String          @id @default(cuid())
+  userId            String?
+  productId         String?
+  type              FinancingType   @default(individual)
+  status            FinancingStatus @default(pending)
+  
+  // Basic Loan Details
+  loanAmount        Float
+  tenureMonths      Int
+  monthlyRepayment  Float
+  interestRate      Float
+  downPayment       Float           @default(0)
+  insuranceFee      Float?
+  
+  // Applicant Details
+  businessName      String?
+  customerName      String?
+  phoneNumber       String?
+  email             String?
+  employmentStatus  String?         // salary_earner, business_person
+  
+  // Document URLs (Stored in CDN/S3)
+  cacDocumentUrl    String?
+  auditedFinancialsUrl String?
+  cashFlowProjectionUrl String?
+  bankStatementUrl  String?
+  companyProfileUrl String?
+  energyAuditUrl    String?
+  vendorInvoiceUrl  String?
+  auditData         Json?           @map("audit_data")
+  payslipData       Json?           @map("payslip_data")
+  
+  // Draft / multi-step form management
+  currentStep       Int             @default(1)
+  applicationType   String?         // 'salary_earner' | 'business_owner'
+  contractType      String?         // 'long_term' | 'short_term'
+  documentsJson     String?         // JSON-serialized document metadata for save/resume
+  depositAmount     Float           @default(0)
+  payslipsUrl       String[]
+
+  // Applicant signature (base64 PNG data-URL)
+  signatureDataUrl  String?
+
+  // Business owner — company & directors
+  companyRegistrationNumber String?
+  companyLogoBase64 String?         // base64 logo for board resolution letterhead
+  directorsJson     String?         // JSON array of {name,title,idNumber,bvn?,signatureDataUrl?}
+  boardResolutionDataUrl String?    // Final generated board resolution as base64 image
+
+  // Metadata
+  source            String          @default("whatsapp") // whatsapp, web, app
+  adminNotes        String?
+  officeAddress     String?
+  meetingScheduledAt DateTime?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user              User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+model ZemaApprovalRequest {
+  id             String    @id @default(cuid())
+  runId          String
+  orderId        String?
+  status         String    @default("pending")
+  agentDecision  String?
+  approvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([runId])
+  @@index([status])
+}
+
+model WhatsAppNegotiationSession {
+  id              String   @id @default(cuid())
+  sellerId        String
+  negotiationId   String
+  sellerPhone     String
+  customerPhone   String?
+  lastMessageId   String?  // WhatsApp message ID to track replies
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sellerPhone, negotiationId])
+  @@index([sellerPhone])
+  @@index([lastMessageId])
 }

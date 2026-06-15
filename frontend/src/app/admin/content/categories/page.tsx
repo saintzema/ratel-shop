@@ -71,28 +71,58 @@ export default function CategoryManagement() {
         setEditName(cat.name);
     };
 
-    const saveEdit = (parentId?: string) => {
-        if (parentId) {
-            updateAndSave(prev => prev.map(c => c.id === parentId ? {
-                ...c,
-                children: c.children.map(ch => ch.id === editingId ? { ...ch, name: editName, slug: editName.toLowerCase().replace(/\s+/g, "-") } : ch)
-            } : c));
-        } else {
-            updateAndSave(prev => prev.map(c => c.id === editingId ? { ...c, name: editName, slug: editName.toLowerCase().replace(/\s+/g, "-") } : c));
+    const saveEdit = async (parentId?: string) => {
+        if (!editingId) return;
+        const type = parentId ? "subcategory" : "category";
+        
+        try {
+            const res = await fetch("/api/admin/taxonomy", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: editingId, type, name: editName })
+            });
+
+            if (res.ok) {
+                if (parentId) {
+                    updateAndSave(prev => prev.map(c => c.id === parentId ? {
+                        ...c,
+                        children: c.children.map(ch => ch.id === editingId ? { ...ch, name: editName } : ch)
+                    } : c));
+                } else {
+                    updateAndSave(prev => prev.map(c => c.id === editingId ? { ...c, name: editName } : c));
+                }
+                setEditingId(null);
+                flash("Category permanently updated in database.");
+            } else {
+                const data = await res.json();
+                flash(`Error: ${data.error || "Failed to update"}`);
+            }
+        } catch (error) {
+            flash("Network error.");
         }
-        setEditingId(null);
-        flash("Category updated.");
     };
 
     const deleteCategory = async (id: string, parentId?: string) => {
         if (!confirm("Delete this category? This action is permanent and will sync to the database.")) return;
         
+        const type = parentId ? "subcategory" : "category";
+        const performDelete = async (method: string, body?: any) => {
+            const options: RequestInit = { method };
+            if (body) {
+                options.headers = { "Content-Type": "application/json" };
+                options.body = JSON.stringify(body);
+            }
+            return fetch(method === "DELETE" ? `/api/admin/taxonomy?id=${id}&type=${type}` : "/api/admin/taxonomy", options);
+        };
+
         try {
-            const type = parentId ? "subcategory" : "category";
-            const res = await fetch(`/api/admin/taxonomy?id=${id}&type=${type}`, {
-                method: "DELETE"
-            });
+            let res = await performDelete("DELETE");
             
+            // Fallback for 405 Method Not Allowed
+            if (res.status === 405) {
+                res = await performDelete("POST", { action: "delete", id, type });
+            }
+
             if (res.ok) {
                 if (parentId) {
                     updateAndSave(prev => prev.map(c => c.id === parentId ? { ...c, children: c.children.filter(ch => ch.id !== id) } : c));

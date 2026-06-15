@@ -12,7 +12,6 @@ import { Capacitor } from "@capacitor/core";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
-import { playDingSound } from "@/lib/audio";
 import { getProductUrl } from "@/lib/utils";
 import { isVehicle, hasFinancing } from "@/lib/financing-utils";
 
@@ -58,6 +57,7 @@ const CANCEL_ACTIONS = [
 export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
+    const [isFocused, setIsFocused] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [reviewRating, setReviewRating] = useState<number>(0);
     const [hoverRating, setHoverRating] = useState<number>(0);
@@ -151,7 +151,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         }
 
         setMessages(initialMessages);
-    }, [isOpen, product, orderId, messages.length, mode]);
+    }, [isOpen, product, orderId, mode]);
 
     // Listen for DataSyncService updates (e.g. admin replies)
     useEffect(() => {
@@ -180,18 +180,17 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         };
     }, [isOpen, orderId]);
 
-    // Auto-scroll
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        // If keyboard opens, scroll to bottom
+        if (isFocused) {
+            const timer = setTimeout(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+            }, 300);
+            return () => clearTimeout(timer);
         }
-        
-        // Play chime for INCOMING messages (not from user)
-        const lastMsg = messages[messages.length - 1];
-        if (lastMsg && lastMsg.sender !== "user" && isOpen) {
-            playDingSound();
-        }
-    }, [messages, isOpen]);
+    }, [messages, isOpen, isFocused]);
 
     if (!isOpen) return null;
 
@@ -276,7 +275,6 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         setInput("");
         setIsTyping(true);
         setReplyingTo(null);
-        playDingSound(); // Quick feedback chime for sending
 
         // Smart Ziva Response
         setTimeout(() => {
@@ -420,18 +418,109 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                             }).catch(() => { /* Email send is best-effort */ });
                         }
                     }
-                } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received")) {
+                } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received") || lowerText.includes("eta")) {
                     if (orderStatus === "delivered") {
                         zivaText = `Your order **${trackingId}** has been marked as **delivered**. If you've received your item and it's in good condition, you can confirm delivery from your orders page to release the payment from escrow. If there's any issue, let me know immediately!`;
                     } else if (orderStatus === "shipped") {
                         zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 3–7 business days. I'll notify you when it arrives!`;
                     } else {
-                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–7 business days**.`;
+                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. I've asked the seller to provide a shipping ETA. Estimated delivery: **3–7 business days**.`;
+                        // Notify seller to provide shipping update
+                        if (product) {
+                            const sellerId = product.seller_id;
+                            const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                            const currentUser = DataSyncService.getCurrentUser();
+                            const buyerName = currentUser?.name || "A Buyer";
+                            DataSyncService.addNotification({
+                                userId: sellerId,
+                                type: "order",
+                                message: `🚚 ${buyerName} is asking for a shipping ETA on "${product.name}" (Order #${trackingId.substring(0, 8)}). Please update the shipping status from your dashboard.`,
+                                link: `/seller/orders`
+                            });
+                            if (seller?.owner_email) {
+                                fetch('/api/email', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        to: seller.owner_email,
+                                        type: 'ORDER_INQUIRY',
+                                        payload: {
+                                            name: seller.business_name || "Seller",
+                                            productName: product.name,
+                                            orderId: trackingId,
+                                            buyerName,
+                                            inquiry: `${buyerName} is requesting a shipping ETA for their order. Please update the tracking information from your seller dashboard.`,
+                                            dashboardUrl: `${window.location.origin}/seller/orders`,
+                                        }
+                                    })
+                                }).catch(() => {});
+                            }
+                        }
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
-                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.";
-                } else if (lowerText.includes("condition") || lowerText.includes("confirm")) {
-                    zivaText = "I can request a condition check from the merchant. They'll be asked to verify the item's quality and packaging before shipping. This is part of our FairPrice Quality Assurance process.";
+                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.\n\nI've also notified the seller to confirm the warranty details for you.";
+                    if (product) {
+                        const sellerId = product.seller_id;
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
+                        const buyerName = currentUser?.name || "A Buyer";
+                        DataSyncService.addNotification({
+                            userId: sellerId,
+                            type: "order",
+                            message: `📋 ${buyerName} is asking about warranty details for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please confirm warranty info from your dashboard.`,
+                            link: `/seller/dashboard/messages`
+                        });
+                        if (seller?.owner_email) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: seller.owner_email,
+                                    type: 'ORDER_INQUIRY',
+                                    payload: {
+                                        name: seller.business_name || "Seller",
+                                        productName: product.name,
+                                        orderId: trackingId,
+                                        buyerName,
+                                        inquiry: `${buyerName} would like confirmation of the warranty details and terms for "${product.name}". Please respond via your seller dashboard.`,
+                                        dashboardUrl: `${window.location.origin}/seller/dashboard/messages`,
+                                    }
+                                })
+                            }).catch(() => {});
+                        }
+                    }
+                } else if (lowerText.includes("condition") || lowerText.includes("confirm condition") || lowerText.includes("as described")) {
+                    zivaText = "I've requested a **condition check** from the merchant. They'll verify the item's quality and packaging before shipping. You'll be notified once they confirm. This is part of FairPrice Quality Assurance.";
+                    if (product) {
+                        const sellerId = product.seller_id;
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
+                        const buyerName = currentUser?.name || "A Buyer";
+                        DataSyncService.addNotification({
+                            userId: sellerId,
+                            type: "order",
+                            message: `✅ ${buyerName} is requesting a condition check for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please confirm item condition and packaging before shipping.`,
+                            link: `/seller/dashboard/messages`
+                        });
+                        if (seller?.owner_email) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: seller.owner_email,
+                                    type: 'ORDER_INQUIRY',
+                                    payload: {
+                                        name: seller.business_name || "Seller",
+                                        productName: product.name,
+                                        orderId: trackingId,
+                                        buyerName,
+                                        inquiry: `${buyerName} wants to confirm the condition of "${product.name}" is as described in the listing. Please verify and respond via your seller dashboard.`,
+                                        dashboardUrl: `${window.location.origin}/seller/dashboard/messages`,
+                                    }
+                                })
+                            }).catch(() => {});
+                        }
+                    }
                 }
             }
 
@@ -450,7 +539,6 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const handleRate = (stars: number) => {
         if (reviewRating > 0 || !product) return;
         setReviewRating(stars);
-        playDingSound(); // Play chime for rating submission
 
         // Save the review instantly
         const currentUser = DataSyncService.getCurrentUser();
@@ -495,9 +583,10 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         <AnimatePresence>
             {isOpen && (
                 <div 
-                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-[bottom] duration-200 cubic-bezier(0.1, 0.7, 0.1, 1)"
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-all duration-300 cubic-bezier(0.1, 0.7, 0.1, 1)"
                     style={{ 
                         bottom: 'var(--kb-height, 0px)',
+                        paddingBottom: isFocused ? '10px' : 'env(safe-area-inset-bottom, 0px)',
                         willChange: 'bottom'
                     }}
                 >
@@ -514,7 +603,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80%] max-h-full sm:h-[600px] font-sans"
+                        className={`relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 font-sans ${isFocused ? 'h-[92%] sm:h-[600px]' : 'h-[80%] max-h-full sm:h-[600px]'}`}
                         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                     >
                         {/* Header */}
@@ -627,7 +716,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 })}
                                                 {msg.sender === "ziva" && msg.text.includes("Thanks for the") && msg.text.includes("star rating!") && (
                                                     <div className="mt-3">
-                                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="block w-full">
+                                                        <a href={`${getProductUrl(product)}#reviews-section`} onClick={onClose} className="block w-full">
                                                             <Button className="w-full h-8 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
                                                                 Write a Detailed Review
                                                                 <RotateCcw className="w-3 h-3 rotate-180" />
@@ -752,7 +841,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 <Star key={star} className={`w-8 h-8 ${star <= reviewRating ? "text-amber-400 fill-amber-400" : "text-gray-200"}`} />
                                             ))}
                                         </div>
-                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="w-full">
+                                        <a href={`${getProductUrl(product)}#reviews-section`} onClick={onClose} className="w-full">
                                             <Button className="w-full h-12 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                                 Write a Detailed Review
                                                 <RotateCcw className="w-4 h-4 rotate-180" />
@@ -792,6 +881,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                             className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
                                             placeholder="Type a message..."
                                             value={input}
+                                            onFocus={() => setIsFocused(true)}
+                                            onBlur={() => setIsFocused(false)}
                                             onChange={(e) => setInput(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === "Enter" && !e.shiftKey) {

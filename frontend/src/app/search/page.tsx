@@ -23,7 +23,7 @@ import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 
 import { DataSyncService } from "@/lib/sync-store";
 import { CATEGORIES } from "@/lib/types";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProxiedImageUrl } from "@/lib/utils";
 import {
   getFiltersForCategory,
   detectCategoryFromQuery,
@@ -297,6 +297,10 @@ function SearchContent() {
   const [showMoreHistory, setShowMoreHistory] = useState<boolean>(false);
   const [customersAlsoBoughtCount, setCustomersAlsoBoughtCount] = useState(8);
 
+  // Elite Background Image Hydration State
+  const [imagePool, setImagePool] = useState<Record<string, { url: string, urls: string[] }>>({});
+  const hydratedNamesRef = useRef<Set<string>>(new Set());
+
   // Read cached nav results on mount when navigated from navbar
   useEffect(() => {
     if (fromNav) {
@@ -306,7 +310,9 @@ function SearchContent() {
         const cachedQuery = sessionStorage.getItem("fp_nav_search_query");
 
         // Clean up sessionStorage ONLY if the query is different, to allow "Back" button to work
-        if (cachedQuery && cachedQuery !== query) {
+        // Clean up sessionStorage ONLY if the query is significantly different
+        // We use lowerCase and trim for leniency
+        if (cachedQuery && cachedQuery.toLowerCase().trim() !== query.toLowerCase().trim()) {
           sessionStorage.removeItem("fp_nav_search_results");
           sessionStorage.removeItem("fp_nav_search_clicked");
           sessionStorage.removeItem("fp_nav_search_query");
@@ -349,6 +355,26 @@ function SearchContent() {
       }
     }
   }, [fromNav, query]);
+
+
+  // Hydrate imagePool from Navbar image pool (passed via sessionStorage on nav→SRP transition)
+  useEffect(() => {
+    try {
+      const savedPool = sessionStorage.getItem('fp_nav_image_pool');
+      if (savedPool) {
+        const navPool: Record<string, string> = JSON.parse(savedPool);
+        setImagePool(prev => {
+          const merged = { ...prev };
+          Object.entries(navPool).forEach(([key, url]) => {
+            if (!merged[key] && url && !url.includes('placeholder')) {
+              merged[key] = { url, urls: [url] };
+            }
+          });
+          return merged;
+        });
+      }
+    } catch { /* fail silently */ }
+  }, []);
 
   useEffect(() => {
     if (minPriceParam)
@@ -487,6 +513,34 @@ function SearchContent() {
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
   useEffect(() => {
+    // ─── HALLUCINATION DEFENSE: PROACTIVE PURGE ───
+    // Run once on search page mount to clear any legacy invalid data from local storage
+    const lastPurge = localStorage.getItem('last_hallucination_purge');
+    const purgeTarget = "2026-05-04"; // Targeted purge date
+    
+    if (lastPurge !== purgeTarget) {
+      try {
+        const SERVICE_KEYWORDS = /\b(service|moving|relocation|mover|relocator|management|waste|cleaning|consultancy|agency|hub|hire|program)\b/i;
+        
+        // 1. Clear search cache completely to flush old Gemini hallucinations
+        localStorage.removeItem('search_cache');
+        
+        // 2. Filter out bad products from local catalogue
+        const products = DataSyncService.getApprovedProducts();
+        const cleaned = products.filter(p => p && p.price > 0 && !SERVICE_KEYWORDS.test(p.name || ""));
+        
+        if (cleaned.length !== products.length) {
+            localStorage.setItem('frontend_products', JSON.stringify(cleaned));
+            setAllProducts(cleaned.filter(p => p.is_active));
+        }
+        
+        localStorage.setItem('last_hallucination_purge', purgeTarget);
+        console.log(`[Purge] Successfully removed ${products.length - cleaned.length} hallucinated entries.`);
+      } catch (e) {
+        console.error("[Purge] Failed:", e);
+      }
+    }
+
     const refresh = () => {
       try {
         setAllProducts(
@@ -579,6 +633,7 @@ function SearchContent() {
   const handleSeeMoreResults = () => {
     setShowGlobalResults(true);
     setGlobalSearchError(null);
+    setPage(p => p + 1); // Reveal more paginated local results immediately
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
@@ -638,8 +693,30 @@ function SearchContent() {
   };
 
   const searchableProducts = useMemo(() => {
-    // Guard: ensure every local product has a non-null name to prevent toLowerCase() crashes
-    let locals = allProducts.filter(p => p && p.name);
+    // Guard: ensure every local product has a non-null name and valid price
+    const SERVICE_KEYWORDS = /\b(service|moving|relocation|mover|relocator|management|waste|cleaning|consultancy|agency|hub|hire|program)\b/i;
+    
+    let locals = allProducts.filter(p => {
+        if (!p || !p.name) return false;
+        if (p.price <= 0) return false;
+        if (SERVICE_KEYWORDS.test(p.name) && !p.name.toLowerCase().includes("battery service")) return false; // Exclude services, but keep relevant tech services
+        return true;
+    });
+    
+    const enrichWithPool = (p: any) => {
+        const normalized = (p.name || "").toLowerCase().trim();
+        const pooled = imagePool[normalized];
+        if (pooled && (!p.image_url || p.image_url.includes('placeholder'))) {
+            return { 
+                ...p, 
+                image_url: pooled.url, 
+                images: pooled.urls,
+                _hydratedFromPool: true
+            };
+        }
+        return p;
+    };
+
     if (showGlobalResults && globalResults.length > 0) {
       // Guard: filter out Gemini results with missing names before any processing
       const mappedGlobal = globalResults.filter(r => r && r.name).map((r, i) => {
@@ -707,18 +784,30 @@ function SearchContent() {
         return product as import("@/lib/types").Product;
       })
 
-      // ─── FRONTEND VEHICLE PRICE FLOOR (mirrors backend defense — zero latency) ───
-      .filter((p) => {
+      // ─── FRONTEND DEFENSE (Price Floor & Service Filter) ───
+      .filter((p: any) => {
+        if (!p) return false;
+        // 1. Strict Price Floor (No free or hallucinated zero-price items)
+        if (p.price <= 0) return false;
+
+        // 2. Service Exclusion (We don't offer moving/waste/consultancy services currently)
+        if (SERVICE_KEYWORDS.test(p.name) && !p.name.toLowerCase().includes("battery service")) return false;
+
+        // 3. Vehicle Price Floor (Defense against hallucinated Toyotas/EVs)
         const VEHICLE_FLOOR = 5_000_000;
         if (p.price >= VEHICLE_FLOOR) return true;
+        
         const name = (p.name || "").toLowerCase();
-        const cat = (p.category || "").toLowerCase();
-        const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+        const cat = ((p as any)?.category || "").toLowerCase();
+        const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
         const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+        
         if (PART_KW.test(name)) return true; // Parts/phones always pass
+        
         const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
         const isWholeVeh = WHOLE_VEH.test(name);
-        if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        if ((isVehicleCat || isWholeVeh) && (p as any)?.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        
         return true;
       });
 
@@ -731,10 +820,84 @@ function SearchContent() {
              uniqueGlobal.push(g);
          }
       }
-      return [...locals, ...uniqueGlobal];
+      return [...locals, ...uniqueGlobal].map(enrichWithPool);
     }
-    return locals;
-  }, [allProducts, showGlobalResults, globalResults]);
+    return locals.map(enrichWithPool);
+  }, [allProducts, showGlobalResults, globalResults, imagePool]);
+
+  // ─── ELITE IMAGE HYDRATION & POOLING ───
+  // Scans all results, fetches missing images, and shares them across similar models.
+  useEffect(() => {
+    const isValidImg = (url: string | undefined | null) =>
+      !!url &&
+      url.trim().length > 10 &&
+      !url.toLowerCase().includes('placeholder') &&
+      !url.toLowerCase().includes('no photo') &&
+      !url.toLowerCase().includes('no image') &&
+      !url.toLowerCase().includes('n/a') &&
+      !url.toLowerCase().includes('grounding-api-redirect');
+
+    const productsToHydrate = [
+      ...navResults,
+      ...searchableProducts
+    ].filter(p => !isValidImg(p.image_url) && !isValidImg(p.images?.[0]));
+
+    if (productsToHydrate.length === 0) return;
+
+    const processHydration = async () => {
+      const MAX_CONCURRENT = 5;
+      let active = 0;
+      const queue = [...productsToHydrate];
+
+      const fetchNext = async () => {
+        if (queue.length === 0 || active >= MAX_CONCURRENT) return;
+        
+        const p = queue.shift()!;
+        const normalizedName = (p.name || "").toLowerCase().trim();
+        
+        // Skip if we already hydrated this specific name string in this session
+        if (hydratedNamesRef.current.has(normalizedName)) return fetchNext();
+        hydratedNamesRef.current.add(normalizedName);
+        
+        active++;
+        try {
+          const q = encodeURIComponent(p.name);
+          const cat = encodeURIComponent(p.category || '');
+          const res = await fetch(`/api/product-image?q=${q}&category=${cat}`);
+          if (res.ok) {
+            const data = await res.json();
+            const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl;
+            
+            if (imageUrl && isValidImg(imageUrl)) {
+              // Update the shared pool
+              setImagePool(prev => ({
+                ...prev,
+                [normalizedName]: { url: imageUrl, urls: data.imageUrls || [imageUrl] }
+              }));
+
+              // Persist the hydrated image to Postgres (image-only, no data overwrite)
+              if (p.id) {
+                fetch('/api/products', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({ id: p.id, image_url: imageUrl, images: data.imageUrls || [imageUrl], _imageOnly: true })
+                }).catch(() => {});
+              }
+            }
+          }
+        } catch (err) {
+          console.error("[Hydration] Fetch failed:", err);
+        } finally {
+          active--;
+          fetchNext();
+        }
+      };
+
+      for (let i = 0; i < MAX_CONCURRENT; i++) fetchNext();
+    };
+
+    processHydration();
+  }, [navResults.length, searchableProducts.length]);
 
   const filteredProducts = useMemo(() => {
     return searchableProducts
@@ -798,10 +961,6 @@ function SearchContent() {
         return true;
       })
       .sort((a, b) => {
-        // Priority to sponsored products
-        if (a.is_sponsored && !b.is_sponsored) return -1;
-        if (!a.is_sponsored && b.is_sponsored) return 1;
-
         switch (sortBy) {
           case "price_asc":
             return a.price - b.price;
@@ -812,8 +971,22 @@ function SearchContent() {
               new Date(b.created_at).getTime() -
               new Date(a.created_at).getTime()
             );
-          default:
-            return 0;
+          case "best_selling":
+            return (b.sold_count || 0) - (a.sold_count || 0);
+          case "top_rated":
+            return (b.avg_rating || 0) - (a.avg_rating || 0);
+          default: {
+            if (a.is_sponsored && !b.is_sponsored) return -1;
+            if (!a.is_sponsored && b.is_sponsored) return 1;
+            
+            let scoreA = a.sold_count * 2 + a.review_count;
+            let scoreB = b.sold_count * 2 + b.review_count;
+            if (a.is_trending) scoreA += 200;
+            if (b.is_trending) scoreB += 200;
+            const randA = (a.id.charCodeAt(0) || 0) % 10;
+            const randB = (b.id.charCodeAt(0) || 0) % 10;
+            return (scoreB + randB) - (scoreA + randA);
+          }
         }
       });
   }, [
@@ -872,17 +1045,30 @@ function SearchContent() {
     const seenIds = new Set<string>();
     const combined: any[] = [];
 
-    // 1. Process navResults (safeguard against duplicated IDs in sessionStorage)
+    // Helper: apply imagePool fallback to a product (same logic as enrichWithPool in searchableProducts)
+    const applyPool = (p: any) => {
+      const normalized = (p.name || "").toLowerCase().trim();
+      const pooled = imagePool[normalized];
+      if (pooled && (!p.image_url || p.image_url.includes('placeholder'))) {
+        return { ...p, image_url: pooled.url, images: pooled.urls, _hydratedFromPool: true };
+      }
+      return p;
+    };
+
+    // 1. Process navResults — apply imagePool so hydrated images show immediately
     for (const n of navResults) {
       if (!seenIds.has(n.id)) {
         seenIds.add(n.id);
-        combined.push(n);
+        combined.push(applyPool(n));
       }
     }
 
-    // 2. Process paginatedProducts (filter out anything already provided by nav)
+    // 2. Process paginatedProducts (filter out anything already provided by nav by ID or Name)
     for (const p of paginatedProducts) {
-      if (!seenIds.has(p.id)) {
+      const pName = (p.name || "").toLowerCase().trim();
+      const isDuplicate = seenIds.has(p.id) || combined.some(r => (r.name || "").toLowerCase().trim() === pName);
+      
+      if (!isDuplicate) {
         seenIds.add(p.id);
         combined.push(p);
       }
@@ -898,8 +1084,11 @@ function SearchContent() {
     }
 
     // Filter by price range at the very end
-    return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
-  }, [navResults, paginatedProducts, navClickedId, priceRange]);
+    return combined.filter(p => {
+      const itemPrice = p.price !== undefined ? p.price : (p.approxPrice || 0);
+      return itemPrice >= priceRange[0] && itemPrice <= priceRange[1];
+    });
+  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool]);
 
   // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
   // When there are no local results and no ongoing search, auto-trigger the
@@ -914,16 +1103,18 @@ function SearchContent() {
     if (!effectiveQuery || effectiveQuery.length <= 2) return;
     // Only fire once per unique query to avoid infinite loops
     if (autoSearchFiredRef.current === effectiveQuery) return;
-    autoSearchFiredRef.current = effectiveQuery;
+    
     // Small delay so local results have time to load first
     const t = setTimeout(() => {
-      if (combinedCurrentResults.length === 0) {
+      // Re-check results before firing to avoid race conditions
+      if (combinedCurrentResults.length === 0 && !isGlobalSearching) {
+        autoSearchFiredRef.current = effectiveQuery;
         handleSeeMoreResults();
       }
-    }, 800);
+    }, 1200); // Increased delay for stability
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, query, combinedCurrentResults.length, globalResults.length]);
+  }, [isMounted, query, combinedCurrentResults.length]);
 
   // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
@@ -994,164 +1185,96 @@ function SearchContent() {
               </p>
           </div>
           <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-emerald-700">
-              <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
+            Start Selling Now
           </div>
         </motion.div>
 
-        {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
-        <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
-          {/* Top Row: Horizontal Scrollable Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
-            {/* Clear All */}
-            {(Object.keys(attributeFilters).length > 0 ||
-              selectedCategory ||
-              isVerified ||
-              priceRange[0] > 0 ||
-              priceRange[1] < 5000000) && (
-                <button
-                  onClick={() => {
-                    setAttributeFilters({});
-                    setPriceRange([0, 500000000]);
-                    setSelectedCategory(null);
-                    setIsVerified(false);
-                    const params = new URLSearchParams();
-                    if (query) params.set("q", query);
-                    router.push(`/search?${params.toString()}`, {
-                      scroll: false,
-                    });
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
-                >
-                  <Filter className="h-3 w-3" /> Clear All
-                </button>
-              )}
-
-            {/* Sort Dropdown as Pill (Native Select for Mobile Reliability) */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={sortBy}
-                onChange={(e) => updateFilters({ sort: e.target.value })}
-                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              >
-                <option value="relevance">Sort by: Relevance</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="newest">Newest Arrivals</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            </div>
-
-            {/* Dynamic Price Pill */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={(minPriceParam || maxPriceParam) ? `${minPriceParam || 0}-${maxPriceParam || 500000000}` : "all"}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "all") {
-                    updateFilters({ minPrice: null, maxPrice: null });
-                  } else {
-                    const [min, max] = val.split('-');
-                    updateFilters({ minPrice: min, maxPrice: max });
-                  }
-                }}
-                className={cn(
-                  "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
-                  (minPriceParam || maxPriceParam)
-                    ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
-                )}
-              >
-                <option value="all">Price: All</option>
-                {priceBrackets.map((bracket) => (
-                  <option key={bracket.label} value={`${bracket.min}-${bracket.max}`}>
-                    {bracket.label}
-                  </option>
+        {/* Unified & Compact Filter Bar */}
+        <div className="mb-4 w-full flex flex-col bg-white/95 pt-2 pb-0 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
+            {/* Unified Scrollable Row: Shortcuts + Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+                {/* Category Shortcuts */}
+                {[
+                    { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
+                    { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+                    { label: 'Smartphones', icon: <Phone className="h-3.5 w-3.5" />, color: 'bg-purple-50 text-purple-700 border-purple-100' },
+                    { label: 'Computing', icon: <Laptop className="h-3.5 w-3.5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+                    { label: 'Appliances', icon: <Zap className="h-3.5 w-3.5" />, color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { label: 'Fashion', icon: <Shirt className="h-3.5 w-3.5" />, color: 'bg-pink-50 text-pink-700 border-pink-100' }
+                ].map(pill => (
+                    <button
+                        key={pill.label}
+                        onClick={() => updateFilters({ category: pill.label.toLowerCase() })}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer snap-start",
+                            pill.color,
+                            selectedCategory?.toLowerCase() === pill.label.toLowerCase() ? "ring-2 ring-offset-1 ring-current" : ""
+                        )}
+                    >
+                        {pill.icon}
+                        {pill.label}
+                    </button>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none mix-blend-difference opacity-50" />
-            </div>
 
-            {/* Category Dropdown as Pill (Native Select) */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={selectedCategory || "all"}
-                onChange={(e) => updateFilters({ category: e.target.value === "all" ? "" : e.target.value })}
-                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 capitalize"
-              >
-                <option value="all">All Categories</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            </div>
+                <div className="h-6 w-[1px] bg-gray-200 shrink-0 mx-1 snap-start" />
 
-            {/* Verified Only Pill */}
-            <button
-              onClick={() =>
-                updateFilters({ verified: isVerified ? null : "true" })
-              }
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border shrink-0 snap-start active:scale-95",
-                isVerified
-                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
-                  : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
-              )}
-            >
-              <ShieldCheck className="h-4 w-4" /> Verified
-            </button>
-
-            {/* Dynamic category filters as Native Select Pills */}
-            {categoryFilterGroups.map((group: FilterGroup) => {
-              const activeValues = attributeFilters[group.key] || [];
-              const isActive = activeValues.length > 0;
-              return (
-                <div key={group.key} className="relative shrink-0 snap-start">
-                  <select
-                    value={activeValues[0] || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "clear" || !val) {
-                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [] }));
-                        updateFilters({ [`attr_${group.key}`]: null });
-                      } else {
-                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [val] }));
-                        updateFilters({ [`attr_${group.key}`]: val });
-                      }
-                    }}
-                    className={cn(
-                      "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
-                      isActive
-                        ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                {/* Filters */}
+                <div className="flex items-center gap-2 shrink-0">
+                    {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000) && (
+                        <button
+                          onClick={() => {
+                            setAttributeFilters({});
+                            setPriceRange([0, 500000000]);
+                            setSelectedCategory(null);
+                            setIsVerified(false);
+                            const params = new URLSearchParams();
+                            if (query) params.set("q", query);
+                            router.push(`/search?${params.toString()}`, { scroll: false });
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 snap-start"
+                        >
+                          <Filter className="h-3 w-3" /> Clear
+                        </button>
                     )}
-                  >
-                    <option value="" disabled hidden>{group.label} {isActive ? `(1)` : ''}</option>
-                    {isActive && <option value="clear">✕ Clear {group.label}</option>}
-                    {group.options.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className={cn("absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none", isActive ? "text-gray-400" : "text-gray-400")} />
-                </div>
-              );
-            })}
-          </div>
 
-          {/* Bottom Row: Results Count */}
-          <div className="flex items-center border-t border-emerald-100/60 pt-2.5 px-2 bg-emerald-50/20 py-1.5 -mx-4 px-4 sm:mx-0 sm:px-4">
-              <p className="text-[12px] text-emerald-900 font-black tracking-tight">
-                {query ? (
-                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results for &quot;<span className="text-brand-orange italic underline decoration-2 underline-offset-4">{query}</span>&quot;</span>
-                ) : (
-                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results</span>
-                )}
-              </p>
-          </div>
+                    <div className="relative shrink-0 snap-start">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => updateFilters({ sort: e.target.value })}
+                        className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white"
+                      >
+                        <option value="relevance">Sort: Relevance</option>
+                        <option value="best_selling">Best Selling</option>
+                        <option value="top_rated">Top Rated</option>
+                        <option value="price_asc">Price: Low-High</option>
+                        <option value="price_desc">Price: High-Low</option>
+                        <option value="newest">Newest</option>
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                    </div>
+
+                    <button
+                      onClick={() => updateFilters({ verified: isVerified ? null : "true" })}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border shrink-0 snap-start",
+                        isVerified ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-700 border-gray-200"
+                      )}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" /> Verified
+                    </button>
+                </div>
+            </div>
+
+            {/* Compact Stats Bar */}
+            <div className="flex items-center border-t border-emerald-100/60 pt-2 px-2 bg-emerald-50/20 pb-2 -mx-4 px-4 sm:mx-0 sm:px-4">
+                <p className="text-[11px] text-emerald-900 font-bold">
+                    {query ? (
+                        <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length}</span> of <span className="text-emerald-600">{totalResultCount}</span> for &quot;<span className="text-brand-orange italic">{query}</span>&quot;</span>
+                    ) : (
+                        <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length}</span> products</span>
+                    )}
+                </p>
+            </div>
         </div>
 
         {!isMounted ? (
@@ -1159,118 +1282,100 @@ function SearchContent() {
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
           </div>
         ) : (
-        <div className="flex flex-col gap-8">
-          <div className="flex-1 w-full">
-            {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
-            {(() => {
-              const categories = DataSyncService.getCategories();
-              if (!categories || categories.length === 0) return null;
-              return (
-                <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
-                    Popular:
-                  </span>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        const isActive = cat.slug === selectedCategory;
-                        if (isActive) {
-                          // Deselect: go back to original query without category filter
-                          router.push(`/search?q=${encodeURIComponent(query)}`);
-                        } else {
-                          // Select: navigate to category search — show products in this category
-                          router.push(`/search?q=${encodeURIComponent(cat.name)}&category=${cat.slug}`);
-                        }
-                      }}
-                      className={cn(
-                        "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
-                        selectedCategory === cat.slug
-                          ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
-                          : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
-                      )}
-                    >
-                      {getCategoryIcon(cat.slug)}
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* UNIFIED SEARCH RESULTS GRID */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="flex-1 w-full">
+                {/* UNIFIED SEARCH RESULTS GRID */}
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
             {(() => {
+              // Brand logos: Clearbit proxied for generic brands; Konga Cloudinary for Nigeria-focused ones.
+              // Car logos served locally from /assets/images/Car-Logos/.
+              const cl = (domain: string) => getProxiedImageUrl(`https://logo.clearbit.com/${domain}`);
+              const KONGA_LOGOS: Record<string, string> = {
+                Samsung:            "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1773051339/contentservice/Samsung%20%281%29.png_kZoILOLhh.png",
+                Starlink:           "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765806394/contentservice/Starlink.png_SECFaL6qC.png",
+                Nivea:              "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1773051642/contentservice/Nivea%20Nigeria.png_xcgo2kuVLV.png",
+                LG:                 "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765806395/contentservice/LG.png_pchN-I8QNU.png",
+                Ecoflow:            "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765806394/contentservice/Ecoflow.png__FNiJvEUY.png",
+                Xiaomi:             "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765807199/contentservice/Xiaomi.png_lq_S8v0CpU.png",
+                Infinix:            "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765807199/contentservice/Infinix.png_VuCsg4N58.png",
+                Tecno:              "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765807199/contentservice/Tecno.png_gPH3Qt4kh.png",
+                "Haier Thermocool": "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765806394/contentservice/Haier%20Thermocool.png_4stAJ1XT5.png",
+                Huawei:             "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765807199/contentservice/Huawei.png_M9rYNoLyF.png",
+                HP:                 "https://www-konga-com-res.cloudinary.com/image/upload/f_auto,fl_lossy,dpr_auto,q_auto,w_256//v1765806395/contentservice/HP.png_ppnvIPanM.png",
+              };
+              const logo = (name: string, fallback: string) => KONGA_LOGOS[name] ?? cl(fallback);
+
               const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
                 cars: [
-                  { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
-                  { name: "Lexus", logo: "💎", logoImage: "/assets/images/Car-Logos/Lexus-logo.png" },
-                  { name: "Mercedes-Benz", logo: "⭐", logoImage: "/assets/images/Car-Logos/Benz-logo.png" },
-                  { name: "Honda", logo: "🏎️", logoImage: "/assets/images/Car-Logos/Honda-logo.png" },
-                  { name: "EVs", logo: "⚡" }, 
-                  { name: "Hyundai", logo: "🚙", logoImage: "/assets/images/Car-Logos/Hyundai-logo.png" },
-                  { name: "BYD", logo: "⚡", logoImage: "/assets/images/Car-Logos/BYD-Logo.png" },
-                  { name: "Tesla", logo: "⚡", logoImage: "/assets/images/Car-Logos/Tesla-Logo.png" },
-                  { name: "Xpeng", logo: "⚡", logoImage: "/assets/images/Car-Logos/Xpeng-Logo.png" },
-                  { name: "Xiaomi", logo: "📱", logoImage: "/assets/images/Car-Logos/Xiaomi-Logo.png" },
-                  { name: "Changan", logo: "🚗", logoImage: "/assets/images/Car-Logos/Changan-Logo.png" },
-                  { name: "GAC", logo: "🚗", logoImage: "/assets/images/Car-Logos/GAC-Logo.png" },
-                  { name: "Chevrolet", logo: "🚗", logoImage: "/assets/images/Car-Logos/Chevrolet-Logo.png" },
-                  { name: "BMW", logo: "🔵", logoImage: "/assets/images/Car-Logos/BMW-logo.png" },
-                  { name: "Kia", logo: "🔷", logoImage: "/assets/images/Car-Logos/Kia-logo.png" },
-                  { name: "Ford", logo: "🔘", logoImage: "/assets/images/Car-Logos/Ford-logo.png" },
-                  { name: "Range Rover", logo: "🏔️", logoImage: "/assets/images/Car-Logos/LandRover-logo.png" },
-                  { name: "Audi", logo: "⚪", logoImage: "/assets/images/Car-Logos/Audi-logo.png" },
-                  { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
+                  { name: "Toyota",      logo: "T",  logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
+                  { name: "Lexus",       logo: "L",  logoImage: "/assets/images/Car-Logos/Lexus-logo.png" },
+                  { name: "Mercedes-Benz", logo: "M", logoImage: "/assets/images/Car-Logos/Benz-logo.png" },
+                  { name: "Honda",       logo: "H",  logoImage: "/assets/images/Car-Logos/Honda-logo.png" },
+                  { name: "EVs",         logo: "EV" },
+                  { name: "Hyundai",     logo: "Hy", logoImage: "/assets/images/Car-Logos/Hyundai-logo.png" },
+                  { name: "BYD",         logo: "B",  logoImage: "/assets/images/Car-Logos/BYD-Logo.png" },
+                  { name: "Tesla",       logo: "T",  logoImage: "/assets/images/Car-Logos/Tesla-Logo.png" },
+                  { name: "Xpeng",       logo: "X",  logoImage: "/assets/images/Car-Logos/Xpeng-Logo.png" },
+                  { name: "Xiaomi",      logo: "Xi", logoImage: "/assets/images/Car-Logos/Xiaomi-Logo.png" },
+                  { name: "Changan",     logo: "C",  logoImage: "/assets/images/Car-Logos/Changan-Logo.png" },
+                  { name: "GAC",         logo: "G",  logoImage: "/assets/images/Car-Logos/GAC-Logo.png" },
+                  { name: "Chevrolet",   logo: "Ch", logoImage: "/assets/images/Car-Logos/Chevrolet-Logo.png" },
+                  { name: "BMW",         logo: "B",  logoImage: "/assets/images/Car-Logos/BMW-logo.png" },
+                  { name: "Kia",         logo: "K",  logoImage: "/assets/images/Car-Logos/Kia-logo.png" },
+                  { name: "Ford",        logo: "F",  logoImage: "/assets/images/Car-Logos/Ford-logo.png" },
+                  { name: "Range Rover", logo: "RR", logoImage: "/assets/images/Car-Logos/LandRover-logo.png" },
+                  { name: "Audi",        logo: "A",  logoImage: "/assets/images/Car-Logos/Audi-logo.png" },
+                  { name: "Innoson",     logo: "IN", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
                 ],
                 phones: [
-                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
-                  { name: "Tecno", logo: "T", logoImage: "/assets/images/Brand-Logos/Tecno-logo.png" },
-                  { name: "Infinix", logo: "I", logoImage: "/assets/images/Brand-Logos/Infinix-logo.png" },
-                  { name: "Xiaomi", logo: "X", logoImage: "/assets/images/Brand-Logos/Xiaomi-logo.png" },
-                  { name: "Oppo", logo: "O", logoImage: "/assets/images/Brand-Logos/Oppo-logo.png" },
-                  { name: "Vivo", logo: "V", logoImage: "/assets/images/Brand-Logos/Vivo-logo.png" },
-                  { name: "Nokia", logo: "N", logoImage: "/assets/images/Brand-Logos/Nokia-logo.png" },
-                  { name: "Google Pixel", logo: "G", logoImage: "/assets/images/Brand-Logos/Google-logo.png" },
-                  { name: "Huawei", logo: "H", logoImage: "/assets/images/Brand-Logos/Huawei-logo.png" },
-                  { name: "OnePlus", logo: "1+", logoImage: "/assets/images/Brand-Logos/OnePlus-logo.png" },
-                  { name: "Itel", logo: "i", logoImage: "/assets/images/Brand-Logos/Itel-logo.png" },
+                  { name: "Apple",       logo: "A",  logoImage: cl("apple.com") },
+                  { name: "Samsung",     logo: "S",  logoImage: logo("Samsung",  "samsung.com") },
+                  { name: "Tecno",       logo: "T",  logoImage: logo("Tecno",    "tecno.com") },
+                  { name: "Infinix",     logo: "I",  logoImage: logo("Infinix",  "infinixmobility.com") },
+                  { name: "Xiaomi",      logo: "X",  logoImage: logo("Xiaomi",   "xiaomi.com") },
+                  { name: "Oppo",        logo: "O",  logoImage: cl("oppo.com") },
+                  { name: "Vivo",        logo: "V",  logoImage: cl("vivo.com") },
+                  { name: "Nokia",       logo: "N",  logoImage: cl("nokia.com") },
+                  { name: "Google Pixel", logo: "G", logoImage: cl("google.com") },
+                  { name: "Huawei",      logo: "H",  logoImage: logo("Huawei",   "huawei.com") },
+                  { name: "OnePlus",     logo: "1+", logoImage: cl("oneplus.com") },
+                  { name: "Itel",        logo: "i",  logoImage: cl("itel-mobile.com") },
                 ],
                 electronics: [
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
-                  { name: "LG", logo: "LG", logoImage: "/assets/images/Brand-Logos/LG-logo.png" },
-                  { name: "Hisense", logo: "H", logoImage: "/assets/images/Brand-Logos/Hisense-logo.png" },
-                  { name: "Sony", logo: "S", logoImage: "/assets/images/Brand-Logos/Sony-logo.png" },
-                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
-                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
-                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
-                  { name: "Panasonic", logo: "P", logoImage: "/assets/images/Brand-Logos/Panasonic-logo.png" },
-                  { name: "Haier Thermocool", logo: "H", logoImage: "/assets/images/Brand-Logos/Haier-logo.png" },
-                  { name: "Scanfrost", logo: "SF", logoImage: "/assets/images/Brand-Logos/Scanfrost-logo.png" },
-                  { name: "Binatone", logo: "B", logoImage: "/assets/images/Brand-Logos/Binatone-logo.png" },
+                  { name: "Samsung",          logo: "S",  logoImage: logo("Samsung",          "samsung.com") },
+                  { name: "LG",               logo: "LG", logoImage: logo("LG",               "lg.com") },
+                  { name: "Hisense",          logo: "H",  logoImage: cl("hisense.com") },
+                  { name: "Sony",             logo: "S",  logoImage: cl("sony.com") },
+                  { name: "HP",               logo: "HP", logoImage: logo("HP",               "hp.com") },
+                  { name: "Starlink",         logo: "SL", logoImage: KONGA_LOGOS.Starlink },
+                  { name: "Ecoflow",          logo: "EF", logoImage: KONGA_LOGOS.Ecoflow },
+                  { name: "Dell",             logo: "D",  logoImage: cl("dell.com") },
+                  { name: "Apple",            logo: "A",  logoImage: cl("apple.com") },
+                  { name: "Haier Thermocool", logo: "HT", logoImage: logo("Haier Thermocool", "haier.com") },
+                  { name: "Scanfrost",        logo: "SF" },
+                  { name: "Binatone",         logo: "B",  logoImage: cl("binatone.com") },
                 ],
                 computers: [
-                  { name: "Apple MacBook", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
-                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
-                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
-                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
-                  { name: "Asus", logo: "A", logoImage: "/assets/images/Brand-Logos/Asus-logo.png" },
-                  { name: "Acer", logo: "A", logoImage: "/assets/images/Brand-Logos/Acer-logo.png" },
-                  { name: "Microsoft Surface", logo: "M", logoImage: "/assets/images/Brand-Logos/Microsoft-logo.png" },
-                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
+                  { name: "Apple MacBook", logo: "A", logoImage: cl("apple.com") },
+                  { name: "HP", logo: "HP", logoImage: cl("hp.com") },
+                  { name: "Dell", logo: "D", logoImage: cl("dell.com") },
+                  { name: "Lenovo", logo: "L", logoImage: cl("lenovo.com") },
+                  { name: "Asus", logo: "A", logoImage: cl("asus.com") },
+                  { name: "Acer", logo: "A", logoImage: cl("acer.com") },
+                  { name: "Microsoft Surface", logo: "M", logoImage: cl("microsoft.com") },
+                  { name: "Samsung", logo: "S", logoImage: cl("samsung.com") },
                 ],
                 fashion: [
-                  { name: "Nike", logo: "N", logoImage: "/assets/images/Brand-Logos/Nike-logo.png" },
-                  { name: "Adidas", logo: "A", logoImage: "/assets/images/Brand-Logos/Adidas-logo.png" },
-                  { name: "Zara", logo: "Z", logoImage: "/assets/images/Brand-Logos/Zara-logo.png" },
-                  { name: "H&M", logo: "H", logoImage: "/assets/images/Brand-Logos/HM-logo.png" },
-                  { name: "Gucci", logo: "G", logoImage: "/assets/images/Brand-Logos/Gucci-logo.png" },
-                  { name: "Louis Vuitton", logo: "LV", logoImage: "/assets/images/Brand-Logos/LV-logo.png" },
-                  { name: "Balenciaga", logo: "B", logoImage: "/assets/images/Brand-Logos/Balenciaga-logo.png" },
-                  { name: "Prada", logo: "P", logoImage: "/assets/images/Brand-Logos/Prada-logo.png" },
+                  { name: "Nike", logo: "N", logoImage: cl("nike.com") },
+                  { name: "Adidas", logo: "A", logoImage: cl("adidas.com") },
+                  { name: "Zara", logo: "Z", logoImage: cl("zara.com") },
+                  { name: "H&M", logo: "H", logoImage: cl("hm.com") },
+                  { name: "Gucci", logo: "G", logoImage: cl("gucci.com") },
+                  { name: "Louis Vuitton", logo: "LV", logoImage: cl("louisvuitton.com") },
+                  { name: "Balenciaga", logo: "B", logoImage: cl("balenciaga.com") },
+                  { name: "Prada", logo: "P", logoImage: cl("prada.com") },
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
@@ -1308,10 +1413,10 @@ function SearchContent() {
                               alt={brand.name}
                               className="h-7 w-auto max-w-[52px] object-contain"
                               onError={(e) => {
-                                const el = e.currentTarget;
-                                el.style.display = "none";
-                                const sib = el.nextElementSibling as HTMLElement | null;
-                                if (sib) sib.style.display = "flex";
+                                // Hide failed logo image and reveal the text-badge fallback
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                if (fallback) fallback.style.display = 'flex';
                               }}
                             />
                           ) : null}
@@ -1362,7 +1467,7 @@ function SearchContent() {
 
                   {/* Inline Loading skeletons for global search when active */}
                   {isGlobalSearching &&
-                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, (combinedCurrentResults.length + catalogueFallback.length) > 0 ? 4 : 8).map((i) => (
+                    [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                       <div
                         key={`skeleton-${i}`}
                         className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm h-[320px]"
@@ -1380,7 +1485,7 @@ function SearchContent() {
                       <NextLink
                         href={{
                           pathname: '/search',
-                          query: { ...Object.fromEntries(searchParams.entries()), page: page + 1 }
+                          query: { ...(searchParams ? Object.fromEntries(searchParams.entries()) : {}), page: page + 1 }
                         }}
                         scroll={false}
                         onClick={(e) => {
@@ -1398,7 +1503,8 @@ function SearchContent() {
             {combinedCurrentResults.length === 0 && isGlobalSearching && (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
-                <p className="text-gray-600 text-sm">Finding similar products...</p>
+                <p className="text-gray-600 text-sm font-medium">Finding products across global suppliers...</p>
+                <p className="text-gray-400 text-xs mt-1">This usually takes 5-10 seconds</p>
               </div>
             )}
 
@@ -1408,7 +1514,7 @@ function SearchContent() {
                   {globalSearchError && (
                     <div className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 font-medium">
                       <span>⚠️</span>
-                      <span>Global AI search is temporarily unavailable. Showing matching products from our catalogue.</span>
+                      <span>{globalSearchError}</span>
                     </div>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1456,10 +1562,8 @@ function SearchContent() {
               )
             )}
 
-            {/* See more results Button — always visible when there's a valid query */}
-            {query &&
-              query.trim().length > 2 &&
-              combinedCurrentResults.length > 0 && (
+            {/* See more results Button — visible whenever there's a valid query */}
+            {query && query.trim().length > 2 && (
                 <div className="flex justify-center my-10 relative">
                   <div
                     className="absolute inset-0 flex items-center"
@@ -1516,9 +1620,8 @@ function SearchContent() {
                   </div>
                 ))}
 
-                {/* Phase 5: High-Fidelity Discovery & Personalization */}
+                {/* Phase 5: Personalization */}
                 <div className="mt-6 space-y-6">
-                   <StoreDiscoveryRail />
                    <RecommendedProducts 
                       title="Recommended For You" 
                       products={allProducts}
@@ -1526,6 +1629,9 @@ function SearchContent() {
                 </div>
               </div>
             )}
+
+            {/* Store Discovery Rail — ALWAYS visible, renders instantly */}
+            <StoreDiscoveryRail />
 
             {/* RELATED SEARCHES (Temu Style) */}
             {combinedCurrentResults.length > 0 && query && (
@@ -1571,12 +1677,13 @@ function SearchContent() {
             )}
           </div>
         </div>
-        )}
-      </main>
+      </div>
+      )}
+    </main>
 
-      <Footer />
-    </div>
-  );
+    <Footer />
+  </div>
+);
 }
 
 export default function SearchPage() {

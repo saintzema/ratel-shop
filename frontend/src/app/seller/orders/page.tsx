@@ -29,10 +29,12 @@ import {
     XCircle,
     Car,
     Banknote,
-    CreditCard
+    CreditCard,
+    MessageSquarePlus,
+    Loader2
 } from "lucide-react";
 
-export default function SellerOrders() {
+function SellerOrdersContent() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
     const [search, setSearch] = useState("");
@@ -42,6 +44,19 @@ export default function SellerOrders() {
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
     const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
     const [cancelReason, setCancelReason] = useState<string>("");
+    
+    // Shipping Form State (Controlled)
+    const [shipCarrier, setShipCarrier] = useState("");
+    const [shipTrackingId, setShipTrackingId] = useState("");
+    const [shipDriverName, setShipDriverName] = useState("");
+    const [shipDriverPhone, setShipDriverPhone] = useState("");
+    const [shipLocation, setShipLocation] = useState("Lagos Warehouse");
+    const [shipArrivalDate, setShipArrivalDate] = useState("");
+    const [warehouses, setWarehouses] = useState<{name: string, address: string}[]>([]);
+    // Per-order status note drafts (keyed by order id)
+    const [statusNotes, setStatusNotes] = useState<Record<string, string>>({});
+    const [sendingNote, setSendingNote] = useState<string | null>(null);
+
     const searchParams = useSearchParams();
 
     // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
@@ -62,7 +77,33 @@ export default function SellerOrders() {
             setReturnRequests(DataSyncService.getReturnRequests(sellerId));
         };
 
+        const loadWarehouses = async () => {
+            try {
+                const res = await fetch("/api/admin/settings");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.supportConfig?.serviceCenters) {
+                        setWarehouses(data.supportConfig.serviceCenters);
+                        // If current shipLocation is default, and we have warehouses, maybe pick the first one?
+                        // Or keep "Lagos Warehouse" as a fallback if it's not in the list.
+                    }
+                } else {
+                    // Fallback to local storage if API fails
+                    const local = localStorage.getItem("fp_admin_settings");
+                    if (local) {
+                        const data = JSON.parse(local);
+                        if (data.supportConfig?.serviceCenters) {
+                            setWarehouses(data.supportConfig.serviceCenters);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load warehouses", err);
+            }
+        };
+
         loadOrders();
+        loadWarehouses();
         window.addEventListener("storage", loadOrders);
         window.addEventListener("sync-store-update", loadOrders);
         return () => {
@@ -129,6 +170,44 @@ export default function SellerOrders() {
         // Reload to show pending layout
         if (seller.id) {
             setOrders(DataSyncService.getOrders().filter(o => o.seller_id === seller.id));
+        }
+    };
+
+    const handleSendStatusNote = async (order: Order) => {
+        const note = (statusNotes[order.id] || '').trim();
+        if (!note) return;
+        setSendingNote(order.id);
+        try {
+            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+            await fetch('/api/orders', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ id: order.id, status_note: note }),
+            });
+            // Notify buyer
+            DataSyncService.addNotification({
+                userId: order.customer_id,
+                type: 'order',
+                message: `📋 Update on your order "${order.product?.name}": ${note}`,
+                link: '/account/orders',
+            });
+            // Notify admin
+            DataSyncService.addNotification({
+                userId: 'admin',
+                type: 'order',
+                message: `📋 Seller note on order ${order.id}: ${note}`,
+                link: '/admin/orders',
+            });
+            // Clear the draft and update local orders list
+            setStatusNotes(prev => ({ ...prev, [order.id]: '' }));
+            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status_note: note } : o));
+        } catch {
+            alert('Failed to send update. Please try again.');
+        } finally {
+            setSendingNote(null);
         }
     };
 
@@ -463,63 +542,100 @@ export default function SellerOrders() {
                                                             </div>
                                                         )}
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                                            <Input
-                                                                placeholder="Carrier (RT Logistics, DHL...)"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                id={`carrier-${order.id}`}
-                                                            />
-                                                            <Input
-                                                                placeholder="Tracking ID"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                id={`tracking-${order.id}`}
-                                                            />
-                                                            <Input
-                                                                placeholder="Driver Name *"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                id={`driver-name-${order.id}`}
-                                                            />
-                                                            <Input
-                                                                placeholder="Driver Phone *"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                id={`driver-phone-${order.id}`}
-                                                                inputMode="tel"
-                                                            />
-                                                            <Input
-                                                                placeholder="Current Location"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                defaultValue="Lagos Warehouse"
-                                                                id={`location-${order.id}`}
-                                                            />
-                                                            <Input
-                                                                placeholder="Est. Delivery Date"
-                                                                type="date"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                id={`est-delivery-${order.id}`}
-                                                            />
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Shipping Carrier</label>
+                                                                <Input
+                                                                    placeholder="Carrier (RT Logistics, DHL...)"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipCarrier}
+                                                                    onChange={(e) => setShipCarrier(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Tracking ID (Optional)</label>
+                                                                <Input
+                                                                    placeholder="Tracking ID"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipTrackingId}
+                                                                    onChange={(e) => setShipTrackingId(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Driver's Name</label>
+                                                                <Input
+                                                                    placeholder="Driver Name *"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipDriverName}
+                                                                    onChange={(e) => setShipDriverName(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Driver's Phone Number</label>
+                                                                <Input
+                                                                    placeholder="Driver Phone *"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipDriverPhone}
+                                                                    onChange={(e) => setShipDriverPhone(e.target.value)}
+                                                                    inputMode="tel"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Warehouse / Drop-off Location</label>
+                                                                <div className="relative">
+                                                                    <select
+                                                                        className="w-full h-9 text-xs rounded-lg border border-gray-200 bg-white px-3 appearance-none focus:ring-2 focus:ring-purple-500/20 outline-none font-medium"
+                                                                        value={shipLocation}
+                                                                        onChange={(e) => setShipLocation(e.target.value)}
+                                                                    >
+                                                                        <option value="Lagos Warehouse">Lagos Warehouse (Default)</option>
+                                                                        <option value="Abuja Warehouse">Abuja Warehouse</option>
+                                                                        {warehouses.map((w, idx) => (
+                                                                            <option key={idx} value={w.name}>{w.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Est. Arrival at Warehouse</label>
+                                                                <Input
+                                                                    placeholder="Est. Delivery Date"
+                                                                    type="date"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipArrivalDate}
+                                                                    onChange={(e) => setShipArrivalDate(e.target.value)}
+                                                                />
+                                                            </div>
                                                         </div>
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
-                                                                const carrier = (document.getElementById(`carrier-${order.id}`) as HTMLInputElement)?.value;
-                                                                const trackingId = (document.getElementById(`tracking-${order.id}`) as HTMLInputElement)?.value;
-                                                                const location = (document.getElementById(`location-${order.id}`) as HTMLInputElement)?.value || "In transit";
-                                                                const driverName = (document.getElementById(`driver-name-${order.id}`) as HTMLInputElement)?.value;
-                                                                const driverPhone = (document.getElementById(`driver-phone-${order.id}`) as HTMLInputElement)?.value;
-
                                                                 // Enforce required fields
-                                                                if (!carrier || !driverName || !driverPhone) {
+                                                                if (!shipCarrier || !shipDriverName || !shipDriverPhone) {
                                                                     alert("Please fill in the Carrier, Driver Name, and Driver Phone before marking as shipped.");
                                                                     return;
                                                                 }
 
-                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
+                                                                const locationWithDate = shipArrivalDate 
+                                                                    ? `${shipLocation} (Est. Arrival: ${shipArrivalDate})`
+                                                                    : shipLocation;
+
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", locationWithDate, shipCarrier, shipTrackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
+
+                                                                // Reset form
+                                                                setShipCarrier("");
+                                                                setShipTrackingId("");
+                                                                setShipDriverName("");
+                                                                setShipDriverPhone("");
+                                                                setShipLocation("Lagos Warehouse");
+                                                                setShipArrivalDate("");
 
                                                                 // Send notification to admin with driver details
                                                                 DataSyncService.addNotification({
                                                                     userId: "admin",
                                                                     type: "order",
-                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
+                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${shipDriverName} (${shipDriverPhone}). Carrier: ${shipCarrier}. Tracking: ${shipTrackingId || 'N/A'}`,
                                                                     link: "/admin/orders"
                                                                 });
 
@@ -527,7 +643,7 @@ export default function SellerOrders() {
                                                                 DataSyncService.addNotification({
                                                                     userId: order.customer_id,
                                                                     type: "order",
-                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${driverName}. Tracking: ${trackingId || carrier}.`,
+                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${shipDriverName}. Tracking: ${shipTrackingId || shipCarrier}.`,
                                                                     link: "/account/orders"
                                                                 });
                                                             }}
@@ -779,6 +895,40 @@ export default function SellerOrders() {
                                                             </div>
                                                         </div>
                                                     )}
+                                                </div>
+                                            </div>
+
+                                            {/* Seller Status Note — visible to buyer and admin */}
+                                            <div className="mt-4 pt-4 border-t border-gray-100">
+                                                <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                    <MessageSquarePlus className="h-3 w-3" /> Send Order Update to Buyer
+                                                </h5>
+                                                {/* Show existing note if set */}
+                                                {order.status_note && (
+                                                    <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                                                        <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Current Update</p>
+                                                        <p className="text-xs text-amber-800">{order.status_note}</p>
+                                                    </div>
+                                                )}
+                                                <div className="flex gap-2">
+                                                    <textarea
+                                                        rows={2}
+                                                        placeholder='e.g. "Item held in customs — expected clearance in 3 days"'
+                                                        value={statusNotes[order.id] || ''}
+                                                        onChange={e => setStatusNotes(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                                        className="flex-1 text-xs rounded-lg border border-gray-200 px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 placeholder:text-gray-300"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={!statusNotes[order.id]?.trim() || sendingNote === order.id}
+                                                        onClick={() => handleSendStatusNote(order)}
+                                                        className="self-end bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold h-9 px-3 shrink-0"
+                                                    >
+                                                        {sendingNote === order.id
+                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                            : <span className="flex items-center gap-1"><MessageSquarePlus className="h-3 w-3" />Send</span>
+                                                        }
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </div>
@@ -1046,5 +1196,15 @@ export default function SellerOrders() {
                 </div>
             )}
         </div>
+    );
+}
+
+
+import { Suspense } from "react";
+export default function SellerOrders() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="h-6 w-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /></div>}>
+            <SellerOrdersContent />
+        </Suspense>
     );
 }

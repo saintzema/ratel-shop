@@ -16,9 +16,10 @@ export default async function ProductRedirect({ params }: Props) {
 
     // Attempt to fetch the real product name from DB
     try {
-        const dbProduct = await db.product.findUnique({ where: { id: decodedId } });
+        const dbProduct = await db.product.findUnique({ where: { id: decodedId }, select: { name: true, slug: true } as any }) as any;
         if (dbProduct) {
             productName = dbProduct.name;
+            return redirect(getProductUrl(decodedId, productName, dbProduct.slug || undefined));
         } else {
             const seedMatch = SEED_PRODUCTS.find(p => p.id === decodedId);
             if (seedMatch) {

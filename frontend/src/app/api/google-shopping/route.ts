@@ -6,25 +6,39 @@ import { SEED_PRODUCTS } from '@/lib/data';
 export const revalidate = 3600;
 
 export async function GET() {
-    const baseUrl = "https://fairprice.ng";
+    const baseUrl = "https://www.fairprice.ng";
     
     // 1. Fetch products (SEED + DB)
     let allProducts = [...SEED_PRODUCTS];
     try {
+        // We use a safe query. If columns like soldCount or isActive are missing (P2022), 
+        // the catch block will handle it and we fallback to SEED_PRODUCTS.
         const dbProducts = await db.product.findMany({ 
             where: { isActive: true },
             orderBy: { soldCount: 'desc' },
             take: 500 
         });
-        // @ts-ignore
-        if (dbProducts.length > 0) {
-            // Deduplicate if needed
+
+        if (dbProducts && dbProducts.length > 0) {
+            // Deduplicate: Don't add if already in SEED
             const seedIds = new Set(SEED_PRODUCTS.map(p => p.id));
-            const filteredDb = dbProducts.filter(p => !seedIds.has(p.id));
-            allProducts.push(...filteredDb as any);
+            
+            // Normalize DB products to match the expected Product interface (snake_case for logic)
+            const normalizedDb = dbProducts.filter(p => !seedIds.has(p.id)).map((p: any) => ({
+                ...p,
+                image_url: p.imageUrl || p.image_url,
+                is_active: p.isActive,
+                sold_count: p.soldCount,
+                original_price: p.originalPrice,
+                recommended_price: p.recommendedPrice,
+                seller_id: p.sellerId,
+                seller_name: p.sellerName,
+            }));
+
+            allProducts.push(...normalizedDb as any);
         }
     } catch(e) {
-        console.error("GMC Feed: Database fetch failed, falling back to seed data.", e);
+        console.error("GMC Feed: Database fetch failed (likely schema mismatch P2022). Falling back to seed data.", e);
     }
 
     // 2. Format into GMC XML (RSS 2.0)

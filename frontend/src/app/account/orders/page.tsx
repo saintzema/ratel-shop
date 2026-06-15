@@ -71,8 +71,19 @@ function OrdersContent() {
 
     const loadData = () => {
         if (!user) return;
+        const allProducts = DataSyncService.getProducts();
         const allOrders = DataSyncService.getOrders();
-        const userOrders = allOrders.filter(o =>
+        
+        // Enrich orders with full product data if missing
+        const enrichedOrders = allOrders.map(o => {
+            if (!o.product && o.product_id) {
+                const found = allProducts.find(p => p.id === o.product_id);
+                if (found) return { ...o, product: found };
+            }
+            return o;
+        });
+
+        const userOrders = enrichedOrders.filter(o =>
             o.customer_id === user.email ||
             o.customer_id === user.id
         );
@@ -86,10 +97,21 @@ function OrdersContent() {
             n.customer_name === user.name
         ));
 
-        setProducts(DataSyncService.getProducts());
+        setProducts(allProducts);
     };
 
-    useEffect(() => { loadData(); }, [user]);
+    useEffect(() => {
+        loadData();
+        // Proactive sync for latest orders
+        DataSyncService.syncWithDB("orders", true);
+        
+        window.addEventListener("storage", loadData);
+        window.addEventListener("sync-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("sync-store-update", loadData);
+        };
+    }, [user]);
 
     // Handle checkout success redirect — runs ONCE only
     useEffect(() => {
@@ -122,21 +144,17 @@ function OrdersContent() {
 
     const handleConfirmDelivery = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+        
+        // updateOrderStatus already handles notifications for 'delivered' status
         DataSyncService.updateOrderStatus(orderId, "delivered");
         DataSyncService.releaseEscrow(orderId);
-        DataSyncService.addNotification({
-            userId: user?.email || "guest",
-            type: "order",
-            message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
-            link: `${getProductUrl(order?.product_id || "", order?.product?.name || "")}?review=true`
-        });
+        
         loadData();
 
-        if (order) {
-            setConciergeOrder({ ...order, status: "delivered" });
-            setConciergeMode("review");
-            setShowConcierge(true);
-        }
+        setConciergeOrder({ ...order, status: "delivered" });
+        setConciergeMode("review");
+        setShowConcierge(true);
     };
 
     // Auto-open tracking/details modal from notifications
@@ -149,6 +167,28 @@ function OrdersContent() {
             }
         }
     }, [searchParams, orders, selectedOrderForTracking]);
+
+    // Handle Deep-linking for Ziva Concierge
+    useEffect(() => {
+        const orderId = searchParams?.get("orderId");
+        const openConcierge = searchParams?.get("openConcierge") === "true";
+        
+        if (orderId && openConcierge && orders.length > 0 && !showConcierge) {
+            const order = orders.find(o => o.id === orderId || o.tracking_id === orderId);
+            if (order) {
+                setConciergeOrder(order);
+                setConciergeMode("post_order");
+                setShowConcierge(true);
+                
+                // Clear params from URL to avoid re-opening on refresh
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.delete("orderId");
+                newParams.delete("openConcierge");
+                const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : "");
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, [searchParams, orders, showConcierge]);
 
     const handleCancelOrder = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
@@ -342,7 +382,7 @@ function OrdersContent() {
                                                 {/* Desktop Row */}
                                                 <div className="hidden md:grid grid-cols-[44px_minmax(0,1fr)_110px_110px_100px_120px] gap-3 px-4 py-3 items-center hover:bg-white transition-colors">
                                                     {/* Thumbnail */}
-                                                    <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <Link href={getProductUrl(order.product)} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img
                                                             src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                             alt={order.product?.name || "Product"}
@@ -353,7 +393,7 @@ function OrdersContent() {
 
                                                     {/* Product Info */}
                                                     <div className="min-w-0">
-                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
+                                                        <Link href={getProductUrl(order.product)} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
                                                             {order.product?.name || "Product"}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
@@ -362,6 +402,12 @@ function OrdersContent() {
                                                                 <span className="text-[10px] text-gray-400">• {order.carrier || "Track"}: {order.tracking_id}</span>
                                                             )}
                                                         </div>
+                                                        {order.status_note && (
+                                                            <div className="mt-1 flex items-start gap-1.5 px-2 py-1 bg-amber-50 border border-amber-100 rounded-md max-w-sm">
+                                                                <span className="text-amber-500 text-[10px] mt-0.5 shrink-0">📋</span>
+                                                                <span className="text-[11px] text-amber-800 leading-snug">{order.status_note}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <span className="text-xs text-gray-500 whitespace-nowrap">
@@ -422,7 +468,7 @@ function OrdersContent() {
                                                 {/* Mobile Card */}
                                                 <div className="md:hidden p-4 space-y-3">
                                                     <div className="flex items-center gap-3">
-                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                        <Link href={getProductUrl(order.product)} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                             <img
                                                                 src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                                 alt={order.product?.name || "Product"}
@@ -431,7 +477,7 @@ function OrdersContent() {
                                                             />
                                                         </Link>
                                                         <div className="flex-1 min-w-0">
-                                                            <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
+                                                            <Link href={getProductUrl(order.product)} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
                                                                 {order.product?.name || "Product"}
                                                             </Link>
                                                             <div className="flex items-center gap-2 mt-0.5">
@@ -488,7 +534,7 @@ function OrdersContent() {
                                 <h3 className="font-bold text-sm text-white">Negotiate a Price</h3>
                             </div>
                             <p className="text-xs text-emerald-100 leading-relaxed mb-3">
-                                Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you never overpay.
+                                Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you buy & sell with no wahala.
                             </p>
                             <Link href="/account/negotiations">
                                 <Button size="sm" className="w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold text-xs rounded-lg shadow-sm">
@@ -729,13 +775,34 @@ function OrdersContent() {
                                 )}
                             </div>
 
+                            {/* Delivery Info */}
+                            <div className="px-5 py-4 border-b border-gray-100 space-y-2.5">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">Delivery Info</h3>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-gray-900">{selectedOrderForTracking.customer_name || user?.name}</p>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{selectedOrderForTracking.shipping_address || 'Standard Shipping Address'}</p>
+                                    <p className="text-[11px] font-medium text-brand-green-600 mt-1">{selectedOrderForTracking.customer_phone || selectedOrderForTracking.customer_whatsapp || user?.phone || 'No phone attached'}</p>
+                                </div>
+                            </div>
+
+                            {/* Seller Status Note */}
+                            {selectedOrderForTracking.status_note && (
+                                <div className="mx-5 my-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex gap-2">
+                                    <span className="text-amber-500 text-sm shrink-0">📋</span>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Seller Update</p>
+                                        <p className="text-xs text-amber-800 leading-snug">{selectedOrderForTracking.status_note}</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Tracking Steps */}
                             <div className="px-5 py-4 space-y-4 max-h-[40vh] overflow-y-auto">
                                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Tracking</h3>
                                 <div className="relative">
                                     <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-200" />
                                     <div className="space-y-4">
-                                        {(selectedOrderForTracking.tracking_steps || [
+                                        {((selectedOrderForTracking.tracking_steps && selectedOrderForTracking.tracking_steps.length > 0) ? selectedOrderForTracking.tracking_steps : [
                                             { status: "Order Placed", location: "System", timestamp: selectedOrderForTracking.created_at, completed: true }
                                         ]).map((step, i) => (
                                             <div key={i} className="relative flex gap-4 pl-8">

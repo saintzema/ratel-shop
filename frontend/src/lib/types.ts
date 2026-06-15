@@ -15,6 +15,7 @@ export interface User {
     emailVerified?: boolean;
     phone?: string;
     phone_numbers?: string[];
+    whatsapp?: string;
     created_at: string;
 }
 
@@ -72,6 +73,20 @@ export interface Seller {
     physical_stores?: string;
     joined_at?: string;
     created_at?: string;
+    seller_role?: string;
+    auto_payout_enabled?: boolean;
+    whatsapp?: string;
+    ziva_whatsapp_bridge?: boolean;
+}
+
+export interface ProductVariant {
+    id: string;
+    name: string;
+    price: number;
+    original_price?: number;
+    image_url?: string;
+    stock?: number;
+    is_default?: boolean;
 }
 
 export interface Product {
@@ -99,7 +114,9 @@ export interface Product {
     external_url?: string;
     highlights?: string[];
     financing_available?: boolean;
+    financing_deposit_pct?: number;
     financing_down_payment?: number;
+    is_direct_payment?: boolean;
     condition?: "brand_new" | "used" | "refurbished";
     colors?: string[];
     subcategory?: string;
@@ -118,6 +135,8 @@ export interface Product {
         phone?: string;
         whatsapp?: string;
     };
+    slug?: string;
+    variants?: ProductVariant[];
 }
 
 export interface Order {
@@ -166,6 +185,7 @@ export interface Order {
     source?: string;
     seller_name?: string;
     discount_id?: string;
+    status_note?: string;  // Seller-added note visible to buyer & admin (e.g. "held in customs")
     // Vehicle Loan Financing details (set when isVehicle is true)
     financing?: {
         is_vehicle_loan: boolean;
@@ -179,6 +199,11 @@ export interface Order {
         condition?: string;          // new | foreign_used | nigerian_used
         loan_type?: string;          // bnpl | lease
     };
+    payment_proof_url?: string;
+    payment_verified_at?: string;
+    payment_declined_at?: string;
+    payment_decline_reason?: string;
+    is_direct_payment?: boolean;
 }
 
 export interface ReturnRequest {
@@ -205,6 +230,7 @@ export interface NegotiationRequest {
     proposed_price: number;
     message?: string;
     status: "pending" | "accepted" | "rejected" | "countered" | "purchased";
+    customer_whatsapp?: string;
     counter_price?: number;
     counter_message?: string;
     counter_status?: "pending" | "accepted" | "rejected" | "purchased";
@@ -320,40 +346,62 @@ export interface CartItem {
 
 export interface Notification {
     id: string;
-    type: "system" | "order" | "negotiation" | "promo";
+    type: "system" | "order" | "negotiation" | "promo" | "message";
     title?: string;
     message: string;
     read: boolean;
     timestamp: string;
     link?: string;
     userId?: string;
+    imageUrl?: string;
 }
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "tablets" | "computers" | "appliances" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "fitness" | "health" | "machinery" | "industrial" | "agriculture" | "construction" | "medical" | "furniture" | "office" | "sports" | "baby" | "grocery" | "smartwatch";
+export type ProductCategory = "all" | "trending" | "best_selling" | "solar" | "streaming_kits" | "phones" | "gaming" | "computers" | "fashion" | "cars" | "grocery" | "home_office" | "evs" | "industrial" | "health" | "automotive" | "bags" | "women" | "jewelry" | "household" | "toys" | "crafts" | "men" | "sports" | "kids" | "beauty" | "office" | "baby" | "garden" | "pets" | "musical" | "appliances" | "food" | "books" | "tablets" | "electronics" | "energy" | "machinery" | "agriculture" | "construction" | "medical" | "furniture" | "smartwatch" | "vehicles" | "home" | "fitness";
 
-export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[] }[] = [
+export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[], adminOnly?: boolean }[] = [
+    { value: "trending", label: "Trending", subcategories: [], adminOnly: true },
+    { value: "best_selling", label: "Best-Selling", subcategories: [], adminOnly: true },
+    { value: "solar", label: "Solar", subcategories: ["Panels", "Inverters", "Batteries"] },
+    { value: "streaming_kits", label: "Streaming Kits", subcategories: ["Microphones", "Ring Lights", "Webcams", "Capture Cards"] },
     { value: "phones", label: "Phones", subcategories: ["Smartphones", "Feature Phones", "Refurbished Phones", "Accessories"] },
-    { value: "tablets", label: "Tablets", subcategories: ["iPads", "Android Tablets", "Drawing Tablets"] },
-    { value: "computers", label: "Computers", subcategories: ["Laptops", "Desktops", "Monitors", "Networking", "Components"] },
-    { value: "appliances", label: "Appliances", subcategories: ["Fans", "Generators", "Air Conditioning", "Refrigerators", "Microwaves"] },
-    { value: "electronics", label: "Electronics", subcategories: ["Audio", "Headphones", "Smart Home", "Drones", "Cameras", "TV & Video"] },
-    { value: "machinery", label: "Machinery", subcategories: ["Lathes", "CNC Machines", "Industrial Pumps", "Boilers", "Conveyor Systems"] },
-    { value: "industrial", label: "Industrial Tools", subcategories: ["Power Tools", "Welding Equipment", "Air Compressors", "Safety Gear"] },
-    { value: "agriculture", label: "Agro & Farming", subcategories: ["Tractors", "Irrigation Systems", "Harvesters", "Poultry Equipment"] },
-    { value: "energy", label: "Energy & Solar", subcategories: ["Solar Panels", "Inverters", "Batteries", "Solar Street Lights"] },
-    { value: "fashion", label: "Fashion", subcategories: ["Men's Wear", "Women's Wear", "Kids", "Bags", "Shoes", "Sneakers", "Watches"] },
-    { value: "beauty", label: "Beauty", subcategories: ["Skincare", "Makeup", "Fragrances", "Haircare", "Personal Care"] },
-    { value: "health", label: "Health", subcategories: ["Fitness", "Supplements", "Medical Supplies", "Diagnostic Gear"] },
-    { value: "home", label: "Home", subcategories: ["Kitchenware", "Bedding", "Decor", "Furniture", "Lighting"] },
     { value: "gaming", label: "Gaming", subcategories: ["Consoles", "Gaming PCs", "Accessories", "Video Games"] },
-    { value: "vehicles", label: "Vehicles", subcategories: ["Cars", "Motorcycles", "Tricycles", "Buses", "Vans"] },
-    { value: "automotive", label: "Auto Parts", subcategories: ["Engines", "Tyres", "Oils & Fluids", "Batteries"] },
-    { value: "sports", label: "Sports", subcategories: ["Exercise Equipment", "Outdoor Gear", "Sportswear"] },
-    { value: "baby", label: "Baby Products", subcategories: ["Baby Care", "Diapers", "Baby Toys", "Gear"] },
+    { value: "computers", label: "Computers", subcategories: ["Laptops", "Desktops", "Monitors", "Networking", "Components"] },
+    { value: "fashion", label: "Fashion", subcategories: ["Men's Wear", "Women's Wear", "Kids", "Bags", "Shoes", "Sneakers", "Watches"] },
+    { value: "cars", label: "Cars", subcategories: ["SUVs", "Sedans", "Trucks", "Luxury"] },
     { value: "grocery", label: "Grocery", subcategories: ["Food", "Beverages", "Household", "Personal Care"] },
-    { value: "smartwatch", label: "Smartwatches", subcategories: ["Apple Watch", "Samsung Gear", "Fitness Trackers"] },
+    { value: "home_office", label: "Home Office", subcategories: ["Desks", "Ergonomic Chairs", "Stationery", "Organizers"] },
+    { value: "evs", label: "EVs", subcategories: ["Electric Cars", "Electric Bikes", "Charging Stations"] },
+    { value: "industrial", label: "Industrial", subcategories: ["Power Tools", "Welding Equipment", "Air Compressors", "Safety Gear"] },
+    { value: "health", label: "Health", subcategories: ["Fitness", "Supplements", "Medical Supplies", "Diagnostic Gear"] },
+    { value: "automotive", label: "Automotive", subcategories: ["Auto Parts", "Engines", "Tyres", "Oils & Fluids", "Batteries"] },
+    { value: "bags", label: "Bags", subcategories: ["Backpacks", "Handbags", "Luggage", "Briefcases"] },
+    { value: "women", label: "Women", subcategories: ["Clothing", "Shoes", "Accessories"] },
+    { value: "jewelry", label: "Jewelry", subcategories: ["Necklaces", "Rings", "Earrings", "Watches"] },
+    { value: "household", label: "Household", subcategories: ["Cleaning", "Storage", "Laundry"] },
+    { value: "toys", label: "Toy", subcategories: ["Action Figures", "Educational", "Board Games"] },
+    { value: "crafts", label: "Crafts", subcategories: ["Art Supplies", "DIY Kits", "Sewing"] },
+    { value: "men", label: "Men", subcategories: ["Clothing", "Shoes", "Accessories"] },
+    { value: "sports", label: "Sports", subcategories: ["Exercise Equipment", "Outdoor Gear", "Sportswear"] },
+    { value: "kids", label: "Kids", subcategories: ["Clothing", "Shoes", "Toys"] },
+    { value: "beauty", label: "Beauty", subcategories: ["Skincare", "Makeup", "Fragrances", "Haircare", "Personal Care"] },
+    { value: "office", label: "Office", subcategories: ["Printers", "Shredders", "Supplies"] },
+    { value: "baby", label: "Baby", subcategories: ["Baby Care", "Diapers", "Baby Toys", "Gear"] },
+    { value: "garden", label: "Garden", subcategories: ["Tools", "Plants", "Outdoor Furniture"] },
+    { value: "pets", label: "Pets", subcategories: ["Food", "Toys", "Beds", "Collars"] },
+    { value: "musical", label: "Musical", subcategories: ["Guitars", "Keyboards", "Drums", "Audio Interfaces"] },
+    { value: "appliances", label: "Appliances", subcategories: ["Fans", "Generators", "Air Conditioning", "Refrigerators", "Microwaves"] },
+    { value: "food", label: "Food", subcategories: ["Snacks", "Canned Goods", "Fresh Produce"] },
+    { value: "books", label: "Books", subcategories: ["Fiction", "Non-Fiction", "Educational", "Comics"] },
+    
+    // Legacy mapping (kept for safety)
+    { value: "tablets", label: "Tablets", subcategories: ["iPads", "Android Tablets", "Drawing Tablets"] },
+    { value: "electronics", label: "Electronics", subcategories: ["Audio", "Headphones", "Smart Home", "Drones", "Cameras", "TV & Video"] },
+    { value: "energy", label: "Energy", subcategories: ["Generators", "Batteries"] },
+    { value: "machinery", label: "Machinery", subcategories: ["Lathes", "CNC Machines", "Industrial Pumps"] },
+    { value: "agriculture", label: "Agro & Farming", subcategories: ["Tractors", "Irrigation Systems", "Harvesters"] },
+    { value: "furniture", label: "Furniture", subcategories: ["Sofas", "Beds", "Dining Tables"] },
 ];
 
 // ─── Dashboard Stats ────────────────────────────────────────

@@ -25,7 +25,7 @@ const PLANS = [
     },
     {
         name: "Pro",
-        price: "₦5,000",
+        price: "₦4,990",
         duration: "per month",
         description: "For growing businesses needing more power.",
         icon: <TrendingUp className="h-6 w-6 text-brand-green-600" />,
@@ -39,12 +39,13 @@ const PLANS = [
             "Priority Support",
             "Discount & Coupon Engine",
             "Instagram DM Integration",
+            "Premium QR Logo Branding",
             "3 Staff Accounts"
         ]
     },
     {
         name: "Growth",
-        price: "₦15,000",
+        price: "₦14,990",
         duration: "per month",
         description: "Scale your business with advanced CRM tools.",
         icon: <ShieldCheck className="h-6 w-6 text-blue-600" />,
@@ -55,12 +56,13 @@ const PLANS = [
             "Custom Domain with Free SSL",
             "Advanced Logistics (Fez/Shipbubble)",
             "Bookkeeping Tools",
+            "Premium QR Logo Branding",
             "10 Staff Accounts"
         ]
     },
     {
         name: "Scale",
-        price: "₦50,000",
+        price: "₦49,990",
         duration: "per month",
         description: "Enterprise features for established businesses.",
         icon: <Crown className="h-6 w-6 text-amber-500" />,
@@ -71,6 +73,7 @@ const PLANS = [
             "Dedicated Account Manager",
             "API Access",
             "Wholesale Purchasing Limits",
+            "Premium QR Logo Branding",
             "Unlimited Staff Accounts"
         ]
     }
@@ -102,11 +105,13 @@ export default function BillingPage() {
             return;
         }
 
-        const price = parseInt(priceStr.replace(/[^\d]/g, ''));
-        const finalPrice = billingCycle === "annually" ? price * 0.8 * 12 : price;
+        const monthlyPrice = parseInt(priceStr.replace(/[^\d]/g, ''));
+        // Annual: 20% discount, billed as one lump sum for 12 months
+        const annualMonthly = Math.round(monthlyPrice * 0.8);
+        const totalAmount = billingCycle === "annually" ? annualMonthly * 12 : monthlyPrice;
 
         setPaystackPlan(planName);
-        setPaystackAmount(finalPrice * 100); // kobo
+        setPaystackAmount(totalAmount * 100); // Convert to kobo for Paystack
         setShowPaystack(true);
     };
 
@@ -233,10 +238,15 @@ export default function BillingPage() {
                                 <div className="mb-2">
                                     <span className="text-4xl font-black tracking-tighter text-gray-900">
                                         {billingCycle === "annually" && plan.price !== "Free"
-                                            ? `₦${(parseInt(plan.price.replace(/[^\d]/g, '')) * 0.8).toLocaleString()}`
+                                            ? `₦${Math.round(parseInt(plan.price.replace(/[^\d]/g, '')) * 0.8).toLocaleString()}`
                                             : plan.price}
                                     </span>
-                                    {plan.price !== "Free" && <span className="text-gray-500 font-medium ml-1">/{billingCycle === "monthly" ? "mo" : "mo, billed yearly"}</span>}
+                                    {plan.price !== "Free" && <span className="text-gray-500 font-medium ml-1">/{billingCycle === "monthly" ? "mo" : "mo"}</span>}
+                                    {billingCycle === "annually" && plan.price !== "Free" && (
+                                        <p className="text-xs text-emerald-600 font-bold mt-1">
+                                            ₦{(Math.round(parseInt(plan.price.replace(/[^\d]/g, '')) * 0.8) * 12).toLocaleString()}/yr · Save ₦{(parseInt(plan.price.replace(/[^\d]/g, '')) * 12 - Math.round(parseInt(plan.price.replace(/[^\d]/g, '')) * 0.8) * 12).toLocaleString()}
+                                        </p>
+                                    )}
                                 </div>
                                 <p className="text-sm text-gray-500 h-10">{plan.description}</p>
                             </div>

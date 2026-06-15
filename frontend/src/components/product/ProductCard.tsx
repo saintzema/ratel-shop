@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
+import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag, Crown } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { nativeBridge } from "@/lib/native-bridge";
+import { DataSyncService } from "@/lib/sync-store";
 import { hasFinancing, getProductPaymentRange } from "@/lib/financing-utils";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
@@ -63,6 +64,17 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
     const savings = displayOriginalPrice ? displayOriginalPrice - product.price : 0;
     const savingsPct = displayOriginalPrice ? Math.round((savings / displayOriginalPrice) * 100) : 0;
 
+    const isCar = product.category === "cars" || product.category === "vehicles" || product.category === "automotive";
+    const cardSeller = product.seller_id ? DataSyncService.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id) : null;
+    const showTenureBadge = isCar && cardSeller?.status === "active";
+    
+    let sellerYears = 1;
+    if (cardSeller?.created_at) {
+        const joinedDate = new Date(cardSeller.created_at);
+        const years = new Date().getFullYear() - joinedDate.getFullYear();
+        sellerYears = years > 0 ? years : 1;
+    }
+
     const handleDoubleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const now = Date.now();
         if (now - lastTapRef.current < 400) {
@@ -107,17 +119,25 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
     return (
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
-            <div onClick={() => router.push(getProductUrl(product.id, product.name))} className="flex flex-col flex-1">
+            <div onClick={() => router.push(getProductUrl(product.id, product.name, product.slug))} className="flex flex-col flex-1">
                 <div
-                    className="relative aspect-square object-cover bg-muted"
+                    className="relative aspect-square w-full overflow-hidden flex-shrink-0 bg-muted"
                     onClick={handleDoubleTap}
                 >
-                    {/* Sponsored Ad Tag */}
-                    {product.is_sponsored && (
-                        <div className="absolute bottom-3 left-3 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-md border border-white/20 flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
-                        </div>
-                    )}
+                    {/* Bottom Left Badges (Sponsored & Premium Seller) */}
+                    <div className="absolute bottom-3 left-3 z-40 flex flex-col gap-1 items-start">
+                        {product.is_sponsored && (
+                            <div className="bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-md border border-white/20 flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
+                            </div>
+                        )}
+                        {cardSeller?.subscription_plan && cardSeller.subscription_plan !== "Starter" && (
+                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/95 backdrop-blur-md rounded shadow-md border border-amber-300">
+                                <Crown className="h-2.5 w-2.5 text-white" />
+                                <span className="text-[9px] font-black text-white uppercase tracking-widest">Premium Seller</span>
+                            </div>
+                        )}
+                    </div>
                     {/* Fair Price / Overpriced Badge Overlay */}
                     {product.price_flag === "fair" && (
                         <div className="absolute top-3 left-3 z-20 flex items-center gap-1 px-2 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
@@ -131,6 +151,31 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
                         </div>
                     )}
+
+                    {/* Out of Stock / Low Stock Badges */}
+                    {product.stock === 0 && (
+                        <div className="absolute inset-0 z-40 bg-white/40 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
+                            <div className="bg-black text-white px-4 py-2 font-black text-xs uppercase tracking-widest rounded-lg shadow-2xl rotate-[12deg] border border-white/20">
+                                Sold Out
+                            </div>
+                        </div>
+                    )}
+                    {product.stock !== undefined && product.stock > 0 && product.stock <= 3 && (
+                        <div className="absolute bottom-10 right-3 z-30 bg-red-600/90 backdrop-blur-md text-white px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded shadow-md border border-red-400 flex items-center gap-1">
+                            <AlertTriangle className="h-2.5 w-2.5" /> Almost Sold Out
+                        </div>
+                    )}
+
+                    {/* Seller Tenure Badge (Bottom Right Image) */}
+                    <div className="absolute bottom-3 right-3 z-30 flex flex-col items-end gap-1">
+
+                        {showTenureBadge && (
+                            <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 backdrop-blur-md rounded shadow-md border border-blue-400">
+                                <ShieldCheck className="h-2.5 w-2.5 text-white" />
+                                <span className="text-[9px] font-black text-white uppercase tracking-widest">{sellerYears} {sellerYears > 1 ? 'Years' : 'Year'}+</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Heart Button — Top Right */}
                     <button
@@ -242,7 +287,24 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
             {/* Action Buttons */}
             <div className="px-3 pb-3 mt-1.5">
-                {product.price_flag === "overpriced" ? (
+                {product.stock === 0 ? (
+                    <Button
+                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-black cursor-not-allowed rounded-xl h-9 shadow-sm relative z-20 transition-colors"
+                        size="sm"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!user) {
+                                router.push("/login?from=" + encodeURIComponent(window.location.pathname));
+                                return;
+                            }
+                            DataSyncService.addRestockSubscription(product.id, user.id, user.email);
+                            alert("You're on the list! We'll notify you the moment this is restocked.");
+                        }}
+                    >
+                        <AlertTriangle className="h-4 w-4 mr-2" /> Notify on Restock
+                    </Button>
+                ) : product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
                             className="flex-1 min-w-0 bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
@@ -257,7 +319,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             <ShoppingCart className="h-4 w-4 mr-1 lg:mr-1.5 shrink-0" /> <span className="truncate">Buy Now</span>
                         </Button>
                         <Link
-                            href={`${getProductUrl(product.id, product.name)}?negotiate=true`}
+                            href={`${getProductUrl(product.id, product.name, product.slug)}?negotiate=true`}
                             className="relative z-20 flex-1 min-w-0"
                             onClick={(e) => e.stopPropagation()}
                         >

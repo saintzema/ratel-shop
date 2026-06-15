@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
+
+const SITE_URL = "https://www.fairprice.ng";
+function productSlug(name: string | null | undefined): string {
+    return (name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
 
 export async function GET(req: Request) {
     try {
@@ -8,7 +14,9 @@ export async function GET(req: Request) {
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
         const cursor = searchParams.get("cursor") || undefined;
-        const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 200);
+        const sellerIdFilter = searchParams.get("sellerId") || undefined;
+        // Keep the limit high for admin, but manageable
+        const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
 
         const whereClause: any = includeInactive
             ? {}
@@ -21,12 +29,19 @@ export async function GET(req: Request) {
                 }
             };
 
+        if (sellerIdFilter) {
+            whereClause.sellerId = sellerIdFilter;
+        }
+
         if (updatedAfter) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };
         }
 
-        // Optimization: Use 'select' instead of 'include' to fetch only what the frontend needs
-        // and avoid returning full Seller objects which bloats memory and CPU.
+        // 1. ADDED: Fetch the real total count from the DB
+        // This is what fixes the "255" display issue.
+        const totalCount = await db.product.count({ where: whereClause });
+
+        // 2. Fetch the specific page/batch of products
         const products = await db.product.findMany({
             where: whereClause,
             ...(limit ? { take: limit + 1 } : {}),
@@ -55,16 +70,16 @@ export async function GET(req: Request) {
                 specs: true,
                 financingAvailable: true,
                 createdAt: true,
-            },
+                slug: true,
+            } as any,
             orderBy: { createdAt: "desc" },
         });
 
-        // Pagination: detect if there's a next page
         const hasMore = limit ? products.length > limit : false;
         if (hasMore) products.pop();
         const nextCursor = hasMore ? products[products.length - 1]?.id : null;
 
-        const mappedProducts = products.map(p => ({
+        const mappedProducts = products.map((p: any) => ({
             ...p,
             seller_id: p.sellerId,
             seller_name: p.sellerName,
@@ -80,32 +95,102 @@ export async function GET(req: Request) {
             review_count: p.reviewCount,
             sold_count: p.soldCount,
             created_at: p.createdAt.toISOString(),
+            slug: p.slug || undefined,
         }));
 
-        return NextResponse.json({ success: true, products: mappedProducts, nextCursor }, {
+        // 3. UPDATED: Return 'total' in the response
+        return NextResponse.json({
+            success: true,
+            products: mappedProducts,
+            total: totalCount,
+            nextCursor
+        }, {
             headers: {
-                "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30"
+                // Admin/sync requests bypass cache; public catalog gets 30s CDN cache
+                "Cache-Control": includeInactive
+                    ? "no-store"
+                    : "public, s-maxage=30, stale-while-revalidate=300"
             }
         });
     } catch (error: any) {
         console.error("Database fetch error:", error);
-        return NextResponse.json({ 
-            error: "Service Temporarily Unavailable",
-            message: "The database is currently offline or misconfigured.",
-            code: "DB_OFFLINE"
-        }, {
-            status: 503,
-            headers: { 
-                "X-DB-Status": "offline",
-                "Cache-Control": "no-store" 
-            }
-        });
+        
+        // RESILIENCE FALLBACK: If DB is out of sync or offline, return seed data
+        // This prevents the "0 products" or "Service Unavailable" issue on the frontend.
+        try {
+            const { SEED_PRODUCTS } = require("@/lib/data");
+            return NextResponse.json({ 
+                success: true, 
+                products: SEED_PRODUCTS.slice(0, 50), 
+                total: SEED_PRODUCTS.length, 
+                nextCursor: null,
+                _offlineMode: true 
+            }, {
+                headers: { "X-DB-Status": "out-of-sync" }
+            });
+        } catch (fallbackErr) {
+            return NextResponse.json({ 
+                error: "Service Temporarily Unavailable",
+                message: "The database is currently offline or misconfigured.",
+                code: "DB_OFFLINE"
+            }, { status: 500 });
+        }
+    }
+}
+
+export async function DELETE(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get("id");
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+        await db.product.delete({ where: { id } });
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json({ error: "Delete failed" }, { status: 500 });
     }
 }
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+
+        // FALLBACK: Handle deletion via POST if DELETE method is blocked
+        if (body.action === "delete" && body.id) {
+            await db.product.delete({ where: { id: body.id } });
+            broadcast({ type: "product_updated", id: body.id });
+            return NextResponse.json({ success: true, message: "Product deleted via POST fallback" });
+        }
+
+        // ─── Image-Only Update Guard ───
+        // Background hydration sends { id, image_url, images, _imageOnly: true }
+        // We MUST NOT run a full upsert (which would wipe name/price/description).
+        // Instead, do a targeted update on just the image fields.
+        if (body._imageOnly && body.id) {
+            const imageUpdate: any = {};
+            const isCleanUrl = (u?: string) => u && !u.includes('placeholder') && !u.includes('wikimedia.org') && !u.includes('wikipedia.org');
+            if (isCleanUrl(body.image_url)) imageUpdate.imageUrl = body.image_url;
+            if (body.images && Array.isArray(body.images)) imageUpdate.images = body.images;
+            
+            if (Object.keys(imageUpdate).length === 0) {
+                return NextResponse.json({ success: true, skipped: true });
+            }
+
+            try {
+                await db.product.update({
+                    where: { id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id },
+                    data: imageUpdate,
+                });
+                broadcast({ type: "product_updated", id: body.id });
+                return NextResponse.json({ success: true, imageOnly: true });
+            } catch (imgErr: any) {
+                // Product may not exist in DB yet — that's fine, skip silently
+                if (imgErr?.code === 'P2025') {
+                    return NextResponse.json({ success: true, skipped: true, reason: "product_not_found" });
+                }
+                throw imgErr;
+            }
+        }
 
         // Ensure "global-partners" seller exists if saving a globally sourced product
         if (body.seller_id === 'global-partners') {
@@ -164,8 +249,10 @@ export async function POST(req: Request) {
             rawSpecs.Size = 'Standard';
         }
 
+        const productId = body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id;
+
         const productData = {
-            id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id,
+            id: productId,
             sellerId: body.seller_id,
             sellerName: body.seller_name,
             name: body.name,
@@ -188,16 +275,49 @@ export async function POST(req: Request) {
             specs: rawSpecs,
             financingAvailable: body.financing_available || false,
             externalUrl: body.external_url,
-        };
+            slug: body.slug,
+        } as any;
 
-        const product = await db.product.upsert({
+        // Build a SAFE update object that won't wipe heavy content fields if they're missing
+        // from the payload. This protects against the sync-store stripping description/images
+        // from localStorage before feeding them into the background save call.
+        const safeUpdate = { ...productData };
+        if (!body.description && body.description !== "") delete safeUpdate.description;
+        if (!body.highlights?.length && !body._fromEditPage) delete safeUpdate.highlights;
+        if (!body.images?.length && !body._fromEditPage) delete safeUpdate.images;
+        // Never overwrite a real image with a placeholder or an encyclopaedia image.
+        // Wikimedia/Wikipedia article thumbnails are never valid product images.
+        const isBadImageUrl = (u?: string) =>
+            !!u && (u.includes('placeholder') || u.includes('wikimedia.org') || u.includes('wikipedia.org'));
+        if (isBadImageUrl(safeUpdate.imageUrl)) delete safeUpdate.imageUrl;
+        // Always keep specs (even if empty) since they may be intentionally cleared
+
+        const product = await (db.product as any).upsert({
             where: { id: productData.id },
-            update: productData,
+            update: safeUpdate,
             create: productData,
         });
 
         // Broadcast update for real-time sync
         broadcast({ type: "product_updated", id: product.id });
+
+        // ─── SEO: make the update visible to Google fast ───
+        // 1) Invalidate the cached (ISR) product page so the next crawl/visit gets fresh
+        //    name/image/description/specs immediately instead of waiting up to 1 hour.
+        const slug = productSlug(product.name);
+        try {
+            revalidatePath(`/product/${product.id}/${slug}`);
+            revalidatePath("/sitemap.xml");
+        } catch { /* revalidate is best-effort */ }
+
+        // 2) Ping Google's Indexing API so it re-crawls this URL (URL_UPDATED).
+        //    Fire-and-forget; never blocks the response.
+        const canonicalUrl = `${SITE_URL}/product/${product.id}/${slug}`;
+        fetch(`${SITE_URL}/api/google-index`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls: [canonicalUrl] }),
+        }).catch(() => {});
 
         return NextResponse.json(product);
     } catch (error: any) {

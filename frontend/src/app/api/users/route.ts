@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 import { UserRole } from "@prisma/client";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export async function POST(req: Request) {
     try {
@@ -40,14 +41,16 @@ export async function POST(req: Request) {
         if (body.avatar_url !== undefined) updateData.avatarUrl = body.avatar_url;
         if (body.location !== undefined) updateData.location = body.location;
         if (body.birthday !== undefined) updateData.birthday = body.birthday;
-        if (body.phone !== undefined) updateData.phone = body.phone;
-        if (body.address !== undefined) updateData.address = body.address;
 
-        if (body.password) {
-            const bcryptStr = await import("bcryptjs");
-            // Workaround for module loading in edge/node
-            const bcrypt = 'default' in bcryptStr ? bcryptStr.default : bcryptStr;
-            updateData.password = await bcrypt.hash(body.password, 12);
+        // Save WhatsApp number — normalise to E.164 digits, deduplicate across +234/234/0 variants
+        if (body.whatsapp) {
+            const normalized = WhatsAppService.normalizePhoneNumber(String(body.whatsapp));
+            if (normalized) updateData.whatsappNumber = normalized;
+        }
+        // Also accept direct whatsappNumber field (e.g. from profile page)
+        if (body.whatsappNumber) {
+            const normalized = WhatsAppService.normalizePhoneNumber(String(body.whatsappNumber));
+            if (normalized) updateData.whatsappNumber = normalized;
         }
 
         // SECURITY: Role Protection
@@ -72,6 +75,9 @@ export async function POST(req: Request) {
              updateData.role = updateData.role || body.role;
         }
 
+        // Resolve whatsappNumber for create path
+        const waNumber = updateData.whatsappNumber ?? null;
+
         const createData = {
             id: body.id || `user_${body.email}`,
             email: body.email,
@@ -80,7 +86,8 @@ export async function POST(req: Request) {
             avatarUrl: body.avatar_url,
             location: body.location,
             birthday: body.birthday,
-            password: updateData.password, 
+            password: updateData.password,
+            whatsappNumber: waNumber || undefined,
             // Handle the Address relation correctly
             addresses: body.address ? {
                 create: {
@@ -98,7 +105,7 @@ export async function POST(req: Request) {
             create: createData,
             include: {
                 addresses: true, // Returns the addresses in the response
-                seller: true
+                sellers: true
             }
         });
 
@@ -109,23 +116,37 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("User creation error:", error);
         return NextResponse.json(
-            { error: error.message || "Failed to create or update user" }, 
+            { error: "Database error or unreachable. Check your connection string.", details: error.message }, 
             { status: 500 }
         );
     }
 }
 
 export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email");
-    const id = searchParams.get("id");
+    const url = new URL(req.url);
+    const email = url.searchParams.get("email");
+    const id = url.searchParams.get("id");
 
     try {
         if (id) {
-            let user = await db.user.findUnique({ where: { id } });
-            // Fallback: If not found by ID and looks like an email, try email lookup
+            // Include the seller record (+ KYC submissions) so the admin user-detail page
+            // can render the real role, status, business profile and uploaded KYC/CAC docs
+            // straight from the DB instead of the trimmed/empty localStorage cache.
+            const includeSeller = {
+                sellers: {
+                    include: { kycSubmissions: { orderBy: { createdAt: "desc" as const }, take: 5 } },
+                },
+            };
+            let user = await db.user.findUnique({ where: { id }, include: includeSeller });
+            if (!user && !id.includes("@")) {
+                // id may be a seller ID (admin users list links by seller ID, not user ID)
+                const seller = await db.seller.findUnique({ where: { id }, select: { userId: true } });
+                if (seller?.userId) {
+                    user = await db.user.findUnique({ where: { id: seller.userId }, include: includeSeller });
+                }
+            }
             if (!user && id.includes("@")) {
-                user = await db.user.findUnique({ where: { email: id } });
+                user = await db.user.findUnique({ where: { email: id }, include: includeSeller });
             }
             if (!user) {
                 return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -133,11 +154,13 @@ export async function GET(req: Request) {
             return NextResponse.json(user);
         }
         if (email) {
-            const user = await db.user.findUnique({ where: { email } });
+            const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true } });
             if (!user) {
-                return NextResponse.json({ error: "User not found" }, { status: 404 });
+                return NextResponse.json({ exists: false, userId: null });
             }
-            return NextResponse.json(user);
+            return NextResponse.json({ ...user, exists: true, userId: user.id }, {
+                headers: { "Cache-Control": "private, max-age=300" }
+            });
         }
         const users = await db.user.findMany();
         return NextResponse.json(users);
@@ -145,7 +168,7 @@ export async function GET(req: Request) {
         console.error("Users API error:", error);
         return NextResponse.json(
             { error: "Database temporarily unavailable", offline: true },
-            { status: 503, headers: { "X-DB-Status": "offline" } }
+            { status: 500, headers: { "X-DB-Status": "offline" } }
         );
     }
 }

@@ -156,7 +156,7 @@ export default function PaymentsPage() {
                             <Wallet className="h-8 w-8 text-white" />
                         </div>
                         <div>
-                            <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Wallet Balance (₦)</p>
+                            <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Available Balance (₦)</p>
                             <h1 className="text-4xl font-extrabold tracking-tight">{formatPrice(balance)}</h1>
                         </div>
                     </div>
@@ -165,7 +165,7 @@ export default function PaymentsPage() {
                             onClick={() => setIsFunding(true)}
                             className="bg-white text-indigo-900 hover:bg-white/90 rounded-2xl font-bold px-6 h-12 flex items-center gap-2"
                         >
-                            <PlusCircle className="h-5 w-5" /> Fund Wallet
+                            <PlusCircle className="h-5 w-5" /> Add Funds
                         </Button>
                         <Button 
                             variant="outline"
@@ -186,12 +186,12 @@ export default function PaymentsPage() {
                         <button onClick={() => setIsFunding(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X className="h-5 w-5" /></button>
                         <div className="flex items-center gap-2 mb-4">
                             <Landmark className="h-5 w-5 text-indigo-600" />
-                            <h3 className="font-bold text-gray-900">Fund Your Wallet</h3>
+                            <h3 className="font-bold text-gray-900">Add Funds to Balance</h3>
                         </div>
                         <div className="flex gap-3">
                             <Input 
                                 type="number" 
-                                placeholder="Enter amount to fund (₦)" 
+                                placeholder="Enter amount to add (₦)" 
                                 className="h-12 rounded-2xl border-indigo-100 focus:ring-indigo-500 text-lg font-bold"
                             />
                             <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 rounded-2xl h-12">

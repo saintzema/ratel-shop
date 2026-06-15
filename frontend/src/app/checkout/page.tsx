@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles, QrCode } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,6 +23,8 @@ import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+import { COUNTRY_CODES } from "@/lib/constants/countries";
 import { Navbar } from "@/components/layout/Navbar";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { ExitIntentModal } from "@/components/modals/ExitIntentModal";
@@ -283,8 +285,38 @@ function persistAddresses(addresses: SavedAddress[]) {
 function CheckoutContent() {
     const { cart, cartTotal, removeFromCart, updateQuantity, clearCart } = useCart();
     const router = useRouter();
-    const { user, login } = useAuth();
+    const { user, login, updateUser } = useAuth();
     const [isClient, setIsClient] = useState(false);
+    
+    const searchParams = useSearchParams();
+    const negotiationId = searchParams?.get("negotiation");
+    
+    // Determine items to show
+    let checkoutItems: { product: Product, price: number, quantity: number, isNegotiated?: boolean }[] = [];
+
+    if (negotiationId) {
+        // Buy Now / Negotiation Flow
+        const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
+        if (negotiation) {
+            const negotiatedProduct = SEED_PRODUCTS.find(p => p.id === negotiation.product_id);
+            if (negotiatedProduct) {
+                checkoutItems = [{
+                    product: negotiatedProduct,
+                    price: negotiation.proposed_price,
+                    quantity: 1,
+                    isNegotiated: true
+                }];
+            }
+        }
+    } else {
+        // Standard Cart Flow
+        checkoutItems = cart.map(item => ({
+            product: item.product,
+            price: item.negotiatedPrice || item.product.price,
+            quantity: item.quantity,
+            isNegotiated: !!item.negotiatedPrice
+        }));
+    }
 
     const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -300,16 +332,105 @@ function CheckoutContent() {
     });
     const [addressError, setAddressError] = useState("");
     const shippingAddressRef = useRef<HTMLElement>(null);
+    const paymentSectionRef = useRef<HTMLElement>(null);
+
+    const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
+    const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
+    const [guestId] = useState(() => "guest_" + Math.random().toString(36).substring(2, 11));
+
+    useEffect(() => {
+        if (checkoutStep === 3) {
+            setTimeout(() => {
+                paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        } else if (checkoutStep === 2 && isEditingAddress) {
+            setTimeout(() => {
+                shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        }
+    }, [checkoutStep, isEditingAddress]);
     const [createAccount, setCreateAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showPaystack, setShowPaystack] = useState(false);
-    const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
-    const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
+
+    // ─── Smart Recommendations Logic ───────────────────────────
+    const CROSS_SELL_MAP: Record<string, string[]> = {
+        "solar": ["solar", "energy", "batteries", "industrial"],
+        "energy": ["solar", "energy", "batteries"],
+        "phones": ["electronics", "tablets", "smartwatch"],
+        "computers": ["electronics", "office", "gaming"],
+        "gaming": ["electronics", "computers", "gaming"],
+        "cars": ["automotive", "industrial", "vehicles"],
+        "automotive": ["cars", "industrial", "vehicles"],
+        "fashion": ["bags", "women", "men", "jewelry", "beauty"],
+        "beauty": ["fashion", "women", "jewelry"],
+        "electronics": ["phones", "computers", "gaming", "tablets"],
+        "appliances": ["home", "household", "energy"],
+        "home": ["appliances", "household", "furniture", "garden"],
+        "fitness": ["health", "sports"],
+        "sports": ["fitness", "health", "fashion"],
+    };
+
+    const frequentlyBoughtTogether = useMemo(() => {
+        if (!isClient) return [];
+        
+        const cartProductIds = checkoutItems.map(i => i.product.id);
+        const cartCategories = checkoutItems.map(i => i.product.category);
+        const cartNames = checkoutItems.map(i => i.product.name.toLowerCase());
+        
+        const targetCategories = new Set<string>();
+        cartCategories.forEach(cat => {
+            const related = CROSS_SELL_MAP[cat as string] || [];
+            related.forEach(r => targetCategories.add(r));
+            targetCategories.add(cat as string);
+        });
+
+        const allProducts = DataSyncService.getApprovedProducts();
+
+        // Filter and prioritize
+        let smartProducts = allProducts.filter(p => 
+            !cartProductIds.includes(p.id) && 
+            (targetCategories.has(p.category as string) || targetCategories.has("all"))
+        );
+
+        // Keyword-based refinement (e.g. Inverter -> Panel/Battery)
+        const hasInverter = cartNames.some(n => n.includes("inverter"));
+        const hasSolar = cartNames.some(n => n.includes("solar") || n.includes("panel"));
+        const hasPhone = cartNames.some(n => n.includes("phone") || n.includes("iphone") || n.includes("samsung"));
+        
+        if (hasInverter && !hasSolar) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("panel") || a.name.toLowerCase().includes("battery") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("panel") || b.name.toLowerCase().includes("battery") ? 1 : 0;
+                return bRel - aRel;
+            });
+        } else if (hasSolar && !hasInverter) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("inverter") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("inverter") ? 1 : 0;
+                return bRel - aRel;
+            });
+        } else if (hasPhone) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("case") || a.name.toLowerCase().includes("charger") || a.name.toLowerCase().includes("earbud") || a.name.toLowerCase().includes("airpod") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("case") || b.name.toLowerCase().includes("charger") || b.name.toLowerCase().includes("earbud") || b.name.toLowerCase().includes("airpod") ? 1 : 0;
+                return bRel - aRel;
+            });
+        }
+
+        // Fill to at least 8 if needed
+        if (smartProducts.length < 8) {
+            const others = allProducts.filter(p => !cartProductIds.includes(p.id) && !smartProducts.some(sp => sp.id === p.id));
+            smartProducts = [...smartProducts, ...others.slice(0, 8 - smartProducts.length)];
+        }
+
+        return smartProducts.slice(0, 8);
+    }, [checkoutItems, isClient]);
 
     // Added state for the "View More" feature
     const [loadedMore, setLoadedMore] = useState(false);
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
-    const [paymentMethod, setPaymentMethod] = useState<"paystack" | "transfer" | "cod">("paystack");
+    const [paymentMethod, setPaymentMethod] = useState<"paystack" | "transfer" | "cod" | "whatsapp">("paystack");
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
     const [conciergeOrderId, setConciergeOrderId] = useState<string | null>(null);
@@ -325,6 +446,36 @@ function CheckoutContent() {
 
     // Paystack Metadata (for webhook tracking)
     const [paystackMetadata, setPaystackMetadata] = useState<any>(null);
+
+    // Collapsible Address State
+    const [isAddressExpanded, setIsAddressExpanded] = useState(true);
+    const hasPhysicalProduct = useMemo(() => {
+        const physicalCategories = ["phones", "electronics", "home", "fashion", "beauty", "sports", "fitness", "cars", "energy", "appliances", "baby", "grocery", "computers", "textiles", "automotive"];
+        return checkoutItems.some(item => physicalCategories.includes(item.product.category?.toLowerCase() || ""));
+    }, [checkoutItems]);
+
+    // Identity Reconciliation State
+    // Catch both wa- (legacy) and wa_ (current) placeholder emails
+    const isWhatsAppPlaceholder = (user?.email?.startsWith("wa-") || user?.email?.startsWith("wa_")) && user?.email?.endsWith("@fairprice.ng");
+    const [showIdentityPrompt, setShowIdentityPrompt] = useState(false);
+    const [identityReconciled, setIdentityReconciled] = useState(false);
+    // Email conflict: null = unchecked, 'none' = safe, 'conflict' = email belongs to another account
+    const [emailConflictStatus, setEmailConflictStatus] = useState<null | 'none' | 'conflict'>(null);
+    // Supplier/proxy-order mode: logged-in user ordering in someone else's name
+    const [orderEmailMode, setOrderEmailMode] = useState<'account' | 'order_only' | 'create_account'>('account');
+
+    useEffect(() => {
+        if (isWhatsAppPlaceholder && !identityReconciled) {
+            setShowIdentityPrompt(true);
+        }
+    }, [isWhatsAppPlaceholder, identityReconciled]);
+
+    // Auto-expand address if physical product detected
+    useEffect(() => {
+        if (hasPhysicalProduct) {
+            setIsAddressExpanded(true);
+        }
+    }, [hasPhysicalProduct]);
 
     // Initial load effects
     useEffect(() => {
@@ -346,31 +497,11 @@ function CheckoutContent() {
     const [showWhatsappField, setShowWhatsappField] = useState(false);
     const [whatsappCountryCode, setWhatsappCountryCode] = useState("+234");
 
-    const COUNTRY_CODES = [
-        { code: "+234", country: "Nigeria", flag: "🇳🇬" },
-        { code: "+233", country: "Ghana", flag: "🇬🇭" },
-        { code: "+254", country: "Kenya", flag: "🇰🇪" },
-        { code: "+27", country: "South Africa", flag: "🇿🇦" },
-        { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
-        { code: "+44", country: "UK", flag: "🇬🇧" },
-        { code: "+91", country: "India", flag: "🇮🇳" },
-        { code: "+86", country: "China", flag: "🇨🇳" },
-        { code: "+971", country: "UAE", flag: "🇦🇪" },
-        { code: "+966", country: "Saudi Arabia", flag: "🇸🇦" },
-        { code: "+49", country: "Germany", flag: "🇩🇪" },
-        { code: "+33", country: "France", flag: "🇫🇷" },
-        { code: "+81", country: "Japan", flag: "🇯🇵" },
-        { code: "+61", country: "Australia", flag: "🇦🇺" },
-        { code: "+55", country: "Brazil", flag: "🇧🇷" },
-        { code: "+237", country: "Cameroon", flag: "🇨🇲" },
-        { code: "+251", country: "Ethiopia", flag: "🇪🇹" },
-        { code: "+255", country: "Tanzania", flag: "🇹🇿" },
-        { code: "+256", country: "Uganda", flag: "🇺🇬" },
-        { code: "+221", country: "Senegal", flag: "🇸🇳" },
-    ];
+    // Note: Local COUNTRY_CODES array removed in favor of global import.
 
     const handleEmailChange = (value: string) => {
         setAddress({ ...address, email: value });
+        setEmailConflictStatus(null); // reset on change
         const atIdx = value.indexOf("@");
         if (atIdx >= 1) {
             const typed = value.substring(atIdx + 1).toLowerCase();
@@ -405,7 +536,10 @@ function CheckoutContent() {
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // COD for global products — admin-controlled (default enabled for seamless UX)
     const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
-    const [codGlobalThreshold, setCodGlobalThreshold] = useState(20000);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState(150000);
+
+    // WhatsApp Order Number (admin-configurable)
+    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2348162816305");
 
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
@@ -505,9 +639,6 @@ function CheckoutContent() {
 
     const [dynamicPickups, setDynamicPickups] = useState<Record<string, Record<string, string[]>>>(PICKUP_STATIONS);
 
-    const searchParams = useSearchParams();
-    const negotiationId = searchParams?.get("negotiation");
-
     // Load saved addresses and auto-fill from user on mount
     useEffect(() => {
         // Only load saved addresses for authenticated users to prevent cross-session leaks
@@ -515,7 +646,29 @@ function CheckoutContent() {
             const saved = getSavedAddresses();
             setSavedAddresses(saved);
 
-            if (saved.length > 0) {
+            if (isWhatsAppPlaceholder && !identityReconciled) {
+                // Pre-fill address with empty values to force the user to provide their real name and email
+                setAddress({
+                    firstName: "",
+                    lastName: "",
+                    street: saved[0]?.street || "",
+                    city: saved[0]?.city || "Lagos",
+                    state: saved[0]?.state || "Lagos",
+                    phone: saved[0]?.phone || (user as any)?.phone || "",
+                    email: ""
+                });
+                setIsEditingAddress(true);
+                if (saved.length > 0 && saved[0].method === "pickup") {
+                    setDeliveryMethod("pickup");
+                    setPickupDetails({
+                        state: saved[0].state || "",
+                        city: saved[0].city || "",
+                        station: saved[0].station || ""
+                    });
+                } else {
+                    setDeliveryMethod("doorstep");
+                }
+            } else if (saved.length > 0) {
                 const latest = saved[0];
                 setAddress({
                     firstName: latest.firstName,
@@ -529,12 +682,14 @@ function CheckoutContent() {
                 if (latest.method === "pickup") {
                     setDeliveryMethod("pickup");
                     setPickupDetails({
-                        state: latest.state || "",
-                        city: latest.city || "",
+                        state: latest.state || "Lagos",
+                        city: latest.city || "Lagos",
                         station: latest.station || ""
                     });
                 } else {
                     setDeliveryMethod("doorstep");
+                    // Ensure pickup details are blank for doorstep-first loads to prevent leakage
+                    setPickupDetails({ state: "", city: "", station: "" });
                 }
                 if (latest.whatsappPhone) {
                     setShowWhatsappField(true);
@@ -578,6 +733,15 @@ function CheckoutContent() {
                     if (data.codGlobalEnabled != null) setCodGlobalEnabled(data.codGlobalEnabled);
                     if (data.codGlobalThreshold != null) setCodGlobalThreshold(Number(data.codGlobalThreshold));
                     if (data.escrowFeePayNow != null) setEscrowFeePayNow(Number(data.escrowFeePayNow));
+                    // WhatsApp Order Number
+                    if (data.supportConfig?.whatsappOrderNumber) {
+                        setWhatsappOrderNumber(data.supportConfig.whatsappOrderNumber);
+                        localStorage.setItem("fp_whatsapp_order_number", data.supportConfig.whatsappOrderNumber);
+                    } else if (data.supportConfig?.whatsapp) {
+                        // Fallback to 'whatsapp' field if 'whatsappOrderNumber' is missing
+                        setWhatsappOrderNumber(data.supportConfig.whatsapp);
+                        localStorage.setItem("fp_whatsapp_order_number", data.supportConfig.whatsapp);
+                    }
 
                     if (data.supportConfig?.serviceCenters?.length > 0) {
                         setDynamicPickups(prev => {
@@ -597,33 +761,6 @@ function CheckoutContent() {
             })
             .catch(() => { });
     }, [user]);
-
-    // Determine items to show
-    let checkoutItems: { product: Product, price: number, quantity: number, isNegotiated?: boolean }[] = [];
-
-    if (negotiationId) {
-        // Buy Now / Negotiation Flow
-        const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
-        if (negotiation) {
-            const negotiatedProduct = SEED_PRODUCTS.find(p => p.id === negotiation.product_id);
-            if (negotiatedProduct) {
-                checkoutItems = [{
-                    product: negotiatedProduct,
-                    price: negotiation.proposed_price,
-                    quantity: 1,
-                    isNegotiated: true
-                }];
-            }
-        }
-    } else {
-        // Standard Cart Flow
-        checkoutItems = cart.map(item => ({
-            product: item.product,
-            price: item.negotiatedPrice || item.product.price,
-            quantity: item.quantity,
-            isNegotiated: !!item.negotiatedPrice
-        }));
-    }
 
     // Redirect if empty
     useEffect(() => {
@@ -675,7 +812,7 @@ function CheckoutContent() {
     };
 
     const baseFee = getBaseShipping();
-    const shipping = (paymentMethod !== "cod" && (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue)) ? 0 : (
+    const shipping = (paymentMethod !== "cod" && paymentMethod !== "whatsapp" && (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue)) ? 0 : (
         Math.round((baseFee * shippingMultiplier) / 50) * 50
     );
 
@@ -751,10 +888,13 @@ function CheckoutContent() {
         setDeliveryMethod(addr.method || "doorstep");
         if (addr.method === "pickup") {
             setPickupDetails({
-                state: addr.state || "",
-                city: addr.city || "",
+                state: addr.state || "Lagos",
+                city: addr.city || "Lagos",
                 station: addr.station || ""
             });
+        } else {
+            // If switching to doorstep, clear pickup details to prevent stale data leakage
+            setPickupDetails({ state: "", city: "", station: "" });
         }
         if (addr.whatsappPhone) {
             setShowWhatsappField(true);
@@ -765,6 +905,7 @@ function CheckoutContent() {
         }
         setShowAddressPicker(false);
         setIsEditingAddress(false);
+        setCheckoutStep(3); // Auto-advance to payment when selecting saved address
     };
 
     const deleteSavedAddress = (id: string) => {
@@ -774,7 +915,7 @@ function CheckoutContent() {
     };
 
     const scrollToShippingAddress = () => {
-        setCheckoutStep(1);
+        setCheckoutStep(2); // Fix: Keep on Step 2 where shipping info resides
         setIsEditingAddress(true);
         setTimeout(() => {
             shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -782,9 +923,9 @@ function CheckoutContent() {
     };
 
     const handlePlaceOrder = () => {
-        const email = user?.email || address.email;
+        const email = (user && !isWhatsAppPlaceholder) ? user.email : address.email;
         if (!address.firstName.trim() || !email.trim()) {
-            setAddressError(user ? "Please enter your first name." : "Please enter your name and email address.");
+            setAddressError((user && !isWhatsAppPlaceholder) ? "Please enter your first name." : "Please enter your real name and email address.");
             scrollToShippingAddress();
             return;
         }
@@ -823,27 +964,161 @@ function CheckoutContent() {
         }
         setAddressError("");
 
-        // Auto-save this address for next time
-        if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
-            saveCurrentAddress();
+        const continueWithOrder = () => {
+            // Auto-save this address for next time
+            if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
+                saveCurrentAddress();
+            }
+
+            // Payment routing
+            if (paymentMethod === "whatsapp") {
+                // WhatsApp ordering — finalize order locally then redirect to wa.me
+                const waOrderId = "WA-" + Date.now();
+                finalizeOrder(waOrderId);
+
+                // Generate the message and redirect
+                const msg = generateWhatsAppMessage(waOrderId);
+                const waUrl = `https://wa.me/${whatsappOrderNumber}?text=${encodeURIComponent(msg)}`;
+                // Small delay so the order can be saved before redirecting
+                setTimeout(() => {
+                    window.open(waUrl, '_blank');
+                }, 800);
+            } else if (paymentMethod === "cod") {
+                // Pay on delivery — skip Paystack, go straight to order confirmation
+                finalizeOrder("COD-" + Date.now());
+            } else {
+                // Generate IDs for all items in this transaction before starting Paystack
+                // This allows the webhook to update these specific orders
+                const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
+                // Collect unique seller IDs so the webhook can route escrow settlements
+                const uniqueSellerIds = [...new Set(checkoutItems.map(item => item.product.seller_id))];
+                setPaystackMetadata({
+                    type: "order",
+                    order_ids: orderIds.join(','),
+                    seller_ids: uniqueSellerIds.join(','),
+                    customer_id: user?.id || user?.email || address.email,
+                    total_amount: total
+                });
+                setShowPaystack(true);
+            }
+        };
+
+        if (isWhatsAppPlaceholder && address.email && address.email !== user?.email && !identityReconciled) {
+            setIsProcessing(true);
+
+            if (orderEmailMode === 'order_only') {
+                // Don't update account — just use this email for order notifications
+                setIdentityReconciled(true);
+                setShowIdentityPrompt(false);
+                setIsProcessing(false);
+                continueWithOrder();
+                return;
+            }
+
+            if (orderEmailMode === 'create_account') {
+                // Create a new account for this email — don't modify the WA account
+                fetch(`/api/auth/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: address.email,
+                        name: `${address.firstName} ${address.lastName}`.trim(),
+                        role: 'customer',
+                    })
+                }).then(() => {
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
+                    setIsProcessing(false);
+                    continueWithOrder();
+                }).catch(() => {
+                    setIsProcessing(false);
+                    continueWithOrder(); // non-fatal
+                });
+                return;
+            }
+
+            // Default (orderEmailMode === 'account'): link the email to the WA account
+            fetch(`/api/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: user?.id,
+                    email: address.email,
+                    name: `${address.firstName} ${address.lastName}`.trim()
+                })
+            }).then(async (res) => {
+                if (res.ok) {
+                    await fetch("/api/auth/migrate-guest", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ oldId: user?.id, newId: user?.id, email: address.email })
+                    });
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
+                    setIsProcessing(false);
+                    continueWithOrder();
+                } else {
+                    // If update failed (e.g. email conflict race), fall through to order_only
+                    setOrderEmailMode('order_only');
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
+                    setIsProcessing(false);
+                    continueWithOrder();
+                }
+            }).catch(() => {
+                setIsProcessing(false);
+                setAddressError("Error communicating with server.");
+                scrollToShippingAddress();
+            });
+            return;
         }
 
-        // Payment routing
-        if (paymentMethod === "cod") {
-            // Pay on delivery — skip Paystack, go straight to order confirmation
-            finalizeOrder("COD-" + Date.now());
+        continueWithOrder();
+    };
+
+    // Generate a clean, receipt-style WhatsApp order message
+    const generateWhatsAppMessage = (orderId: string): string => {
+        const fullName = `${address.firstName} ${address.lastName}`.trim();
+        const phone = `${countryCode} ${address.phone}`;
+        const deliveryAddr = deliveryMethod === "pickup"
+            ? `Pickup: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
+            : `${address.street}, ${address.city}, ${address.state || ''}`;
+
+        let lines: string[] = [];
+        lines.push(`🛒 *NEW ORDER — #${orderId}*`);
+        lines.push(``);
+
+        checkoutItems.forEach(item => {
+            const itemTotal = item.price * item.quantity;
+            lines.push(`*${item.quantity}x* ${item.product.name}`);
+            lines.push(`₦${itemTotal.toLocaleString()}`);
+            lines.push(``);
+        });
+
+        lines.push(`---`);
+        lines.push(`Item Total: ₦${subtotal.toLocaleString()}`);
+        if (shipping > 0) {
+            lines.push(`Delivery: ₦${shipping.toLocaleString()}`);
         } else {
-            // Generate IDs for all items in this transaction before starting Paystack
-            // This allows the webhook to update these specific orders
-            const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
-            setPaystackMetadata({
-                type: "order",
-                order_ids: orderIds.join(','),
-                customer_id: user?.id || user?.email || address.email,
-                total_amount: total
-            });
-            setShowPaystack(true);
+            lines.push(`Delivery: FREE`);
         }
+        if (appliedCoupon) {
+            lines.push(`Discount: -₦${appliedCoupon.amount.toLocaleString()}`);
+        }
+        lines.push(`*Total: ₦${total.toLocaleString()}*`);
+        lines.push(``);
+        lines.push(`👤 Customer: ${fullName}`);
+        lines.push(`📞 Phone: ${phone}`);
+        if (user?.email || address.email) {
+            lines.push(`📧 Email: ${user?.email || address.email}`);
+        }
+        lines.push(`🚚 Service: ${deliveryMethod === 'pickup' ? 'Pickup' : 'Delivery'}`);
+        lines.push(`📍 Address: ${deliveryAddr}`);
+        lines.push(`💳 Payment: Pay on Delivery (WhatsApp)`);
+        lines.push(``);
+        lines.push(`Placed via www.fairprice.ng`);
+
+        return lines.join('\n');
     };
 
     const finalizeOrder = (_reference?: string) => {
@@ -853,7 +1128,7 @@ function CheckoutContent() {
         setTimeout(() => {
             // Create and save the order(s)
             // Use the provided email as the user_id if not logged in
-            const orderUserId = user?.email || address.email;
+            const orderUserId = DataSyncService.getCurrentUserId() || user?.email || address.email;
             const fullName = `${address.firstName} ${address.lastName}`.trim();
 
             const createdOrders: any[] = [];
@@ -861,9 +1136,10 @@ function CheckoutContent() {
 
             checkoutItems.forEach((item, index) => {
                 // Calculate financing details for vehicle products
+                // Uses the dynamic vehicleDepositRate (from getVehicleDepositPercent) computed at render-level
                 const isVehicleProduct = isVehicle(item.product);
-                const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * 0.15) : 0;
-                const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 'bnpl', 'foreign_used') : null;
+                const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * vehicleDepositRate) : 0;
+                const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 2, 'foreign_used') : null;
 
                 // Use pre-generated ID if available (from Paystack flow)
                 const manualId = preGeneratedIds[index] || undefined;
@@ -877,15 +1153,17 @@ function CheckoutContent() {
                     seller_id: item.product.seller_id,
                     seller_name: item.product.seller_name,
                     amount: isVehicleProduct ? vehicleDeposit : item.price * item.quantity,
-                    status: _reference?.startsWith("COD-") ? "pending" : "processing", // If paid via Paystack, it's processing
+                    status: (_reference?.startsWith("COD-") || _reference?.startsWith("WA-")) ? "pending" : "processing", // COD and WA are pending
                     escrow_status: "held",
                     shipping_address: deliveryMethod === "pickup"
-                        ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
-                        : `${fullName}, ${address.street}, ${address.city}`,
+                        ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`.replace(/, ,/g, ', ')
+                        : `${fullName}, ${address.street}, ${address.city}, ${address.state || 'Lagos'}`.replace(/, ,/g, ', '),
                     delivery_method: deliveryMethod,
                     customer_phone: `${countryCode} ${address.phone}`,
                     customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
                     discount_id: appliedCoupon?.id,
+                    // @ts-ignore - Flag for off-platform payment tracking
+                    off_listing: (item.product as any).off_listing || false,
                     // Attach full financing breakdown for vehicle orders
                     ...(isVehicleProduct && loanCalc ? {
                         financing: {
@@ -902,6 +1180,46 @@ function CheckoutContent() {
                         }
                     } : {})
                 }, item.product);
+
+                // 🔔 Notify Seller (In-app & Push via hook)
+                DataSyncService.addNotification({
+                    userId: item.product.seller_id,
+                    type: "order",
+                    title: "New Order Received! 🛒",
+                    message: `You have a new order for ${item.product.name} (₦${(item.price * item.quantity).toLocaleString()}).`,
+                    link: `/seller/orders?id=${newOrder.id}`
+                });
+
+                // 📧 Notify Seller (Email)
+                const seller = DataSyncService.getSellers().find(s => s.id === item.product.seller_id);
+                const sellerEmail = seller?.owner_email || (seller as any)?.email;
+                if (sellerEmail) {
+                    fetch("/api/email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: sellerEmail,
+                            type: "SELLER_NEW_ORDER",
+                            payload: {
+                                name: seller?.business_name || "Seller",
+                                orderId: newOrder.id,
+                                productName: item.product.name,
+                                amount: item.price * item.quantity,
+                                trackingUrl: `https://www.fairprice.ng/seller/orders`
+                            }
+                        })
+                    }).catch(() => {}); // Silently fail email — in-app notification is the source of truth
+                }
+
+                // 👨‍💼 Notify Admin (In-app & Push via hook)
+                DataSyncService.addNotification({
+                    userId: "admin",
+                    type: "order",
+                    title: "System: New Order Placed 📦",
+                    message: `New order #${newOrder.id} placed by ${fullName} for ${item.product.name}.`,
+                    link: `/admin/orders?id=${newOrder.id}`
+                });
+
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
 
@@ -930,6 +1248,10 @@ function CheckoutContent() {
                             reason: `Referral bonus unlocked! Assigned for new purchase by ${fullName || orderUserId}.`,
                             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Extends 30 Days
                         });
+                        
+                        // Register the referral in the tracker
+                        DataSyncService.addReferral(referrerId, orderUserId, fullName || "A Friend", "completed");
+                        
                         // Remove hook to prevent infinite coupon payouts on subsequent orders
                         localStorage.removeItem("fp_referral");
                     }
@@ -950,16 +1272,8 @@ function CheckoutContent() {
             }
 
             if (!user) {
-                // Auto-create an account for the guest and log them in
-                const guestId = "usr_" + Date.now();
-                const guestUser = {
-                    id: guestId,
-                    email: address.email,
-                    name: fullName || "Guest User",
-                    role: "customer" as const,
-                    created_at: new Date().toISOString()
-                };
-                login(guestUser);
+                // We no longer auto-login the guest here.
+                // They will be prompted to secure their account after the order is finalized.
                 setIsGuestCheckout(true);
 
                 // Sync guest user to DB with a default password so they can log in later if they skip (though we'll force setup)
@@ -973,15 +1287,41 @@ function CheckoutContent() {
                         role: "customer",
                         password: "fairprice123", // Default password — user will be prompted to change
                         phone: `${countryCode} ${address.phone}`,
-                        whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
+                        whatsapp: showWhatsappField ? `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}` : undefined,
                         address: deliveryMethod === "doorstep"
                             ? `${address.street}, ${address.city}`
                             : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
                     })
                 }).catch(console.error);
+            } else if (user && showWhatsappField && whatsappPhone.trim()) {
+                // Logged-in user: save WA number to their profile so it's linked and available for broadcasts
+                const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                fetch("/api/users", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({
+                        id: user.id,
+                        email: user.email,
+                        whatsappNumber: `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}`,
+                    })
+                }).then(async (res) => {
+                    if (res.ok) {
+                        const updated = await res.json();
+                        // Reflect in local context so profile page shows it immediately
+                        updateUser({ whatsappNumber: updated.whatsappNumber } as any);
+                    }
+                }).catch(console.error);
             }
-            // Show concierge before redirect
-            setShowConcierge(true);
+            // Show concierge before redirect (ONLY for signed in users per user request)
+            if (user && !isGuestCheckout) {
+                setShowConcierge(true);
+            } else {
+                // For guests, skip concierge and go straight to password setup
+                setShowGuestPasswordSetup(true);
+            }
 
             // Don't auto-redirect — let the concierge close trigger the redirect (via handleConciergeClose)
             // The redirect happens in handleConciergeClose after optional push notification prompt
@@ -1000,7 +1340,7 @@ function CheckoutContent() {
                             orderId: realOrderId,
                             productName: checkoutItems.length > 1 ? `${checkoutItems[0].product.name} +${checkoutItems.length - 1} more` : checkoutItems[0].product.name,
                             amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
-                            trackingUrl: `https://fairprice.ng/account/orders`
+                            trackingUrl: `https://www.fairprice.ng/account/orders`
                         }
                     })
                 }).catch(console.error);
@@ -1047,7 +1387,7 @@ function CheckoutContent() {
                             orderId: firstSellerOrder.order.id,
                             productName: productNames,
                             amount: totalAmount,
-                            trackingUrl: `https://fairprice.ng/seller/orders`
+                            trackingUrl: `https://www.fairprice.ng/seller/orders`
                         }
                     })
                 }).catch(console.error);
@@ -1065,21 +1405,165 @@ function CheckoutContent() {
                 {/* Left Column: Checkout steps */}
                 <div className="flex-1 space-y-6">
 
-                    {/* Step 1: Shipping Address */}
-                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => { if (checkoutStep > 1) setCheckoutStep(1); }}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    {showIdentityPrompt && (
+                        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 flex items-start gap-3 transition-opacity">
+                            <ShieldCheck className="h-6 w-6 text-orange-500 shrink-0 mt-0.5" />
+                            <div>
+                                <h3 className="font-bold text-sm">Action Required: Secure Your Account</h3>
+                                <p className="text-xs mt-1">We noticed you logged in via WhatsApp. Please enter your real name and email address in the Shipping section below to complete your profile.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Step 1: Review Items */}
+                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${checkoutStep >= 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
+                        <div 
+                            className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"
+                        >
+                            <h2 className="font-bold text-lg flex items-center gap-2 text-gray-900">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-black text-white'}`}>
                                     {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
                                 </span>
-                                Shipping Address
+                                Review Items ({checkoutItems.length})
+                            </h2>
+                        </div>
+
+                        {
+                            <div className="p-6">
+                                {/* Group items by seller */}
+                                {(() => {
+                                    // Group by seller
+                                    const groups: Record<string, typeof checkoutItems> = {};
+                                    checkoutItems.forEach(item => {
+                                        const seller = item.product.seller_name || "Unknown Seller";
+                                        if (!groups[seller]) groups[seller] = [];
+                                        groups[seller].push(item);
+                                    });
+                                    const sellerNames = Object.keys(groups);
+
+                                    return sellerNames.map((sellerName, gi) => (
+                                        <div key={sellerName} className={gi > 0 ? "mt-6 pt-6 border-t border-gray-100" : ""}>
+                                            {/* Seller header (only if multi-vendor) */}
+                                            {sellerNames.length > 1 && (
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <Package className="h-4 w-4 text-gray-400" />
+                                                    <span className="text-sm font-bold text-gray-700">Sold by: {sellerName}</span>
+                                                </div>
+                                            )}
+
+                                            {/* Delivery estimate per seller */}
+                                            <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm mb-4 bg-emerald-50 p-3 rounded-lg w-fit">
+                                                <Truck className="h-4 w-4" />
+                                                Delivery by {getDeliveryDateRange()}
+                                            </div>
+
+                                            <div className="space-y-6">
+                                                {groups[sellerName].map((item, i) => (
+                                                    <div key={i} className="flex gap-4 group/item">
+                                                        <button
+                                                            onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
+                                                            className="w-20 h-20 bg-white rounded-xl border border-gray-100 shrink-0 p-2 cursor-pointer hover:border-emerald-300 transition-colors flex items-center justify-center overflow-hidden"
+                                                        >
+                                                            <img
+                                                                src={item.product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                                                className="w-full h-full object-contain transition-transform group-hover/item:scale-105"
+                                                                alt={item.product.name}
+                                                                onError={e => {
+                                                                    e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80";
+                                                                }}
+                                                            />
+                                                        </button>
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-start">
+                                                                <div
+                                                                    className="cursor-pointer group-hover/item:text-emerald-700 transition-colors"
+                                                                    onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
+                                                                >
+                                                                    <h3 className="font-bold text-gray-900 line-clamp-1 group-hover/item:text-emerald-600 transition-colors">{item.product.name}</h3>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <span className="font-bold text-brand-green-600">{formatPrice(item.price)}</span>
+                                                                        {item.isNegotiated && (
+                                                                            <span className="text-[10px] bg-brand-green-100 text-brand-green-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                                                                <Tag className="h-3 w-3" /> Negotiated Price
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {item.isNegotiated && (
+                                                                        <p className="text-xs text-gray-400 line-through mt-0.5">{formatPrice(item.product.price)}</p>
+                                                                    )}
+                                                                </div>
+                                                                {!negotiationId && (
+                                                                    <button
+                                                                        onClick={() => removeFromCart(item.product.id)}
+                                                                        className="text-gray-400 hover:text-red-500 transition-colors"
+                                                                    >
+                                                                        <span className="sr-only">Remove</span>
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-3 mt-3">
+                                                                <p className="text-sm text-gray-500">Quantity:</p>
+                                                                {!negotiationId ? (
+                                                                    <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
+                                                                        <button
+                                                                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                                                                            className="px-2 py-1 hover:bg-gray-200 rounded-l-lg transition-colors"
+                                                                            disabled={item.quantity <= 1}
+                                                                        >
+                                                                            -
+                                                                        </button>
+                                                                        <span className="px-2 text-sm font-bold w-6 text-center">{item.quantity}</span>
+                                                                        <button
+                                                                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                                                                            className="px-2 py-1 hover:bg-gray-200 rounded-r-lg transition-colors"
+                                                                        >
+                                                                            +
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-sm font-bold">{item.quantity}</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+
+                                <div className="mt-8 flex justify-end">
+                                    <Button 
+                                        onClick={() => {
+                                            if (checkoutStep < 2) setCheckoutStep(2);
+                                            shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        }}
+                                        className="rounded-xl h-12 px-8 bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
+                                    >
+                                        Confirm Items & Continue
+                                    </Button>
+                                </div>
+                            </div>
+                        }
+                    </section>
+
+                    {/* Step 2: Shipping & Delivery Info */}
+                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep >= 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 ${checkoutStep === 3 ? 'cursor-pointer' : ''}`} onClick={() => { if (checkoutStep === 3) setCheckoutStep(2); }}>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep >= 2 ? 'text-gray-900' : 'text-gray-500'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep > 2 ? 'bg-brand-green-600 text-white' : checkoutStep >= 2 ? 'bg-black text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                    {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
+                                </span>
+                                Shipping & Delivery Info
                             </h2>
                             {addressError && (
                                 <p className="text-sm text-red-500 font-semibold">Please enter your delivery address</p>
                             )}
-                            {checkoutStep > 1 && (
+                            {checkoutStep === 3 && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
+                                    onClick={() => setCheckoutStep(2)}
                                     className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
@@ -1087,46 +1571,105 @@ function CheckoutContent() {
                             )}
                         </div>
 
-                        {checkoutStep === 1 ? (
+                        {checkoutStep < 3 ? (
                             <div className="p-6">
-                                {/* Saved address picker */}
-                                {savedAddresses.length > 0 && isEditingAddress && (
-                                    <div className="mb-4">
-                                        <button
-                                            onClick={() => setShowAddressPicker(!showAddressPicker)}
-                                            className="w-full flex items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 hover:border-brand-orange/50 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <MapPin className="h-4 w-4" />
-                                                Use a saved address ({savedAddresses.length})
-                                            </span>
-                                            <ChevronDown className={`h-4 w-4 transition-transform ${showAddressPicker ? "rotate-180" : ""}`} />
-                                        </button>
-                                        {showAddressPicker && (
-                                            <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-                                                {savedAddresses.map(addr => (
-                                                    <div key={addr.id} className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer group">
-                                                        <div onClick={() => selectSavedAddress(addr)} className="flex-1">
-                                                            <p className="font-semibold text-sm text-gray-900">{addr.firstName} {addr.lastName}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {addr.method === "pickup" ? `Pickup: ${addr.station}, ${addr.city}` : `${addr.street}, ${addr.city}`} · {addr.phone}
-                                                            </p>
+                                {/* Saved Address Card List - ALWAYS RENDER AT TOP */}
+                                {savedAddresses.length > 0 && (
+                                    <div className="mb-8">
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                                            <Sparkles className="h-3 w-3 text-brand-orange" />
+                                            Saved Delivery Addresses
+                                        </h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {savedAddresses.map(addr => (
+                                                <div 
+                                                    key={addr.id} 
+                                                    onClick={() => selectSavedAddress(addr)}
+                                                    className={cn(
+                                                        "relative p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md group",
+                                                        (!isEditingAddress && address.street === addr.street) 
+                                                            ? "border-brand-green-500 bg-brand-green-50/30" 
+                                                            : "border-gray-100 bg-white hover:border-brand-green-200"
+                                                    )}
+                                                >
+                                                    {(!isEditingAddress && address.street === addr.street) && (
+                                                        <div className="absolute top-3 right-3">
+                                                            <CheckCircle2 className="h-5 w-5 text-brand-green-600" />
                                                         </div>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); deleteSavedAddress(addr.id); }}
-                                                            className="p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-50 text-gray-300 hover:text-red-500 transition-all"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
+                                                    )}
+                                                    <p className="font-black text-[13px] text-gray-900 mb-1">{addr.firstName} {addr.lastName}</p>
+                                                    <p className="text-[12px] text-gray-500 leading-snug line-clamp-2 mb-2">
+                                                        {addr.method === "pickup" ? `Pickup: ${addr.station}` : addr.street}, {addr.city}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-auto">
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">
+                                                            {addr.method}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-400 font-medium">
+                                                            {addr.phone}
+                                                        </span>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); deleteSavedAddress(addr.id); }}
+                                                        className="absolute bottom-3 right-3 p-1.5 rounded-lg bg-gray-50 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            
+                                            <button
+                                                onClick={() => {
+                                                    setAddress({
+                                                        firstName: "", lastName: "", street: "", city: "Lagos", state: "Lagos", phone: "", email: user?.email || ""
+                                                    });
+                                                    setDeliveryMethod("doorstep");
+                                                    setIsEditingAddress(true);
+                                                }}
+                                                className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-brand-green-300 hover:bg-gray-50 flex flex-col items-center justify-center gap-2 transition-all group"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-brand-green-100 flex items-center justify-center transition-colors">
+                                                    <Plus className="h-4 w-4 text-gray-400 group-hover:text-brand-green-600" />
+                                                </div>
+                                                <span className="text-xs font-bold text-gray-500 group-hover:text-brand-green-600">Add New Address</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
                                 {isEditingAddress ? (
                                     <div className="space-y-6">
+                                        {/* Progressive Checkout: Collapsible Address Header */}
+                                        <div 
+                                            onClick={() => setIsAddressExpanded(!isAddressExpanded)}
+                                            className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+                                                    <MapPin className={cn("h-5 w-5", !!isAddressExpanded ? "text-brand-green-600" : "text-gray-400")} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm font-black text-gray-900">Shipping & Delivery Info</h3>
+                                                    <p className="text-[11px] text-gray-500 font-medium">
+                                                        {!!isAddressExpanded ? "Enter your delivery details below" : (address.street ? `${address.street}, ${address.city}` : "Click to add delivery address")}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Button variant="ghost" size="sm" className="text-brand-green-600 font-bold text-xs">
+                                                {!!isAddressExpanded ? "Collapse" : "Expand"}
+                                            </Button>
+                                        </div>
+
+                                        <AnimatePresence mode="wait">
+                                            {!!isAddressExpanded && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                    className="overflow-hidden space-y-6 pt-2"
+                                                >
                                         {/* Delivery Method Toggle */}
                                         <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
                                             <button
@@ -1147,37 +1690,54 @@ function CheckoutContent() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-1">
-                                                <label className="text-xs font-bold uppercase text-gray-400">First Name</label>
+                                                <label className="text-xs font-bold uppercase text-gray-400">First Name <span className="text-red-400">*</span></label>
                                                 <Input
                                                     value={address.firstName}
                                                     onChange={e => setAddress({ ...address, firstName: e.target.value })}
                                                     placeholder="Enter first name"
+                                                    required
                                                     className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
                                             </div>
                                             <div className="space-y-1">
-                                                <label className="text-xs font-bold uppercase text-gray-400">Last Name</label>
+                                                <label className="text-xs font-bold uppercase text-gray-400">Last Name <span className="text-red-400">*</span></label>
                                                 <Input
                                                     value={address.lastName}
                                                     onChange={e => setAddress({ ...address, lastName: e.target.value })}
                                                     placeholder="Enter last name"
+                                                    required
                                                     className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
                                             </div>
                                         </div>
-                                        {/* Only show email for guest users */}
-                                        {!user && (
+                                        {/* Email — guest / WA placeholder / supplier (ordering in someone else's name) */}
+                                        {(!user || isWhatsAppPlaceholder) && (
                                             <div className="space-y-1 relative">
-                                                <label className="text-xs font-bold uppercase text-gray-400">Email Address</label>
+                                                <label className="text-xs font-bold uppercase text-gray-400">Email Address <span className="text-red-400">*</span></label>
                                                 <Input
                                                     type="email"
                                                     value={address.email}
                                                     onChange={e => handleEmailChange(e.target.value)}
                                                     onFocus={() => { if (emailSuggestions.length > 0) setShowEmailDropdown(true); }}
-                                                    onBlur={() => setTimeout(() => setShowEmailDropdown(false), 200)}
+                                                    onBlur={async () => {
+                                                        setTimeout(() => setShowEmailDropdown(false), 200);
+                                                        // Only check conflict for WA users entering a real email
+                                                        if (isWhatsAppPlaceholder && address.email && address.email.includes('@') && !address.email.startsWith('wa')) {
+                                                            try {
+                                                                const res = await fetch(`/api/users?email=${encodeURIComponent(address.email)}`);
+                                                                const d = await res.json();
+                                                                if (d.exists && d.userId !== user?.id) {
+                                                                    setEmailConflictStatus('conflict');
+                                                                } else {
+                                                                    setEmailConflictStatus('none');
+                                                                    setOrderEmailMode('account'); // default: link to WA account
+                                                                }
+                                                            } catch { /* ignore */ }
+                                                        }
+                                                    }}
                                                     placeholder="your@email.com"
                                                     autoComplete="off"
-                                                    className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
+                                                    className={`rounded-xl bg-white focus:ring-brand-orange/20 ${emailConflictStatus === 'conflict' ? 'border-amber-400 focus:border-amber-400' : 'border-gray-300 focus:border-brand-orange/50'}`}
                                                 />
                                                 {/* Email domain autocomplete */}
                                                 {showEmailDropdown && emailSuggestions.length > 0 && (
@@ -1200,45 +1760,84 @@ function CheckoutContent() {
                                                         ))}
                                                     </div>
                                                 )}
+
+                                                {/* Email conflict resolution */}
+                                                {emailConflictStatus === 'conflict' && isWhatsAppPlaceholder && (
+                                                    <div className="mt-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                                                        <p className="text-xs font-bold text-amber-800 mb-2">⚠️ This email is linked to another account. What would you like to do?</p>
+                                                        <div className="space-y-1.5">
+                                                            {[
+                                                                { value: 'order_only', label: '📦 Use for this order only (no account link)', hint: 'Order updates go to this email. Your WhatsApp account stays separate.' },
+                                                                { value: 'create_account', label: '🆕 Create a new account with this email', hint: 'A separate account will be created. Your WhatsApp account & orders stay here.' },
+                                                            ].map(opt => (
+                                                                <label key={opt.value} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer border transition-all ${orderEmailMode === opt.value ? 'border-amber-400 bg-amber-100/60' : 'border-transparent hover:bg-amber-100/30'}`}>
+                                                                    <input type="radio" name="emailMode" value={opt.value} checked={orderEmailMode === opt.value} onChange={() => setOrderEmailMode(opt.value as typeof orderEmailMode)} className="mt-0.5 accent-amber-500" />
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-amber-900">{opt.label}</p>
+                                                                        <p className="text-[10px] text-amber-600">{opt.hint}</p>
+                                                                    </div>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Safe: email is new — offer to link to WA account */}
+                                                {emailConflictStatus === 'none' && isWhatsAppPlaceholder && address.email && (
+                                                    <div className="mt-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                                                        <p className="text-xs font-bold text-emerald-800 mb-1.5">✅ Email is available. How should we use it?</p>
+                                                        <div className="space-y-1.5">
+                                                            {[
+                                                                { value: 'account', label: '🔗 Add to my account (login with email in future)', hint: 'This email becomes a login option for your WhatsApp account.' },
+                                                                { value: 'order_only', label: '📦 This order only', hint: 'Order updates go here. Your account keeps using WhatsApp to login.' },
+                                                            ].map(opt => (
+                                                                <label key={opt.value} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer border transition-all ${orderEmailMode === opt.value ? 'border-emerald-400 bg-emerald-100/60' : 'border-transparent hover:bg-emerald-100/30'}`}>
+                                                                    <input type="radio" name="emailMode" value={opt.value} checked={orderEmailMode === opt.value} onChange={() => setOrderEmailMode(opt.value as typeof orderEmailMode)} className="mt-0.5 accent-emerald-500" />
+                                                                    <div>
+                                                                        <p className="text-xs font-bold text-emerald-900">{opt.label}</p>
+                                                                        <p className="text-[10px] text-emerald-600">{opt.hint}</p>
+                                                                    </div>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
-                                        {user && (
-                                            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-sm mb-2">
-                                                <Check className="h-4 w-4 text-green-600" />
-                                                <span className="text-green-700">Order receipt will be sent to <strong>{user.email}</strong></span>
+
+                                        {/* Logged-in (non-WA) user: show account email but allow ordering in another name */}
+                                        {user && !isWhatsAppPlaceholder && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-sm">
+                                                    <Check className="h-4 w-4 text-green-600" />
+                                                    <span className="text-green-700">Receipts → <strong>{user.email}</strong></span>
+                                                </div>
+                                                {/* Supplier mode: ordering in customer's name */}
+                                                {(address.firstName || address.email) && (address.email !== user.email) && (
+                                                    <div className="px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                                                        <p className="font-bold mb-1">🏪 Ordering in a customer's name?</p>
+                                                        <p className="text-blue-600 mb-2">Order updates will also be sent to <strong>{address.email || 'the email you enter'}</strong>.</p>
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={orderEmailMode === 'create_account'}
+                                                                onChange={e => setOrderEmailMode(e.target.checked ? 'create_account' : 'order_only')}
+                                                                className="accent-blue-600"
+                                                            />
+                                                            <span className="font-medium">Create a FairPrice account for that customer email</span>
+                                                        </label>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold uppercase text-gray-400">Phone Number <span className="text-red-400">*</span></label>
                                             <div className="flex gap-2">
                                                 {/* Country Code Dropdown */}
-                                                <div className="relative">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                                                        className="h-10 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 transition-colors min-w-[90px]"
-                                                    >
-                                                        <span>{COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🌍"}</span>
-                                                        <span className="font-semibold">{countryCode}</span>
-                                                        <svg className="h-3 w-3 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                                                    </button>
-                                                    {showCountryDropdown && (
-                                                        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-xl max-h-52 overflow-y-auto">
-                                                            {COUNTRY_CODES.map(c => (
-                                                                <button
-                                                                    key={c.code}
-                                                                    type="button"
-                                                                    onClick={() => { setCountryCode(c.code); setShowCountryDropdown(false); }}
-                                                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-emerald-50 transition-colors ${countryCode === c.code ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'}`}
-                                                                >
-                                                                    <span className="text-base">{c.flag}</span>
-                                                                    <span className="flex-1 text-left font-medium">{c.country}</span>
-                                                                    <span className="text-gray-400 text-xs font-mono">{c.code}</span>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <CountryCodeSelect 
+                                                    value={countryCode} 
+                                                    onChange={setCountryCode} 
+                                                />
                                                 <Input
                                                     value={address.phone}
                                                     onChange={e => setAddress({ ...address, phone: e.target.value })}
@@ -1263,16 +1862,10 @@ function CheckoutContent() {
                                             </label>
                                             {showWhatsappField && (
                                                 <div className="flex gap-2 pl-8">
-                                                    <div className="relative">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { }}
-                                                            className="h-10 px-3 rounded-xl border border-gray-300 bg-white flex items-center gap-1.5 text-sm font-medium text-gray-700 min-w-[90px]"
-                                                        >
-                                                            <span>{COUNTRY_CODES.find(c => c.code === whatsappCountryCode)?.flag || "🌍"}</span>
-                                                            <span className="font-semibold">{whatsappCountryCode}</span>
-                                                        </button>
-                                                    </div>
+                                                    <CountryCodeSelect 
+                                                        value={whatsappCountryCode} 
+                                                        onChange={setWhatsappCountryCode} 
+                                                    />
                                                     <Input
                                                         value={whatsappPhone}
                                                         onChange={e => setWhatsappPhone(e.target.value)}
@@ -1491,13 +2084,16 @@ function CheckoutContent() {
                                                         saveCurrentAddress();
                                                     }
                                                     setIsEditingAddress(false);
-                                                    setCheckoutStep(2);
+                                                    setCheckoutStep(3); // Auto-advance to payment after confirming address
                                                 }}
                                                 className="rounded-xl bg-black hover:bg-gray-900 text-white font-bold px-6"
                                             >
                                                 Confirm Details
                                             </Button>
                                         </div>
+                                    </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -1543,7 +2139,7 @@ function CheckoutContent() {
                                         )}
                                         <div className="mt-6 flex justify-end">
                                             <Button
-                                                onClick={() => setCheckoutStep(2)}
+                                                onClick={() => setCheckoutStep(3)}
                                                 className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 text-white rounded-xl font-bold px-8"
                                             >
                                                 PROCEED TO PAYMENT
@@ -1557,37 +2153,36 @@ function CheckoutContent() {
                                 {deliveryMethod === "pickup" ? <MapPin className="h-5 w-5 text-gray-400" /> : <Truck className="h-5 w-5 text-gray-400" />}
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">{address.firstName} {address.lastName}</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {deliveryMethod === "doorstep"
-                                            ? `${address.street}, ${address.city}`
-                                            : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}`
-                                        }
-                                    </p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {deliveryMethod === "doorstep"
+                                                    ? `${address.street}${address.street ? ", " : ""}${address.city}`
+                                                    : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}`
+                                                }
+                                            </p>
                                 </div>
                             </div>
                         )}
                     </section>
 
-                    {/* Step 2: Payment Method */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 2 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`} onClick={() => checkoutStep > 2 ? setCheckoutStep(2) : checkoutStep === 1 && address.street.trim() && setCheckoutStep(2)}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 2 ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                    {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
+                    {/* Step 3: Payment Method */}
+                    <section ref={paymentSectionRef} className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`} onClick={() => checkoutStep > 3 ? setCheckoutStep(3) : checkoutStep === 2 && address.street.trim() && setCheckoutStep(3)}>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 ? 'text-gray-900' : 'text-gray-400'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : checkoutStep > 3 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                    {checkoutStep > 3 ? <Check className="h-4 w-4" /> : '3'}
                                 </div>
                                 Payment Method
                             </h2>
-                            {checkoutStep > 2 && (
+                            {checkoutStep > 3 && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(2); }}
+                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(3); }}
                                     className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
                                 </button>
                             )}
                         </div>
-
-                        {checkoutStep === 2 && (
+                        {checkoutStep === 3 && (
                             <div className="p-6 space-y-3">
                                 {/* Paystack (Card Payment) */}
                                 <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'paystack' ? 'border-brand-orange/50 bg-orange-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
@@ -1606,10 +2201,7 @@ function CheckoutContent() {
                                                 <svg className="w-8 h-4 rounded-sm bg-blue-800 flex items-center justify-center px-1" viewBox="0 0 36 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                     <path d="M14.6548 0.625366L9.61334 11.3752H6.26257L3.95544 3.12565C3.81848 2.50285 3.65588 2.2155 3.19702 1.95679C2.42255 1.51737 1.15112 1.0504 0 0.825226V0.625366H5.21045C5.86792 0.625366 6.45288 1.04543 6.61157 1.83186L7.91528 8.63229L11.3533 0.625366H14.6548ZM26.3779 7.64716C26.3989 4.79374 22.464 4.6346 22.4854 3.32832C22.4922 2.92345 22.8804 2.49352 23.7549 2.37895C24.1956 2.3168 25.4377 2.27453 26.4302 2.73463L27.0176 0.111816C26.4819 0.00976562 25.5459 0 24.4379 0C21.4324 0 19.4175 1.54719 19.3958 3.75087C19.3765 5.37839 20.9163 6.28822 22.072 6.83763C23.2644 7.40445 23.6655 7.765 23.6624 8.27211C23.6565 9.04753 22.6953 9.39558 21.8491 9.39558C20.3013 9.39558 19.4121 8.98036 18.7842 8.68205L18.1729 11.3653C18.7905 11.6462 20.071 11.875 21.4019 11.875C24.5886 11.875 26.3572 10.3343 26.3779 7.64716ZM34.2144 11.3752H37.0503L34.1866 0.625366H31.5496C30.9824 0.625366 30.5093 0.94101 30.292 1.45564L25.8601 11.3752H29.3093L29.9978 9.53535H34.2144V11.3752ZM30.9839 6.80531L32.656 2.36894L33.623 6.80531H30.9839ZM18.4233 11.3752L15.4243 0.625366H12.3552L15.3523 11.3752H18.4233Z" fill="white"/>
                                                 </svg>
-                                                {/* OPay Stylized Text */}
-                                                <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
-                                                    <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
-                                                </div>
+                    
                                             </div>
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -1626,6 +2218,10 @@ function CheckoutContent() {
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <span className="font-bold text-gray-900">Pay with Transfer</span>
                                             <Building className="h-4 w-4 text-blue-500" />
+                                            {/* OPay Stylized Text */}
+                                                <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
+                                                    <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
+                                                </div>
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <Lock className="h-3 w-3" /> Bank transfer via Paystack
@@ -1659,14 +2255,28 @@ function CheckoutContent() {
                                             <span className="font-bold text-gray-500">Pay on Delivery</span>
                                             <p className="text-xs text-gray-400">
                                                 {!codEnabled
-                                                    ? "Pay on Delivery is currently disabled"
-                                                    : hasGlobalProduct
-                                                        ? "Your order doesnt't qualify for this payment method"
-                                                        : `Not available for orders above ₦${codThreshold.toLocaleString()}`}
+                                                    ? "Pay on Delivery is currently unavailable"
+                                                    : "This order doesn't qualify for Pay on Delivery"}
                                             </p>
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Order via WhatsApp */}
+                                <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'whatsapp' ? 'border-[#25D366] bg-[#25D366]/5 ring-1 ring-[#25D366]/30' : 'border-gray-200 hover:border-[#25D366]/40'}`}>
+                                    <input suppressHydrationWarning type="radio" name="payment" checked={paymentMethod === 'whatsapp'} onChange={() => setPaymentMethod('whatsapp')} className="h-5 w-5 text-[#25D366] focus:ring-[#25D366] accent-[#25D366]" />
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span className="font-bold text-gray-900">Order via WhatsApp</span>
+                                            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#25D366">
+                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                            </svg>
+                                            <span className="text-[9px] font-black uppercase tracking-widest bg-[#25D366] text-white px-2 py-0.5 rounded-full">NEW</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500">Send your order directly to FairPrice on WhatsApp</p>
+                                        <p className="text-xs text-[#25D366] font-bold mt-1">Opens in WhatsApp · Pay on delivery 💬</p>
+                                    </div>
+                                </label>
 
                                 <DiscountSection
                                     availableCoupons={availableCoupons}
@@ -1676,154 +2286,31 @@ function CheckoutContent() {
                                     onApplyCoupon={setAppliedCoupon}
                                 />
 
-                                <div className="mt-6 flex justify-end">
+                                <div className="mt-6 flex justify-end lg:hidden">
                                     <Button
                                         onClick={() => setCheckoutStep(3)}
-                                        className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 text-white rounded-lg font-bold"
+                                        className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 text-white rounded-lg font-bold px-8"
                                     >
-                                        PROCEED TO SUMMARY
+                                        PROCEED TO ORDER SUMMARY
                                     </Button>
                                 </div>
                             </div>
                         )}
                         {checkoutStep > 2 && (
                             <div className="px-6 py-4 flex items-center gap-4 bg-white opacity-80">
-                                {paymentMethod === 'paystack' ? <CreditCard className="h-5 w-5 text-gray-400" /> : paymentMethod === 'transfer' ? <Building className="h-5 w-5 text-blue-500" /> : <Truck className="h-5 w-5 text-amber-500" />}
+                                {paymentMethod === 'paystack' ? <CreditCard className="h-5 w-5 text-gray-400" /> : paymentMethod === 'transfer' ? <Building className="h-5 w-5 text-blue-500" /> : paymentMethod === 'whatsapp' ? (
+                                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                ) : <Truck className="h-5 w-5 text-amber-500" />}
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Pay with Card' : paymentMethod === 'transfer' ? 'Pay with Transfer' : 'Pay on Delivery'}</p>
-                                    <p className={`text-xs font-medium ${paymentMethod === 'cod' ? 'text-amber-600' : 'text-green-600'}`}>
-                                        {paymentMethod === 'paystack' ? 'Secured card payment · FREE delivery' : paymentMethod === 'transfer' ? 'Bank transfer via Paystack · FREE delivery' : `Delivery fee: ${formatPrice(shipping)}`}
+                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Pay with Card' : paymentMethod === 'transfer' ? 'Pay with Transfer' : paymentMethod === 'whatsapp' ? 'Order via WhatsApp' : 'Pay on Delivery'}</p>
+                                    <p className={`text-xs font-medium ${paymentMethod === 'cod' ? 'text-amber-600' : paymentMethod === 'whatsapp' ? 'text-[#25D366]' : 'text-green-600'}`}>
+                                        {paymentMethod === 'paystack' ? 'Secured card payment · FREE delivery' : paymentMethod === 'transfer' ? 'Bank transfer via Paystack · FREE delivery' : paymentMethod === 'whatsapp' ? 'Order sent via WhatsApp · Pay on Delivery' : `Delivery fee: ${formatPrice(shipping)}`}
                                     </p>
                                 </div>
                             </div>
                         )}
                     </section>
 
-                    {/* Step 3: Review Items */}
-                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${isReviewExpanded || checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
-                        <div 
-                            className={`p-6 border-b border-gray-100 flex justify-between items-center cursor-pointer transition-colors ${isReviewExpanded || checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}
-                            onClick={() => setIsReviewExpanded(!isReviewExpanded)}
-                        >
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 || isReviewExpanded ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : checkoutStep > 3 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                    {checkoutStep > 3 ? <Check className="h-4 w-4" /> : '3'}
-                                </div>
-                                Review Items ({checkoutItems.length})
-                            </h2>
-                            <button className="text-gray-400 hover:text-gray-600">
-                                <ChevronDown className={cn("h-5 w-5 transition-transform duration-300", (isReviewExpanded || checkoutStep === 3) && "rotate-180")} />
-                            </button>
-                        </div>
-
-                        {(checkoutStep === 3 || isReviewExpanded) && (
-                            <div className="p-6">
-                                {/* Group items by seller */}
-                                {(() => {
-                                    // Group by seller
-                                    const groups: Record<string, typeof checkoutItems> = {};
-                                    checkoutItems.forEach(item => {
-                                        const seller = item.product.seller_name || "Unknown Seller";
-                                        if (!groups[seller]) groups[seller] = [];
-                                        groups[seller].push(item);
-                                    });
-                                    const sellerNames = Object.keys(groups);
-
-                                    return sellerNames.map((sellerName, gi) => (
-                                        <div key={sellerName} className={gi > 0 ? "mt-6 pt-6 border-t border-gray-100" : ""}>
-                                            {/* Seller header (only if multi-vendor) */}
-                                            {sellerNames.length > 1 && (
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <Package className="h-4 w-4 text-gray-400" />
-                                                    <span className="text-sm font-bold text-gray-700">Sold by: {sellerName}</span>
-                                                </div>
-                                            )}
-
-                                            {/* Delivery estimate per seller */}
-                                            <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm mb-4 bg-emerald-50 p-3 rounded-lg w-fit">
-                                                <Truck className="h-4 w-4" />
-                                                Delivery by {getDeliveryDateRange()}
-                                            </div>
-
-                                            <div className="space-y-6">
-                                                {groups[sellerName].map((item, i) => (
-                                                    <div key={i} className="flex gap-4 group/item">
-                                                        <button
-                                                            onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
-                                                            className="w-20 h-20 bg-white rounded-xl border border-gray-100 shrink-0 p-2 cursor-pointer hover:border-emerald-300 transition-colors flex items-center justify-center overflow-hidden"
-                                                        >
-                                                            <img
-                                                                src={item.product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
-                                                                className="w-full h-full object-contain transition-transform group-hover/item:scale-105"
-                                                                alt={item.product.name}
-                                                                onError={e => {
-                                                                    e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80";
-                                                                }}
-                                                            />
-                                                        </button>
-                                                        <div className="flex-1">
-                                                            <div className="flex justify-between items-start">
-                                                                <div
-                                                                    className="cursor-pointer group-hover/item:text-emerald-700 transition-colors"
-                                                                    onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
-                                                                >
-                                                                    <h3 className="font-bold text-gray-900 line-clamp-1 group-hover/item:text-emerald-600 transition-colors">{item.product.name}</h3>
-                                                                    <div className="flex items-center gap-2 mt-1">
-                                                                        <span className="font-bold text-brand-green-600">{formatPrice(item.price)}</span>
-                                                                        {item.isNegotiated && (
-                                                                            <span className="text-[10px] bg-brand-green-100 text-brand-green-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
-                                                                                <Tag className="h-3 w-3" /> Negotiated Price
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    {item.isNegotiated && (
-                                                                        <p className="text-xs text-gray-400 line-through mt-0.5">{formatPrice(item.product.price)}</p>
-                                                                    )}
-                                                                </div>
-                                                                {!negotiationId && (
-                                                                    <button
-                                                                        onClick={() => removeFromCart(item.product.id)}
-                                                                        className="text-gray-400 hover:text-red-500 transition-colors"
-                                                                    >
-                                                                        <span className="sr-only">Remove</span>
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex items-center gap-3 mt-3">
-                                                                <p className="text-sm text-gray-500">Quantity:</p>
-                                                                {!negotiationId ? (
-                                                                    <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
-                                                                        <button
-                                                                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                                                                            className="px-2 py-1 hover:bg-gray-200 rounded-l-lg transition-colors"
-                                                                            disabled={item.quantity <= 1}
-                                                                        >
-                                                                            -
-                                                                        </button>
-                                                                        <span className="px-2 text-sm font-bold w-6 text-center">{item.quantity}</span>
-                                                                        <button
-                                                                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                                                                            className="px-2 py-1 hover:bg-gray-200 rounded-r-lg transition-colors"
-                                                                        >
-                                                                            +
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-sm font-bold">{item.quantity}</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ));
-                                })()}
-                            </div>
-                        )}
-                    </section>
 
                 </div>
 
@@ -1835,9 +2322,14 @@ function CheckoutContent() {
                                 size="lg"
                                 onClick={handlePlaceOrder}
                                 disabled={isProcessing}
-                                className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-14 shadow-lg shadow-emerald-600/25 mb-4 text-base transition-all active:scale-[0.98]"
+                                className={`w-full rounded-2xl text-white font-bold h-14 shadow-lg mb-4 text-base transition-all active:scale-[0.98] ${paymentMethod === 'whatsapp' ? 'bg-[#25D366] hover:bg-[#1da851] shadow-[#25D366]/25' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25'}`}
                             >
-                                {isProcessing ? "Processing..." : "Place Your Order"}
+                                {isProcessing ? "Processing..." : paymentMethod === 'whatsapp' ? (
+                                    <span className="flex items-center gap-2">
+                                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                        Order via WhatsApp
+                                    </span>
+                                ) : "Place Your Order"}
                             </Button>
 
                             <p className="text-xs text-center text-gray-500 mb-6 px-4">
@@ -1852,14 +2344,20 @@ function CheckoutContent() {
                             {checkoutItems.map((item, i) => (
                                 <div key={i} className="flex items-center gap-3 group">
                                     <div className="w-12 h-12 bg-white rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden flex items-center justify-center">
-                                        <img
-                                            src={item.product.image_url || "/assets/images/placeholder.png"}
-                                            alt={item.product.name}
-                                            className="w-full h-full object-contain"
-                                            onError={e => {
-                                                e.currentTarget.src = "/assets/images/placeholder.png";
-                                            }}
-                                        />
+                                        {item.product.image_url === "SPECIAL:QR_PAYMENT" ? (
+                                            <div className="w-full h-full bg-emerald-50 rounded-md flex items-center justify-center">
+                                                <QrCode className="h-6 w-6 text-emerald-600" />
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={item.product.image_url || "/assets/images/placeholder.png"}
+                                                alt={item.product.name}
+                                                className="w-full h-full object-contain"
+                                                onError={e => {
+                                                    e.currentTarget.src = "/assets/images/placeholder.png";
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-gray-700 line-clamp-1">{item.product.name}</p>
@@ -2057,9 +2555,14 @@ function CheckoutContent() {
                                     handlePlaceOrder();
                                 }}
                                 disabled={isProcessing}
-                                className="w-full rounded-xl bg-gradient-to-r from-brand-green-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white font-black h-14 shadow-xl shadow-emerald-500/20 text-lg transition-all"
+                                className={`w-full rounded-xl text-white font-black h-14 shadow-xl text-lg transition-all ${paymentMethod === 'whatsapp' ? 'bg-[#25D366] hover:bg-[#1da851] shadow-[#25D366]/20' : 'bg-gradient-to-r from-brand-green-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 shadow-emerald-500/20'}`}
                             >
-                                {isProcessing ? "Processing..." : "Confirm & Pay"}
+                                {isProcessing ? "Processing..." : paymentMethod === 'whatsapp' ? (
+                                    <span className="flex items-center gap-2">
+                                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                        Send WhatsApp
+                                    </span>
+                                ) : "Confirm & Pay"}
                             </Button>
                         </div>
                     </div>
@@ -2071,9 +2574,9 @@ function CheckoutContent() {
             {isClient && (
                 <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
                     <RecommendedProducts
-                        products={DataSyncService.getApprovedProducts().slice(8, 16)}
+                        products={frequentlyBoughtTogether}
                         title="Frequently Bought Together"
-                        subtitle="Customers also added these items"
+                        subtitle="Smart suggestions based on your cart"
                     />
                     <div className="text-center mt-4">
                         {/* You May Also Like — more products from the same or related categories */}
@@ -2249,7 +2752,7 @@ function CheckoutContent() {
                                 /* Existing account: direct to login */
                                 <div className="space-y-3">
                                     <Button
-                                        onClick={() => router.push(`/login?from=/account/orders`)}
+                                        onClick={() => router.push(`/login?email=${encodeURIComponent(address.email)}&phone=${encodeURIComponent(address.phone)}&from=/account/orders`)}
                                         className="w-full h-12 rounded-xl text-base font-bold bg-brand-green-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
                                     >
                                         Sign In to View Order
@@ -2274,12 +2777,17 @@ function CheckoutContent() {
                                         }
                                         setIsSettingPassword(true);
                                         try {
-                                            const res = await fetch("/api/users", {
+                                            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                                            const res = await fetch("/api/auth/set-password", {
                                                 method: "POST",
-                                                headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ email: address.email, password: guestPassword })
+                                                headers: {
+                                                    "Content-Type": "application/json",
+                                                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                                                },
+                                                body: JSON.stringify({ password: guestPassword })
                                             });
-                                            if (res.ok) {
+                                            const data = await res.json();
+                                            if (res.ok && data.success) {
                                                 setShowGuestPasswordSetup(false);
                                                 if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                                                     setShowPushOptIn(true);
@@ -2287,10 +2795,10 @@ function CheckoutContent() {
                                                     router.push("/account/orders?success=true");
                                                 }
                                             } else {
-                                                throw new Error("Failed to secure account");
+                                                throw new Error(data.error || "Failed to secure account");
                                             }
-                                        } catch {
-                                            setPasswordError("Failed to set password. Try again later.");
+                                        } catch (err: any) {
+                                            setPasswordError(err.message || "Failed to set password. Try again later.");
                                         } finally {
                                             setIsSettingPassword(false);
                                         }
@@ -2336,7 +2844,7 @@ function CheckoutContent() {
                                         Already have an account?{" "}
                                         <button
                                             type="button"
-                                            onClick={() => router.push(`/login?from=/account/orders`)}
+                                            onClick={() => router.push(`/login?email=${encodeURIComponent(address.email)}&phone=${encodeURIComponent(address.phone)}&from=/account/orders`)}
                                             className="text-brand-green-600 font-bold hover:underline"
                                         >
                                             Sign in instead

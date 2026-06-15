@@ -38,7 +38,9 @@ import {
     Car,
     Gamepad,
     Package,
-    Plug
+    Plug,
+    AlertTriangle,
+    Flame
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -55,8 +57,9 @@ import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGrounding
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { useMessages } from "@/context/MessageContext";
-
+const NAV_SEARCH_CACHE = new Map<string, any[]>();
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     phones: <Phone className="h-6 w-6" />,
     smartphones: <Phone className="h-6 w-6" />,
@@ -99,6 +102,7 @@ export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
     const [suggestions, setSuggestions] = useState<typeof SEED_PRODUCTS>([]); // State for suggestions
@@ -108,8 +112,10 @@ export function Navbar() {
     const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string; id?: string; image_url?: string }[]>([]);
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+    const [matchingBrands, setMatchingBrands] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
+    const [imagePool, setImagePool] = useState<Record<string, string>>({});
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
@@ -217,6 +223,24 @@ export function Navbar() {
     const categoryRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
     const hydratedProductIds = useRef<Set<string>>(new Set());
+    const lastNavSyncRef = useRef<number>(0);
+
+    // Background sync: freshen local store from DB so newly added products (e.g. via WhatsApp) appear
+    const triggerNavSync = () => {
+        const now = Date.now();
+        if (now - lastNavSyncRef.current < 60_000) return; // max once per minute
+        lastNavSyncRef.current = now;
+        fetch('/api/products?limit=200')
+            .then(r => r.json())
+            .then(data => {
+                if (data.products && Array.isArray(data.products)) {
+                    data.products.forEach((p: any) => {
+                        try { DataSyncService.addRawProduct(p, false); } catch {}
+                    });
+                }
+            })
+            .catch(() => {});
+    };
     const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -262,92 +286,90 @@ export function Navbar() {
 
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
-        if (searchQuery.trim().length > 0) {
+        if (searchQuery.trim().length === 0) {
+            setSuggestions([]);
+            setMatchingBrands([]);
+            setGlobalResults([]);
+            setIsGlobalSearching(false);
+            setCachedResults([]);
+            setTextSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        const timer = setTimeout(() => {
           try {
             const q = searchQuery.toLowerCase();
-            // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            // Guard: filter out any products with null/undefined names (can happen with old localStorage data)
             const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))]
                 .filter(p => p && p.name);
+
+            // 1. Local product matches (The "PRODUCTS" section)
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
-                    // Boost global products added from search
                     if (p.seller_id === 'global-partners' || p.seller_name?.toLowerCase().includes('global')) {
                         score += 15;
                     }
                     return { product: p, score };
                 })
-                .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
+                .filter(s => s.score > 40)
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 2); // Show only top 2 closely related local results
+                .slice(0, 5); 
             setSuggestions(scored.map(s => s.product));
 
-            // Generate smart, context-aware autocomplete suggestions (no API)
-            const pool = new Set<string>();
+            // 2. Text Suggestions (The "SUGGESTIONS" section)
+            const textPool = new Set<string>();
+            const brandsPool = new Set<string>();
+            
             allSearchProducts.forEach(p => {
-                if (p.name.toLowerCase().includes(q)) pool.add(p.name);
-                // Smart combination (First two words)
-                const words = p.name.split(' ');
-                if (words.length > 1 && words[0].toLowerCase().includes(q)) {
-                    pool.add(`${words[0]} ${words[1] || ''}`.trim());
+                const name = p.name;
+                const brand = (p.specs?.Brand || "").toString();
+                
+                if (name.toLowerCase().includes(q)) {
+                    textPool.add(name);
+                }
+                
+                if (brand && brand.toLowerCase().includes(q) && brand.toLowerCase() !== q) {
+                    brandsPool.add(brand);
+                }
+                
+                if (brand && q.includes(brand.toLowerCase())) {
+                    textPool.add(`${brand} ${p.category || ''}`.trim());
                 }
             });
 
-            const sortedSuggestions = Array.from(pool)
-                .sort((a, b) => {
-                    const aStartsWith = a.toLowerCase().startsWith(q) ? -1 : 1;
-                    const bStartsWith = b.toLowerCase().startsWith(q) ? -1 : 1;
-                    if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
-                    return a.length - b.length;
-                })
-                .slice(0, 5); // Increased from 3 to 5 for better autocomplete coverage
-            
-            // Add smart semantic permutations for the query
-            const semanticSuggs: string[] = [];
-            const trimQ = searchQuery.trim();
-            if (trimQ.length >= 2) {
-                const qLower = trimQ.toLowerCase();
-                const isCarQuery = /\b(car|suv|sedan|truck|van|toyota|lexus|benz|bmw|honda|hyundai|kia|jetour|avatr|tesla|range rover|land cruiser|camry|corolla|rav4|highlander|prado|gwm|changan|geely|byd)\b/i.test(qLower);
-                const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
-                const isComputeQuery = /\b(macbook|laptop|hp|dell|lenovo|asus|acer|pc|computer|desktop)\b/i.test(qLower);
-
-                // Helper to add suggestions only if not already present
-                const addUniqueSuffix = (base: string, suffix: string) => {
-                    const cleanSuffix = suffix.trim();
-                    const bLower = base.toLowerCase();
-                    const sLower = cleanSuffix.toLowerCase();
-                    
-                    // Simple exclusion list for redundant terms in vehicle/electronic queries
-                    const redundantTerms = ['tokunbo', 'used', 'new', 'refurbished', 'foreign'];
-                    const hasRedundant = redundantTerms.some(term => bLower.includes(term) && sLower.includes(term));
-                    
-                    if (!bLower.includes(sLower) && !hasRedundant) {
-                        semanticSuggs.push(`${base} ${cleanSuffix}`);
+            if (textPool.size < 5) {
+                allSearchProducts.forEach(p => {
+                    const words = p.name.split(' ');
+                    if (words.length > 2 && words[0].toLowerCase().includes(q)) {
+                        textPool.add(`${words[0]} ${words[1]} ${words[2]}`.trim());
                     }
-                };
-
-                if (isCarQuery) {
-                    addUniqueSuffix(trimQ, `2024 Model`);
-                    addUniqueSuffix(trimQ, `Tokunbo (Foreign Used)`);
-                    addUniqueSuffix(trimQ, `Nigerian Used`);
-                    semanticSuggs.push(`Cheap ${trimQ}`);
-                } else if (isPhoneQuery || isComputeQuery) {
-                    addUniqueSuffix(trimQ, `Brand New`);
-                    addUniqueSuffix(trimQ, `UK Used`);
-                    addUniqueSuffix(trimQ, `Refurbished`);
-                    semanticSuggs.push(`Cheap ${trimQ}`);
-                } else {
-                    addUniqueSuffix(trimQ, `Brand New`);
-                    addUniqueSuffix(trimQ, `Used`);
-                    addUniqueSuffix(trimQ, `Refurbished`);
-                    semanticSuggs.push(`Best ${trimQ} Brands`);
-                }
+                });
             }
 
-            setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 5));
-            // Instantly show fuzzy-matched cached results from past searches
+            const sortedText = Array.from(textPool)
+                .sort((a, b) => {
+                    const aStarts = a.toLowerCase().startsWith(q);
+                    const bStarts = b.toLowerCase().startsWith(q);
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    return a.length - b.length;
+                })
+                .map(name => {
+                    const p = allSearchProducts.find(prod => prod.name === name);
+                    if (p && p.category) {
+                        const catLabel = CATEGORIES.find(c => c.value === p.category)?.label || p.category;
+                        return `${name} in ${catLabel}`;
+                    }
+                    return name;
+                })
+                .slice(0, 6);
+            
+            setTextSuggestions(sortedText);
+            setMatchingBrands(Array.from(brandsPool).slice(0, 3));
+
+            // 3. Cached Results
             const scoredIds = new Set(scored.map(s => s.product.id));
             const cached = DataSyncService.searchCacheFuzzyMatch(searchQuery);
             setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
@@ -357,41 +379,59 @@ export function Navbar() {
           } catch (err) {
             console.error('[NavSearch] instant search error:', err);
           }
-        } else {
-            setSuggestions([]);
-            setGlobalResults([]);
-            setIsGlobalSearching(false);
-            setCachedResults([]);
-            setTextSuggestions([]);
-            setShowSuggestions(false);
-        }
+        }, 200); // 200ms debounce for local search
+
+        return () => clearTimeout(timer);
     }, [searchQuery]);
 
     // Debounced global search — fetches after user stops typing for 350ms
     useEffect(() => {
         // Reset hydration tracking so every new search gets fresh image hydration
         hydratedProductIds.current.clear();
-
         const trimmed = searchQuery.trim();
-        if (trimmed.length <= 2) {
+
+        // ─── Persistent Client-Side Cache Check ───
+        try {
+            const sessionCache = sessionStorage.getItem(`nav_search_${trimmed}`);
+            if (sessionCache) {
+                const results = JSON.parse(sessionCache);
+                setGlobalResults(results);
+                setIsGlobalSearching(false);
+                setApiError(null);
+                return;
+            }
+        } catch { /* session storage blocked */ }
+
+        if (trimmed.length <= 3) {
             setGlobalResults([]);
             setIsGlobalSearching(false);
             return;
         }
 
         setIsGlobalSearching(true);
+        setApiError(null);
         const fetchTimer = setTimeout(() => {
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ productName: trimmed, mode: 'search' })
             })
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 429) {
+                        setApiError("AI search is currently resting. Please try again later or use the popular searches below.");
+                        return { suggestions: [] };
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
-                        setGlobalResults(data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10));
+                        const filtered = data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10);
+                        setGlobalResults(filtered);
+                        // Save to persistent session cache
+                        try {
+                            sessionStorage.setItem(`nav_search_${trimmed}`, JSON.stringify(filtered));
+                        } catch { /* quota */ }
                     } else {
-                        console.warn("Gemini price search returned empty suggestions:", data);
                         setGlobalResults([]);
                     }
                 })
@@ -400,7 +440,7 @@ export function Navbar() {
                     setGlobalResults([]);
                 })
                 .finally(() => setIsGlobalSearching(false));
-        }, 600);
+        }, 800);
 
         return () => {
             clearTimeout(fetchTimer);
@@ -411,11 +451,16 @@ export function Navbar() {
     // - toDetail=false (default, used by Enter/Search button): navigate to SRP with hydrated results
     // - toDetail=true (used by result-button clicks): promote clicked product, navigate to its detail page
     const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
-        // 1. Close UI immediately
-        setShowSuggestions(false);
+        // We no longer close UI immediately to prevent "flicker" before navigation.
+        // The unmounting of the Navbar during page transition will handle cleanup.
         try {
 
         // 2. Synchronous mapping and hydration
+        // Attempt to find a valid shared image from any result to use as a fallback for others in the same query
+        const validSharedImage = globalResults.find((r: any) => 
+            r && r.image_url && r.image_url.startsWith('http') && r.image_url.length < 2000 && !r.image_url.includes('placeholder') && !r.image_url.includes('logo.png')
+        )?.image_url;
+
         // Build product objects from global results with intelligent verification
         const globalAsProducts = globalResults.filter((r: any) => r && r.name).map((r: any) => {
             const productId = generateCompliantId(r.name);
@@ -440,7 +485,30 @@ export function Navbar() {
                 ? { ...r.specs, "Condition": r.condition || "Brand New" }
                 : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
 
-            let imageUrl = getProxiedImageUrl(r.image_url);
+            let rawImageUrl = r.image_url;
+
+            // Drop base64 images if they are huge to prevent QuotaExceeded crashes
+            if (rawImageUrl && rawImageUrl.startsWith('data:image') && rawImageUrl.length > 5000) {
+                 rawImageUrl = null;
+            }
+
+            // Prefer a previously hydrated image from the search cache (localStorage) over the React
+            // state value — applyImageUpdate writes there synchronously, but setState is async, so
+            // the state snapshot in this closure may still carry a placeholder even after hydration.
+            const _isHydrated = (u: string | null | undefined) =>
+                typeof u === 'string' && u.startsWith('http') && u.length < 2000 &&
+                !u.includes('placeholder') && !u.includes('logo.png');
+            if (!_isHydrated(rawImageUrl)) {
+                const cached = DataSyncService.getAllCachedProducts().find((cp: any) => cp.id === productId);
+                if (_isHydrated(cached?.image_url)) rawImageUrl = cached.image_url;
+            }
+
+            // Share valid image among similar products if still missing or placeholder
+            if (!_isHydrated(rawImageUrl)) {
+                 rawImageUrl = validSharedImage || rawImageUrl;
+            }
+
+            let imageUrl = getProxiedImageUrl(rawImageUrl);
 
             return {
                 id: productId,
@@ -465,17 +533,25 @@ export function Navbar() {
                 source_url: r.sourceUrl || '',
             };
         })
-        // ─── Vehicle Price Floor Logic (Zero Latency Sanity Check) ───
+        // ─── Vehicle & Premium Phone Price Floor Logic (Zero Latency Sanity Check) ───
         .filter((p: any) => {
-            const VEHICLE_FLOOR = 5_000_000;
-            if (p.price >= VEHICLE_FLOOR) return true;
-            
             const name = p.name.toLowerCase();
             const cat = (p.category || "").toLowerCase();
             
-            // Allow parts/accessories/phones explicitly even if low priced
-            const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-            const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+            // 1. Determine floors based on product year/type
+            const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
+            const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
+            
+            // 2022+ cars should never be below 18M. 2015-2021 should never be below 8M. Older cars at 5M.
+            const VEHICLE_FLOOR = (itemYear && itemYear >= 2022) ? 18_000_000 : (itemYear && itemYear >= 2015) ? 8_000_000 : 5_000_000;
+            
+            // iPhone 13+, Galaxy S22+
+            const isPremiumPhone = /\b(iphone\s*(13|14|15|16)|galaxy\s*s(22|23|24|25|26))\b/i.test(name);
+            const PHONE_FLOOR = (name.includes("pro max") || name.includes("ultra") || name.includes("fold")) ? 650_000 : 350_000;
+
+            // Allow parts/accessories explicitly even if low priced
+            const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone\s*case|screen\s*protector|cable|toy|scale\s*model|diecast|miniature)\b/i;
+            const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7|lexus|rx\s*350|gx\s*460|lx\s*570|lx\s*600|benz|mercedes|bmw|audi|porsche)\b/i;
             
             if (PART_KW.test(name)) return true;
             
@@ -483,7 +559,17 @@ export function Navbar() {
             const isWholeVeh = WHOLE_VEH.test(name);
             
             // Block if looks like a whole vehicle but price is suspiciously low
-            if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false;
+            if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) {
+                console.warn(`🛡️ Navbar: Blocked price hallucination for vehicle "${p.name}" at ${p.price}`);
+                return false;
+            }
+
+            // Block if looks like a premium phone but price is suspiciously low
+            if (isPremiumPhone && p.price < PHONE_FLOOR) {
+                console.warn(`🛡️ Navbar: Blocked price hallucination for phone "${p.name}" at ${p.price}`);
+                return false;
+            }
+
             return true;
         });
 
@@ -491,6 +577,31 @@ export function Navbar() {
         if (globalAsProducts.length > 0) {
             DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
         }
+
+        // Build imagePool from local catalogue for cross-page image sharing
+        try {
+            const localImagesPool: Record<string, string> = {};
+            const allLocalProducts = DataSyncService.getApprovedProducts();
+            allLocalProducts.forEach((p: any) => {
+                if (p.image_url && p.name) {
+                    const key = (p.name || '').toLowerCase().trim();
+                    if (!localImagesPool[key]) {
+                        localImagesPool[key] = getProxiedImageUrl(p.image_url);
+                    }
+                }
+            });
+            // Merge with globalAsProducts images for better coverage
+            globalAsProducts.forEach((p: any) => {
+                if (p.image_url && p.name && !p.image_url.includes('placeholder')) {
+                    const key = (p.name || '').toLowerCase().trim();
+                    if (!localImagesPool[key]) {
+                        localImagesPool[key] = p.image_url;
+                    }
+                }
+            });
+            setImagePool(localImagesPool);
+            sessionStorage.setItem('fp_nav_image_pool', JSON.stringify(localImagesPool));
+        } catch { /* quota or storage blocked */ }
 
         // Resolve __global_ prefix to actual product ID
         let resolvedClickedId = clickedProductId;
@@ -539,33 +650,31 @@ export function Navbar() {
             const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
             const clickedProd = clickedLocal || clickedCached || clickedGlobal;
             if (clickedProd) {
+                setShowSuggestions(false);
+                setIsCategoryOpen(false);
                 setTimeout(() => {
-                    router.push(getProductUrl(clickedProd.id, clickedProd.name));
+                    router.push(getProductUrl(clickedProd.id, clickedProd.name, clickedProd.slug));
                 }, 10);
             } else {
+                setShowSuggestions(false);
+                setIsCategoryOpen(false);
                 // Fallback to SRP if we can't resolve a product
                 setTimeout(() => {
                     router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
                 }, 10);
             }
         } else {
+            setShowSuggestions(false);
+            setIsCategoryOpen(false);
             // Default (Enter / Search button): navigate to SRP
             setTimeout(() => {
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
             }, 10);
         }
 
-        // ─── ELITE REVIEW GENERATION ───
-        // Trigger review generation in background for the promoted global product
-        if (resolvedClickedId && (resolvedClickedId.startsWith('global-') || resolvedClickedId.startsWith('idx-'))) {
-            setTimeout(() => {
-                fetch('/api/gemini-reviews', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ productId: resolvedClickedId })
-                }).catch(() => {});
-            }, 100);
-        }
+        // NOTE: Review generation removed from NavSearch to conserve Gemini quota.
+        // Reviews are now generated on-demand when user views the PDP reviews section.
+
 
         } catch (err) {
             console.error('[NavSearch] navigateWithResults error:', err);
@@ -579,26 +688,39 @@ export function Navbar() {
     // Close suggestions when clicking outside (Apple-level smoothness)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+            const path = event.composedPath();
+            const isInsideSearch = searchRef.current && path.includes(searchRef.current);
+            const isInsideCategory = categoryRef.current && path.includes(categoryRef.current);
+            const isInsideAccount = containerRef.current && path.includes(containerRef.current);
+
+            // Robust check: don't close if we're still focusing the input
+            const isFocusingInput = document.activeElement?.getAttribute('name') === 'globalSearch';
+
+            if (!isInsideSearch && !isFocusingInput) {
                 setShowSuggestions(false);
             }
-            if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+            if (!isInsideCategory) {
                 setIsCategoryOpen(false);
             }
-            // Explicitly close account menu on click-outside
-            if (!containerRef.current?.contains(event.target as Node)) {
+            if (!isInsideAccount) {
                setIsAccountMenuOpen(false);
             }
         };
-        const containerRef = { current: document.querySelector('.account-menu-trigger') }; // We'll add this class below
+        const containerRef = { current: document.querySelector('.account-menu-trigger') };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // ─── Elite Background Image Hydration ───
-    // Runs when new results arrive. Max 3 concurrent requests. Updates both state
-    // AND sessionStorage so the Search Results Page (SRP) gets real images too.
+    // ─── Elite Background Image Hydration (Production-Hardened) ───
+    // Fetches real product images, then persists to ALL layers:
+    // 1. React state (instant UI update)
+    // 2. Per-query session cache (prevents stale cache hits)
+    // 3. fp_nav_search_results session storage (SRP hydration)
+    // 4. DataSyncService search cache (cross-session persistence)
+    // 5. DataSyncService products + DB (permanent persistence)
     useEffect(() => {
+        let cancelled = false;
+
         const isValidImg = (url: string | undefined | null) =>
             !!url &&
             url.trim().length > 4 &&
@@ -628,31 +750,87 @@ export function Navbar() {
 
         let active = 0;
         const MAX_CONCURRENT = 8;
+        const currentQuery = searchQuery.trim();
 
         const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
+            if (cancelled) return;
+
+            // Proxy raw CDN URLs so browsers can load them without CORS/mixed-content issues.
+            // Raw URLs are kept for DB persistence; proxied URLs are used for all UI layers.
+            const proxiedUrl = getProxiedImageUrl(imageUrl);
+            const proxiedUrls = imageUrls.map(u => getProxiedImageUrl(u));
+
+            // ─── Layer 1: React State (instant UI) ───
             const updateFn = (prev: any[]) =>
                 prev.map(p =>
                     (p.id === product.id || p.name === product.name)
-                        ? { ...p, image_url: imageUrl, images: imageUrls, _imageHydrated: true }
+                        ? { ...p, image_url: proxiedUrl, images: proxiedUrls, _imageHydrated: true }
                         : p
                 );
             if (product._kind === 'global') setGlobalResults(updateFn);
             else if (product._kind === 'local') setSuggestions(updateFn);
             else if (product._kind === 'cached') setCachedResults(updateFn);
 
-            // Sync to sessionStorage so the SRP hydrates immediately on load
+            // ─── Layer 2: Per-query session cache (prevents stale cache hits) ───
+            try {
+                const cacheKey = `nav_search_${currentQuery}`;
+                const cached = sessionStorage.getItem(cacheKey);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    const updated = parsed.map((p: any) =>
+                        (p.name === product.name)
+                            ? { ...p, image_url: proxiedUrl, images: proxiedUrls }
+                            : p
+                    );
+                    sessionStorage.setItem(cacheKey, JSON.stringify(updated));
+                }
+            } catch { /* quota */ }
+
+            // ─── Layer 3: SRP session storage ───
             try {
                 const raw = sessionStorage.getItem('fp_nav_search_results');
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     const updated = parsed.map((p: any) =>
                         (p.id === product.id || p.name === product.name)
-                            ? { ...p, image_url: imageUrl, images: imageUrls }
+                            ? { ...p, image_url: proxiedUrl, images: proxiedUrls }
                             : p
                     );
                     sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
                 }
             } catch { /* quota */ }
+
+            // ─── Layer 4: DataSyncService search cache (cross-session) ───
+            const productId = product.id || generateCompliantId(product.name);
+            try {
+                DataSyncService.updateSearchCacheProduct(productId, {
+                    image_url: proxiedUrl,
+                    images: proxiedUrls,
+                });
+            } catch { /* non-critical */ }
+
+            // ─── Layer 5: DataSyncService products + DB (permanent) ───
+            // DB gets the raw URL so it stays portable if the proxy path ever changes.
+            try {
+                const existing = DataSyncService.getProducts().find((p: any) => p.id === productId);
+                if (existing) {
+                    DataSyncService.updateProduct(productId, {
+                        image_url: proxiedUrl,
+                        images: proxiedUrls,
+                    } as any);
+                }
+                // Fire-and-forget: persist raw image URL to Postgres
+                fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: productId,
+                        image_url: imageUrl,   // raw URL for DB portability
+                        images: imageUrls,
+                        _imageOnly: true,
+                    }),
+                }).catch(() => {});
+            } catch { /* non-critical */ }
         };
 
         const processNext = () => {
@@ -667,7 +845,7 @@ export function Navbar() {
                 fetch(`/api/product-image?q=${q}&category=${cat}`)
                     .then(res => res.ok ? res.json() : null)
                     .then(data => {
-                        if (!data) return;
+                        if (!data || cancelled) return;
                         // Handle both { imageUrls: [...] } and { imageUrl: "..." }
                         const urls: string[] = data.imageUrls?.length
                             ? data.imageUrls
@@ -679,11 +857,13 @@ export function Navbar() {
                         }
                     })
                     .catch(() => {})
-                    .finally(() => { active--; processNext(); });
+                    .finally(() => { active--; if (!cancelled) processNext(); });
             }
         };
 
         processNext();
+
+        return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [globalResults.length, suggestions.length, cachedResults.length]);
 
@@ -695,7 +875,6 @@ export function Navbar() {
             if (suggestions.length > 0 || globalResults.length > 0) {
                 navigateWithResults('');
             } else {
-                setShowSuggestions(false);
                 const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
@@ -709,7 +888,6 @@ export function Navbar() {
         if (e.key === "Enter") {
             if (activeIndex >= 0 && activeIndex < textSuggestions.length) {
                 // Perform search for text suggestion
-                setShowSuggestions(false);
                 setSearchQuery(textSuggestions[activeIndex]);
                 const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
@@ -717,8 +895,7 @@ export function Navbar() {
             } else if (activeIndex >= textSuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
                 const product = suggestions[activeIndex - textSuggestions.length];
-                setShowSuggestions(false);
-                router.push(getProductUrl(product.id, product.name));
+                router.push(getProductUrl(product.id, product.name, product.slug));
             } else {
                 handleSearch();
             }
@@ -735,12 +912,16 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999, transform: 'translateZ(0)' }}>
+            <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 100 }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
-                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0">
-                        {/* Logo */}
-                        <Logo variant="light" hideTextMobile />
+                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0 relative z-[10001]">
+                        {/* Logo - Enhanced hit area for mobile */}
+                        <div className="py-1 px-1 -ml-1">
+                            <Link href="/">
+                                <Logo variant="light" hideTextMobile />
+                            </Link>
+                        </div>
 
                         {/* Deliver To - Now Clickable */}
                         <button
@@ -847,7 +1028,7 @@ export function Navbar() {
                                 placeholder="Search products here..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onFocus={() => setShowSuggestions(true)}
+                                onFocus={() => { setShowSuggestions(true); triggerNavSync(); }}
                                 onKeyDown={handleKeyDown}
                             />
 
@@ -869,52 +1050,72 @@ export function Navbar() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.1 }}
-                                    className="fixed md:absolute top-[64px] md:top-full left-2 right-2 md:left-0 md:right-0 mt-2 md:mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[70vh] md:max-h-[480px] overflow-y-auto"
+                                    className="fixed md:absolute top-[70px] md:top-full left-2 right-2 md:left-0 md:right-0 mt-2 md:mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[70vh] md:max-h-[480px] overflow-y-auto"
                                 >
                                     {/* Empty State: Recent & Trending (Temu-style) */}
                                     {searchQuery.trim().length === 0 && (
                                         <div className="p-5">
                                             {(() => {
                                                 const recentSearches = getRecentSearches();
-                                                return recentSearches.length > 0 ? (
-                                                    <div className="mb-5">
-                                                        <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Recent Searches</h3>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {recentSearches.map(term => (
-                                                                <button key={term} onMouseDown={(e) => {
-                                                                    e.preventDefault();
-                                                                    setSearchQuery(term);
-                                                                    setShowSuggestions(false);
-                                                                    const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
-                                                                    const catValue = catMatch ? catMatch.value : "All";
-                                                                    router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
-                                                                }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                                    <History className="h-3 w-3 text-gray-400" />
-                                                                    {term}
-                                                                </button>
-                                                            ))}
+                                                return (
+                                                    <>
+                                                        {recentSearches.length > 0 && (
+                                                            <div className="mb-6">
+                                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5">
+                                                                    <History className="h-3.5 w-3.5" /> Recent Searches
+                                                                </h3>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {recentSearches.map(term => (
+                                                                        <button
+                                                                            key={term}
+                                                                            onMouseDown={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                setSearchQuery(term);
+                                                                                setShowSuggestions(true);
+                                                                                if (term.trim().length > 2) setIsGlobalSearching(true);
+                                                                                setTimeout(() => {
+                                                                                    searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
+                                                                                }, 10);
+                                                                            }}
+                                                                            className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        >
+                                                                            <History className="h-3 w-3 text-gray-400" />
+                                                                            {term}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5">
+                                                                <TrendingUp className="h-3.5 w-3.5" /> Trending Searches
+                                                            </h3>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
+                                                                    <button
+                                                                        key={term}
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            setSearchQuery(term);
+                                                                            setShowSuggestions(true);
+                                                                            if (term.trim().length > 2) setIsGlobalSearching(true);
+                                                                            setTimeout(() => {
+                                                                                searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
+                                                                            }, 10);
+                                                                        }}
+                                                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                    >
+                                                                        <Zap className="h-3 w-3" />
+                                                                        {term}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ) : null;
+                                                    </>
+                                                );
                                             })()}
-                                            <div>
-                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
-                                                        <button key={term} onMouseDown={(e) => {
-                                                            e.preventDefault();
-                                                            setSearchQuery(term);
-                                                            setShowSuggestions(false);
-                                                            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
-                                                            const catValue = catMatch ? catMatch.value : "All";
-                                                            router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
-                                                        }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                            <Zap className="h-3 w-3" />
-                                                            {term}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
                                         </div>
                                     )}
 
@@ -933,78 +1134,120 @@ export function Navbar() {
                                         </div>
                                     )}
 
-                                    {/* Text Suggestions (Autocomplete) */}
-                                    {searchQuery.trim().length >= 2 && textSuggestions.length > 0 && (
-                                        <div className="border-b border-gray-100/50 py-2">
+                                    {/* Text Suggestions (The "SUGGESTIONS" section) */}
+                                    {textSuggestions.length > 0 && (
+                                        <div className="border-b border-gray-50 bg-gray-50/30">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Suggestions
+                                            </div>
                                             {textSuggestions.map((suggestion, idx) => (
                                                 <button
                                                     key={`sug-${idx}`}
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
+                                                        e.stopPropagation();
                                                         setSearchQuery(suggestion);
-                                                        document.querySelector('input')?.focus();
+                                                        setShowSuggestions(true);
+                                                        setTimeout(() => {
+                                                            searchRef.current?.querySelector('input')?.focus();
+                                                        }, 10);
                                                     }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
+                                                    className="w-full text-left px-4 py-2.5 hover:bg-white active:bg-gray-100 cursor-pointer text-[13px] text-gray-700 transition-all flex items-center justify-between group"
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                                        <Search className="h-3.5 w-3.5 text-gray-400 group-hover:text-brand-green-600 transition-colors" />
                                                         <span dangerouslySetInnerHTML={{
                                                             __html: suggestion.replace(new RegExp(searchQuery.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
                                                         }} />
                                                     </div>
-                                                    <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
-                                    {/* Product Suggestions */}
-                                    {suggestions.map((product, i) => {
-                                        const idx = textSuggestions.length + i;
-                                        return (
-                                            <button
-                                                key={product.id}
-                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, false); }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
-                                                    activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
-                                                )}
-                                            >
-                                                <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
-                                                    <img
-                                                        src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
-                                                        alt={product.name}
-                                                        className="w-full h-full object-contain"
-                                                        onError={(e) => {
-                                                            e.currentTarget.src = '/assets/images/placeholder.png';
+                                    {/* Product Suggestions (The "PRODUCTS" section) */}
+                                    {suggestions.length > 0 && (
+                                        <div className="border-b border-gray-50">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Products
+                                            </div>
+                                            {suggestions.map((product, i) => {
+                                                const idx = textSuggestions.length + i;
+                                                return (
+                                                    <button
+                                                        key={product.id}
+                                                        onMouseDown={(e) => { 
+                                                            e.preventDefault(); 
+                                                            e.stopPropagation();
+                                                            navigateWithResults(product.id, false); 
                                                         }}
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</span>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-xs font-bold text-green-600">₦{product.price.toLocaleString()}</span>
-                                                        <span className="text-[10px] text-gray-400">·</span>
-                                                        <span className="text-[10px] text-gray-400">⭐ {product.avg_rating}</span>
-                                                        <span className="text-[10px] text-gray-400">·</span>
-                                                        <span className="text-[10px] text-gray-400">{product.seller_name}</span>
-                                                    </div>
-                                                </div>
-                                                {product.price_flag === "fair" && (
-                                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase shrink-0">Fair</span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50/50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
+                                                            activeIndex === idx ? "bg-emerald-50" : "hover:bg-gray-50"
+                                                        )}
+                                                    >
+                                                        <div className="relative h-12 w-12 shrink-0 bg-white border border-gray-100 rounded-lg p-1 overflow-hidden">
+                                                            <img
+                                                                src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
+                                                                alt={product.name}
+                                                                className="w-full h-full object-contain"
+                                                                onError={(e) => {
+                                                                    e.currentTarget.src = '/assets/images/placeholder.png';
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="text-sm font-bold text-gray-900 line-clamp-1">{product.name}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs font-black text-emerald-600">₦{product.price.toLocaleString()}</span>
+                                                                <span className="text-[10px] text-gray-400">·</span>
+                                                                <span className="text-[10px] text-gray-400">⭐ {product.avg_rating}</span>
+                                                                <span className="text-[10px] text-gray-400">·</span>
+                                                                <span className="text-[10px] text-gray-400">{product.seller_name}</span>
+                                                            </div>
+                                                        </div>
+                                                        {product.price_flag === "fair" && (
+                                                            <span className="text-[8px] font-black text-white bg-brand-green-600 px-1.5 py-0.5 rounded uppercase shrink-0">Fair</span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
 
-                                    {/* Cached Results from Past Searches (instant) */}
+                                    {/* Matching Brands (The "MATCHING BRANDS" section) */}
+                                    {matchingBrands.length > 0 && (
+                                        <div className="border-b border-gray-50">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Matching Brands
+                                            </div>
+                                            <div className="p-2 flex flex-wrap gap-2">
+                                                {matchingBrands.map(brand => (
+                                                    <button
+                                                        key={brand}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setSearchQuery(brand);
+                                                            setShowSuggestions(true);
+                                                        }}
+                                                        className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-xs font-bold text-gray-700 rounded-md transition-colors uppercase tracking-wider"
+                                                    >
+                                                        {brand}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Cached Results from Past Searches (instant) — capped at 2 to keep dropdown tight */}
                                     {cachedResults.length > 0 && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
                                                 <History className="h-3.5 w-3.5 text-blue-500" />
                                                 PREVIOUSLY FOUND
                                             </div>
-                                            {cachedResults.slice(0, 4).map((result: any, i: number) => {
+                                            {cachedResults.slice(0, 2).map((result: any, i: number) => {
                                                 const cachedIdx = textSuggestions.length + suggestions.length + i;
                                                 return (
                                                     <button
@@ -1012,15 +1255,18 @@ export function Navbar() {
                                                         onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, false); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
-                                                            activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
+                                                            activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-100"
                                                         )}
                                                     >
-                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                            <img
-                                                                src={getProxiedImageUrl(result.image_url || result.images?.[0])}
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden shadow-sm">
+                                                            <SmartImage
+                                                                src={result.image_url || result.images?.[0] || null}
                                                                 alt={result.name}
-                                                                className="w-full h-full object-contain"
-                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                                productName={result.name}
+                                                                category={result.category}
+                                                                imagePool={imagePool}
+                                                                iconSize={18}
+                                                                className="w-10 h-10"
                                                             />
                                                         </div>
                                                         <div className="flex flex-col flex-1 min-w-0">
@@ -1035,22 +1281,71 @@ export function Navbar() {
                                                 );
                                             })}
                                         </div>
-                                    )}                                    {/* Global Search Results (from Gemini API) */}
-                                    {isGlobalSearching && (
-                                        <div className="border-t border-emerald-50 px-4 py-3">
-                                            <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mb-2">
+                                    )}
+
+                                    {/* Fallback Empty State / No Results State */}
+                                    {searchQuery.trim().length > 0 && !isGlobalSearching && globalResults.length === 0 && suggestions.length === 0 && (
+                                        <div className="p-8 text-center flex flex-col items-center justify-center">
+                                            <div className="h-16 w-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+                                                <Search className="h-8 w-8 text-gray-300" />
+                                            </div>
+                                            <h3 className="text-sm font-bold text-gray-800 mb-1">No instant results found</h3>
+                                            <p className="text-xs text-gray-500 mb-6 px-4">Try a different term or browse our trending categories.</p>
+                                            
+                                            <div className="w-full max-w-xs space-y-2">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-600 text-left px-1 flex items-center gap-1">
+                                                    <Flame className="h-3 w-3 text-orange-500 fill-orange-500" /> 
+                                                    Trending in Nigeria
+                                                </h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Starlink Kit', 'Solar Inverter', 'Skin Care', 'Generator', 'iPhone 15 Pro', 'Power Bank', 'Sneakers', 'Laptops', 'PS5', 'Designer Bags'].map(term => (
+                                                        <button 
+                                                            key={term}
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setSearchQuery(term);
+                                                                setShowSuggestions(true);
+                                                                setTimeout(() => {
+                                                                    searchRef.current?.querySelector('input')?.focus();
+                                                                }, 10);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[11px] font-bold text-red-700 rounded-lg transition-colors border border-red-100 shadow-sm flex items-center gap-1"
+                                                        >
+                                                            <Flame className="h-2.5 w-2.5 text-orange-400 fill-orange-400" />
+                                                            {term}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}                                    {/* Global search skeleton — only shown when no other results exist yet */}
+                                    {isGlobalSearching && globalResults.length === 0 && suggestions.length === 0 && cachedResults.length === 0 && (
+                                        <div className="border-t border-blue-50 px-4 py-3">
+                                            <div className="flex items-center gap-2 text-xs text-green-600 font-semibold mb-2">
                                                 <Globe className="h-3.5 w-3.5 animate-spin" />
                                                 Finding the best prices for you...
                                             </div>
                                             {[1, 2, 3].map(i => (
                                                 <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
-                                                    <div className="h-10 w-10 bg-emerald-50 rounded-lg" />
+                                                    <div className="h-10 w-10 bg-blue-50 rounded-lg" />
                                                     <div className="flex-1 space-y-1.5">
                                                         <div className="h-3 bg-gray-100 rounded w-3/4" />
-                                                        <div className="h-2.5 bg-emerald-50 rounded w-1/3" />
+                                                        <div className="h-2.5 bg-blue-50 rounded w-1/3" />
                                                     </div>
                                                 </div>
                                             ))}
+                                        </div>
+                                    )}
+                                    
+                                    {/* API Error Message */}
+                                    {apiError && (
+                                        <div className="mx-4 my-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5">
+                                            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-bold text-red-700">Service Alert</span>
+                                                <span className="text-[10px] text-red-600/90 leading-tight">{apiError}</span>
+                                            </div>
                                         </div>
                                     )}
 
@@ -1068,20 +1363,24 @@ export function Navbar() {
                                                         key={`global-${result.id || i}`}
                                                         onMouseDown={(e) => {
                                                             e.preventDefault();
+                                                            e.stopPropagation();
                                                             // The navigateWithResults will create the global product and cache it
                                                             navigateWithResults(`__global_${i}`, false);
                                                         }}
                                                         className={cn(
-                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
-                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-gray-50"
+                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-emerald-100",
+                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-emerald-100/50"
                                                         )}
                                                     >
-                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                            <img
-                                                                src={getProxiedImageUrl(result.image_url)}
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden shadow-sm">
+                                                            <SmartImage
+                                                                src={result.image_url ? getProxiedImageUrl(result.image_url) : (imagePool[(result.name || '').toLowerCase().trim()] || null)}
                                                                 alt={result.name}
-                                                                className="w-full h-full object-contain"
-                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                                productName={result.name}
+                                                                category={result.category}
+                                                                imagePool={imagePool}
+                                                                iconSize={20}
+                                                                className="w-10 h-10"
                                                             />
                                                         </div>
                                                         <div className="flex flex-col flex-1 min-w-0">
@@ -1106,7 +1405,7 @@ export function Navbar() {
                                                 setIsPriceIntelOpen(true);
                                                 setShowSuggestions(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow"
+                                            className="w-full flex items-center gap-3 px-4 py-4 backdrop-blur-sm bg-white/60 hover:backdrop-blur-md hover:bg-emerald-50/80 transition-all border-t border-emerald-100/60 cursor-pointer glassy-gradient-border"
                                         >
                                             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                                                 <Globe className="h-5 w-5" />
@@ -1138,15 +1437,25 @@ export function Navbar() {
                         onMouseLeave={() => {
                             (window as any).__accountMenuTimer = setTimeout(() => setIsAccountMenuOpen(false), 400);
                         }}
-                        onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
+                        onClick={(e) => {
+                            // Only toggle if we're not clicking an item inside
+                            if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.account-menu-trigger-inner')) {
+                                setIsAccountMenuOpen(!isAccountMenuOpen);
+                            }
+                        }}
                     >
                         {/* Desktop View */}
                         <div 
-                            className="flex flex-col relative py-2"
+                            className="flex flex-col relative py-2 cursor-pointer account-menu-trigger-inner"
                             onMouseEnter={() => setIsAccountMenuOpen(true)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (user) router.push('/account');
+                                else router.push('/login');
+                            }}
                         >
                             <span className="text-white text-[11px] opacity-80 leading-none">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
-                            <span className="font-bold text-white flex items-center gap-1">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
+                            <span className="font-bold text-white flex items-center gap-1 hover:underline">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
                         </div>
 
                         {/* Dropdown Menu */}
@@ -1165,23 +1474,45 @@ export function Navbar() {
                                 >
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
-                                            <Link href="/login" onClick={() => setIsAccountMenuOpen(false)}>
-                                                <Button className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2">Sign in</Button>
-                                            </Link>
+                                            <Button 
+                                                className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2 cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsAccountMenuOpen(false);
+                                                    router.push("/login");
+                                                }}
+                                            >
+                                                Sign in
+                                            </Button>
                                             <p className="text-[11px] text-gray-500">
-                                                New customer? <Link href="/login" className="text-blue-600 hover:underline" onClick={() => setIsAccountMenuOpen(false)}>Start here.</Link>
+                                                New customer? <button 
+                                                    className="text-blue-600 hover:underline cursor-pointer" 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsAccountMenuOpen(false);
+                                                        router.push("/login");
+                                                    }}
+                                                >
+                                                    Start here.
+                                                </button>
                                             </p>
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
-                                            <Link href="/account" onClick={() => setIsAccountMenuOpen(false)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="flex items-center text-left gap-3 hover:bg-gray-200 p-2 rounded-lg transition-colors cursor-pointer">
                                                 <div className={cn(
                                                     "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
                                                     user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
                                                 )}>
-                                                    <div className="relative">
-                                                        <div className="h-8 w-8 rounded-full bg-brand-green-100 flex items-center justify-center text-brand-green-700 font-bold overflow-hidden">
-                                                            {mounted && user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
+                                                    <div className="relative w-full h-full">
+                                                        <div className="h-full w-full bg-brand-green-100 flex items-center justify-center text-brand-green-700 font-bold overflow-hidden">
+                                                            {mounted && (user?.avatar_url || localStorage.getItem('fp_profile_pic')) ? (
+                                                                <img src={user?.avatar_url || localStorage.getItem('fp_profile_pic')!} alt="" className="w-full h-full object-cover" />
+                                                            ) : mounted && user?.name ? (
+                                                                user.name.charAt(0).toUpperCase()
+                                                            ) : (
+                                                                <User className="h-4 w-4" />
+                                                            )}
                                                         </div>
                                                         {mounted && user?.isPremium && (
                                                             <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
@@ -1197,7 +1528,7 @@ export function Navbar() {
                                                     </p>
                                                     <p className="text-xs text-gray-500 truncate">{mounted ? user?.email || 'user@example.com' : '...'}</p>
                                                 </div>
-                                            </Link>
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     logout();
@@ -1212,40 +1543,40 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
-                                            <Heart className="h-4 w-4 text-red-500 fill-red-500" />
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-red-50 text-gray-700 font-bold transition-all cursor-pointer active:scale-95 group">
+                                            <Heart className="h-4 w-4 text-red-500 fill-red-500 group-hover:scale-110 transition-transform" />
                                             <span>My Favorites</span>
-                                        </Link>
-                                        <Link href="/account/negotiations" className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
-                                            <Handshake className="h-4 w-4 text-emerald-600" />
+                                        </button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-emerald-50 text-gray-700 font-bold transition-all cursor-pointer active:scale-95 group">
+                                            <Handshake className="h-4 w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                                             <span>Negotiate a Price</span>
                                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">New</span>
-                                        </Link>
+                                        </button>
                                     </div>
 
                                     <div className="border-t border-gray-100 my-1"></div>
 
                                     <div className="py-1">
-                                        <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <Link href="/account" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Account</Link>
-                                        <Link href="/account/payments" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium flex items-center justify-between" onClick={() => setIsAccountMenuOpen(false)}>
-                                            My Wallet
+                                        <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-wider">Your Account</div>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Account</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">
+                                            My Balance
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
-                                        </Link>
-                                        <Link href="/account/addresses" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Delivery Address</Link>
-                                        <Link href="/account/orders" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Orders</Link>
+                                        </button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">Delivery Address</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Orders</button>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
-                                                <Link href="/admin/dashboard" className="block px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Admin Dashboard</Link>
-                                                <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                                <button onClick={(e) => { e.stopPropagation(); setIsAccountMenuOpen(false); router.push("/admin/products"); }} className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-emerald-500">Admin Dashboard</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
                                             </>
                                         ) : isSeller ? (
-                                            <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
                                         ) : (
-                                            <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Become a Seller</button>
                                         ))}
-                                        <Link href="/account/recommendations" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Recommendations</Link>
-                                        <Link href="/account/history" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Browsing History</Link>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all">Recommendations</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all">Browsing History</button>
                                     </div>
                                 </motion.div>
                             )}
@@ -1254,8 +1585,8 @@ export function Navbar() {
 
                     {/* Returns & Orders */}
                     <Link href="/account/orders" className="hidden lg:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
-                        <span className="font-medium text-white/80">Returns</span>
-                        <span className="font-bold text-white">& My Orders</span>
+                        <span className="font-medium text-white/80">My Orders</span>
+                        <span className="font-bold text-white">& Returns</span>
                     </Link>
 
                     {/* Messages */}
@@ -1305,18 +1636,13 @@ export function Navbar() {
                 < div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10" >
                     {/* Left: Navigation Links */}
                     < div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]" >
-                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                        <Link href="/search?sort=best_selling" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Best-Selling
                         </Link>
-                        <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                        <Link href="/search?sort=top_rated" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
                         </Link>
-                        <span className="flex items-center px-2 whitespace-nowrap text-[11px] md:text-[13px]">
-                            Free Delivery
-                        </span>
-                        <span className="whitespace-nowrap text-[11px] md:text-[13px]">
-                            ₦1,000 refund on late delivery
-                        </span>
+                        <SlidingSubnavTexts />
                     </div >
                     {/* Right: Trust Badges */}
                     < div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end" >
@@ -1359,12 +1685,25 @@ export function Navbar() {
                             >
                                 <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
                                     {mounted && user ? (
-                                        <div className="flex items-center gap-2">
-                                            <User className="h-6 w-6" /> Hello, {(user.name || user.email || "there").split(" ")[0]}
-                                        </div>
+                                         <Link href="/account" className="flex items-center gap-3" onClick={() => setIsSidebarOpen(false)}>
+                                             <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-white/50 bg-white/20 flex items-center justify-center">
+                                                 {(user.avatar_url || localStorage.getItem('fp_profile_pic')) ? (
+                                                     <img src={user.avatar_url || localStorage.getItem('fp_profile_pic')!} alt="" className="w-full h-full object-cover" />
+                                                 ) : (
+                                                     <User className="h-6 w-6 text-white" />
+                                                 )}
+                                             </div>
+                                             <div className="flex flex-col leading-tight">
+                                                 <span className="text-sm font-bold">Hello, {(user.name || "there").split(" ")[0]}</span>
+                                                 <span className="text-[10px] text-emerald-100 font-medium">My Account & Settings</span>
+                                             </div>
+                                         </Link>
                                     ) : (
-                                        <Link href="/login" className="flex items-center gap-2 hover:underline">
-                                            <User className="h-6 w-6" /> Hello, Sign in
+                                        <Link href="/login" className="flex items-center gap-2 hover:underline" onClick={() => setIsSidebarOpen(false)}>
+                                             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                                                 <User className="h-6 w-6" />
+                                             </div>
+                                             <span>Hello, Sign in</span>
                                         </Link>
                                     )}
                                     <button onClick={toggleSidebar} className="text-white/80 hover:text-white">
@@ -1440,3 +1779,47 @@ const FALLBACK_CATEGORIES = [
     { label: "Fashion", value: "fashion" },
     { label: "Gaming", value: "gaming" },
 ];
+
+const SlidingSubnavTexts = () => {
+    const [index, setIndex] = useState(0);
+    const router = useRouter();
+    
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setIndex((prev) => (prev + 1) % 2);
+        }, 4000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <div className="relative h-5 md:h-6 w-40 md:w-56 overflow-hidden flex items-center shrink-0 ml-1">
+            <AnimatePresence mode="wait">
+                {index === 0 ? (
+                    <motion.button
+                        key="free-delivery"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-emerald-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
+                        onClick={() => router.push('/search?delivery=free')}
+                    >
+                        <Package className="w-3 h-3 text-emerald-400 shrink-0" /> <span className="truncate">FREE DELIVERY EVERYWHERE</span>
+                    </motion.button>
+                ) : (
+                    <motion.button
+                        key="late-refund"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-amber-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
+                        onClick={() => router.push('/buyer-protection')}
+                    >
+                        <Shield className="w-3 h-3 text-amber-400 shrink-0" /> <span className="truncate">₦1,000 LATE DELIVERY REFUND</span>
+                    </motion.button>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};

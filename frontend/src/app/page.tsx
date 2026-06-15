@@ -2,180 +2,58 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { SEED_DEALS } from "@/lib/data";
+import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
+import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Star, Store as StoreIcon, TrendingUp } from "lucide-react";
-import { motion } from "framer-motion";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
+import { RecentlyViewedHorizontal } from "@/components/ui/RecentlyViewedHorizontal";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
-import { useFavorites } from "@/context/FavoritesContext";
-import { useCart } from "@/context/CartContext";
-import { formatPrice, getProductUrl } from "@/lib/utils";
+import { getProxiedImageUrl, cn } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
+import { CategoryPanel } from "@/components/ui/CategoryPanel";
+import {
+  TEMU_CATEGORIES,
+  CATEGORY_CARDS_ROW_1,
+  CategoryCard,
+  DEFAULT_AD_SLOTS
+} from "@/lib/constants";
+import {
+  Zema360HeroBanner,
+  FlashDealsBanner,
+  NewArrivalsBanner,
+  TopBrandsBanner,
+  ZivaAIBanner,
+} from "@/components/HeroBanners";
 
-// ─── Amazon-Style 2×2 Category Grid Card Data ────────────────
+const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
+  "flash-deals":  FlashDealsBanner,
+  "new-arrivals": NewArrivalsBanner,
+  "top-brands":   TopBrandsBanner,
+  "ziva-ai":      ZivaAIBanner,
+};
 
-interface SubCategory {
-  label: string;
-  image: string;
-  href: string;
-}
+// ZEMA360 promo is always prepended to the banner list (code-defined, not admin-configurable)
+const ZEMA360_BANNER = {
+  id: "__zema360",
+  title: "ZEMA360 — Autonomous Commerce OS",
+  type: "component",
+  componentId: "zema360",
+  image_url: "",
+  active: true,
+};
 
-export interface CategoryCard {
-  title: string;
-  link: string;
-  linkText: string;
-  subs: SubCategory[];
-}
 
-export const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
-  {
-    title: "Top in Phones",
-    link: "/search?category=phones",
-    linkText: "See all phones",
-    subs: [
-      { label: "Phones", image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200&h=200&fit=crop", href: "/category/phones" },
-      { label: "iPhones", image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=200&h=200&fit=crop", href: "/search?category=phones&q=iphone" },
-      { label: "Tablets", image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200&h=200&fit=crop", href: "/category/tablets" },
-      { label: "Accessories", image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=200&h=200&fit=crop", href: "/search?category=phones&q=accessories" },
-    ],
-  },
-  {
-    title: "Level Up Your Gaming",
-    link: "/search?category=gaming",
-    linkText: "Shop gaming",
-    subs: [
-      { label: "PlayStation", image: "https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=200&h=200&fit=crop", href: "/search?category=gaming&q=playstation" },
-      { label: "Smart TVs", image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=200&h=200&fit=crop", href: "/search?category=electronics&q=tv" },
-      { label: "Headsets", image: "https://images.unsplash.com/photo-1599669454699-248893623440?w=200&h=200&fit=crop", href: "/search?category=gaming&q=headset" },
-      { label: "Controllers", image: "https://images.unsplash.com/photo-1592840496694-26d035b52b48?w=200&h=200&fit=crop", href: "/search?category=gaming&q=controller" },
-    ],
-  },
-  {
-    title: "Power Your Home",
-    link: "/search?category=energy",
-    linkText: "See all energy",
-    subs: [
-      { label: "Solar Panels", image: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?w=200&h=200&fit=crop", href: "/search?category=energy&q=solar" },
-      { label: "Inverters", image: "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=200&h=200&fit=crop", href: "/search?category=energy&q=inverter" },
-      { label: "Generators", image: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=200&h=200&fit=crop", href: "/search?category=energy&q=generator" },
-      { label: "Electric Cars", image: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=200&h=200&fit=crop", href: "/search?category=cars&q=electric" },
-    ],
-  },
-  {
-    title: "Fashion & Style",
-    link: "/search?category=fashion",
-    linkText: "Explore fashion",
-    subs: [
-      { label: "Designer Bags", image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=200&h=200&fit=crop", href: "/search?category=fashion&q=bag" },
-      { label: "Sneakers", image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=200&h=200&fit=crop", href: "/search?category=fashion&q=sneakers" },
-      { label: "Watches", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=200&h=200&fit=crop", href: "/search?category=fashion&q=watches" },
-      { label: "Sunglasses", image: "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=200&h=200&fit=crop", href: "/search?category=fashion&q=sunglasses" },
-    ],
-  },
-];
 
-const CATEGORY_CARDS_ROW_2: CategoryCard[] = [
-  {
-    title: "Beauty Essentials",
-    link: "/search?category=beauty",
-    linkText: "Shop beauty",
-    subs: [
-      { label: "Skincare", image: "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=200&h=200&fit=crop", href: "/search?category=beauty&q=skincare" },
-      { label: "Makeup", image: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&h=200&fit=crop", href: "/search?category=beauty&q=makeup" },
-      { label: "Fragrance", image: "https://images.unsplash.com/photo-1541643600914-78b084683601?w=200&h=200&fit=crop", href: "/search?category=beauty&q=fragrance" },
-      { label: "Hair Care", image: "https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?w=200&h=200&fit=crop", href: "/search?category=beauty&q=hair" },
-    ],
-  },
-  {
-    title: "Home & Kitchen",
-    link: "/search?category=home",
-    linkText: "Discover home",
-    subs: [
-      { label: "Appliances", image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=200&h=200&fit=crop", href: "/search?category=home&q=appliance" },
-      { label: "Cookware", image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200&h=200&fit=crop", href: "/search?category=home&q=cookware" },
-      { label: "Furniture", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=200&h=200&fit=crop", href: "/search?category=home&q=furniture" },
-      { label: "Lighting", image: "https://images.unsplash.com/photo-1524484485831-a92ffc0de03f?w=200&h=200&fit=crop", href: "/search?category=home&q=lighting" },
-    ],
-  },
-  {
-    title: "Computers & Office",
-    link: "/search?category=computers",
-    linkText: "See all computers",
-    subs: [
-      { label: "Laptops", image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=200&h=200&fit=crop", href: "/search?category=computers&q=laptop" },
-      { label: "Desktops", image: "https://images.unsplash.com/photo-1593640408182-31c70c8268f5?w=200&h=200&fit=crop", href: "/search?category=computers&q=desktop" },
-      { label: "Monitors", image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200&h=200&fit=crop", href: "/search?category=computers&q=monitor" },
-      { label: "Printers", image: "https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=200&h=200&fit=crop", href: "/search?category=computers&q=printer" },
-    ],
-  },
-  {
-    title: "Automotive",
-    link: "/search?category=cars",
-    linkText: "Shop automotive",
-    subs: [
-      { label: "Car Parts", image: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=200&h=200&fit=crop", href: "/search?category=cars&q=parts" },
-      { label: "Dash Cams", image: "https://images.unsplash.com/photo-1544654803-b69140b285a1?w=200&h=200&fit=crop", href: "/search?category=cars&q=dash+cam" },
-      { label: "Accessories", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=200&h=200&fit=crop", href: "/search?category=cars&q=accessories" },
-      { label: "Tires", image: "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=200&h=200&fit=crop", href: "/search?category=cars&q=tires" },
-    ],
-  },
-];
-
-const CATEGORY_CARDS_ROW_3: CategoryCard[] = [
-  {
-    title: "Gym & Fitness",
-    link: "/search?category=fitness",
-    linkText: "Shop fitness",
-    subs: [
-      { label: "Dumbbells", image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&h=200&fit=crop", href: "/search?category=fitness&q=dumbbell" },
-      { label: "Yoga Mats", image: "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=200&h=200&fit=crop", href: "/search?category=fitness&q=yoga" },
-      { label: "Treadmills", image: "https://images.unsplash.com/photo-1576678927484-cc907957088c?w=200&h=200&fit=crop", href: "/search?category=fitness&q=treadmill" },
-      { label: "Bands", image: "https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=200&h=200&fit=crop", href: "/search?category=fitness&q=resistance" },
-    ],
-  },
-  {
-    title: "Office Furniture",
-    link: "/search?category=office",
-    linkText: "Shop office",
-    subs: [
-      { label: "Chairs", image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=200&h=200&fit=crop", href: "/search?category=office&q=chair" },
-      { label: "Desks", image: "https://images.unsplash.com/photo-1611269154421-4e27233ac5c7?w=200&h=200&fit=crop", href: "/search?category=office&q=desk" },
-      { label: "Monitor Arms", image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200&h=200&fit=crop", href: "/search?category=office&q=monitor" },
-      { label: "Organizers", image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop", href: "/search?category=office&q=organizer" },
-    ],
-  },
-  {
-    title: "Groceries & Market",
-    link: "/search?category=grocery",
-    linkText: "Shop groceries",
-    subs: [
-      { label: "Rice & Grains", image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=200&h=200&fit=crop", href: "/search?category=grocery&q=rice" },
-      { label: "Cooking Oil", image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=200&h=200&fit=crop", href: "/search?category=grocery&q=oil" },
-      { label: "Noodles", image: "https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=200&h=200&fit=crop", href: "/search?category=grocery&q=indomie" },
-      { label: "Beverages", image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&h=200&fit=crop", href: "/search?category=grocery&q=milo" },
-    ],
-  },
-  {
-    title: "Baby Products",
-    link: "/search?category=baby",
-    linkText: "Shop baby",
-    subs: [
-      { label: "Diapers", image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&h=200&fit=crop", href: "/search?category=baby&q=diapers" },
-      { label: "Strollers", image: "https://images.unsplash.com/photo-1566004100477-7b1e3aca3593?w=200&h=200&fit=crop", href: "/search?category=baby&q=stroller" },
-      { label: "Car Seats", image: "https://images.unsplash.com/photo-1594495894542-a46cc73202eb?w=200&h=200&fit=crop", href: "/search?category=baby&q=car+seat" },
-      { label: "Feeding", image: "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=200&h=200&fit=crop", href: "/search?category=baby&q=feeding" },
-    ],
-  },
-];
 
 // ─── Component ──────────────────────────────────────────────
 
@@ -184,12 +62,44 @@ function HomeContent() {
   const productSectionRef = useRef<HTMLDivElement>(null);
 
   // Live products from DataSyncService — load only on client to avoid SSR hydration mismatch
-  const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [mounted, setMounted] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [heroSliderPaused, setHeroSliderPaused] = useState(false);
+  const [heroConfig, setHeroConfig] = useState<any>(null);
+  // Geo-aware trending label — detected from Vercel's IP header, session-cached
+  const [userGeo, setUserGeo] = useState<{ name: string; flag: string } | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Tab State for swipeable categories
+  const [activeTab, setActiveTab] = useState("All");
+
+  const handleTabChange = (cat: string) => {
+    setActiveTab(cat);
+    const pill = document.getElementById(`pill-${cat}`);
+    const container = document.getElementById('pills-container');
+    if (pill && container) {
+        container.scrollTo({
+            left: pill.offsetLeft - container.offsetWidth / 2 + pill.offsetWidth / 2,
+            behavior: 'smooth'
+        });
+    }
+  };
+
+  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
+    const swipeThreshold = 50;
+    const currentIndex = TEMU_CATEGORIES.indexOf(activeTab);
+    
+    if (info.offset.x < -swipeThreshold && currentIndex < TEMU_CATEGORIES.length - 1) {
+        handleTabChange(TEMU_CATEGORIES[currentIndex + 1]);
+    } else if (info.offset.x > swipeThreshold && currentIndex > 0) {
+        handleTabChange(TEMU_CATEGORIES[currentIndex - 1]);
+    }
+  };
 
   // ─── Referral Tracking System ───
   useEffect(() => {
@@ -213,6 +123,20 @@ function HomeContent() {
       } catch (e) {}
 
       setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
+      
+      // Load Banners — ZEMA360 promo always leads, admin banners follow
+      try {
+        const savedBanners = localStorage.getItem("ratel_homepage_banners");
+        const imageBanners = savedBanners
+          ? JSON.parse(savedBanners).filter((b: any) => b.active)
+          : [
+              { id: "b1", title: "Mega Sale — Up to 70% Off", image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000", link: "/category/deals", active: true },
+              { id: "b2", title: "New Arrivals This Week",    image_url: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=2000", link: "/category/new",   active: true },
+            ];
+        setBanners([ZEMA360_BANNER, ...imageBanners]);
+      } catch(e) {
+        setBanners([ZEMA360_BANNER]);
+      }
     };
     const loadGrids = () => {
       try {
@@ -220,131 +144,134 @@ function HomeContent() {
         if (saved) setCategoryGrids(JSON.parse(saved));
       } catch (e) { }
     };
+    const loadHeroConfig = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.heroConfig) setHeroConfig(data.heroConfig);
+        }
+      } catch (e) {
+        console.error("Failed to load hero config", e);
+      }
+    };
+
     refresh(); // Initial load on client
     loadGrids();
+    loadHeroConfig();
     setMounted(true);
-    window.addEventListener("storage", refresh);
-    window.addEventListener("sync-store-update", refresh);
-    window.addEventListener("storage", loadGrids);
-    return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("sync-store-update", refresh);
-      window.removeEventListener("storage", loadGrids);
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "ratel_homepage_banners" || e.key === "ratel_homepage_grids") {
+        refresh();
+        loadGrids();
+      }
     };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("sync-store-update", refresh);
+    window.addEventListener("hero-config-update", loadHeroConfig);
+    
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("sync-store-update", refresh);
+      window.removeEventListener("hero-config-update", loadHeroConfig);
+    };
+  }, [searchParams]); // Only searchParams affects the content (referrals)
+
+  // Slideshow timer — pauses on hero hover/tap, resumes on leave/re-tap
+  useEffect(() => {
+    if (banners.length <= 1 || heroSliderPaused) return;
+    const timer = setInterval(() => {
+      setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [banners, heroSliderPaused]);
+
+  // Geo detection — runs once per session, result cached in sessionStorage
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem("fp_geo");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.name && parsed?.flag) { setUserGeo(parsed); return; }
+      }
+    } catch { /* sessionStorage blocked */ }
+
+    fetch("/api/geo")
+      .then(r => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.countryName && data?.flag) {
+          const geo = { name: data.countryName, flag: data.flag };
+          setUserGeo(geo);
+          try { sessionStorage.setItem("fp_geo", JSON.stringify(geo)); } catch { /* quota */ }
+        }
+      })
+      .catch(() => { /* fail silently — default label is fine */ });
   }, []);
 
   // ─── Unified Product Memoization Engine ───
-  // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
-  // This prevents recalculating thousands of filters on every scroll/state update.
+  const filteredByCategory = useMemo(() => {
+    if (!allProducts || !Array.isArray(allProducts)) return [];
+    if (activeTab === "All") return allProducts;
+    return allProducts.filter(p => 
+      p && p.category && (p.category === activeTab || p.category === activeTab.toLowerCase())
+    );
+  }, [allProducts, activeTab]);
+
   const sections = useMemo(() => {
-    if (!mounted || allProducts.length === 0) return null;
+    if (!mounted || !allProducts || !Array.isArray(allProducts)) return null;
+    const pool = allProducts.filter(p => p && typeof p === 'object');
 
-    const usedIds = new Set<string>();
-    const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+    const getByCategory = (cat: string) => pool.filter(p => p && p.category && (p.category === cat || p.category === cat.toLowerCase())).slice(0, 15);
 
-    const takeUnique = (pool: Product[], count: number, shuffle: boolean = false): Product[] => {
-      const result: Product[] = [];
-      const shuffledPool = shuffle ? [...pool].sort(() => 0.5 - Math.random()) : pool;
-      for (const p of shuffledPool) {
-        if (result.length >= count) break;
-        if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
-        result.push(p);
-        usedIds.add(p.id);
-      }
-      return result;
-    };
+    // Pre-calculate deal end times once per product update
+    const dealProducts = pool
+        .filter(p => p && p.original_price && p.original_price > p.price)
+        .slice(0, 30)
+        .map(p => {
+          const savings = (p.original_price || p.price) - p.price;
+          const discountPct = Math.round((savings / (p.original_price || p.price)) * 100);
+          const isGlobal = p.seller_id === 'global-partners';
+          const createdPlus24h = p.created_at ? new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000 : 0;
+          const dealEndTime = isGlobal
+            ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()
+            : (createdPlus24h > Date.now() 
+                ? new Date(createdPlus24h).toISOString() 
+                : new Date(new Date().setHours(23, 59, 59, 999)).toISOString());
 
-    // 1. Trending
-    const trendingPool = [...allProducts].sort((a, b) => {
-      const aTrending = !!a.is_trending;
-      const bTrending = !!b.is_trending;
-      if (aTrending && !bTrending) return -1;
-      if (!aTrending && bTrending) return 1;
-      return (b.sold_count || 0) - (a.sold_count || 0);
-    });
-    const topPicks = takeUnique(trendingPool, 20);
-
-    // 2. Sponsored
-    const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
-
-    // 3. Deals
-    const now = new Date();
-    const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
-    const activeDeals = allDeals
-      .filter(d => d.is_active && new Date(d.end_at) > now)
-      .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
-      .map(deal => {
-        const product = allProducts.find(p => p.id === deal.product_id);
-        if (!product) return null;
-        const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
-        return {
-          ...product,
-          price: discountedPrice,
-          original_price: product.price,
-          dealEndTime: deal.end_at,
-          dealDiscountText: `${deal.discount_pct}% OFF`
-        };
-      })
-      .filter(Boolean) as Product[];
-
-    const dealProductIds = new Set(activeDeals.map(a => a.id));
-    const priceDrop = allProducts
-        .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
-        .map(p => ({
+          return {
             ...p,
-            dealDiscountText: `Save ${formatPrice(p.original_price! - p.price)}`
-        }))
-        .sort((a,b) => ((b.original_price! - b.price) / b.original_price!) - ((a.original_price! - a.price) / a.original_price!));
-
-    const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
-
-    // 4. Category sections
-    const phonesProducts = takeUnique(allProducts.filter(p => ["phones"].includes(p.category || "")), 12);
-    const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
-    const computerProducts = takeUnique(allProducts.filter(p => ["computers"].includes(p.category || "")), 12);
-    const carProducts = takeUnique(allProducts.filter(p => ["cars", "vehicles"].includes(p.category || "")), 12);
-    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion"].includes(p.category || "")), 12);
-    const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
-    const homeProducts = takeUnique(allProducts.filter(p => ["home"].includes(p.category || "")), 12);
-    const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
-    const applianceProducts = takeUnique(allProducts.filter(p => ["appliances"].includes(p.category || "")), 12);
-    const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
-    const healthProducts = takeUnique(allProducts.filter(p => ["health", "medical"].includes(p.category || "")), 12);
-    const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
-
-    // 5. Verified Fair Prices (Shuffled for Equal Visibility)
-    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30, true);
-
-    // 6. From Stores You Follow
-    let followedStoreProducts: Product[] = [];
-    const favoriteStoresStr = typeof window !== "undefined" ? localStorage.getItem("fp_favorites_stores") : null;
-    const favoriteStores = favoriteStoresStr ? JSON.parse(favoriteStoresStr) : [];
-    
-    if (favoriteStores.length > 0) {
-      const followedSellerIds = new Set(favoriteStores);
-      followedStoreProducts = allProducts.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
-    }
+            dealEndTime,
+            dealDiscountText: `${discountPct}% OFF`
+          };
+        });
 
     return {
-      topPicks,
-      sponsoredProducts,
+      topPicks: pool
+        .sort((a, b) => (b?.sold_count || 0) - (a?.sold_count || 0))
+        .slice(0, 20),
+      sponsoredProducts: pool.filter(p => p && p.is_sponsored).slice(0, 15),
       dealProducts,
-      phonesProducts,
-      gamingProducts,
-      computerProducts,
-      carProducts,
-      fashionProducts,
-      beautyProducts,
-      homeProducts,
-      electronicsProducts,
-      applianceProducts,
-      fitnessProducts,
-      healthProducts,
-      groceryProducts,
-      fairPriceProducts,
-      followedStoreProducts
+      phonesProducts: getByCategory("Phones"),
+      gamingProducts: getByCategory("Gaming"),
+      computerProducts: getByCategory("Computers"),
+      carProducts: getByCategory("Vehicles"),
+      fashionProducts: getByCategory("Fashion"),
+      beautyProducts: getByCategory("Beauty"),
+      homeProducts: getByCategory("Home"),
+      electronicsProducts: getByCategory("Electronics"),
+      applianceProducts: getByCategory("Appliances"),
+      fitnessProducts: getByCategory("Sports"),
+      healthProducts: getByCategory("Health"),
+      groceryProducts: getByCategory("Grocery"),
+      fairPriceProducts: pool.filter(p => p && p.price_flag === "fair").slice(0, 20),
+      followedStoreProducts: []
     };
-  }, [allProducts]);
+  }, [allProducts, mounted]);
+
+  // Prevent hydration hanging by waiting for mount
+  if (!mounted) return <div className="min-h-screen bg-[#E3E6E6]" />;
 
   return (
     <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
@@ -354,60 +281,160 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
-          {/* ─── Hero Section ─── */}
-          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5">
-            <div className="absolute inset-0">
-              <img
-                src="/assets/images/image_v1.png"
-                onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                className="w-full h-full object-cover opacity-65"
-                alt="Hero"
-              />
-              <div
-                className="absolute inset-0 transition-colors duration-700"
-                style={{
-                  backgroundImage: 'linear-gradient(to bottom, transparent 0%, transparent 60%, #E3E6E6 100%)'
-                }}
-              />
-            </div>
-
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row justify-center items-center gap-4"
-              >
-                <Button
-                  size="lg"
-                  variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-500/30 text-white hover:bg-brand-green-500/50 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.45)] transition-all duration-300 ring-2 ring-brand-green-400 ring-offset-1 ring-offset-transparent group animate-pulse-grow"
-                  onClick={() => setIsPriceModalOpen(true)}
+          {/* ─── Hero Section (Restored Single Image) ─── */}
+          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-5 md:pb-8">
+            <div className="container mx-auto px-1 md:px-2 relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
+                
+                <div
+                  className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200"
+                  onMouseEnter={() => setHeroSliderPaused(true)}
+                  onMouseLeave={() => setHeroSliderPaused(false)}
+                  onTouchStart={() => setHeroSliderPaused(p => !p)}
                 >
-                  <span className="font-extrabold tracking-wide cursor-pointer">Price Checker AI</span>
-                  <Sparkles className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
-                </Button>
+                  <div className="absolute inset-0">
+                    <AnimatePresence initial={false}>
+                      <motion.div
+                        key={currentBannerIndex}
+                        initial={{ x: "100%" }}
+                        animate={{ x: 0 }}
+                        exit={{ x: "-100%" }}
+                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 } }}
+                        className="absolute inset-0 w-full h-full"
+                      >
+                        {banners[currentBannerIndex]?.type === "component" ? (
+                          banners[currentBannerIndex]?.componentId === "zema360" ? (
+                            <Zema360HeroBanner />
+                          ) : null
+                        ) : (
+                          <img
+                            src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
+                            onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            alt={banners[currentBannerIndex]?.title || "Hero Banner"}
+                          />
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
+                  </div>
 
-                <Button
-                  size="lg"
-                  variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
-                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
-                >
-                  <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
-                  <StoreIcon className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
-                </Button>
-              </motion.div>
+                  {/* Buttons Overlay — Centered Bottom on Mobile, Bottom-Left on Desktop */}
+                  <div className="absolute z-30 flex items-center gap-2 md:gap-4 bottom-6 md:bottom-10 left-0 right-0 md:left-10 md:right-auto justify-center md:justify-start px-4 md:px-0">
+                    <Button
+                      size="lg"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/5 hover:bg-white/15 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
+                      onClick={() => setIsPriceModalOpen(true)}
+                    >
+                      PRICE CHECKER AI 
+                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-gradient-to-b from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white font-black text-[10px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(16,185,129,0.5)] border border-emerald-400/50 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
+                      onClick={(e) => { 
+                        e.stopPropagation();
+                        router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
+                      }}
+                    >
+                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                      START SELLING
+                    </Button>
+                  </div>
+
+                  {/* Carousel Indicators — clickable, jumps to that slide */}
+                  <div className="absolute top-4 md:top-6 right-4 md:right-6 z-20 flex items-center gap-1.5 md:gap-2">
+                    {heroSliderPaused && (
+                      <div className="w-5 h-5 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mr-1">
+                        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
+                          <rect x="0" y="0" width="2.5" height="9" rx="1"/>
+                          <rect x="5.5" y="0" width="2.5" height="9" rx="1"/>
+                        </svg>
+                      </div>
+                    )}
+                    {banners.map((_, idx) => (
+                      <button
+                        key={idx}
+                        aria-label={`Go to slide ${idx + 1}`}
+                        onClick={() => { setCurrentBannerIndex(idx); setHeroSliderPaused(false); }}
+                        className={cn(
+                          "h-1.5 md:h-2 rounded-full transition-all duration-300 cursor-pointer hover:opacity-100",
+                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40 hover:bg-white/70"
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Side Ad Grid */}
+                <div className="hidden lg:grid lg:col-span-4 grid-cols-2 grid-rows-2 gap-2 h-full">
+                  {(heroConfig?.adSlots || DEFAULT_AD_SLOTS).map((ad: any) => {
+                    const AdComponent = ad.componentId ? AD_SLOT_COMPONENTS[ad.componentId] : null;
+                    return (
+                      <div
+                        key={ad.id}
+                        className="relative rounded-xl md:rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md bg-gray-900"
+                        onClick={() => {
+                          if (ad.componentId === "ziva-ai" || ad.link === "#") {
+                            setIsPriceModalOpen(true);
+                          } else if (ad.link) {
+                            router.push(ad.link);
+                          }
+                        }}
+                      >
+                        {AdComponent ? (
+                          <AdComponent />
+                        ) : (
+                          <img
+                            src={getProxiedImageUrl(ad.img)}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            alt={ad.title || "Ad slot"}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </section>
 
           {/* ─── Content Body ─── */}
-          <div ref={productSectionRef} className="relative z-20">
+          <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
+            {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
+            <div className="sticky top-[84px] md:top-[100px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
+              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
+                {TEMU_CATEGORIES.map((cat) => {
+                  const isActive = activeTab === cat;
+                  return (
+                    <Button
+                      id={`pill-${cat}`}
+                      key={cat}
+                      size="sm"
+                      variant="outline"
+                      className={cn(
+                        "rounded-full px-4 md:px-5 h-8 md:h-9 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all flex-shrink-0 font-bold border",
+                        isActive 
+                          ? "bg-black text-white border-black hover:bg-gray-800 hover:text-white" 
+                          : "bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
+                      )}
+                      onClick={() => handleTabChange(cat)}
+                    >
+                      {cat === 'Best-Selling' && <Flame className="h-4 w-4 mr-1 text-orange-500" />}
+                      {cat === 'Trending' && <TrendingUp className="h-4 w-4 mr-1 text-red-500" />}
+                      {cat === 'Price Drop' && <Tag className="h-4 w-4 mr-1 text-purple-500 animate-pulse" />}
+                      {cat}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
             {(!mounted || !sections) && (
               <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
-                <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
+                <ProductSlider title={`Trending in ${userGeo?.name ?? "Nigeria"}`} link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                   {Array(4).fill(0).map((_, i) => <div key={i} className="h-80 bg-white rounded-lg shadow-sm animate-pulse" />)}
                 </div>
@@ -415,10 +442,29 @@ function HomeContent() {
             )}
 
             {/* ═══ Optimized Homepage Sections ═══ */}
-            {mounted && sections && (
-              <>
+            <div className="overflow-hidden w-full relative min-h-[600px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  onDragEnd={handleDragEnd}
+                  className="w-full"
+                >
+                  {activeTab === "All" ? (
+                    mounted && sections && (
+                      <>
+                <section className="container mx-auto px-1 md:px-2 mt-2 mb-1">
+                  <RecentlyViewedHorizontal />
+                </section>
+
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
-                  <ProductSlider title="Trending in Nigeria" link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  <ProductSlider title={<>Trending in <span className='text-green-500'>{userGeo ? `${userGeo.name} ${userGeo.flag}` : "Nigeria 🇳🇬"}</span></>} link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1">
@@ -429,95 +475,58 @@ function HomeContent() {
                     icon={<Flame className="h-5 w-5 text-orange-500" />}
                     autoScroll
                     direction="right"
+                    cardType="compact"
                   />
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
-                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} />
                 </section>
 
                 {sections.followedStoreProducts.length > 0 && (
                   <section className="container mx-auto px-1 md:px-2 mb-1">
-                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
+                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} />
                   </section>
                 )}
 
-                {/* ══ Lazy Hydrated Category Sections ══ */}
+                {/* ══ Category Sections ══ */}
                 <section className="container mx-auto px-1 md:px-2 space-y-3 mb-1">
-                  <LazySection height={340} skeletonTitle="Verified Fair Prices">
-                    <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Phones & Tablets">
-                    <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Best in Gaming">
-                    <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="PCs & Laptops">
-                    <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Electronics & Audio">
-                    <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Verified Cars">
-                    <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Fashion & Style">
-                    <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Beauty & Skincare">
-                    <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Home & Living">
-                    <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Appliances">
-                    <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Gym & Fitness">
-                    <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Health & Medical">
-                    <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Groceries & Baby Essentials">
-                    <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
-                  </LazySection>
+                  <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} />
+                  <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
+                  <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
+                  <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />
+                  <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} />
+                  <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} />
+                  <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} />
+                  <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} />
+                  <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} />
+                  <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} />
+                  <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} />
+                  <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} />
+                  <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} />
                 </section>
 
-                <LazySection height={400} skeletonTitle="Explore Categories">
-                  <section className="container mx-auto px-1 md:px-2 my-6 pt-2 border-t border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {categoryGrids.map((card, i) => (
-                        <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
-                      ))}
-                    </div>
-                  </section>
-                </LazySection>
+                <section className="container mx-auto px-1 md:px-2 my-2 pt-2 border-t border-gray-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {categoryGrids.map((card, i) => (
+                      <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
+                    ))}
+                  </div>
+                </section>
 
-                <LazySection height={200}>
-                  <StoreDiscoveryRail />
-                </LazySection>
+                <StoreDiscoveryRail />
 
-                <LazySection height={800} skeletonTitle="Recommended For You">
-                  <section className="w-full px-1 md:px-2 mb-8">
-                    <RecommendedProducts products={allProducts} title="Recommended For You" />
-                  </section>
-                </LazySection>
-              </>
-            )}
+                <section className="w-full px-1 md:px-2 mb-8">
+                  <RecommendedProducts products={allProducts.length > 0 ? allProducts : SEED_PRODUCTS} title="Recommended For You" />
+                </section>
+                      </>
+                    )
+                  ) : (
+                    <CategoryPanel category={activeTab} />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </main>
       </div>
@@ -527,48 +536,6 @@ function HomeContent() {
   );
 }
 
-// ─── Lazy Hydration Wrapper ───
-// Prevents the browser from rendering off-screen sections until needed.
-// This resolves the scrolling lag and white-space issues.
-function LazySection({ children, height = 340, skeletonTitle }: { children: React.ReactNode; height?: number; skeletonTitle?: string }) {
-  const [ref, setRef] = useState<HTMLElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (!ref) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "1000px" } // Load 1000px before it enters the viewport for seamless rendering
-    );
-    observer.observe(ref);
-    return () => observer.disconnect();
-  }, [ref]);
-
-  return (
-    <div ref={setRef} style={{ minHeight: isVisible ? "auto" : `${height}px` }} className="transition-all duration-500">
-      {isVisible ? (
-        children
-      ) : (
-        <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-50 flex flex-col justify-center gap-4 group">
-          <div className="flex items-center justify-between opacity-50">
-            <div className="h-6 w-48 bg-gray-100 animate-pulse rounded" />
-            <div className="h-4 w-24 bg-gray-50 animate-pulse rounded" />
-          </div>
-          <div className="flex gap-4 overflow-hidden">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="min-w-[200px] h-[300px] bg-gray-50/50 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 // ─── CategoryGridCard Component (Amazon 2×2 Style + Apple Aesthetics) ───
@@ -626,7 +593,6 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
 
 function BestSellersScroller({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const initOffsetDone = useRef(false);
 
@@ -652,34 +618,34 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       initOffsetDone.current = true;
     }
 
-    const startAutoScroll = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(() => {
-        if (!el) return;
-        const scrollAmount = direction === "left" ? 240 : -240;
-        
-        // Handle loop wrap around natively
-        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
-        } else if (direction === "right" && el.scrollLeft <= 0) {
-          el.scrollLeft = el.scrollWidth / 3;
-        } else {
-          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
-        }
-      }, 3500);
+    // Step-by-step scroll: scroll one card width, pause 2.5s, repeat
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const stepScroll = () => {
+      if (!el || isHovered) return;
+      const cardWidth = 240;
+      const scrollAmount = direction === "left" ? cardWidth : -cardWidth;
+
+      // Wrap around at 1/3 of total scroll width (tripled array)
+      if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+        el.scrollLeft = 0;
+      } else if (direction === "right" && el.scrollLeft <= 0) {
+        el.scrollLeft = el.scrollWidth / 3;
+      } else {
+        el.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      }
+
+      // Schedule next step after pause
+      timeoutId = setTimeout(stepScroll, 2800);
     };
 
     if (!isHovered) {
-      startAutoScroll();
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      // Initial delay before first step
+      timeoutId = setTimeout(stepScroll, 1500);
     }
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [autoScroll, isHovered, direction]);
 
@@ -690,7 +656,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="flex items-center justify-between mb-1.5">
-        <h2 className="text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+        <h2 className="text-[16px] sm:text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2 whitespace-nowrap">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>
@@ -718,7 +684,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 
         <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
-            <div key={`${product.id}-${idx}`} className="min-w-[190px] md:min-w-[220px] flex flex-col">
+            <div key={`${product.id}-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
               <ProductCard product={product} />
             </div>
           ))}
@@ -731,7 +697,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 
 
 
-function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false, cardType = "default" }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean, cardType?: "default" | "compact" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -739,65 +705,56 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
   const [isPaused, setIsPaused] = useState(false);
   const initOffsetDone = useRef(false);
 
-  const checkScroll = () => {
+  const checkScroll = useCallback(() => {
     if (scrollRef.current && !autoScroll) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
       setCanScrollLeft(scrollLeft > 0);
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
     }
-  };
+  }, [autoScroll]);
 
   useEffect(() => {
     checkScroll();
     window.addEventListener("resize", checkScroll);
     return () => window.removeEventListener("resize", checkScroll);
-  }, [products]);
+  }, [products, checkScroll]);
 
-  // Auto-scroll effect
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Step-by-step auto-scroll: advance one card, pause 2s, repeat (easier on eyes & performance)
   useEffect(() => {
-    if (!autoScroll) return;
+    if (!autoScroll || isPaused || isLoading) return;
+
     const el = scrollRef.current;
     if (!el) return;
 
-    // Set initial offset for right direction
+    // Set initial offset for right-to-left direction
     if (!initOffsetDone.current && direction === "right") {
-      setTimeout(() => {
-        if (el) el.scrollLeft = el.scrollWidth / 3;
-      }, 100);
+      el.scrollLeft = el.scrollWidth / 3;
       initOffsetDone.current = true;
     }
 
-    const startAutoScroll = () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(() => {
-        if (!el) return;
-        const scrollAmount = direction === "left" ? 220 : -220; // Approximately one card width
-        
-        // Handle native wrap around
-        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
-        } else if (direction === "right" && el.scrollLeft <= 0) {
-          el.scrollLeft = el.scrollWidth / 3;
-        } else {
-          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
-        }
-      }, 3500);
-    };
+    const CARD_WIDTH = 220; // matches md:min-w-[220px]
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-    if (!isPaused) {
-      startAutoScroll();
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+    const stepScroll = () => {
+      if (!el) return;
+      const scrollAmount = direction === "left" ? CARD_WIDTH : -CARD_WIDTH;
+
+      // Seamless wrap-around at 1/3 of total width (tripled array)
+      if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+        el.scrollLeft = 0;
+      } else if (direction === "right" && el.scrollLeft <= 0) {
+        el.scrollLeft = el.scrollWidth / 3;
+      } else {
+        el.scrollBy({ left: scrollAmount, behavior: "smooth" });
       }
-    }
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      timeoutId = setTimeout(stepScroll, 2200);
     };
-  }, [autoScroll, isPaused, direction]);
+
+    // Initial delay before first step
+    timeoutId = setTimeout(stepScroll, 1800);
+    return () => clearTimeout(timeoutId);
+  }, [autoScroll, isPaused, direction, isLoading]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
@@ -822,7 +779,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       onTouchEnd={() => setTimeout(() => setIsPaused(false), 3000)}
     >
       <div className="flex items-center gap-4 mb-2 md:mb-2">
-        <h2 className="text-lg md:text-xl font-extrabold tracking-tight text-gray-900 line-clamp-1 flex items-center gap-2">
+        <h2 className="text-[16px] sm:text-lg md:text-xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2 whitespace-nowrap">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>
@@ -861,9 +818,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (
-            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
+            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
               {isLoading ? (
                 <ProductCardSkeleton />
+              ) : cardType === "compact" ? (
+                <CompactPriceDropCard product={product} />
               ) : (
                 <ProductCard 
                   product={product} 

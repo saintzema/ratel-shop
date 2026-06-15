@@ -71,7 +71,7 @@ export default function ReferralsPage() {
 
             <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
                 {/* Header */}
-                <div className="mb-8">
+                <div className="mb-8 mt-6">
                     <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
                         <Link href="/account" className="hover:text-brand-green-600 transition-colors">Account</Link>
                         <ChevronRight className="h-4 w-4" />

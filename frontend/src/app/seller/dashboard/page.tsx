@@ -16,7 +16,7 @@ import {
     AlertTriangle,
     CheckCircle,
     XCircle,
-    Wallet,
+    Landmark,
     ShieldCheck,
     Lock,
     ArrowUpRight,
@@ -28,10 +28,24 @@ import {
     Copy,
     Globe,
     ExternalLink,
-    Crown
+    Crown,
+    Zap,
+    Link as LinkIcon,
+    QrCode,
+    RefreshCcw,
+    Download,
+    BadgeCheck,
+    Smartphone,
+    Bell,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 
 import { useAuth } from "@/context/AuthContext";
+import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
+import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
+
 
 export default function SellerDashboard() {
     const router = useRouter();
@@ -40,9 +54,16 @@ export default function SellerDashboard() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
+    const [offListingInvoices, setOffListingInvoices] = useState<any[]>([]);
     const [cashoutSuccess, setCashoutSuccess] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [copiedStoreLink, setCopiedStoreLink] = useState(false);
+    const [subdomainInput, setSubdomainInput] = useState("");
+    const [qrDesc, setQrDesc] = useState("");
+    const [qrAmount, setQrAmount] = useState("");
+    const [copiedPayLink, setCopiedPayLink] = useState(false);
+    const [sellerAlerts, setSellerAlerts] = useState<any[]>([]);
+    const [alertsExpanded, setAlertsExpanded] = useState(false);
     const hasAttemptedCreation = useRef(false);
 
     // Dynamic stats calculations
@@ -87,6 +108,20 @@ export default function SellerDashboard() {
                 const uniqueProducts = Array.from(new Map(combinedProducts.map(p => [p.id, p])).values());
                 setProducts(uniqueProducts.filter(p => p.seller_id === seller.id));
 
+                // Load off-listing invoices
+                const allInvoices = DataSyncService.getOffListingInvoices();
+                setOffListingInvoices(allInvoices.filter(inv => inv.seller_id === seller.id));
+
+                // Load important seller alerts (orders, negotiations, refunds, payouts, etc.)
+                // Reuses the same aggregated feed as the notification bell.
+                try {
+                    const notifs = DataSyncService.getNotifications(seller.id) || [];
+                    const important = notifs
+                        .filter((n: any) => n.type !== "system" && !(n.message || "").startsWith("Welcome to FairPrice"))
+                        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                    setSellerAlerts(important);
+                } catch { /* non-critical */ }
+
                 // Onboarding Verification Notification Logic
                 if (seller.verified) {
                     const hasNotified = localStorage.getItem(`fp_notified_onboarding_${seller.id}`);
@@ -104,10 +139,13 @@ export default function SellerDashboard() {
                         }
                     }
                 }
+                
+                setSubdomainInput(seller.store_url || (seller.business_name || 'yourstore').toLowerCase().replace(/[^a-z0-9]/g, ''));
             }
         };
 
         loadData();
+        DataSyncService.syncWithDB("orders", true); // Proactive sync for latest orders
         DataSyncService.autoSync(); // Trigger initial DB sync immediately on mount
 
         // Register listeners IMMEDIATELY to catch the first sync
@@ -138,7 +176,7 @@ export default function SellerDashboard() {
 
     const handleNegAction = async (id: string, status: "accepted" | "rejected") => {
         // 1. Update local state immediately for fast UI
-        DataSyncService.updateNegotiationStatus(id, status);
+        DataSyncService.updateNegotiationStatus(id, status, "seller");
         const sellerId = DataSyncService.getCurrentSellerId();
         if (sellerId) {
             setNegotiations(DataSyncService.getNegotiations(sellerId));
@@ -189,7 +227,7 @@ export default function SellerDashboard() {
             userId: currentSeller?.id || "",
             type: "system",
             message: `💰 Cashout request of ${formatPrice(availableBalance)} submitted! Funds will be transferred within 24-48 hours.`,
-            link: "/seller/wallet"
+            link: "/seller/balance"
         });
 
         // 2. Write payout to PostgreSQL database
@@ -214,28 +252,51 @@ export default function SellerDashboard() {
         setTimeout(() => setCashoutSuccess(false), 3000);
     };
 
-    // We remove the blocking 'Syncing your store...' loader as requested by user.
-    // Instead, we use a safe fallback so the dashboard hot-renders immediately,
-    // and then dynamically hot-updates once the real seller data drops down from DB.
-    const safeSeller = currentSeller || {
-        id: user?.id || "temp-seller",
-        userId: user?.id || "temp-user",
-        business_name: "Loading Store...",
-        owner_email: user?.email || "",
-        description: "",
-        category: "General",
-        status: "active",
-        verified: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        rating: 5.0,
-        trust_score: 90,
-        followers: 0,
-        following: 0,
-        sales_count: 0,
-        commission_rate: 0.05,
-        store_url: ""
+    const handleSubdomainUpgrade = () => {
+        if (currentSeller) {
+            DataSyncService.addNotification({
+                userId: "admin",
+                type: "system",
+                message: `🚀 SUBSCRIPTION UPGRADE REQUEST: ${currentSeller.business_name} wants to upgrade to the ₦14,990 Plan with subdomain: ${subdomainInput}.fairprice.ng`,
+                link: `/admin/sellers/${currentSeller.id}`
+            });
+        }
+        router.push(`/seller/settings/billing?plan=growth&subdomain=${subdomainInput}`);
     };
+
+    // We remove the blocking 'Syncing your store...' loader as requested by user.
+    // Instead, we use a skeleton loader if the currentSeller isn't available yet,
+    // avoiding the "Loading Store..." hallucination.
+    if (!currentSeller) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-pulse space-y-8">
+                <div className="h-32 bg-gray-100/50 rounded-[32px]" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="h-32 bg-gray-50 rounded-2xl border border-gray-100" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-96 bg-gray-50 rounded-2xl border border-gray-100" />
+                    <div className="h-96 bg-gray-50 rounded-2xl border border-gray-100" />
+                </div>
+            </div>
+        );
+    }
+
+    const safeSeller = currentSeller;
+
+    // Clean, shareable store link — never expose the raw internal seller id
+    // (e.g. "s_user_techzema@gmail.com"). Falls back to a slugified business name,
+    // which the /store/[slug] route resolves via its business-name-slug branch.
+    const cleanStoreSlug =
+        safeSeller?.store_url ||
+        (safeSeller?.business_name ? safeSeller.business_name.toLowerCase().replace(/\s+/g, "-") : "") ||
+        safeSeller?.id ||
+        "";
+    const dashOrigin = typeof window !== "undefined" ? window.location.origin : "https://fairprice.ng";
+    const dashDisplayOrigin = dashOrigin.replace(/^https?:\/\//, "");
+    const cleanStoreUrl = `${dashOrigin}/store/${cleanStoreSlug}`;
 
     // Computed financials
     const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
@@ -260,7 +321,9 @@ export default function SellerDashboard() {
 
     const pendingNegs = negotiations.filter(n => n.status === "pending");
     const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
-    const newOrders = orders.filter(o => o.status === "pending");
+    // "Pending" for a seller means they need to take action (Awaiting Shipment). 
+    // This includes both "pending" (unpaid/COD) and "processing" (paid via Paystack).
+    const newOrders = orders.filter(o => o.status === "pending" || o.status === "processing");
     const returnedOrders = orders.filter(o => o.status === "returned");
 
     // Success rate logic
@@ -278,79 +341,16 @@ export default function SellerDashboard() {
         >
             {/* Enhanced Banner: Tier Level Progress */}
             {safeSeller.verified && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-6 md:p-8 flex items-center justify-between shadow-sm">
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-3 md:p-4 flex items-center justify-between shadow-sm">
                     <div className="flex flex-col">
                         <span className="text-emerald-800 font-black text-lg md:text-xl tracking-tight flex items-center gap-2">
-                            <ShieldCheck className="h-6 w-6 text-emerald-600" />
+                            <ShieldCheck className="h-4 w-4 text-emerald-600" />
                             {safeSeller.business_name} - Verified Partner
                         </span>
                     </div>
                 </div>
             )}
 
-            {/* ── Store Link Card ── */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-                <div className="flex items-center gap-2 mb-1">
-                    <Globe className="h-4 w-4 text-indigo-600" />
-                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Your Store Link</span>
-                </div>
-
-                {/* Current Store Link */}
-                <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Live Store URL</p>
-                        <p className="text-sm font-bold text-indigo-700 truncate">
-                            fairprice.ng/store/{safeSeller.store_url || safeSeller.id}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${
-                                copiedStoreLink
-                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                    : 'border-gray-200 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
-                            }`}
-                            onClick={() => {
-                                const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
-                                navigator.clipboard.writeText(url);
-                                setCopiedStoreLink(true);
-                                setTimeout(() => setCopiedStoreLink(false), 2000);
-                            }}
-                        >
-                            <Copy className="h-3.5 w-3.5 mr-1" />
-                            {copiedStoreLink ? 'Copied!' : 'Copy'}
-                        </Button>
-                        <Link href={`/store/${safeSeller.store_url || safeSeller.id}`} target="_blank">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Custom Subdomain CTA */}
-                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50/80 to-orange-50/60 rounded-xl p-3 border border-amber-100/60">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                            <Crown className="h-3 w-3 text-amber-500" />
-                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Custom Subdomain</p>
-                        </div>
-                        <p className="text-sm font-bold text-gray-700 truncate">
-                            {(safeSeller.business_name || 'yourstore').toLowerCase().replace(/[^a-z0-9]/g, '')}.fairprice.ng
-                        </p>
-                    </div>
-                    <Link href="/seller/settings/billing">
-                        <Button
-                            size="sm"
-                            className="h-8 px-4 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm transition-all hover:scale-105 active:scale-95"
-                        >
-                            <Crown className="h-3 w-3 mr-1" /> Upgrade
-                        </Button>
-                    </Link>
-                </div>
-            </div>
             {/* Welcome header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -362,8 +362,42 @@ export default function SellerDashboard() {
                         >👋</motion.span>
                     </h1>
                     <p className="text-sm text-zinc-500 font-medium mt-1">
-                        Here's what's happening with your store today.
+                        Share your store link to get more sales today.
                     </p>
+                    {/* Store link — open · WhatsApp share · copy */}
+                    <div className="mt-3 inline-flex items-center gap-1 max-w-full rounded-xl bg-zinc-50 border border-zinc-100 pl-3 pr-1 py-1">
+                        <span className="text-[11px] sm:text-xs font-bold text-indigo-700 truncate mr-1">
+                            {dashDisplayOrigin}/store/{cleanStoreSlug}
+                        </span>
+                        {/* Open */}
+                        <Link href={`/store/${cleanStoreSlug}`} target="_blank" className="shrink-0">
+                            <Button size="icon" variant="ghost" className="h-7 w-7 rounded-lg text-zinc-400 hover:text-indigo-600 hover:bg-white" title="Open store">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                        </Link>
+                        {/* WhatsApp share */}
+                        <a
+                            href={`https://wa.me/?text=${encodeURIComponent(`Shop from my FairPrice store: ${cleanStoreUrl}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 h-7 w-7 rounded-lg flex items-center justify-center text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="Share on WhatsApp"
+                        >
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                            </svg>
+                        </a>
+                        {/* Copy */}
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 rounded-lg shrink-0 transition-all ${copiedStoreLink ? "text-emerald-600 bg-emerald-50" : "text-zinc-400 hover:text-indigo-600 hover:bg-white"}`}
+                            onClick={() => { navigator.clipboard.writeText(cleanStoreUrl); setCopiedStoreLink(true); setTimeout(() => setCopiedStoreLink(false), 2000); }}
+                            title="Copy link"
+                        >
+                            {copiedStoreLink ? <CheckCircle className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button 
@@ -372,11 +406,11 @@ export default function SellerDashboard() {
                         className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
                         onClick={async () => {
                             setIsRefreshing(true);
-                            await DataSyncService.autoSync();
+                            await DataSyncService.autoSync(true); // Force clear stale local cache
                             setIsRefreshing(false);
                         }}
                     >
-                        <TrendingUp className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                        <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
                         {isRefreshing ? "Refreshing..." : "Global Refresh"}
                     </Button>
                 </div>
@@ -392,6 +426,62 @@ export default function SellerDashboard() {
                 <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} tooltip="Accept more reasonable counter-offers and avoid letting negotiations expire to boost your success rate." />
                 <StatCard icon={<Star />} label="Trust Score" value={`${safeSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
             </motion.div>
+
+            {/* ── Important Alerts — foldable, newest first ── */}
+            {sellerAlerts.length > 0 && (
+                <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                    <button
+                        onClick={() => setAlertsExpanded(v => !v)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-zinc-50/60 transition-colors"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="relative">
+                                <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                    <Bell className="h-4 w-4 text-indigo-600" />
+                                </div>
+                                {sellerAlerts.some(a => !a.read) && (
+                                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border border-white">
+                                        {sellerAlerts.filter(a => !a.read).length}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-left">
+                                <p className="text-sm font-black text-gray-900">Alerts</p>
+                                <p className="text-[10px] text-gray-400 font-medium">New orders, negotiations, refunds & payouts</p>
+                            </div>
+                        </div>
+                        {alertsExpanded
+                            ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                            : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    </button>
+                    <div className="px-3 pb-3 space-y-1.5">
+                        {(alertsExpanded ? sellerAlerts : sellerAlerts.slice(0, 2)).map((a) => (
+                            <Link
+                                key={a.id}
+                                href={a.link || "/seller/dashboard/messages"}
+                                className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${a.read ? "border-zinc-100 bg-white hover:bg-zinc-50" : "border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50"}`}
+                            >
+                                <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${a.read ? "bg-zinc-300" : "bg-indigo-500"}`} />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{a.message}</p>
+                                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                        {new Date(a.timestamp).toLocaleDateString("en-NG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                </div>
+                                <ChevronRight className="h-3.5 w-3.5 text-zinc-300 shrink-0 mt-0.5" />
+                            </Link>
+                        ))}
+                        {!alertsExpanded && sellerAlerts.length > 2 && (
+                            <button
+                                onClick={() => setAlertsExpanded(true)}
+                                className="w-full text-center text-[11px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest py-1.5"
+                            >
+                                Show {sellerAlerts.length - 2} more
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Dispute Alert */}
             {disputedOrders.length > 0 && (
@@ -440,6 +530,305 @@ export default function SellerDashboard() {
                     </Link>
                 </div>
             )}
+
+            {/* ── Growth & Sharing Tools ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Store Link + FairPay QR — combined card */}
+                {(() => {
+                    const storeSlug = cleanStoreSlug;
+                    const origin = dashOrigin;
+                    const storeUrl = cleanStoreUrl;
+                    const isPayMode = qrDesc.trim() !== "" || qrAmount.trim() !== "";
+                    const paymentUrl = `${origin}/checkout/direct?sellerId=${safeSeller.id}&name=${encodeURIComponent(safeSeller.business_name || "")}&label=${encodeURIComponent(qrDesc.trim() || `Payment to ${safeSeller.business_name || "Seller"}`)}&image=${encodeURIComponent((safeSeller as any).logo_url || "")}${qrAmount ? `&amount=${qrAmount}` : ""}`;
+                    const activeQrUrl = isPayMode ? paymentUrl : storeUrl;
+                    const activeShareText = isPayMode
+                        ? `${qrAmount ? `Pay ₦${parseInt(qrAmount).toLocaleString()} ` : ""}${qrDesc.trim() ? `for ${qrDesc.trim()} ` : ""}via FairPrice: ${paymentUrl}`
+                        : `Check out my store on FairPrice: ${storeUrl}`;
+                    const displayOrigin = origin.replace(/^https?:\/\//, "");
+
+                    return (
+                        <div className="bg-white rounded-3xl border border-zinc-100 shadow-sm overflow-hidden flex flex-col">
+                            {/* ── Header — matches /seller/dashboard/payments design ── */}
+                            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500" />
+                            <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <div className="h-11 w-11 rounded-[16px] bg-gradient-to-br from-indigo-600 via-indigo-500 to-blue-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                                            <QrCode className="h-5 w-5 text-white" />
+                                        </div>
+                                        <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                            <BadgeCheck className="h-2.5 w-2.5 text-white" />
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="flex items-baseline gap-1 whitespace-nowrap">
+                                            <span className="text-lg font-black tracking-tight text-gray-900">FairPay</span>
+                                            <span className="text-lg font-black tracking-tight bg-gradient-to-r from-indigo-600 to-blue-500 bg-clip-text text-transparent">QR&nbsp;Scan</span>
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 -mt-0.5">Scan to Pay</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-black">
+                                        <ShieldCheck className="h-3 w-3" /> Secure
+                                    </div>
+                                    <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black">
+                                        <Zap className="h-3 w-3 fill-indigo-500" /> Instant
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="px-6 pb-0">
+                                <p className="text-xs text-gray-500 font-medium">Generate a QR or link to collect payment in seconds.</p>
+                            </div>
+                            <div className="px-6 pt-4">
+
+                            {/* ── Collect a Payment ── always green/active */}
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 mb-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-1.5 text-emerald-600">
+                                    <QrCode className="h-3.5 w-3.5 text-emerald-500" />
+                                    {isPayMode ? "Payment QR — Ready to share" : "Collect a Payment"}
+                                </p>
+
+                                <div className="space-y-2.5">
+                                    {/* Description */}
+                                    <div>
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1 block">
+                                            What's this payment for?
+                                        </label>
+                                        <input
+                                            value={qrDesc}
+                                            onChange={e => setQrDesc(e.target.value)}
+                                            placeholder="e.g. iPhone case, School fees, 2 bags of rice…"
+                                            className="w-full h-10 px-3 rounded-xl border border-emerald-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                                        />
+                                    </div>
+                                    {/* Amount */}
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-black text-sm pointer-events-none">₦</span>
+                                        <input
+                                            type="number"
+                                            value={qrAmount}
+                                            onChange={e => setQrAmount(e.target.value)}
+                                            placeholder="Amount — leave blank for open amount"
+                                            className="w-full h-10 pl-8 pr-3 rounded-xl border border-emerald-200 bg-white text-sm font-medium placeholder:text-zinc-300 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                {isPayMode && (
+                                    <button
+                                        onClick={() => { setQrDesc(""); setQrAmount(""); }}
+                                        className="mt-2.5 text-[11px] font-bold text-zinc-400 hover:text-zinc-600 transition-colors"
+                                    >
+                                        ✕ Clear — back to store QR
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Customer Scans + Instant Sync info tiles */}
+                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                {[
+                                    { icon: Smartphone, color: "blue", title: "Customer Scans", desc: "Works with any smartphone camera. No app download required." },
+                                    { icon: Zap, color: "emerald", title: "Instant Sync", desc: "Payment credited to your balance instantly upon success." },
+                                ].map(({ icon: Icon, color, title, desc }) => (
+                                    <div key={title} className={`rounded-2xl p-3 border flex flex-col gap-2 ${color === "blue" ? "bg-blue-50/60 border-blue-100" : "bg-emerald-50/60 border-emerald-100"}`}>
+                                        <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${color === "blue" ? "bg-blue-100 text-blue-600" : "bg-emerald-100 text-emerald-600"}`}>
+                                            <Icon className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-gray-900">{title}</p>
+                                            <p className="text-[10px] font-medium text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* QR display */}
+                            <div className="flex flex-col items-center gap-3">
+                                <div className={`p-3 rounded-2xl border shadow-sm relative group transition-all duration-300 ${isPayMode ? "border-emerald-200 bg-white shadow-emerald-100" : "border-zinc-100 bg-white"}`}>
+                                    {isPayMode && (
+                                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                                            💳 Payment QR
+                                        </span>
+                                    )}
+                                    <QRCodeCanvas
+                                        id="dashboard-active-qr"
+                                        value={activeQrUrl}
+                                        size={120}
+                                        level="H"
+                                        imageSettings={{
+                                            src: (safeSeller as any).logo_url || "/logo.svg",
+                                            x: undefined, y: undefined, height: 22, width: 22, excavate: true,
+                                        }}
+                                        className="rounded-lg block"
+                                    />
+                                    <Button
+                                        size="icon"
+                                        variant="secondary"
+                                        title="Download QR"
+                                        className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full shadow-lg border border-white"
+                                        onClick={() => {
+                                            const canvas = document.getElementById("dashboard-active-qr") as HTMLCanvasElement;
+                                            if (canvas) {
+                                                const link = document.createElement("a");
+                                                link.href = canvas.toDataURL("image/png");
+                                                link.download = `${safeSeller.business_name}-${isPayMode ? "payment" : "store"}-QR.png`;
+                                                link.click();
+                                            }
+                                        }}
+                                    >
+                                        <Download className="h-3 w-3" />
+                                    </Button>
+                                </div>
+
+                                <p className="text-[11px] text-center text-zinc-400 font-medium max-w-[200px] leading-snug">
+                                    {isPayMode
+                                        ? qrAmount
+                                            ? `Scan to pay ₦${parseInt(qrAmount || "0").toLocaleString()}${qrDesc.trim() ? ` for ${qrDesc.trim()}` : ""}`
+                                            : `Scan to pay${qrDesc.trim() ? ` for ${qrDesc.trim()}` : ""}`
+                                        : "Scan to browse your store"}
+                                </p>
+
+                                {/* Copy payment link */}
+                                {isPayMode && (
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(paymentUrl);
+                                            setCopiedPayLink(true);
+                                            setTimeout(() => setCopiedPayLink(false), 2000);
+                                        }}
+                                        className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all ${copiedPayLink ? "bg-emerald-50 text-emerald-600" : "bg-zinc-100 text-zinc-500 hover:bg-emerald-50 hover:text-emerald-600"}`}
+                                    >
+                                        {copiedPayLink ? <CheckCircle className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                        {copiedPayLink ? "Link copied!" : "Copy payment link"}
+                                    </button>
+                                )}
+                            </div>
+
+                            </div>{/* end px-6 pt-4 */}
+
+                            {/* Social share row */}
+                            <div className="flex justify-center gap-3 mt-4 pt-4 px-6 pb-4 border-t border-zinc-50">
+                                <a href={`https://wa.me/?text=${encodeURIComponent(activeShareText)}`} target="_blank" rel="noopener noreferrer"
+                                    className="h-10 w-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-200 hover:scale-110 transition-all" title="Share on WhatsApp">
+                                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                                </a>
+                                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"
+                                    className="h-10 w-10 rounded-xl bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-pink-200 hover:scale-110 transition-all" title="Share on Instagram">
+                                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                </a>
+                                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer"
+                                    className="h-10 w-10 rounded-xl bg-[#1877F2] text-white flex items-center justify-center shadow-lg shadow-blue-200 hover:scale-110 transition-all" title="Share on Facebook">
+                                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+                                </a>
+                                <Link href="/seller/dashboard/payments">
+                                    <div className="h-10 w-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center shadow-lg shadow-zinc-300 hover:scale-110 transition-all" title="Full FairPay dashboard">
+                                        <QrCode className="h-4 w-4" />
+                                    </div>
+                                </Link>
+                            </div>
+
+                            {/* ── Recent Payment Links ── */}
+                            {(() => {
+                                const recentInvoices = offListingInvoices.slice(0, 3);
+                                return (
+                                    <div className="px-6 pb-6">
+                                        {/* How it works */}
+                                        <div className="bg-zinc-50 rounded-2xl p-4 mb-3 border border-zinc-100">
+                                            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2.5">How Payment QR Works</p>
+                                            <ol className="space-y-1.5">
+                                                {[
+                                                    "Enter amount + description (optional), QR updates live",
+                                                    "Share the QR or payment link with your customer",
+                                                    "Customer scans → goes straight to FairPrice checkout",
+                                                    "Payment is secured in FairPrice escrow until delivery",
+                                                ].map((step, i) => (
+                                                    <li key={i} className="flex items-start gap-2 text-[11px] text-zinc-600 font-medium">
+                                                        <span className="shrink-0 h-4 w-4 rounded-full bg-indigo-100 text-indigo-600 text-[9px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+                                                        {step}
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        </div>
+
+                                        {/* Recent links */}
+                                        {recentInvoices.length > 0 && (
+                                            <>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Recent Payment Links</p>
+                                                    <Link href="/seller/dashboard/payments" className="text-[10px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest">
+                                                        View All →
+                                                    </Link>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {recentInvoices.map((inv: any) => (
+                                                        <Link key={inv.id} href="/seller/dashboard/payments" className="flex items-center gap-3 p-3 rounded-2xl border border-zinc-100 bg-white hover:bg-zinc-50 hover:border-indigo-100 transition-all group">
+                                                            <div className="h-9 w-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 transition-colors">
+                                                                <QrCode className="h-4 w-4 text-indigo-500" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-bold text-gray-900 truncate">{inv.label || "Payment"}</p>
+                                                                <p className="text-[10px] text-gray-400 font-medium">{new Date(inv.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</p>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <p className="text-sm font-black text-gray-900">{inv.amount > 0 ? `₦${Number(inv.amount).toLocaleString()}` : "Open"}</p>
+                                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${inv.status === "paid" ? "bg-emerald-100 text-emerald-600" : inv.status === "revoked" ? "bg-red-100 text-red-500" : "bg-amber-100 text-amber-600"}`}>
+                                                                    {inv.status}
+                                                                </span>
+                                                            </div>
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {recentInvoices.length === 0 && (
+                                            <Link href="/seller/dashboard/payments" className="flex items-center justify-center gap-2 h-10 rounded-xl border-2 border-dashed border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50/30 text-zinc-400 hover:text-indigo-600 text-[11px] font-bold transition-all">
+                                                <QrCode className="h-3.5 w-3.5" /> Generate your first payment link →
+                                            </Link>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    );
+                })()}
+
+                {/* WhatsApp Sync Card */}
+                <WhatsAppCatalogImporter />
+
+                {/* Instagram Sync Card */}
+                <InstagramCatalogImporter />
+            </div>
+
+            {/* Custom Subdomain CTA (Moved below sharing tools) */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-[32px] p-6 border border-amber-100 shadow-sm">
+                <div className="flex-1 min-w-0 w-full">
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <Crown className="h-4 w-4 text-amber-500" />
+                        <p className="text-xs font-black text-amber-600 uppercase tracking-wider">Premium Store Link</p>
+                    </div>
+                    <div className="flex items-center bg-white border border-amber-200 rounded-xl overflow-hidden shadow-sm focus-within:ring-2 ring-amber-500/20 max-w-sm w-full">
+                        <input 
+                            type="text"
+                            value={subdomainInput}
+                            onChange={(e) => setSubdomainInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                            className="flex-1 min-w-0 px-4 py-2.5 text-sm font-bold text-zinc-700 outline-none placeholder:text-zinc-300"
+                            placeholder="yourstore"
+                        />
+                        <div className="px-4 py-2.5 bg-zinc-50 border-l border-amber-100 text-sm font-bold text-zinc-500 whitespace-nowrap">
+                            .fairprice.ng
+                        </div>
+                    </div>
+                </div>
+                <Button
+                    onClick={handleSubdomainUpgrade}
+                    className="w-full sm:w-auto h-12 px-8 rounded-xl text-sm font-black bg-zinc-900 hover:bg-zinc-800 text-white shadow-xl transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
+                >
+                    <Crown className="h-4 w-4 mr-2" /> Upgrade to Custom Link
+                </Button>
+            </div>
+            
 
             {/* Recent Activity Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -554,19 +943,19 @@ export default function SellerDashboard() {
                 {/* Available Balance */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
-                        <Wallet className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Payout</span>
+                        <Landmark className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Balance</span>
                     </div>
                     <h3 className="text-3xl font-black text-gray-900 mt-2">
                         {formatPrice(availableBalance)}
                     </h3>
                     <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
-                    <Link href="/seller/wallet">
+                    <Link href="/seller/balance">
                         <Button
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-sm"
                         >
                             <ArrowUpRight className="h-4 w-4 mr-2" />
-                            Manage Wallet & Payout
+                            Manage Balance & Settlements
                         </Button>
                     </Link>
                 </div>
@@ -622,7 +1011,7 @@ export default function SellerDashboard() {
                 <div className="flex items-center justify-between mb-8 relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
-                            <Wallet className="h-5 w-5 text-white" />
+                            <Landmark className="h-5 w-5 text-white" />
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-zinc-900 leading-none">Payout Lifecycle</h3>
@@ -787,6 +1176,88 @@ export default function SellerDashboard() {
                     </div>
                 );
             })()}
+            {/* Direct Checkout Activity Ledger */}
+            <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden mt-8">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <LinkIcon className="h-4 w-4 text-emerald-600" />
+                            Direct Checkout Activity
+                        </h2>
+                        <p className="text-sm text-gray-500 font-medium mt-1">History of off-platform payment links generated.</p>
+                    </div>
+                    <Link href="/seller/dashboard/payments">
+                        <Button size="sm" variant="outline" className="rounded-xl border-gray-200 text-gray-600 font-bold h-9">
+                            Generate New Link
+                        </Button>
+                    </Link>
+                </div>
+                
+                <div className="overflow-x-auto">
+                    {offListingInvoices.length === 0 ? (
+                        <div className="p-12 flex flex-col items-center justify-center text-center bg-gray-50/30">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
+                                <QrCode className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">No Direct Links Yet</h3>
+                            <p className="text-sm text-gray-500 max-w-sm">When you generate direct checkout links or QR codes, they will appear here for tracking.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50/50">
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Ref ID</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Customer</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Amount</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {offListingInvoices.slice(0, 5).map((inv) => (
+                                    <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-bold text-gray-900">
+                                                {new Date(inv.created_at).toLocaleDateString()}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                                                {new Date(inv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
+                                            #{inv.id.substring(0, 8)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-bold text-gray-900">{inv.customer_name || "Guest Customer"}</div>
+                                            <div className="text-[10px] text-gray-400 font-bold truncate max-w-[150px]">{inv.customer_email || "No email provided"}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <div className="text-sm font-black text-gray-900">
+                                                {formatPrice(inv.amount)}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <Badge className={`
+                                                ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}
+                                                border-none justify-center font-black text-[10px] uppercase tracking-wider px-2 py-0.5
+                                            `}>
+                                                {inv.status}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                {offListingInvoices.length > 5 && (
+                    <div className="p-4 border-t border-gray-100 text-center bg-gray-50/30">
+                        <Link href="/seller/dashboard/payments" className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                            View all {offListingInvoices.length} invoices
+                        </Link>
+                    </div>
+                )}
+            </div>
         </motion.div>
     );
 }
@@ -824,6 +1295,8 @@ function PayoutStep({ label, amount, status, icon, description, active }: Payout
 
 // ─── StatCard ───
 function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, tooltip }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string; delay?: number; tooltip?: string }) {
+    const [showTooltip, setShowTooltip] = useState(false);
+    
     const colors: Record<string, string> = {
         emerald: "bg-emerald-50 text-emerald-600 border border-emerald-100",
         amber: "bg-amber-50 text-amber-600 border border-amber-100",
@@ -836,6 +1309,13 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay, type: "spring", stiffness: 300, damping: 25 }}
+            onClick={(e) => {
+                if (tooltip) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowTooltip(!showTooltip);
+                }
+            }}
             className={`bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm transition-all relative overflow-hidden group ${href ? 'cursor-pointer hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-1' : ''}`}
         >
             {/* Subtle Gold Pulse for positive trends */}
@@ -858,12 +1338,13 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
             <h3 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-2">{value}</h3>
             <div className="flex items-center gap-2 relative">
                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</p>
-                {href && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
+                {href && !tooltip && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
                 
-                {tooltip && (
-                    <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-2.5 rounded-xl translate-y-0 transition-all duration-300 z-50 shadow-2xl leading-relaxed">
-                        <div className="flex items-center gap-1.5 mb-1 text-gray-400">
-                            <span className="font-bold text-white uppercase tracking-wider text-[9px]">Insight</span>
+                {tooltip && showTooltip && (
+                    <div className="absolute left-0 bottom-full mb-2 w-52 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-3 rounded-2xl z-50 shadow-2xl leading-relaxed animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <Zap className="h-3 w-3 text-amber-400" />
+                            <span className="font-black text-white uppercase tracking-widest text-[9px]">Insight</span>
                         </div>
                         {tooltip}
                         <div className="absolute left-6 -bottom-1 w-2 h-2 bg-gray-900 border-b border-r border-gray-700 rotate-45" />
@@ -873,5 +1354,5 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
         </motion.div>
     );
 
-    return href ? <Link href={href} className="group outline-none">{content}</Link> : <div className="group">{content}</div>;
+    return href && !tooltip ? <Link href={href} className="group outline-none">{content}</Link> : <div className="group">{content}</div>;
 }

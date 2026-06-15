@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { broadcast } from "@/lib/realtime-service";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 const API_PREFIX = "/api/v1/notifications";
@@ -18,7 +19,7 @@ async function safeFetch(url: string, options?: RequestInit): Promise<any> {
         if (!url.includes("localhost")) {
             console.error("Backend unreachable:", (error as Error).message);
         }
-        return { data: null, status: 503 };
+        return { data: null, status: 500 };
     }
 }
 
@@ -100,6 +101,27 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
+        const { userId, type, message, link, userEmail } = body;
+
+        // 1. Sync to Prisma if we have a user identity
+        const effectiveEmail = userEmail || userId;
+        if (effectiveEmail && effectiveEmail.includes("@")) {
+            try {
+                await db.notification.create({
+                    data: {
+                        user: { connect: { email: effectiveEmail.toLowerCase().trim() } },
+                        type: type || "SYSTEM",
+                        message: message,
+                        link: link || null,
+                        read: false
+                    }
+                });
+            } catch (e) {
+                console.warn("Prisma notification creation failed (might be a non-existing user):", e);
+            }
+        }
+
+        // 2. Sync to Django Backend
         const { data, status } = await safeFetch(`${BACKEND_URL}${API_PREFIX}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -109,6 +131,12 @@ export async function POST(req: NextRequest) {
         if (data === null) {
             return NextResponse.json({ ok: false, error: "Backend unavailable" }, { status: 200 });
         }
+
+        // Broadcast to trigger frontend sync
+        if (effectiveEmail) {
+            broadcast({ type: "notification", user_email: effectiveEmail });
+        }
+
         return NextResponse.json(data, { status });
     } catch (error) {
         console.error("Notification create error:", error);
@@ -122,18 +150,45 @@ export async function PATCH(req: NextRequest) {
     const mark_all = searchParams.get("mark_all") === "true";
     const user_email = searchParams.get("user_email");
 
+    // 1. Sync to Prisma
+    if (mark_all && user_email) {
+        try {
+            await db.notification.updateMany({
+                where: { user: { email: user_email.toLowerCase().trim() } },
+                data: { read: true }
+            });
+        } catch (e) { console.error("Prisma mark_all error:", e); }
+    } else if (notification_id) {
+        try {
+            // Check if it's a UUID (Prisma ID) or a string ID from backend
+            if (notification_id.length > 20) { // Likely a Prisma UUID
+                await db.notification.update({
+                    where: { id: notification_id },
+                    data: { read: true }
+                });
+            }
+        } catch (e) { /* ignore - might be backend ID */ }
+    }
+
+    // 2. Sync to Django Backend
     let url: string;
     if (mark_all && user_email) {
         url = `${BACKEND_URL}${API_PREFIX}/mark-all-read?user_email=${encodeURIComponent(user_email)}`;
-    } else if (notification_id) {
+    } else if (notification_id && notification_id.length < 20) { // Only sync simple IDs to backend
         url = `${BACKEND_URL}${API_PREFIX}/${notification_id}/read`;
     } else {
-        return NextResponse.json({ error: "id or mark_all+user_email required" }, { status: 400 });
+        return NextResponse.json({ ok: true }); // Already handled Prisma
     }
 
     const { data } = await safeFetch(url, { method: "PATCH" });
     if (data === null) {
         return NextResponse.json({ ok: false }, { status: 200 });
     }
+
+    // Broadcast update
+    if (user_email) {
+        broadcast({ type: "notification", user_email: user_email });
+    }
+
     return NextResponse.json(data);
 }

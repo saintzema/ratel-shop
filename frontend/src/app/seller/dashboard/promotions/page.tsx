@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-import { usePaystackPayment } from "react-paystack";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 
 export default function PromotionsPage() {
     const [seller, setSeller] = useState<any>(null);
@@ -18,6 +18,8 @@ export default function PromotionsPage() {
     const [showTopUp, setShowTopUp] = useState(false);
     const [adCredits, setAdCredits] = useState(0);
     const [customAmount, setCustomAmount] = useState<string>("");
+    const [showPaystack, setShowPaystack] = useState(false);
+    const [paystackAmount, setPaystackAmount] = useState(0);
 
     const loadData = () => {
         setIsLoading(true);
@@ -26,7 +28,8 @@ export default function PromotionsPage() {
             const sellers = DataSyncService.getSellers();
             setSeller(sellers.find((s) => s.id === currentId));
             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            setProducts(allProducts.filter(p => p.seller_id === currentId || (seller && p.seller_id === seller.user_id)));
+            const sellerProducts = allProducts.filter(p => p.seller_id === currentId);
+            setProducts(sellerProducts);
             
             const promos = DataSyncService.getPromotions(currentId);
             setActivePromotions(promos.filter((p: any) => p.status === "active"));
@@ -62,14 +65,18 @@ export default function PromotionsPage() {
 
     const handleTopUp = (amount: number) => {
         if (!seller) return;
-        if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
-            // Fallback for demo without keys
-            handlePaystackSuccess(amount);
-            return;
-        }
-        // Use Paystack natively if available (usually handled via external hook or SDK, but here we fallback to simulate if needed)
-        // Since usePaystackPayment hook requires a static config on init, we will just simulate success for demo
-        handlePaystackSuccess(amount);
+        setPaystackAmount(amount * 100); // convert to kobo
+        setShowPaystack(true);
+        setShowTopUp(false);
+    };
+
+    const onPaymentSuccess = (ref: string) => {
+        if (!seller) return;
+        const amountNaira = paystackAmount / 100;
+        DataSyncService.updateAdCredits(seller.id, amountNaira);
+        setAdCredits(DataSyncService.getAdCredits(seller.id));
+        setShowPaystack(false);
+        setCustomAmount("");
     };
 
     if (isLoading) return <div className="p-8 text-center text-gray-500 animate-pulse">Loading ad network metrics...</div>;
@@ -84,7 +91,7 @@ export default function PromotionsPage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10 pb-20">
-            {/* Header / Wallet Section */}
+            {/* Header / Balance Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight flex items-center gap-3">
@@ -255,7 +262,7 @@ export default function PromotionsPage() {
                 </div>
             </div>
 
-            {/* Wallet Top-up Modal */}
+            {/* Balance Top-up Modal */}
             <Dialog open={showTopUp} onOpenChange={setShowTopUp}>
                 <DialogContent className="sm:max-w-[425px] overflow-hidden rounded-[32px] p-0 border-0 shadow-2xl">
                     <div className="p-8 pb-6 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white relative">
@@ -265,10 +272,10 @@ export default function PromotionsPage() {
 
                         <DialogHeader>
                             <DialogTitle className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-                                <CreditCard className="h-6 w-6 opacity-80" /> Top Up Wallet
+                                <CreditCard className="h-6 w-6 opacity-80" /> Top Up Balance
                             </DialogTitle>
                             <DialogDescription className="text-indigo-100/70 font-medium pt-2">
-                                Add funds to your advertising wallet to keep your sponsored campaigns running.
+                                Add funds to your advertising balance to keep your sponsored campaigns running.
                             </DialogDescription>
                         </DialogHeader>
                     </div>

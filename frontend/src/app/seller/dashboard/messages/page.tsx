@@ -23,8 +23,10 @@ import {
     X,
     Bot,
     ShieldAlert,
-    Trash2
+    Trash2,
+    Bell
 } from "lucide-react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import {
     DropdownMenu,
@@ -62,6 +64,8 @@ export default function UniversalMessagesPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [filter, setFilter] = useState<ConversationType>("all");
     const [search, setSearch] = useState("");
+    const [inboxTab, setInboxTab] = useState<"chats" | "alerts">("chats");
+    const [inboxNotifs, setInboxNotifs] = useState<any[]>([]);
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [chatMessage, setChatMessage] = useState("");
@@ -80,6 +84,13 @@ export default function UniversalMessagesPage() {
         const loadData = () => {
             const allProds = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);
+
+            // Load the same aggregated notification feed as the bell for the Alerts tab
+            try {
+                const notifs = (DataSyncService.getNotifications(sellerId) || [])
+                    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                setInboxNotifs(notifs);
+            } catch { /* non-critical */ }
 
             const negs = DataSyncService.getNegotiations(sellerId);
             const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
@@ -290,12 +301,14 @@ export default function UniversalMessagesPage() {
             }
             
             if (directCustomer) {
+                // Resolve name from history
+                const resolvedName = DataSyncService.getCustomerNameById(directCustomer);
                 // Mock a direct chat thread for this customer if it doesn't exist
                 if (!convos.find(c => c.customer_id === directCustomer && c.type === "order")) {
                     convos.push({
                         id: `chat-${directCustomer}`,
                         type: "order", // general chat
-                        customer_name: "Customer # " + directCustomer.substring(0, 4), // Fallback naming
+                        customer_name: resolvedName,
                         customer_id: directCustomer,
                         preview: "Start a conversation",
                         updated_at: new Date(),
@@ -419,8 +432,7 @@ export default function UniversalMessagesPage() {
     }, [selectedId]);
 
     const handleAction = (negId: string, status: "accepted" | "rejected") => {
-        DataSyncService.updateNegotiationStatus(negId, status);
-        // Force reload by triggering a storage event manually or just state update
+        DataSyncService.updateNegotiationStatus(negId, status, "seller");
         window.dispatchEvent(new Event("storage"));
     };
 
@@ -520,25 +532,35 @@ export default function UniversalMessagesPage() {
             }));
         }
 
-        // Send email notification to the customer
+        // Send email notification to the customer with a 15-minute cooldown
         if (activeConvo.customer_id) {
-            const customerEmail = activeConvo.customer_id; // customer_id is often the email
-            const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
-            const sellerBusinessName = sellerObj2?.business_name || "Seller";
-            fetch('/api/email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: customerEmail,
-                    type: 'ORDER_UPDATE',
-                    payload: {
-                        name: activeConvo.customer_name || 'Customer',
-                        orderId: activeConvo.orderId || activeConvo.order?.id || '',
-                        status: 'message',
-                        message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
-                    }
-                })
-            }).catch(err => console.error('Email notification failed:', err));
+            const convoId = activeConvo.id;
+            const shouldNotify = DataSyncService.shouldSendEmailNotification(convoId, 15);
+            
+            if (shouldNotify) {
+                const customerEmail = activeConvo.customer_id; // customer_id is often the email
+                const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
+                const sellerBusinessName = sellerObj2?.business_name || "Seller";
+                
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: customerEmail,
+                        type: 'ORDER_UPDATE',
+                        payload: {
+                            name: activeConvo.customer_name || 'Customer',
+                            orderId: activeConvo.orderId || activeConvo.order?.id || '',
+                            status: 'message',
+                            message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
+                        }
+                    })
+                }).then(() => {
+                    DataSyncService.updateLastMessageTimestamp(convoId);
+                }).catch(err => console.error('Email notification failed:', err));
+            } else {
+                console.log(`Suppressed notification for ${convoId} - within cooldown window.`);
+            }
         }
 
         setChatMessage("");
@@ -614,33 +636,85 @@ export default function UniversalMessagesPage() {
             )}>
                 <div className="p-4 border-b border-gray-200 bg-white">
                     <h2 className="text-xl font-black text-gray-900 mb-3 tracking-tight">Inbox</h2>
-                    <div className="relative mb-3">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                            placeholder="Search messages..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-9 bg-gray-50 border-gray-200 h-10 rounded-xl text-sm"
-                        />
+                    {/* Chats / Alerts tab toggle */}
+                    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-3">
+                        <button
+                            onClick={() => setInboxTab("chats")}
+                            className={cn("flex-1 h-8 rounded-lg text-xs font-black transition-colors", inboxTab === "chats" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        >
+                            Chats
+                        </button>
+                        <button
+                            onClick={() => setInboxTab("alerts")}
+                            className={cn("flex-1 h-8 rounded-lg text-xs font-black transition-colors flex items-center justify-center gap-1.5", inboxTab === "alerts" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        >
+                            Alerts
+                            {inboxNotifs.some(n => !n.read) && (
+                                <span className="h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                                    {inboxNotifs.filter(n => !n.read).length}
+                                </span>
+                            )}
+                        </button>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
-                            <button
-                                key={t}
-                                onClick={() => setFilter(t)}
-                                className={cn(
-                                    "px-3 py-1.5 rounded-full text-[11px] font-bold capitalize whitespace-nowrap transition-colors border",
-                                    filter === t ? "bg-gray-900 border-gray-900 text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                                )}
-                            >
-                                {t}
-                            </button>
-                        ))}
-                    </div>
+                    {inboxTab === "chats" && (
+                        <>
+                            <div className="relative mb-3">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <Input
+                                    placeholder="Search messages..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="pl-9 bg-gray-50 border-gray-200 h-10 rounded-xl text-sm"
+                                />
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setFilter(t)}
+                                        className={cn(
+                                            "px-3 py-1.5 rounded-full text-[11px] font-bold capitalize whitespace-nowrap transition-colors border",
+                                            filter === t ? "bg-gray-900 border-gray-900 text-white" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                                        )}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
-                    {filteredConvos.length === 0 ? (
+                    {inboxTab === "alerts" ? (
+                        inboxNotifs.length === 0 ? (
+                            <div className="p-12 text-center text-gray-400 text-sm font-medium flex flex-col items-center">
+                                <Bell className="h-8 w-8 text-gray-300 mb-3" />
+                                No alerts yet.
+                            </div>
+                        ) : (
+                            inboxNotifs.slice(0, 100).map((n) => (
+                                <Link
+                                    key={n.id}
+                                    href={n.link || "#"}
+                                    className={cn("block p-4 transition-colors hover:bg-white", !n.read && "bg-indigo-50/40")}
+                                >
+                                    <div className="flex gap-3">
+                                        <div className={cn("h-9 w-9 rounded-full flex items-center justify-center shrink-0", !n.read ? "bg-indigo-100 text-indigo-600" : "bg-gray-100 text-gray-400")}>
+                                            <Bell className="h-4 w-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={cn("text-sm leading-snug line-clamp-2", !n.read ? "font-bold text-gray-900" : "font-medium text-gray-600")}>{n.message}</p>
+                                            <p className="text-[10px] text-gray-400 font-medium mt-1">
+                                                {new Date(n.timestamp).toLocaleDateString("en-NG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                            </p>
+                                        </div>
+                                        {!n.read && <div className="h-2 w-2 rounded-full bg-indigo-500 shrink-0 mt-1.5" />}
+                                    </div>
+                                </Link>
+                            ))
+                        )
+                    ) : filteredConvos.length === 0 ? (
                         <div className="p-12 text-center text-gray-400 text-sm font-medium flex flex-col items-center">
                             <MessageSquare className="h-8 w-8 text-gray-300 mb-3" />
                             No conversations match your filter.
@@ -805,12 +879,28 @@ export default function UniversalMessagesPage() {
                                     <div key={idx} className={cn("flex w-full", isSeller ? "justify-end" : "justify-start")}>
                                         <div className="flex items-end gap-2 max-w-[85%]">
                                             {!isSeller && (
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5",
-                                                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
-                                                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700 text-[9px]" :
-                                                    "bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700"
-                                                )}>
-                                                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : activeConvo.customer_name.charAt(0)}
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5 overflow-hidden bg-gray-100")}>
+                                                    {msg.sender === "admin" ? (
+                                                        <div className="h-full w-full bg-blue-100 text-blue-700 flex items-center justify-center">A</div>
+                                                    ) : msg.sender === "ziva" ? (
+                                                        <div className="h-full w-full bg-brand-green-100 text-brand-green-700 text-[9px] flex items-center justify-center">Z</div>
+                                                    ) : (
+                                                        <div className="h-full w-full bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 flex items-center justify-center">
+                                                            {activeConvo.customer_name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {isSeller && (
+                                                <div className="h-8 w-8 rounded-full border border-indigo-100 shrink-0 mb-5 overflow-hidden bg-white flex items-center justify-center shadow-sm">
+                                                    <img 
+                                                        src={DataSyncService.getCurrentSeller()?.logo_url || "/logo.svg"} 
+                                                        alt="Store" 
+                                                        className="w-full h-full object-cover" 
+                                                        onError={(e) => {
+                                                            e.currentTarget.src = "https://ui-avatars.com/api/?name=Store&background=6366f1&color=fff";
+                                                        }}
+                                                    />
                                                 </div>
                                             )}
                                             <div className="flex flex-col gap-1 items-end group/msg">
@@ -1092,9 +1182,12 @@ export default function UniversalMessagesPage() {
                                                 <div className="w-full sm:w-[150px] relative">
                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
                                                     <Input
-                                                        type="number"
-                                                        value={counterPrice}
-                                                        onChange={(e) => setCounterPrice(e.target.value)}
+                                                        type="text"
+                                                        value={counterPrice ? Number(counterPrice.replace(/,/g, '').replace(/\D/g, '')).toLocaleString() : ""}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/,/g, '').replace(/\D/g, '');
+                                                            setCounterPrice(val);
+                                                        }}
                                                         className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
                                                         placeholder="Price"
                                                         required

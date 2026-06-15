@@ -9,13 +9,16 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
-import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
+import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { playDingSound } from "@/lib/audio";
+
+import { COUNTRY_CODES } from "@/lib/constants/countries";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -33,20 +36,29 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const [analysisStep, setAnalysisStep] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [isSystemCalculated, setIsSystemCalculated] = useState(false);
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const { startConversation, openMessageBox } = useMessages();
     const [showPushOptIn, setShowPushOptIn] = useState(false);
+    const [countryCode, setCountryCode] = useState("+234");
 
     // Max negotiation discount — admin-configurable via SystemSettings.
     // Default: 5% means users cannot offer less than 95% of the listing price.
-    const maxDiscountPct = (typeof window !== "undefined" && localStorage.getItem("fp_max_negotiation_discount"))
-        ? Number(localStorage.getItem("fp_max_negotiation_discount")) : 5;
-    const minAllowedPrice = product ? Math.round(product.price * (1 - maxDiscountPct / 100)) : 0;
+    const maxDiscountPct = (() => {
+        try {
+            if (typeof window !== "undefined") {
+                const saved = localStorage.getItem("fp_max_negotiation_discount");
+                if (saved) return Number(saved);
+            }
+        } catch (e) { console.warn("localStorage access failed:", e); }
+        return 5;
+    })();
+    
+    const minAllowedPrice = product ? Math.round((product.price || 0) * (1 - maxDiscountPct / 100)) : 0;
 
     // Get 3 similar products to suggest
     const similarProducts = product ? DataSyncService.getProducts()
-        .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
-        .sort((a, b) => b.sold_count - a.sold_count)
+        .filter(p => p.category === product.category && p.id !== product.id && p.price < (product.price || 0))
+        .sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0))
         .slice(0, 3) : [];
 
     const handleAnalyze = async () => {
@@ -59,7 +71,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             setAnalysisStep(1);
 
             // Step 2: Extracting data via Gemini API
-            const analysis = await PriceEngine.analyzePrice(product.name);
+            const analysis = await PriceEngine.analyzePrice(product?.name || "Product");
             setAnalysisStep(2);
 
             // Step 3: Calculation logic based on real API response
@@ -104,6 +116,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         }
     };
 
+    const [whatsappNumber, setWhatsappNumber] = useState<string>("");
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -123,14 +137,11 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         let currentUserId = user?.id;
 
         if (typeof window !== "undefined") {
-            // Priority 1: Use specific guest name if set (e.g. from a form field in the future)
-            // Priority 2: Use the globally persistent fp_guest_name
             const savedGuestName = localStorage.getItem("fp_guest_name");
             if (savedGuestName) {
                 tempGuestName = savedGuestName;
             }
 
-            // Ensure we have a stable guest ID if not logged in
             if (!currentUserId) {
                 currentUserId = DataSyncService.getOrInitializeGuestId();
             }
@@ -139,9 +150,9 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         if (!currentUserId) currentUserId = "guest_session";
 
         // Create a conversation thread message string
-        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${(product.price || 0).toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
 
-        // Create new negotiation with the initial message bundled in so it hot renders in the seller inbox
+        // Create new negotiation
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
@@ -149,6 +160,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             customer_name: user?.name || tempGuestName,
             proposed_price: Number(proposedPrice),
             message: message,
+            customer_whatsapp: whatsappNumber ? `${countryCode}${whatsappNumber}` : undefined,
             status: "pending" as const,
             created_at: new Date().toISOString(),
             chat_messages: [{
@@ -160,17 +172,34 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
         DataSyncService.addNegotiation(newNegotiation);
 
+        // Save WhatsApp number to user profile if provided and logged in
+        if (whatsappNumber && user?.email) {
+            const fullWaNumber = `${countryCode.replace(/^\+/, '')}${whatsappNumber.replace(/\D/g, '')}`;
+            try {
+                const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
+                if (token) {
+                    fetch('/api/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ email: user.email, whatsappNumber: fullWaNumber }),
+                    }).then(r => r.ok ? r.json() : null).then(data => {
+                        if (data?.id && updateUser) updateUser({ whatsapp: fullWaNumber });
+                    }).catch(() => {});
+                }
+            } catch {}
+        }
+
         startConversation(
             `neg_${product.id}`,
-            product.name,
+            product.name || "Negotiated Item",
             product.image_url,
             negMessageText,
             product.seller_name || "Global Store"
         );
 
-        playDingSound(); // Play the sweet glass chime on successful negotiation request
+        // Audio trigger removed to align with "no user-generated sounds" policy
+        // playDingSound(); 
         
-        // Show push opt-in if permission is not already granted/denied
         if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
             setTimeout(() => {
                 setShowPushOptIn(true);
@@ -184,6 +213,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const handleReset = () => {
         setProposedPrice("");
         setMessage("");
+        setWhatsappNumber("");
         setSubmitted(false);
         setIsAnalyzing(false);
         setAnalysisStep(0);
@@ -216,7 +246,6 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             </div>
                         </div>
 
-                        {/* Market Analysis Button */}
                         <div className="space-y-2 shrink-0">
                             {isAnalyzing ? (
                                 <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 space-y-2">
@@ -247,13 +276,13 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                             AI Price Checker
                                         </Button>
                                         
-                                        {(product.category === 'cars' || product.category === 'vehicles' || product.name.toLowerCase().includes('car') || product.name.toLowerCase().includes('toyota') || product.name.toLowerCase().includes('honda')) && (
+                                        {(product?.category === 'cars' || product?.category === 'vehicles' || product?.name?.toLowerCase()?.includes('car') || product?.name?.toLowerCase()?.includes('toyota') || product?.name?.toLowerCase()?.includes('honda')) && (
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() => {
                                                     setProposedPrice(minAllowedPrice.toString());
-                                                    setMessage(`What is the last price for this ${product.name}? I am interested and ready to pay.`);
+                                                    setMessage(`What is the last price for this ${product?.name || 'item'}? I am interested and ready to pay.`);
                                                 }}
                                                 className="flex-1 border-amber-200 text-amber-600 hover:text-amber-700 hover:bg-amber-50 bg-amber-50/50"
                                             >
@@ -282,7 +311,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="e.g. 45,000"
-                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-brand-green-600 focus:border-brand-green-600 font-medium ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-brand-green-600 focus:border-brand-green-600 font-medium ${error ? "border-red-500" : ""}`}
                                     value={proposedPrice ? Number(proposedPrice).toLocaleString() : ""}
                                     onChange={(e) => {
                                         const rawValue = e.target.value.replace(/,/g, "").replace(/\D/g, "");
@@ -293,15 +322,30 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     required
                                 />
                             </div>
-                            {error && (
-                                <div className="flex items-start gap-1 text-xs text-red-600 mt-1 animate-in fade-in slide-in-from-top-1">
-                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                    <span>{error}</span>
+                        </div>
+
+                        <div className="space-y-2 shrink-0">
+                            <Label htmlFor="whatsapp" className="text-sm font-bold flex items-center gap-2">
+                                WhatsApp for Updates
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase">Ziva AI</span>
+                            </Label>
+                            <div className="flex gap-2">
+                                <div className="relative shrink-0">
+                                    <CountryCodeSelect 
+                                        value={countryCode} 
+                                        onChange={setCountryCode} 
+                                    />
                                 </div>
-                            )}
-                            <p className="text-[10px] text-zinc-400">
-                                Minimum offer ({maxDiscountPct}% off): {formatPrice(minAllowedPrice)}
-                            </p>
+                                <Input
+                                    id="whatsapp"
+                                    type="tel"
+                                    placeholder="8012345678"
+                                    className="flex-1 bg-emerald-50/30 border-emerald-100 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium"
+                                    value={whatsappNumber}
+                                    onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ""))}
+                                />
+                            </div>
+                            <p className="text-[9px] text-zinc-400">Receive instant price alerts and counter-offers via WhatsApp.</p>
                         </div>
 
                         <div className="space-y-2 shrink-0">
@@ -309,7 +353,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             <Textarea
                                 id="message"
                                 placeholder="Explain why you are suggesting this price..."
-                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600"
+                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600 text-sm"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                             />
@@ -362,7 +406,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 <h4 className="text-sm font-bold text-zinc-900 mb-3 text-center">While you wait, check out these similar deals:</h4>
                                 <div className="space-y-3">
                                     {similarProducts.map((p) => (
-                                        <Link key={p.id} href={getProductUrl(p.id, p.name)} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
+                                        <Link key={p.id} href={getProductUrl(p)} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
                                             <div className="h-12 w-12 bg-white rounded-lg border border-zinc-100 overflow-hidden shrink-0">
                                                 <img src={p.image_url || "/assets/images/placeholder.png"} alt={p.name} className="w-full h-full object-cover" />
                                             </div>

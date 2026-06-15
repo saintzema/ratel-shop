@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DataSyncService } from "@/lib/sync-store";
-import { Package, Search, MessageSquare, ExternalLink } from "lucide-react";
+import { Package, Search, MessageSquare, ExternalLink, Zap, Landmark } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -71,14 +71,36 @@ export default function AdminOrdersPage() {
                     <h1 className="text-2xl font-black text-gray-900 tracking-tight">Platform Orders</h1>
                     <p className="text-sm text-gray-500 mt-1">View and manage all global transactions</p>
                 </div>
-                <div className="relative w-full md:w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input 
-                        placeholder="Search orders..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 h-10 bg-white border-gray-200 rounded-xl"
-                    />
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <Button 
+                        onClick={async () => {
+                            if (!confirm("Run 24h Escrow Reconciliation? This will release funds for all orders delivered over 24h ago.")) return;
+                            setIsLoading(true);
+                            try {
+                                const res = await fetch("/api/admin/escrow/reconcile", { method: "POST" });
+                                const data = await res.json();
+                                alert(`Success: Released funds for ${data.count || 0} orders.`);
+                                loadOrders();
+                            } catch (e) {
+                                alert("Reconciliation failed. See console.");
+                            } finally {
+                                setIsLoading(false);
+                            }
+                        }}
+                        className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 transition-all active:scale-95 whitespace-nowrap"
+                    >
+                        <Zap className="w-3.5 h-3.5 mr-2" fill="white" />
+                        Reconcile Escrow
+                    </Button>
+                    <div className="relative w-full md:w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input 
+                            placeholder="Search orders..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 h-10 bg-white border-gray-200 rounded-xl focus:ring-emerald-500"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -118,7 +140,7 @@ export default function AdminOrdersPage() {
                                                     #{order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
                                                 </div>
                                                 <div className="text-[11px] text-gray-500 mt-0.5">
-                                                    {formatDateExact(order.created_at)}
+                                                    {formatDateExact(order.created_at || order.createdAt)}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-bold text-gray-900">
@@ -173,9 +195,34 @@ export default function AdminOrdersPage() {
                                                 <Link href={`/admin/inbox/orders?order=${order.id}`}>
                                                     <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-white/50 border-white/60 hover:bg-white hover:shadow-lg transition-all">
                                                         <MessageSquare className="w-3 h-3 mr-1.5" />
-                                                        View Ziva Chat
+                                                        Ziva
                                                     </Button>
                                                 </Link>
+                                                
+                                                {order.status === 'delivered' && order.escrow_status === 'held' && (
+                                                    <Button 
+                                                        size="sm" 
+                                                        onClick={async () => {
+                                                            if (!confirm("Manually release funds for this order?")) return;
+                                                            try {
+                                                                const res = await fetch("/api/orders", {
+                                                                    method: "PATCH",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({ id: order.id, escrowStatus: "released", payoutStatus: "payoutable" })
+                                                                });
+                                                                if (res.ok) {
+                                                                    alert("Funds released!");
+                                                                    loadOrders();
+                                                                }
+                                                            } catch (e) { console.error(e); }
+                                                        }}
+                                                        className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
+                                                    >
+                                                        <Landmark className="w-3 h-3 mr-1.5" />
+                                                        Release
+                                                    </Button>
+                                                )}
+
                                                 <Link href={`/admin/orders/${order.id}`}>
                                                     <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100">
                                                         <ExternalLink className="w-3 h-3 md:mr-0 lg:mr-1.5" />

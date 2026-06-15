@@ -1,20 +1,20 @@
-# Local Data & Enviroments
-database/
-venv/
-backend/database/
-backend/venv/
-
-.DS_Store
-node_modules/
-dist/
-build/
-.next/
-*.log
 
 # Environment & secrets
+# Local Data & Enviroments
+*-service-account.json
+*.db
+*.log
+.DS_Store
 .env
 .env.local
 .env.production
-*.db
+.next/
+.vercel
+backend/database/
+backend/venv/
+build/
+database/
+dist/
+node_modules/
+venv/
 zemaai-service-account.json
-*-service-account.json

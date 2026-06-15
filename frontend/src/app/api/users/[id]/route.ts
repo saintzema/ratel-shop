@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 
 /**
  * PATCH /api/users/:id
@@ -24,33 +24,30 @@ export async function PATCH(
         // Update linked seller if one exists
         const user = await db.user.findUnique({
             where: { id },
-            include: { seller: true }
+            include: { sellers: true }
         });
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        if (user.seller) {
-            await db.seller.update({
-                where: { id: user.seller.id },
-                data: { status }
-            });
+        const safeSellerStatus = status === "suspended" ? "frozen" : status === "active" ? "active" : status;
 
-            // When suspending, also deactivate their products
-            if (status === "suspended") {
-                await db.product.updateMany({
-                    where: { sellerId: user.seller.id },
-                    data: { isActive: false }
+        if (user.sellers && user.sellers.length > 0) {
+            for (const seller of user.sellers) {
+                await db.seller.update({
+                    where: { id: seller.id },
+                    data: { status: safeSellerStatus as any }
                 });
-            } else {
+
+                // When suspending, also deactivate their products
                 await db.product.updateMany({
-                    where: { sellerId: user.seller.id },
-                    data: { isActive: true }
+                    where: { sellerId: seller.id },
+                    data: { isActive: status !== "suspended" }
                 });
+
+                broadcast({ type: "seller_updated", id: seller.id });
             }
-
-            broadcast({ type: "seller_updated", id: user.seller.id });
         }
 
         broadcast({ type: "user_updated", id });
@@ -78,16 +75,16 @@ export async function DELETE(
         // This will cascade to linked Seller, Orders, Products, etc.
         const user = await db.user.findUnique({ 
             where: { id },
-            include: { seller: true } 
+            include: { sellers: true } 
         });
 
         if (user) {
-            const sellerId = user.seller?.id;
+            const sellerIds = user.sellers.map(s => s.id);
             await db.user.delete({ where: { id } });
             
             broadcast({ type: "user_deleted", id });
-            if (sellerId) {
-                broadcast({ type: "seller_deleted", id: sellerId });
+            for (const sid of sellerIds) {
+                broadcast({ type: "seller_deleted", id: sid });
             }
             
             console.log(`✅ User ${id} and all related data purged.`);

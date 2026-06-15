@@ -1,16 +1,43 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserFromRequest } from "@/lib/jwt";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
 
 export const runtime = "nodejs";
 
 // GET /api/payouts?sellerId=xxx
 export async function GET(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user) {
+            return NextResponse.json({ success: true, payouts: [] });
+        }
+
         const { searchParams } = new URL(request.url);
         const sellerId = searchParams.get("sellerId");
 
         const whereClause: any = {};
-        if (sellerId) whereClause.sellerId = sellerId;
+        
+        if (user.role !== "admin") {
+            // Regular user can only see payouts for their own businesses
+            if (sellerId) {
+                const seller = await db.seller.findFirst({ 
+                    where: { id: sellerId, userId: user.userId } 
+                });
+                if (!seller) {
+                    return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+                }
+                whereClause.sellerId = sellerId;
+            } else {
+                const userSellers = await db.seller.findMany({ 
+                    where: { userId: user.userId }, 
+                    select: { id: true } 
+                });
+                whereClause.sellerId = { in: userSellers.map(s => s.id) };
+            }
+        } else if (sellerId) {
+            whereClause.sellerId = sellerId;
+        }
 
         const payouts = await db.payout.findMany({
             where: whereClause,
@@ -20,9 +47,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, payouts });
     } catch (error: any) {
         console.error("Payouts GET Error:", error);
-        return NextResponse.json({ success: true, payouts: [] }, {
-            status: 503,
-            headers: { "X-DB-Status": "offline" },
+        return NextResponse.json({ success: false, error: "Database error" }, {
+            status: 500,
         });
     }
 }
@@ -30,6 +56,11 @@ export async function GET(request: Request) {
 // POST /api/payouts — Create a new payout request
 export async function POST(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        }
+
         const body = await request.json();
 
         const {
@@ -40,6 +71,22 @@ export async function POST(request: Request) {
             account_name,
             order_ids,
         } = body;
+
+        if (!seller_id || !amount || !bank_name || !account_number) {
+            return NextResponse.json(
+                { success: false, error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // Ownership check
+        const seller = await db.seller.findFirst({
+            where: { id: seller_id, userId: user.userId }
+        });
+        
+        if (!seller && user.role !== "admin") {
+            return NextResponse.json({ success: false, error: "Forbidden: Not your store" }, { status: 403 });
+        }
 
         if (!seller_id || !amount || !bank_name || !account_number) {
             return NextResponse.json(
@@ -81,8 +128,13 @@ export async function POST(request: Request) {
 // PATCH /api/payouts — Update payout status (admin approval)
 export async function PATCH(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user || user.role !== "admin") {
+            return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
+        }
+
         const body = await request.json();
-        const { id, status } = body;
+        const { id, status, finalAmount } = body;
 
         if (!id || !status) {
             return NextResponse.json(
@@ -93,7 +145,10 @@ export async function PATCH(request: Request) {
 
         const payout = await db.payout.update({
             where: { id },
-            data: { status },
+            data: { 
+                status,
+                ...(finalAmount !== undefined && { amount: finalAmount })
+            },
         });
 
         // If approved/completed, trigger Paystack transfer and mark orders as paid out
@@ -101,75 +156,30 @@ export async function PATCH(request: Request) {
             const currentPayout = await db.payout.findUnique({ where: { id } });
             
             if (currentPayout && process.env.PAYSTACK_SECRET_KEY && currentPayout.accountNumber) {
-                // Map frontend bank names to Paystack Bank Codes
-                const bankCodes: Record<string, string> = {
-                    "Access Bank": "044",
-                    "First Bank of Nigeria": "011",
-                    "Guaranty Trust Bank (GTBank)": "058",
-                    "United Bank for Africa (UBA)": "033",
-                    "Zenith Bank": "057",
-                    "Ecobank Nigeria": "050",
-                    "Fidelity Bank": "070",
-                    "First City Monument Bank (FCMB)": "214",
-                    "Heritage Banking Company": "030",
-                    "Keystone Bank": "082",
-                    "Polaris Bank": "076",
-                    "Stanbic IBTC Bank": "221",
-                    "Standard Chartered Bank": "068",
-                    "Sterling Bank": "232",
-                    "Union Bank of Nigeria": "032",
-                    "Unity Bank": "215",
-                    "Wema Bank": "035",
-                    "Kuda Microfinance Bank": "50211",
-                    "OPay": "100004",
-                    "PalmPay": "100033",
-                    "Moniepoint": "50515"
-                };
+                const result = await initiatePaystackTransfer({
+                    payoutId: currentPayout.id,
+                    amount: finalAmount || currentPayout.amount,
+                    bankName: currentPayout.bankName,
+                    accountNumber: currentPayout.accountNumber,
+                    accountName: currentPayout.accountName,
+                    sellerId: currentPayout.sellerId,
+                    isAutoPayout: false
+                });
 
-                const paystackBankCode = bankCodes[currentPayout.bankName] || "044"; // Fallback to Access
-
-                try {
-                    // Step 1: Create Transfer Recipient
-                    const recipientRes = await fetch("https://api.paystack.co/transferrecipient", {
-                        method: "POST",
-                        headers: {
-                            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            type: "nuban",
-                            name: currentPayout.accountName,
-                            account_number: currentPayout.accountNumber,
-                            bank_code: paystackBankCode,
-                            currency: "NGN"
-                        })
+                if (result.success) {
+                    await notifySellerPayout(currentPayout.sellerId, currentPayout.amount, "completed", currentPayout.id);
+                    await emailSellerPayout(currentPayout.sellerId, currentPayout.amount, "completed");
+                } else {
+                    console.error("Paystack Transfer Failed:", result.message);
+                    // Revert status on failure
+                    await db.payout.update({
+                        where: { id },
+                        data: { status: "failed" }
                     });
-                    const recipientData = await recipientRes.json();
-
-                    // Step 2: Initiate Transfer
-                    if (recipientData.status && recipientData.data?.recipient_code) {
-                        const transferRes = await fetch("https://api.paystack.co/transfer", {
-                            method: "POST",
-                            headers: {
-                                Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                source: "balance",
-                                amount: currentPayout.amount * 100, // Paystack requires kobo (amount * 100)
-                                recipient: recipientData.data.recipient_code,
-                                reason: `FairPrice Payout for ${currentPayout.sellerId}`
-                            })
-                        });
-                        const transferData = await transferRes.json();
-                        if (!transferData.status) {
-                            console.error("Paystack Transfer Failed:", transferData.message);
-                        }
-                    } else {
-                        console.error("Paystack Recipient Creation Failed:", recipientData.message);
-                    }
-                } catch (paystackErr) {
-                    console.error("Paystack Error:", paystackErr);
+                    return NextResponse.json({ 
+                        success: false, 
+                        error: `Transfer failed: ${result.message}` 
+                    }, { status: 500 });
                 }
             }
 

@@ -133,7 +133,9 @@ export default function AccountPage() {
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
-                <h1 className="text-3xl font-normal mb-8 text-gray-900">Your Account</h1>
+                <div className="flex items-center justify-between mb-8">
+                    <h1 className="text-2xl font-bold text-gray-900 leading-tight">Hello, {(user?.name || user?.email || "there").split(" ")[0]}</h1>
+                </div>
 
                 {/* Prominent Coupon & Referral Banner */}
                 <div className="mb-8 rounded-2xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 40%, #b8860b 100%)' }}>
@@ -199,20 +201,8 @@ export default function AccountPage() {
                     ))}
                 </div>
 
-                {/* Logout Button */}
-                <div className="mt-8 pb-10 flex justify-center">
-                    <Button
-                        variant="outline"
-                        className="rounded-full px-8 py-3 font-bold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition-all gap-2"
-                        onClick={() => {
-                            logout();
-                            window.location.href = '/';
-                        }}
-                    >
-                        <LogOut className="w-4 h-4" />
-                        Log Out
-                    </Button>
-                </div>
+                {/* Secondary navigation or support links could go here */}
+                <div className="mt-8 pb-10" />
             </main>
 
             <Footer />

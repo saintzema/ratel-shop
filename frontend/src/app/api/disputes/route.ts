@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 
 export const runtime = "nodejs";
 
@@ -47,10 +47,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, disputes: mappedDisputes });
     } catch (error: any) {
         console.error("Disputes API Error:", error);
-        return NextResponse.json({ success: true, disputes: [] }, {
-            status: 503,
-            headers: { "X-DB-Status": "offline" }
-        });
+        // Fallback to empty disputes to prevent UI issues if the table is missing or migrating
+        return NextResponse.json(
+            { success: false, disputes: [], error: "Failed to fetch disputes", details: error.message },
+            { status: 200 }
+        );
     }
 }
 

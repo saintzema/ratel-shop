@@ -5,12 +5,12 @@ import { getProductUrl } from '@/lib/utils';
 export const revalidate = 21600; // Always regenerate on request
 
 export async function GET() {
-    const baseUrl = 'https://fairprice.ng';
+    const baseUrl = 'https://www.fairprice.ng';
 
-    // Static routes
+    // Static routes — do NOT include /search; it's disallowed in robots.txt and a
+    // robots-blocked URL in the sitemap triggers Google's "Blocked by robots.txt" warning.
     const staticRoutes = [
         '',
-        '/search',
         '/stores',
         '/deals',
         '/about',
@@ -39,16 +39,24 @@ export async function GET() {
     ];
 
     // Dynamic Product Routes (Try DB first, fallback to SEED)
-    let productUrls: string[] = [];
+    // Carry the real updatedAt so <lastmod> is an honest signal — Google distrusts
+    // sitemaps where everything reports "changed now" on every fetch.
+    let productEntries: { url: string; lastmod: string }[] = [];
     try {
         const dbProducts = await db.product.findMany({
             where: { isActive: true },
-            select: { id: true, name: true, updatedAt: true },
+            select: { id: true, name: true, slug: true, updatedAt: true } as any,
             take: 5000, // Increased limit for growing catalog
-        });
-        productUrls = dbProducts.map((p) => getProductUrl(p.id, p.name));
+        }) as any[];
+        productEntries = dbProducts.map((p) => ({
+            url: getProductUrl(p.id, p.name, p.slug || undefined),
+            lastmod: (p.updatedAt ? new Date(p.updatedAt) : new Date()).toISOString(),
+        }));
     } catch (e) {
-        productUrls = SEED_PRODUCTS.map((p) => getProductUrl(p.id, p.name));
+        productEntries = SEED_PRODUCTS.map((p) => ({
+            url: getProductUrl(p.id, p.name, (p as any).slug),
+            lastmod: new Date().toISOString(),
+        }));
     }
 
     // Dynamic Store Routes
@@ -74,10 +82,10 @@ export async function GET() {
         <changefreq>daily</changefreq>
         <priority>${route === '' ? '1.0' : '0.8'}</priority>
     </url>`).join('')}
-    ${productUrls.map(url => `
+    ${productEntries.map(({ url, lastmod }) => `
     <url>
         <loc>${baseUrl}${url}</loc>
-        <lastmod>${new Date().toISOString()}</lastmod>
+        <lastmod>${lastmod}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.6</priority>
     </url>`).join('')}

@@ -392,8 +392,13 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     useEffect(() => {
         if (isOpen) {
             const loadHistory = () => {
-                const h = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
-                setRecentHistory(h);
+                try {
+                    const h = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                    setRecentHistory(h);
+                } catch (e) {
+                    console.warn("Failed to load price intel history", e);
+                    setRecentHistory([]);
+                }
             };
             loadHistory();
             window.addEventListener("storage", loadHistory);
@@ -629,9 +634,11 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     category: intel.category,
                     timestamp: Date.now()
                 };
-                const existing = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
-                const updated = [historyItem, ...existing.filter((h: any) => h.name !== intel.name)].slice(0, 6);
-                localStorage.setItem('fp_price_intel_history', JSON.stringify(updated));
+                if (typeof window !== "undefined") {
+                    const existing = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                    const updated = [historyItem, ...existing.filter((h: any) => h.name !== intel.name)].slice(0, 6);
+                    localStorage.setItem('fp_price_intel_history', JSON.stringify(updated));
+                }
                 // Signal change for UI
                 window.dispatchEvent(new Event("storage"));
             } catch (e) { console.error("History persistence failed", e); }
@@ -650,7 +657,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <div className="fixed inset-0 z-[9999] flex items-center md:items-start pt-0 md:pt-[10vh] justify-center p-4 overflow-hidden">
+                    <div className="fixed inset-0 z-[9999] flex items-center md:items-start pt-0 md:pt-[10vh] justify-center p-4">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -1686,7 +1693,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                                         ~{formatPrice(loan.monthlyPayment)}/mo
                                     </span>
                                     <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
-                                        {(loan.interestRate * 100).toFixed(1)}% Markup p.a.
+                                        {(loan.interestRateNumber * 100).toFixed(1)}% Markup p.a.
                                     </span>
                                     <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
                                         <ShieldCheck className="h-3 w-3 text-emerald-500" /> Secure Escrow
@@ -1748,7 +1755,7 @@ Estimated Monthly Payment: ${formatPrice(loan.monthlyPayment)}`;
                                     <span>Stock: <strong className={result.matchedProduct.stock > 0 ? "text-emerald-600" : "text-red-500"}>{result.matchedProduct.stock > 0 ? 'Available' : 'Out of stock'}</strong></span>
                                 </div>
                                 <div className="mt-4 flex gap-3">
-                                    <Link href={getProductUrl(result.matchedProduct.id, result.matchedProduct.name)} className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 flex items-center gap-2 shadow-sm transition-all">
+                                    <Link href={getProductUrl(result.matchedProduct)} className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 flex items-center gap-2 shadow-sm transition-all">
                                         View Full Page <ExternalLink className="h-3 w-3" />
                                     </Link>
                                 </div>
@@ -1953,13 +1960,13 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
                     {isRising ? (
-                        <TrendingUp className="h-3 w-3 text-red-600" />
+                        <TrendingUp className="h-3 w-3 text-blue-600" />
                     ) : (
                         <TrendingDown className="h-3 w-3 text-emerald-600" />
                     )}
                     6-Month Price Trend
                 </div>
-                <span className={`text-[10px] font-bold ${isRising ? "text-red-600" : "text-emerald-700"}`}>
+                <span className={`text-[10px] font-bold ${isRising ? "text-blue-600" : "text-emerald-700"}`}>
                     {isRising ? "↑ Rising" : "↓ Falling"}
                 </span>
             </div>

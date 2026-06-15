@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CategoryCard, CATEGORY_CARDS_ROW_1 } from "@/app/page";
+import { CategoryCard, CATEGORY_CARDS_ROW_1 } from "@/lib/constants";
 import { Save, Image as ImageIcon, Link as LinkIcon, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 

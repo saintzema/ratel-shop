@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Upload, X, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { cn, wrapInCDN, isVideoUrl } from "@/lib/utils";
+import { cn, wrapInCDN, isVideoUrl, isIframeVideoUrl } from "@/lib/utils";
 
 /**
  * Smart Price Formatter
@@ -26,13 +26,15 @@ export function ProductImageSlot({
     onUrlChange,
     onFileSelect,
     label = "Select Image",
-    className
+    className,
+    hideInput = false
 }: {
     url: string;
     onUrlChange: (url: string) => void;
     onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
     label?: string;
     className?: string;
+    hideInput?: boolean;
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,7 +46,16 @@ export function ProductImageSlot({
             >
                 {url ? (
                     <>
-                        {isVideoUrl(url) ? (
+                        {isIframeVideoUrl(url) ? (
+                            <div className="h-full w-full p-2">
+                                <iframe 
+                                    src={url.includes('amazon') && !url.includes('embed') ? url.replace('/vdp/', '/vdp/embed/') : url}
+                                    className="h-full w-full rounded-xl"
+                                    allowFullScreen
+                                    frameBorder="0"
+                                />
+                            </div>
+                        ) : isVideoUrl(url) ? (
                             <video 
                                 src={url} 
                                 className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" 
@@ -52,11 +63,12 @@ export function ProductImageSlot({
                                 autoPlay 
                                 loop 
                                 playsInline 
+                                controls={false}
                             />
                         ) : (
                             <img src={url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
                         )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                             <p className="text-white text-xs font-bold uppercase tracking-widest">Change Media</p>
                         </div>
                     </>
@@ -77,13 +89,21 @@ export function ProductImageSlot({
                     onChange={onFileSelect}
                 />
             </div>
-            <Input
-                value={url}
-                onChange={(e) => onUrlChange(e.target.value)}
-                onBlur={(e) => onUrlChange(wrapInCDN(e.target.value))}
-                className="rounded-xl text-xs bg-gray-50 border-gray-100 h-10 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
-                placeholder="Or paste URL..."
-            />
+            {!hideInput && (
+                <Input
+                    value={url}
+                    onChange={(e) => onUrlChange(e.target.value)}
+                    onBlur={(e) => onUrlChange(wrapInCDN(e.target.value))}
+                    onPaste={(e) => {
+                        const pastedText = e.clipboardData.getData('text');
+                        if (pastedText.startsWith('http')) {
+                            setTimeout(() => onUrlChange(wrapInCDN(pastedText)), 0);
+                        }
+                    }}
+                    className="rounded-xl text-xs bg-gray-50 border-gray-100 h-10 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
+                    placeholder="Or paste URL..."
+                />
+            )}
         </div>
     );
 }

@@ -4,12 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, ChevronRight, Upload, Building, User, CreditCard } from "lucide-react";
+import { Check, ChevronRight, Upload, Building, User, CreditCard, Box, Camera } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { InstallBanner } from "@/components/ui/InstallBanner";
 
 export default function KYCOnboarding() {
     const router = useRouter();
@@ -20,6 +21,11 @@ export default function KYCOnboarding() {
     const [fileName, setFileName] = useState<string | null>(null);
     const [businessName, setBusinessName] = useState("");
     const [storeUrl, setStoreUrl] = useState("");
+    // Tracks whether the seller manually edited the Store URL. Until they do, we
+    // auto-prefill it from the Business Name (slugified) so they don't have to type it.
+    const [storeUrlTouched, setStoreUrlTouched] = useState(false);
+    const slugifyStoreUrl = (s: string) =>
+        s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
     const [streetAddress, setStreetAddress] = useState("");
     const [city, setCity] = useState("");
     const [stateRegion, setStateRegion] = useState("");
@@ -37,6 +43,9 @@ export default function KYCOnboarding() {
     const [accountName, setAccountName] = useState("");
     const [isResolving, setIsResolving] = useState(false);
     const [resolutionError, setResolutionError] = useState("");
+    const [sellerRole, setSellerRole] = useState<string>("");
+    const [logoFile, setLogoFile] = useState<string | null>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     const BANK_CODES: Record<string, string> = {
         "Access Bank": "044",
@@ -102,6 +111,8 @@ export default function KYCOnboarding() {
     const validateStep = (currentStep: number): boolean => {
         const errors: string[] = [];
         if (currentStep === 1) {
+            if (!sellerRole) errors.push("Please select your role");
+        } else if (currentStep === 2) {
             if (!businessName.trim()) errors.push("Business Name is required");
             if (!storeUrl.trim()) errors.push("Store URL is required");
             if (!streetAddress.trim()) errors.push("Street Address is required");
@@ -116,7 +127,7 @@ export default function KYCOnboarding() {
                 if (!cacNumber.trim()) errors.push("RC Number is required for registered businesses");
                 if (!cacFileName) errors.push("CAC Certificate is required for registered businesses");
             }
-        } else if (currentStep === 2) {
+        } else if (currentStep === 3) {
             if (!idType) errors.push("Please select a document type");
             if (!fileName) errors.push("Please upload your ID document");
         }
@@ -173,7 +184,8 @@ export default function KYCOnboarding() {
             bank_name: bankName || undefined,
             account_number: accountNumber || undefined,
             account_name: accountName || undefined,
-            logo_url: "https://ui-avatars.com/api/?name=" + encodeURIComponent(businessName || "Shop") + "&background=random",
+            logo_url: logoFile || ("https://ui-avatars.com/api/?name=" + encodeURIComponent(businessName || "Shop") + "&background=random"),
+            seller_role: sellerRole,
         };
 
         if (currentSeller) {
@@ -257,11 +269,13 @@ export default function KYCOnboarding() {
     };
 
     return (
-        <div suppressHydrationWarning className="h-[100dvh] overflow-y-auto bg-gray-50 py-12 px-4 sm:px-6 pb-32">
+        <div suppressHydrationWarning className="h-[100dvh] overflow-y-auto bg-gray-50 pb-32">
+            <InstallBanner />
+            <div className="py-12 px-4 sm:px-6">
             {/* Progress Bar */}
             <div className="w-full max-w-2xl mx-auto mb-8">
                 <div className="flex justify-between mb-2">
-                    {["Business Info", "Identity", "Bank Details", "Review"].map((label, i) => (
+                    {["Role", "Business Info", "Identity", "Bank Details", "Review"].map((label, i) => (
                         <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-brand-green-600" : step === i + 1 ? "text-black" : "text-gray-400"}`}>
                             {label}
                         </div>
@@ -271,7 +285,7 @@ export default function KYCOnboarding() {
                     <motion.div
                         className="h-full bg-brand-green-600"
                         initial={{ width: 0 }}
-                        animate={{ width: `${(step / 4) * 100}%` }}
+                        animate={{ width: `${(step / 5) * 100}%` }}
                         transition={{ type: "spring", stiffness: 100 }}
                     />
                 </div>
@@ -279,20 +293,84 @@ export default function KYCOnboarding() {
 
             <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border overflow-hidden">
                 <div className="bg-brand-green-600 p-6 text-white text-center">
-                    <h1 className="text-2xl font-bold">Seller Verification</h1>
-                    <p className="text-green-100 text-sm">Join Nigeria's most trusted marketplace. Let's get you verified.</p>
+                    <h1 className="text-2xl font-bold">Seller Onboarding</h1>
+                    <p className="text-green-100 text-sm">Empowering Nigerian businesses with global reach.</p>
                 </div>
 
                 <form onSubmit={(e) => {
                     e.preventDefault();
-                    if (step < 4) nextStep();
+                    if (step < 5) nextStep();
                     else handleSubmit();
                 }}>
                     <div className="p-8">
                         <AnimatePresence mode="wait">
 
-                            {/* Step 1: Business Info */}
+                            {/* Step 1: Role Selection */}
                             {step === 1 && (
+                                <motion.div
+                                    key="step0"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    className="space-y-6"
+                                >
+                                    <div className="text-center mb-8">
+                                        <h2 className="text-2xl font-black text-gray-900 mb-2">Which best describes you?</h2>
+                                        <p className="text-sm text-gray-500">Choose the profile that matches your business model.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {[
+                                            { 
+                                                id: "entrepreneur", 
+                                                title: "Aspiring Entrepreneur", 
+                                                desc: "I have some things to sell and want to get started.", 
+                                                icon: <User className="h-6 w-6" /> 
+                                            },
+                                            { 
+                                                id: "merchant", 
+                                                title: "Merchant", 
+                                                desc: "I have a physical store and want to sell online.", 
+                                                icon: <Building className="h-6 w-6" /> 
+                                            },
+                                            { 
+                                                id: "supplier", 
+                                                title: "Supplier", 
+                                                desc: "I import or manufacture goods and sell in large quantities.", 
+                                                icon: <Box className="h-6 w-6" /> 
+                                            },
+                                        ].map((role) => (
+                                            <div
+                                                key={role.id}
+                                                onClick={() => setSellerRole(role.id)}
+                                                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center gap-4 ${sellerRole === role.id ? "border-brand-green-600 bg-brand-green-50 shadow-md" : "border-gray-100 bg-white hover:border-brand-green-200 hover:bg-gray-50"}`}
+                                            >
+                                                <div className={`p-3 rounded-xl ${sellerRole === role.id ? "bg-brand-green-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                                                    {role.icon}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className={`font-bold ${sellerRole === role.id ? "text-brand-green-900" : "text-gray-900"}`}>{role.title}</h3>
+                                                    <p className="text-xs text-gray-500">{role.desc}</p>
+                                                </div>
+                                                {sellerRole === role.id && (
+                                                    <div className="bg-brand-green-600 rounded-full p-1">
+                                                        <Check className="h-3 w-3 text-white" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="text-center pt-4">
+                                        <p className="text-xs text-gray-500">
+                                            Already have a seller account? <a href="/login" className="text-brand-green-600 font-bold hover:underline">Log in here</a>
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* Step 2: Business Info */}
+                            {step === 2 && (
                                 <motion.div
                                     key="step1"
                                     initial={{ opacity: 0, x: 20 }}
@@ -305,12 +383,63 @@ export default function KYCOnboarding() {
                                         <p className="text-sm text-gray-500">This helps us customize your experience.</p>
                                     </div>
 
+                                    <div className="flex flex-col items-center justify-center py-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                                        <div 
+                                            className="w-20 h-20 rounded-full bg-white border-2 border-brand-green-100 flex items-center justify-center overflow-hidden cursor-pointer hover:border-brand-green-500 transition-colors shadow-sm"
+                                            onClick={() => logoInputRef.current?.click()}
+                                        >
+                                            {logoFile ? (
+                                                <img src={logoFile} alt="Logo" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center text-gray-400">
+                                                    <Camera className="h-6 w-6" />
+                                                    <span className="text-[10px] font-bold mt-1">LOGO</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] font-bold text-brand-green-600 mt-2 cursor-pointer hover:underline" onClick={() => logoInputRef.current?.click()}>
+                                            {logoFile ? "Change Business Logo" : "Upload Business Logo"}
+                                        </p>
+                                        <input
+                                            type="file"
+                                            ref={logoInputRef}
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                try {
+                                                    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                                                    const fd = new FormData();
+                                                    fd.append("file", file, file.name || "logo.jpg");
+                                                    const res = await fetch("/api/upload", {
+                                                        method: "POST",
+                                                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                                        body: fd,
+                                                    });
+                                                    if (res.ok) {
+                                                        const data = await res.json();
+                                                        if (data.url) { setLogoFile(data.url); return; }
+                                                    }
+                                                } catch { /* fall through to base64 */ }
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => setLogoFile(ev.target?.result as string);
+                                                reader.readAsDataURL(file);
+                                            }}
+                                        />
+                                    </div>
+
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium">Business Name *</label>
                                         <Input
                                             placeholder="E.g. Ore's Gloss Hub"
                                             value={businessName}
-                                            onChange={(e) => setBusinessName(e.target.value)}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setBusinessName(val);
+                                                // Auto-fill the Store URL from the name until the seller edits it themselves
+                                                if (!storeUrlTouched) setStoreUrl(slugifyStoreUrl(val));
+                                            }}
                                             className="border border-gray-300"
                                             required
                                         />
@@ -337,7 +466,7 @@ export default function KYCOnboarding() {
                                             <Input
                                                 placeholder="oresglosshub"
                                                 value={storeUrl}
-                                                onChange={(e) => setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                onChange={(e) => { setStoreUrlTouched(true); setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')); }}
                                                 className="rounded-l-none border-l-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-brand-green-600"
                                                 required
                                             />
@@ -503,8 +632,8 @@ export default function KYCOnboarding() {
                                 </motion.div>
                             )}
 
-                            {/* Step 2: Identity Verification */}
-                            {step === 2 && (
+                            {/* Step 3: Identity Verification */}
+                            {step === 3 && (
                                 <motion.div
                                     key="step2"
                                     initial={{ opacity: 0, x: 20 }}
@@ -567,8 +696,8 @@ export default function KYCOnboarding() {
                                 </motion.div>
                             )}
 
-                            {/* Step 3: Bank Details */}
-                            {step === 3 && (
+                            {/* Step 4: Bank Details */}
+                            {step === 4 && (
                                 <motion.div
                                     key="step3"
                                     initial={{ opacity: 0, x: 20 }}
@@ -645,8 +774,8 @@ export default function KYCOnboarding() {
                                 </motion.div>
                             )}
 
-                            {/* Step 4: Submission */}
-                            {step === 4 && (
+                            {/* Step 5: Submission */}
+                            {step === 5 && (
                                 <motion.div
                                     key="step4"
                                     initial={{ opacity: 0, x: 20 }}
@@ -690,7 +819,7 @@ export default function KYCOnboarding() {
                             Back
                         </Button>
 
-                        {step < 4 ? (
+                        {step < 5 ? (
                             <Button type="submit" className="bg-brand-green-600 hover:bg-brand-green-700">
                                 Next Step <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -705,6 +834,7 @@ export default function KYCOnboarding() {
                         )}
                     </div>
                 </form>
+            </div>
             </div>
         </div>
     );

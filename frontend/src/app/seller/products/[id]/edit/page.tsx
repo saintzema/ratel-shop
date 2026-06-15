@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
-import { formatPrice, wrapInCDN } from "@/lib/utils";
+import { formatPrice, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,17 +26,22 @@ import {
     Globe,
     Loader2,
     ShieldCheck,
-    AlertTriangle
+    AlertTriangle,
+    Package
 } from "lucide-react";
 
-export default function EditProduct() {
+function EditProductContent() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const router = useRouter();
     const productId = params.id as string;
+    const returnPage = searchParams.get("page") || "1";
     const fileInputRef = useRef<HTMLInputElement>(null);
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
     const [product, setProduct] = useState<Product | null>(null);
+    const [minFinancingPrice, setMinFinancingPrice] = useState(300000);
+    const [isPremium, setIsPremium] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
         category: "",
@@ -53,7 +58,10 @@ export default function EditProduct() {
         original_price: "",
         external_url: "",
         financing_available: false,
-        financing_down_payment: ""
+        financing_down_payment: "",
+        financing_deposit_pct: 10,
+        isDepositByPct: true,
+        variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -64,36 +72,94 @@ export default function EditProduct() {
     const [isFetchingImage, setIsFetchingImage] = useState(false);
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const isFormDirtyRef = useRef(false);
+    const apiHydratedRef = useRef(false); // Tracks if we've fetched the full product from API
+
+    // Mark form as dirty whenever the user makes any change
+    const markDirty = useCallback(() => { isFormDirtyRef.current = true; }, []);
+
+    // Hydrate heavy fields (description, highlights, specs, images) from DB API
+    // The sync-store strips these fields for performance; this corrects that for the edit page.
+    useEffect(() => {
+        if (apiHydratedRef.current) return;
+        const decoded = decodeURIComponent(productId);
+        fetch(`/api/products/${decoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .then((full: any) => {
+                if (!full) return;
+                apiHydratedRef.current = true;
+                if (!isFormDirtyRef.current) {
+                    setFormData(prev => ({
+                        ...prev,
+                        description: full.description != null ? full.description : prev.description,
+                        highlights: full.highlights?.length ? full.highlights : prev.highlights,
+                        specs: full.specs && Object.keys(full.specs).length
+                            ? Object.entries(full.specs).map(([key, value]) => ({ key, value: String(value) }))
+                            : prev.specs,
+                        image_url: full.imageUrl || full.image_url || prev.image_url,
+                        images: full.images?.length ? full.images : prev.images,
+                        tags: full.tags?.length ? full.tags : prev.tags,
+                    }));
+                    // Also update the product state so handleSave has the full product
+                    setProduct(prev => prev ? { ...prev, description: full.description, highlights: full.highlights, specs: full.specs, images: full.images, tags: full.tags } : prev);
+                }
+            })
+            .catch(() => { /* silently fall back to localStorage version */ });
+    }, [productId]);
 
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
         const loadData = () => {
+            try {
+                const adminSettings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+                if (adminSettings.minFinancingPrice) setMinFinancingPrice(Number(adminSettings.minFinancingPrice));
+            } catch {}
+
+            const seller = DataSyncService.getCurrentSeller();
+            if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+                setIsPremium(true);
+            }
+
             const currentTaxonomy = DataSyncService.getTaxonomy();
             setTaxonomy(currentTaxonomy);
 
             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const found = allProducts.find(p => p.id === productId);
+            const decodedId = decodeURIComponent(productId);
+            const found = allProducts.find(p => String(p.id) === decodedId || String(p.id) === productId);
             if (found) {
                 setProduct(found);
-                setFormData(prev => ({
-                    ...prev,
-                    name: found.name,
-                    category: (found.category || "").toLowerCase(),
-                    subcategory: found.subcategory || "",
-                    tags: found.tags || [],
-                    colors: found.colors ? found.colors.join(", ") : "",
-                    price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
-                    description: found.description,
-                    highlights: found.highlights || [],
-                    specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
-                    image_url: found.image_url,
-                    images: found.images?.length ? [...found.images] : [""],
-                    stock: found.stock.toString(),
-                    original_price: found.original_price ? found.original_price.toLocaleString() : "",
-                    external_url: found.external_url || "",
-                    financing_available: found.financing_available || false,
-                    financing_down_payment: found.financing_down_payment?.toString() || ""
-                }));
+                // Only overwrite formData if the user hasn't made unsaved edits.
+                // This prevents background sync-store-update events from reverting
+                // pasted image URLs or other in-progress changes.
+                if (!isFormDirtyRef.current) {
+                    setFormData(prev => ({
+                        ...prev,
+                        name: found.name,
+                        category: (found.category || "").toLowerCase(),
+                        subcategory: found.subcategory || "",
+                        tags: found.tags || [],
+                        colors: found.colors ? found.colors.join(", ") : "",
+                        price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
+                        description: found.description,
+                        highlights: found.highlights || [],
+                        specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
+                        image_url: found.image_url,
+                        images: found.images?.length ? [...found.images] : [""],
+                        stock: found.stock.toString(),
+                        original_price: found.original_price ? found.original_price.toLocaleString() : "",
+                        external_url: found.external_url || "",
+                        financing_available: found.financing_available || false,
+                        financing_down_payment: found.financing_down_payment?.toString() || "",
+                        financing_deposit_pct: found.financing_deposit_pct || 10,
+                        isDepositByPct: !!found.financing_deposit_pct,
+                        variants: found.variants ? found.variants.map(v => ({
+                            name: v.name,
+                            price: v.price > 0 ? v.price.toLocaleString() : "",
+                            original_price: v.original_price ? v.original_price.toLocaleString() : "",
+                            image_url: v.image_url || ""
+                        })) : []
+                    }));
+                }
             }
         };
 
@@ -129,16 +195,37 @@ export default function EditProduct() {
                     }
                 }
 
-                setFormData(prev => ({
-                    ...prev,
-                    category: inferredCategory || prev.category,
-                    description: content.description || prev.description,
-                    highlights: content.highlights || prev.highlights,
-                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
-                    subcategory: content.subcategory || prev.subcategory,
-                    tags: content.tags || prev.tags,
-                    colors: content.colors ? content.colors.join(", ") : prev.colors
-                }));
+                setFormData(prev => {
+                    let newSpecs = prev.specs;
+                    if (content.specs) {
+                        try {
+                            if (Array.isArray(content.specs)) {
+                                newSpecs = content.specs.map((s: any) => {
+                                    if (typeof s === 'string') {
+                                        const parts = s.split(':');
+                                        return { key: parts[0]?.trim() || '', value: parts[1]?.trim() || '' };
+                                    }
+                                    return { key: s.key || s.name || '', value: String(s.value || '') };
+                                }).filter((s: any) => s.key && s.value);
+                            } else if (typeof content.specs === 'object') {
+                                newSpecs = Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) }));
+                            }
+                        } catch (e) {
+                            console.error("Failed to parse AI specs", e);
+                        }
+                    }
+
+                    return {
+                        ...prev,
+                        category: inferredCategory || prev.category,
+                        description: content.description || prev.description,
+                        highlights: content.highlights || prev.highlights,
+                        specs: newSpecs && newSpecs.length > 0 ? newSpecs : prev.specs,
+                        subcategory: content.subcategory || prev.subcategory,
+                        tags: content.tags || prev.tags,
+                        colors: content.colors ? (Array.isArray(content.colors) ? content.colors.join(", ") : content.colors) : prev.colors
+                    };
+                });
             } else {
                 const errData = await res.json().catch(() => ({}));
                 setErrorMsg(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set in Vercel.`);
@@ -164,7 +251,16 @@ export default function EditProduct() {
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, price: formatPriceWithCommas(e.target.value) });
+        const newPriceFormatted = formatPriceWithCommas(e.target.value);
+        const numericPrice = parseInt(newPriceFormatted.replace(/,/g, ""));
+        
+        setFormData(prev => {
+            const next = { ...prev, price: newPriceFormatted };
+            if (prev.financing_available && !isPremium && !isNaN(numericPrice) && numericPrice < minFinancingPrice) {
+                next.financing_available = false;
+            }
+            return next;
+        });
     };
 
     const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,7 +279,27 @@ export default function EditProduct() {
                 canvas.width = width;
                 canvas.height = height;
                 canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
-                callback(canvas.toDataURL("image/jpeg", 0.6));
+                // Upload to Vercel Blob so the URL persists in localStorage/admin.
+                // Base64 data URLs get stripped by sync-store — Blob URLs don't.
+                canvas.toBlob(async (blob) => {
+                    if (blob) {
+                        try {
+                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            const fd = new FormData();
+                            fd.append("file", blob, `product-${Date.now()}.jpg`);
+                            const res = await fetch("/api/upload", {
+                                method: "POST",
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                body: fd,
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.url) { callback(data.url); return; }
+                            }
+                        } catch { /* fall through to base64 */ }
+                    }
+                    callback(canvas.toDataURL("image/jpeg", 0.6));
+                }, "image/jpeg", 0.6);
             };
             img.src = e.target?.result as string;
         };
@@ -227,12 +343,51 @@ export default function EditProduct() {
         setFormData({ ...formData, images: newImages.length ? newImages : [""] });
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
         if (!formData.name) {
             alert("Please enter a product name first.");
             return;
         }
-        setIsPriceDiscoveryOpen(true);
+        setIsCalculatingBestPrice(true);
+        setErrorMsg(null);
+        try {
+            const res = await fetch('/api/gemini-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
+            });
+            
+            if (res.ok) {
+                const best = await res.json();
+                const fairPrice = best.approxPrice;
+                const otherPrice = Math.round(fairPrice * 1.15);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    price: fairPrice.toLocaleString(),
+                    original_price: otherPrice.toLocaleString(),
+                    category: best.category?.toLowerCase() || prev.category,
+                    subcategory: best.subcategory || prev.subcategory,
+                    description: best.description || prev.description,
+                    tags: best.tags || prev.tags,
+                    specs: best.specs ? Object.entries(best.specs).map(([k, v]) => ({ key: k, value: String(v) })) : prev.specs
+                }));
+
+                // Auto-calculate deposit if enabled
+                if (formData.isDepositByPct) {
+                    const deposit = Math.round(fairPrice * (formData.financing_deposit_pct / 100));
+                    setFormData(prev => ({ ...prev, financing_down_payment: deposit.toLocaleString() }));
+                }
+            } else {
+                setErrorMsg("Could not calculate Best Price. Falling back to manual entry.");
+                setIsPriceDiscoveryOpen(true);
+            }
+        } catch (error) {
+            console.error("Best Price calculation failed", error);
+            setIsPriceDiscoveryOpen(true);
+        } finally {
+            setIsCalculatingBestPrice(false);
+        }
     };
 
     const handlePriceSelect = (suggestion: ProductSuggestion) => {
@@ -310,19 +465,32 @@ export default function EditProduct() {
             stock: parseInt(formData.stock) || 0,
             highlights: formData.highlights,
             financing_available: formData.financing_available,
-            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0
+            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0,
+            financing_deposit_pct: formData.financing_available ? formData.financing_deposit_pct : undefined,
+            variants: formData.variants.filter(v => v.name.trim() !== "").map((v, i) => ({
+                id: product.variants?.[i]?.id || `var_${Date.now()}_${i}`,
+                name: v.name.trim(),
+                price: parseInt(v.price.replace(/,/g, "")) || 0,
+                original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
+                image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
+                is_default: false
+            }))
         });
 
         setIsSaving(false);
         setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        isFormDirtyRef.current = false; // Reset dirty flag after successful save
+        setTimeout(() => {
+            setSaved(false);
+            router.push(`/seller/products?page=${returnPage}`);
+        }, 1000);
     };
 
     if (!product) {
         return (
             <div className="max-w-3xl mx-auto py-20 text-center text-gray-400">
                 <p className="text-lg font-medium">Product not found.</p>
-                <Link href="/seller/products" className="text-blue-600 text-sm mt-2 inline-block hover:underline">← Back to Products</Link>
+                <Link href={`/seller/products?page=${returnPage}`} className="text-blue-600 text-sm mt-2 inline-block hover:underline">← Back to Products</Link>
             </div>
         );
     }
@@ -330,7 +498,7 @@ export default function EditProduct() {
     return (
         <div className="max-w-3xl mx-auto py-10 px-4 sm:px-6">
             {/* Back Navigation */}
-            <Link href="/seller/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-8 group">
+            <Link href={`/seller/products?page=${returnPage}`} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-8 group">
                 <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
                 Back to Products
             </Link>
@@ -395,7 +563,7 @@ export default function EditProduct() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
                     <ProductImageSlot 
                         url={formData.image_url} 
-                        onUrlChange={(url) => setFormData({ ...formData, image_url: url })}
+                        onUrlChange={(url) => { markDirty(); setFormData(prev => ({ ...prev, image_url: url })); }}
                         onFileSelect={handleMainImageUpload}
                         label="Main Image"
                     />
@@ -460,68 +628,63 @@ export default function EditProduct() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
-                        <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
+                        <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid. Up to 8 images.</p>
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    {/* Fast URL Add */}
-                    <div>
-                        <Input 
-                            placeholder="Paste image URLs (comma separated) & hit Enter to add"
-                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const val = e.currentTarget.value;
-                                    if (!val) return;
-                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
-                                    setFormData(prev => {
-                                        const current = prev.images.filter(x => x.trim() !== "");
-                                        return { ...prev, images: [...current, ...newUrls] };
-                                    });
-                                    e.currentTarget.value = "";
-                                }
-                            }}
-                        />
-                    </div>
-
-                    {/* Visual Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {formData.images.filter(url => url.trim() !== "").map((url, i) => (
-                            <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
-                                <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
-                                
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => {
-                                        const newImages = formData.images.filter(x => x.trim() !== "");
-                                        newImages.splice(i, 1);
-                                        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
-                                    }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Add New Slot (Upload File) */}
-                        <div 
-                            className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
-                            onClick={() => galleryFileRefs.current.get(999)?.click()}
-                        >
-                            <ImagePlus className="h-6 w-6 mb-2" />
-                            <span className="text-xs font-semibold">Upload Photo</span>
-                            <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                    compressImage(file, (url) => {
-                                        setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
-                                    });
-                                }
-                                e.target.value = ''; // Reset
-                            }} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {formData.images.map((url, i) => (
+                        <div key={i} className="relative group">
+                            <ProductImageSlot
+                                url={url}
+                                onUrlChange={(newUrl) => {
+                                    markDirty();
+                                    const next = [...formData.images];
+                                    next[i] = newUrl;
+                                    setFormData(prev => ({ ...prev, images: next }));
+                                }}
+                                onFileSelect={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        markDirty();
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => {
+                                            const next = [...formData.images];
+                                            next[i] = ev.target?.result as string;
+                                            setFormData(prev => ({ ...prev, images: next }));
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }}
+                                className="mb-0"
+                            />
+                            {formData.images.length > 1 && (
+                                <button
+                                    onClick={() => {
+                                        markDirty();
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            images: prev.images.filter((_, idx) => idx !== i)
+                                        }));
+                                    }}
+                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            )}
                         </div>
-                    </div>
+                    ))}
+                    {formData.images.length < 8 && (
+                        <button
+                            onClick={() => {
+                                markDirty();
+                                setFormData(prev => ({ ...prev, images: [...prev.images, ""] }));
+                            }}
+                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
             </motion.section>
 
@@ -727,6 +890,136 @@ export default function EditProduct() {
                 </div>
             </motion.section>
             
+            {/* ─── Section 4.5: Variants & Bundles ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.185 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
+            >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Variants & Bundles <span className="text-xs ml-2 font-medium bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">Optional</span></h2>
+                        <p className="text-sm text-gray-500 mt-1">Manage bundled options and product variants. Existing orders with older variants won't be affected.</p>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                            markDirty();
+                            setFormData(p => ({
+                                ...p,
+                                variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "" }]
+                            }));
+                        }}
+                        className="h-9 gap-1.5 text-sm"
+                    >
+                        <Plus className="h-4 w-4" /> Add Option
+                    </Button>
+                </div>
+
+                {formData.variants.length > 0 ? (
+                    <div className="space-y-4">
+                        {formData.variants.map((variant, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        markDirty();
+                                        setFormData(p => ({
+                                            ...p,
+                                            variants: p.variants.filter((_, i) => i !== index)
+                                        }));
+                                    }}
+                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+
+                                {/* Variant Image */}
+                                <div className="w-[120px] shrink-0">
+                                    <ProductImageSlot
+                                        url={variant.image_url}
+                                        onUrlChange={(newUrl) => {
+                                            markDirty();
+                                            const next = [...formData.variants];
+                                            next[index].image_url = newUrl;
+                                            setFormData(p => ({ ...p, variants: next }));
+                                        }}
+                                        onFileSelect={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    markDirty();
+                                                    const next = [...formData.variants];
+                                                    next[index].image_url = ev.target?.result as string;
+                                                    setFormData(p => ({ ...p, variants: next }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                        className="mb-0 w-full rounded-lg"
+                                        hideInput={true}
+                                    />
+                                </div>
+
+                                {/* Variant Details */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <label className="text-xs font-medium text-gray-600">Option Name</label>
+                                        <Input
+                                            placeholder='e.g., "RIVER 3 Plus + Solar Panel"'
+                                            value={variant.name}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].name = e.target.value;
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600">Price (₦)</label>
+                                        <Input
+                                            placeholder="0"
+                                            value={variant.price}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].price = e.target.value.replace(/\D/g, "");
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600">Original Price (₦)</label>
+                                        <Input
+                                            placeholder="Optional"
+                                            value={variant.original_price}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].original_price = e.target.value.replace(/\D/g, "");
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200 text-gray-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                        <Package className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 font-medium">No variants added to this product</p>
+                    </div>
+                )}
+            </motion.section>
+            
             {/* ─── Section 5: Financing & Ownership ─── */}
             <motion.section
                 initial={{ opacity: 0, y: 10 }}
@@ -748,11 +1041,20 @@ export default function EditProduct() {
 
                 <div className="ml-10 space-y-6">
                     <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer group"
-                        onClick={() => setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }))}
+                        onClick={() => {
+                            const currentPrice = parseInt(formData.price.replace(/,/g, ""));
+                            if (!formData.financing_available && !isPremium && (isNaN(currentPrice) || currentPrice < minFinancingPrice)) {
+                                if (confirm(`Product price must be at least ₦${minFinancingPrice.toLocaleString()} to enable financing. Upgrade to a premium plan to bypass this limit. Click OK to view plans.`)) {
+                                    router.push("/seller/settings/billing");
+                                }
+                                return;
+                            }
+                            setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }));
+                        }}
                     >
                         <div className="space-y-1">
                             <h3 className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Enable Buy Now, Pay Later (BNPL)</h3>
-                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months).</p>
+                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months). <br/><span className="text-[10px] text-gray-400 font-semibold italic mt-1 inline-block">Note: Products must be above ₦{minFinancingPrice.toLocaleString()} unless you are on a premium plan.</span></p>
                         </div>
                         <div className={`w-12 h-6 rounded-full transition-colors relative ${formData.financing_available ? 'bg-blue-600' : 'bg-gray-200'}`}>
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.financing_available ? 'left-7' : 'left-1 shadow-sm'}`} />
@@ -771,26 +1073,67 @@ export default function EditProduct() {
                                     <span className="text-xs font-bold uppercase tracking-wider">Granular Financing Terms</span>
                                 </div>
                                 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Required Downpayment (₦)</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
-                                        <Input
-                                            type="text"
-                                            value={formData.financing_down_payment}
-                                            onChange={(e) => {
-                                                const rawValue = e.target.value.replace(/\D/g, "");
-                                                const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
-                                                setFormData({ ...formData, financing_down_payment: formatted });
-                                            }}
-                                            className="rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
-                                            placeholder="e.g. 50,000"
-                                        />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between pl-1">
+                                            <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Deposit Amount (₦)</label>
+                                            <button 
+                                                onClick={() => setFormData(p => ({ ...p, isDepositByPct: !p.isDepositByPct }))}
+                                                className="text-[10px] font-bold text-blue-400 hover:text-blue-600 transition-colors"
+                                            >
+                                                {formData.isDepositByPct ? "Switch to Manual Amount" : "Switch to Percentage"}
+                                            </button>
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
+                                            <Input
+                                                type="text"
+                                                value={formData.financing_down_payment}
+                                                disabled={formData.isDepositByPct}
+                                                onChange={(e) => {
+                                                    const rawValue = e.target.value.replace(/\D/g, "");
+                                                    const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
+                                                    const price = parseInt(formData.price.replace(/,/g, "")) || 0;
+                                                    
+                                                    setFormData(p => ({ 
+                                                        ...p, 
+                                                        financing_down_payment: formatted,
+                                                        financing_deposit_pct: price > 0 ? Math.round((parseInt(rawValue) / price) * 100) : p.financing_deposit_pct
+                                                    }));
+                                                }}
+                                                className={`rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900 ${formData.isDepositByPct ? 'opacity-50' : ''}`}
+                                                placeholder="e.g. 50,000"
+                                            />
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5">
-                                        The upfront cost a buyer pays to start the ownership plan. If set to ₦0, the platform will automatically estimate a standard 10% downpayment.
-                                    </p>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Deposit Percentage (%)</label>
+                                        <div className="relative">
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">%</span>
+                                            <Input
+                                                type="number"
+                                                value={formData.financing_deposit_pct}
+                                                onChange={(e) => {
+                                                    const pct = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                                    const price = parseInt(formData.price.replace(/,/g, "")) || 0;
+                                                    const amount = Math.round(price * (pct / 100));
+                                                    
+                                                    setFormData(p => ({ 
+                                                        ...p, 
+                                                        financing_deposit_pct: pct,
+                                                        financing_down_payment: amount.toLocaleString(),
+                                                        isDepositByPct: true
+                                                    }));
+                                                }}
+                                                className="rounded-xl pr-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
+                                <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5 px-1">
+                                    The upfront cost a buyer pays. {formData.isDepositByPct ? `Currently set to ${formData.financing_deposit_pct}% of the product price.` : "Adjust either the amount or percentage to update both."}
+                                </p>
                             </div>
                         </motion.div>
                     )}
@@ -913,12 +1256,25 @@ export default function EditProduct() {
                 </Button>
             </motion.div>
 
-            <PriceDiscoveryModal 
+            <PriceDiscoveryModal
                 isOpen={isPriceDiscoveryOpen}
                 onClose={() => setIsPriceDiscoveryOpen(false)}
                 productName={formData.name}
                 onSelect={handlePriceSelect}
             />
         </div>
+    );
+}
+
+export default function EditProduct() {
+    return (
+        <Suspense fallback={
+            <div className="max-w-3xl mx-auto py-20 text-center text-gray-400">
+                <div className="h-6 w-6 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm font-medium">Loading product editor...</p>
+            </div>
+        }>
+            <EditProductContent />
+        </Suspense>
     );
 }

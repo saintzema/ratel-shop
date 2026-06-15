@@ -23,7 +23,7 @@ const FEATURES = [
     {
         icon: <Search className="h-4 w-4" />,
         title: "Price Checker",
-        desc: "Search any product. See the real fair price. Never overpay.",
+        desc: "Search any product. See the real fair price. Buy & Sell with no wahala.",
         color: "from-sky-400 to-blue-500",
     },
     {

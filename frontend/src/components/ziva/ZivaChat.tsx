@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { playMessageReceiveSound, playDingSound } from "@/lib/audio";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
@@ -175,32 +176,45 @@ export function ZivaChat() {
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
     // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
     const [isWiggling, setIsWiggling] = useState(false);
+    const [showInviteBubble, setShowInviteBubble] = useState(false);
+    const [hasUnread, setHasUnread] = useState(true);
 
+    // Whether the user has manually dismissed the bubble — stop cycling after that.
+    const bubbleDismissedRef = useRef(false);
+
+    // Use the original premium glass chime for the bubble (not the lighter message-receive tone)
+    const playBubbleChime = () => playDingSound();
+
+    // Pulse cycle: wait 10s → show 6s → hide 30s → show 6s → hide 30s …
+    // Stops automatically once the user opens the chat or clicks the ✕.
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const SHOW_DURATION = 6_000;   // bubble stays visible for 6s
+        const HIDE_DURATION = 45_000;  // gap between pulses (longer = less intrusive)
+        const INITIAL_DELAY = 10_000;  // first appearance after 10s
+
+        const timers: ReturnType<typeof setTimeout>[] = [];
+        let firstShow = true; // chime only on the very first appearance, not every pulse
+
+        const showBubble = () => {
+            if (bubbleDismissedRef.current || isOpen) return;
             setIsWiggling(true);
-            setTimeout(() => setIsWiggling(false), 2000);
-            try {
-                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-                if (!AudioCtx) return;
-                const ctx = new AudioCtx();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = "sine";
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0, ctx.currentTime);
-                // Increased volume from 0.05 to 0.15
-                gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.3);
-            } catch (e) { /* ignore autoplay block */ }
-        }, 10000); // Delay set to 10 seconds
-        return () => clearTimeout(timer);
-    }, []);
+            setShowInviteBubble(true);
+            if (firstShow) { playBubbleChime(); firstShow = false; } // sound once, then stay silent
+            timers.push(setTimeout(() => setIsWiggling(false), 2000));
+            // Hide after SHOW_DURATION, then schedule next pulse
+            timers.push(setTimeout(() => {
+                setShowInviteBubble(false);
+                // Schedule next appearance
+                timers.push(setTimeout(showBubble, HIDE_DURATION));
+            }, SHOW_DURATION));
+        };
+
+        // First pulse after initial delay
+        timers.push(setTimeout(showBubble, INITIAL_DELAY));
+
+        return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     // ─── Hybrid Keyboard Handling ──────────────────────────────
     // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
@@ -220,21 +234,7 @@ export function ZivaChat() {
         }
     }, [pathname, isOpen]);
 
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: "welcome",
-            role: "assistant",
-            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
-            quickActions: [
-                { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
-                { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
-                { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
-                { label: "Track my order", query: "Track my order", icon: "📦" },
-                { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
-                { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
-            ]
-        }
-    ]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [adminActive, setAdminActive] = useState(false);
@@ -242,8 +242,79 @@ export function ZivaChat() {
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Play a soft Apple-style chime when a NEW inbound (assistant/admin) message lands.
+    // Seeds silently on first run so the welcome message doesn't ring.
+    const seenZivaMsgIds = useRef<Set<string> | null>(null);
+    useEffect(() => {
+        if (seenZivaMsgIds.current === null) {
+            seenZivaMsgIds.current = new Set(messages.map(m => m.id));
+            return;
+        }
+        const last = messages[messages.length - 1];
+        if (last && !seenZivaMsgIds.current.has(last.id) && (last.role === "assistant" || last.role === "admin") && !(last as any).isTyping) {
+            playMessageReceiveSound();
+        }
+        seenZivaMsgIds.current = new Set(messages.map(m => m.id));
+    }, [messages]);
     const { cart, addToCart } = useCart();
     const { user } = useAuth();
+
+    // ─── Persistence ───
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const key = `fp_ziva_history_${user?.id || 'guest'}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed);
+                } else {
+                    // Default welcome
+                    setMessages([
+                        {
+                            id: "welcome",
+                            role: "assistant",
+                            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
+                            quickActions: [
+                                { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
+                                { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
+                                { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
+                                { label: "Track my order", query: "Track my order", icon: "📦" },
+                                { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
+                                { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
+                            ]
+                        }
+                    ]);
+                }
+            } catch (e) {
+                console.error("Failed to parse Ziva history", e);
+            }
+        } else {
+            setMessages([
+                {
+                    id: "welcome",
+                    role: "assistant",
+                    content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
+                    quickActions: [
+                        { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
+                        { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
+                        { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
+                        { label: "Track my order", query: "Track my order", icon: "📦" },
+                        { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
+                        { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
+                    ]
+                }
+            ]);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || messages.length === 0) return;
+        const key = `fp_ziva_history_${user?.id || 'guest'}`;
+        localStorage.setItem(key, JSON.stringify(messages));
+    }, [messages, user?.id]);
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -759,7 +830,7 @@ export function ZivaChat() {
                             role: "assistant",
                             content: `📷 **Image Request Sent!**\n\nI've forwarded your request for real product photos of **${currentProduct.name}** to the seller (**${currentProduct.seller_name || 'the merchant'}**).\n\nThey'll be notified to upload actual photos of the item. You'll receive a notification when the images are available.\n\nIn the meantime, you can view the existing listing photos on the product page.`,
                             quickActions: [
-                                { label: "📦 View Product", query: `__NAV__${getProductUrl(currentProduct.id, currentProduct.name)}`, icon: "" },
+                                { label: "📦 View Product", query: `__NAV__${getProductUrl(currentProduct)}`, icon: "" },
                                 { label: "💬 Ask Something Else", query: "", icon: "" },
                             ]
                         }
@@ -857,8 +928,8 @@ export function ZivaChat() {
                                     role: "assistant",
                                     content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${amount.toLocaleString()}** (${Math.round((1 - amount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                     quickActions: [
-                                        { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
-                                        { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                        { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
+                                        { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
                                         { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                     ]
                                 }
@@ -1035,8 +1106,8 @@ export function ZivaChat() {
                                 role: "assistant",
                                 content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${offerAmount.toLocaleString()}** (${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                 quickActions: [
-                                    { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
-                                    { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                    { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
+                                    { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
                                     { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                 ]
                             }
@@ -1166,17 +1237,6 @@ export function ZivaChat() {
         };
     }, [mounted]);
 
-    // Unread pulse
-    const [hasUnread, setHasUnread] = useState(false);
-    useEffect(() => {
-        if (!isOpen) {
-            const timer = setTimeout(() => setHasUnread(true), 5000);
-            return () => clearTimeout(timer);
-        } else {
-            setHasUnread(false);
-        }
-    }, [isOpen]);
-
     if (!mounted) return null;
 
     // ─── Render Markdown-lite ───────────────────────
@@ -1245,7 +1305,7 @@ export function ZivaChat() {
 
     return (
         <div
-            className="fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300 ease-out"
+            className="fixed left-6 lg:left-12 z-[1020] w-fit h-fit pointer-events-none transition-all duration-300 ease-out"
             style={{
                 bottom: containerBottom
             }}
@@ -1307,7 +1367,7 @@ export function ZivaChat() {
                                 )}
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
+                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95 cursor-pointer">
                                 <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
                             </button>
                         </div>
@@ -1376,7 +1436,7 @@ export function ZivaChat() {
                                                             return (
                                                                 <Link
                                                                     key={product.id}
-                                                                    href={getProductUrl(product.id, product.name)}
+                                                                    href={getProductUrl(product)}
                                                                     onClick={() => setIsOpen(false)}
                                                                 >
                                                                     <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
@@ -1583,7 +1643,7 @@ export function ZivaChat() {
                 dragConstraints={{ top: -300, bottom: 50, left: -50, right: 50 }}
                 dragElastic={0.1}
                 dragMomentum={false}
-                className="pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
+                className="relative pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
@@ -1591,14 +1651,14 @@ export function ZivaChat() {
                     transition={{ duration: 0.6 }}
                     onClick={toggleChat}
                     className={cn(
-                        "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all",
+                        "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all cursor-pointer",
                         isOpen
                             ? "border-emerald-400/50 ring-2 ring-emerald-400/30"
                             : "border-emerald-500/30"
                     )}
                     style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(20px)" }}
                 >
-                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                    <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                     {isOpen ? (
                         <X className="h-6 w-6 text-white z-10" strokeWidth={2.5} />
                     ) : (
@@ -1613,14 +1673,39 @@ export function ZivaChat() {
                     {/* Unread pulse - top right exterior */}
                     {hasUnread && !isOpen && (
                         <>
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full z-[30] flex items-center justify-center border border-white">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full z-[30] flex items-center justify-center border border-white">
                                 <span className="text-[8px] font-bold text-white leading-none">1</span>
                             </span>
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full z-20 animate-ping" />
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full z-20 animate-ping" />
                         </>
                     )}
                 </motion.button>
+
+                {/* Invitation Chat Bubble — Moved inside motion.div to stay synced with FAB movement */}
+                <AnimatePresence>
+                    {showInviteBubble && !isOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
+                            className="absolute bottom-[70px] left-[15px] md:left-[30px] z-[60] pointer-events-auto"
+                        >
+                            <div className="relative bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-bl-none shadow-2xl border border-blue-400/30 w-[240px] md:w-[280px]">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); bubbleDismissedRef.current = true; setShowInviteBubble(false); }}
+                                    className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors shadow-lg cursor-pointer"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                                <p className="text-[11px] md:text-xs font-extrabold leading-tight tracking-tight">
+                                    Hey! I'm Ziva. I can help you find best deals & negotiate prices 😊  
+                                </p>
+                                <div className="absolute bottom-[-8px] left-0 w-4 h-4 bg-blue-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 0 0)' }} />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.div>
-        </div >
+        </div>
     );
 }

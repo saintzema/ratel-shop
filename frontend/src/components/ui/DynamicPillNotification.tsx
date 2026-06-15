@@ -213,14 +213,47 @@ export function DynamicPillNotification() {
             }
         };
 
+        const handleAdminBroadcast = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const detail = customEvent.detail;
+            if (!detail) return;
+
+            // Check if this is a targeted broadcast
+            if (detail.targetUserIds && Array.isArray(detail.targetUserIds)) {
+                const currentUser = DataSyncService.getCurrentUser();
+                const sellerId = DataSyncService.getCurrentSellerId();
+                const currentId = sellerId || currentUser?.id;
+                
+                if (!currentId || !detail.targetUserIds.includes(currentId)) {
+                    return; // Not for this user
+                }
+            }
+
+            setCustomNotification({
+                id: `broadcast_${Date.now()}`,
+                text: detail.body,
+                isNegotiation: false,
+                isSellerAction: false,
+                hasImage: !!detail.imageUrl,
+                imageUrl: detail.imageUrl,
+                route: detail.link || "/"
+            });
+            
+            // Immediately play sound and show (the useEffect will handle the rest)
+            setVisible(true);
+            playDingSound();
+        };
+
         window.addEventListener("sync-store-update", checkGlobalNotifications);
         window.addEventListener("storage", checkGlobalNotifications);
         window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
+        window.addEventListener("fp-admin-broadcast", handleAdminBroadcast);
         
         return () => {
             window.removeEventListener("sync-store-update", checkGlobalNotifications);
             window.removeEventListener("storage", checkGlobalNotifications);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
+            window.removeEventListener("fp-admin-broadcast", handleAdminBroadcast);
         };
     }, []);
 
@@ -232,15 +265,10 @@ export function DynamicPillNotification() {
             try { (window as any).nativeBridge?.hapticFeedback?.("heavy"); } catch {}
 
             const isNego = pendingNotification ? !!pendingNotification.negotiation : (customNotification ? customNotification.isNegotiation : false);
-            
-            if (activeNotif.id) {
-                showNotification({
-                    type: isNego ? "ziva" : "info",
-                    title: isNego ? "Price Update" : "FairPrice.ng",
-                    message: activeNotif.text,
-                    duration: 10000 
-                });
-            }
+
+            // NOTE: We intentionally do NOT also call showNotification() here. That fired a
+            // duplicate top toast (which truncated the text) on top of this bottom pill.
+            // The bottom pill below is the single notification surface for these events.
 
             if (isNego || (customNotification?.hasImage)) {
                 setTimeout(() => setExpanded(true), 600);
@@ -274,7 +302,7 @@ export function DynamicPillNotification() {
         if (neg) {
             const negId = (neg as any).id;
             if (isSellerAction && negId) {
-                DataSyncService.updateNegotiationStatus(negId, "accepted");
+                DataSyncService.updateNegotiationStatus(negId, "accepted", "seller");
                 window.dispatchEvent(new Event("storage"));
                 setVisible(false);
                 dismissNotification();
@@ -331,15 +359,17 @@ export function DynamicPillNotification() {
     };
 
     const displayText = pendingNotification ? pendingNotification.text : customNotification?.text || "New Notification";
-    const displayTitle = isNegotiation ? "Price Update" : "FairPrice.ng";
+    const displayTitle = isNegotiation
+        ? (isSellerAction ? "New Offer Received" : "Counter Offer From Seller")
+        : "FairPrice.ng";
 
     return (
         <AnimatePresence>
             {visible && (
-                <div className="fixed top-2 md:top-4 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pt-[env(safe-area-inset-top,0px)]">
+                <div className="fixed bottom-32 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pb-[env(safe-area-inset-bottom,0px)]">
                     <motion.div
                         layout
-                        initial={{ opacity: 0, y: -100, scale: 0.6, filter: "blur(20px)" }}
+                        initial={{ opacity: 0, y: 100, scale: 0.6, filter: "blur(20px)" }}
                         animate={{ 
                             opacity: 1, 
                             y: 0, 
@@ -352,17 +382,17 @@ export function DynamicPillNotification() {
                                 mass: 0.8
                             }
                         }}
-                        exit={{ opacity: 0, y: -100, scale: 0.6, filter: "blur(20px)" }}
+                        exit={{ opacity: 0, y: 100, scale: 0.6, filter: "blur(20px)" }}
                         drag="y"
-                        dragConstraints={{ top: -100, bottom: 50 }}
+                        dragConstraints={{ top: -50, bottom: 100 }}
                         dragElastic={0.4}
                         onDragEnd={(e, info) => {
-                            if (info.offset.y < -40) {
+                            if (info.offset.y > 40) {
                                 setVisible(false);
                                 dismissNotification();
                                 setCustomNotification(null);
                                 try { (window as any).nativeBridge?.hapticFeedback?.("light"); } catch {}
-                            } else if (info.offset.y > 60 && !expanded) {
+                            } else if (info.offset.y < -60 && !expanded) {
                                 setExpanded(true);
                                 try { (window as any).nativeBridge?.hapticFeedback?.("medium"); } catch {}
                             }
