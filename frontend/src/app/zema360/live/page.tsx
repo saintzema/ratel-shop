@@ -18,6 +18,7 @@ import {
     Cpu,
     Globe,
     TrendingUp,
+    Loader2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -72,14 +73,19 @@ function StatCard({ label, value, sub, icon: Icon, color }: {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Zema360LivePage() {
     const [events, setEvents] = useState<ZemaEvent[]>([]);
-    const [configured, setConfigured] = useState(true);
+    const [configured, setConfigured] = useState<boolean | null>(null); // null = loading
     const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+    const [triggering, setTriggering] = useState(false);
     const [, forceRender] = useState(0);
     const seenIds = useRef(new Set<string>());
 
     const fetchEvents = async () => {
         try {
             const res = await fetch("/api/zema360/events", { cache: "no-store" });
+            if (!res.ok) {
+                setConfigured(false);
+                return;
+            }
             const data = await res.json();
             setConfigured(data.configured !== false);
             if (Array.isArray(data.events)) {
@@ -87,7 +93,25 @@ export default function Zema360LivePage() {
                 data.events.forEach((e: ZemaEvent) => seenIds.current.add(e.id));
             }
             setLastRefresh(new Date());
-        } catch { /* silent */ }
+        } catch {
+            setConfigured(false);
+        }
+    };
+
+    // Trigger a live Gemini query so judges can see an event appear in real time
+    const triggerTestEvent = async () => {
+        setTriggering(true);
+        try {
+            await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName: "iPhone 15 Pro Max", mode: "search", region: "Nigeria" }),
+            });
+            // Give Firebase a moment to receive the log, then refresh
+            setTimeout(fetchEvents, 1500);
+        } catch { /* silent */ } finally {
+            setTriggering(false);
+        }
     };
 
     useEffect(() => {
@@ -185,27 +209,59 @@ export default function Zema360LivePage() {
                             <span className="text-xs text-white/30">Auto-refreshes every 5s</span>
                         </div>
 
-                        {!configured && (
-                            <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-6 text-center">
-                                <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-3" />
-                                <p className="text-sm font-bold text-yellow-300 mb-1">Firebase not yet configured</p>
-                                <p className="text-xs text-white/40">
-                                    Add <code className="bg-white/10 px-1 rounded">FIREBASE_DATABASE_URL</code> and{" "}
-                                    <code className="bg-white/10 px-1 rounded">FIREBASE_DATABASE_SECRET</code> to Vercel env to see live events.
-                                </p>
+                        {configured === null && (
+                            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-10 text-center">
+                                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin mx-auto mb-3" />
+                                <p className="text-white/60 text-sm font-bold">Connecting to live ops…</p>
                             </div>
                         )}
 
-                        {configured && events.length === 0 && (
-                            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-12 text-center">
-                                <div className="flex justify-center mb-4">
-                                    <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-                                    </span>
+                        {configured === false && (
+                            <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-7 text-center">
+                                <Zap className="w-10 h-10 text-yellow-400 mx-auto mb-3" />
+                                <p className="text-base font-black text-yellow-300 mb-2">Firebase not yet configured</p>
+                                <p className="text-sm text-white/50 mb-1">
+                                    Add these to <strong className="text-white/70">Vercel → Settings → Environment Variables</strong>:
+                                </p>
+                                <div className="text-left inline-block mt-3 space-y-2">
+                                    <code className="block text-xs bg-black/40 border border-white/10 px-3 py-2 rounded-lg text-emerald-300">
+                                        FIREBASE_DATABASE_URL = https://your-project.firebaseio.com
+                                    </code>
+                                    <code className="block text-xs bg-black/40 border border-white/10 px-3 py-2 rounded-lg text-emerald-300">
+                                        FIREBASE_DATABASE_SECRET = your_database_secret
+                                    </code>
                                 </div>
-                                <p className="text-white/40 text-sm">Waiting for AI events…</p>
-                                <p className="text-white/20 text-xs mt-1">Events appear when shoppers search or verify prices on FairPrice.ng</p>
+                                <p className="text-xs text-white/30 mt-4">Then redeploy for the changes to take effect.</p>
+                            </div>
+                        )}
+
+                        {configured === true && events.length === 0 && (
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-10 text-center">
+                                <div className="flex justify-center mb-5">
+                                    <div className="relative">
+                                        <span className="animate-ping absolute inline-flex h-10 w-10 rounded-full bg-emerald-400/20" />
+                                        <span className="relative flex h-10 w-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 items-center justify-center">
+                                            <Activity className="w-5 h-5 text-emerald-400" />
+                                        </span>
+                                    </div>
+                                </div>
+                                <p className="text-white text-base font-black mb-1">Connected — waiting for events</p>
+                                <p className="text-white/50 text-sm mb-6">
+                                    Events appear when shoppers search or verify prices on FairPrice.ng.
+                                    <br />Trigger one now to test the live connection:
+                                </p>
+                                <button
+                                    onClick={triggerTestEvent}
+                                    disabled={triggering}
+                                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-sm uppercase tracking-wider hover:opacity-90 transition-all disabled:opacity-50"
+                                >
+                                    {triggering ? (
+                                        <><Loader2 className="w-4 h-4 animate-spin" /> Querying Gemini…</>
+                                    ) : (
+                                        <><Zap className="w-4 h-4" /> Trigger Test Event</>
+                                    )}
+                                </button>
+                                <p className="text-white/25 text-xs mt-4">Fires a live Gemini 2.5 Flash query → logs to Firebase → appears above</p>
                             </div>
                         )}
 
@@ -346,7 +402,7 @@ export default function Zema360LivePage() {
                                                 </div>
                                                 <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                                                     <div
-                                                        className={`h-full rounded-full transition-all duration-700 ${meta.color.replace("text-", "bg-").replace("-400", "-500")}`}
+                                                        className="h-full rounded-full transition-all duration-700 bg-emerald-500"
                                                         style={{ width: `${pct}%` }}
                                                     />
                                                 </div>
