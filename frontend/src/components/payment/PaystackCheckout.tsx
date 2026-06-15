@@ -103,8 +103,8 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     const startPayment = (key: string) => {
         setStep("processing");
 
-        // Demo / mock mode — no real Paystack key
-        if (!key || key === "mock_key") {
+        // Demo / mock mode — no real Paystack key configured
+        if (!key || key === "mock_key" || key.startsWith("pk_test_mock")) {
             runDemoFallback();
             return;
         }
@@ -193,7 +193,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 // 1. Fetch dynamic key
                 const keyRes = await fetch('/api/settings/paystack-key');
                 const keyData = await keyRes.json();
-                const key = keyData.key || "pk_test_mock";
+                const key = keyData.key || "";
                 setDynamicKey(key);
 
                 // 2. Load script
@@ -207,7 +207,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
             } catch (err) {
                 console.error("Paystack init failed:", err);
                 if (autoStart) {
-                    startPayment("pk_test_mock");
+                    startPayment("");
                 } else {
                     setStep("summary");
                 }
@@ -218,7 +218,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     }, [autoStart]);
 
     const initiatePayment = useCallback(() => {
-        startPayment(dynamicKey || "pk_test_mock");
+        startPayment(dynamicKey || "");
     }, [dynamicKey]);
 
     return (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { logZemaEvent } from "@/lib/firebase-log";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -538,6 +539,18 @@ default to NEW from 2024 onwards.
                 }
             }
 
+
+            // Fire-and-forget: log to Firebase (Google Cloud) for ZEMA 360 live ops dashboard
+            logZemaEvent({
+                type: mode === 'search' ? 'gemini_query' : 'price_verified',
+                description: mode === 'search'
+                    ? `Product search: "${productName}"`
+                    : `Price analysis: "${productName}"`,
+                product: productName,
+                mode,
+                model: 'gemini-2.5-flash',
+                count: mode === 'search' ? (parsedData.suggestions?.length || 0) : 1,
+            }).catch(() => {});
 
             return NextResponse.json(parsedData, { headers: { "X-Cache": "MISS" } });
         } catch (parseError) {

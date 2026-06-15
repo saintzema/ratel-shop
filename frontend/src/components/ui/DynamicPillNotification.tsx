@@ -48,6 +48,12 @@ export function DynamicPillNotification() {
 
     // Monitor for global Seller and Buyer notifications
     useEffect(() => {
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+        const debouncedCheck = () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(checkGlobalNotifications, 500);
+        };
+
         const checkGlobalNotifications = () => {
             const sellerId = DataSyncService.getCurrentSellerId();
             const currentUser = DataSyncService.getCurrentUser();
@@ -244,14 +250,15 @@ export function DynamicPillNotification() {
             playDingSound();
         };
 
-        window.addEventListener("sync-store-update", checkGlobalNotifications);
-        window.addEventListener("storage", checkGlobalNotifications);
+        window.addEventListener("sync-store-update", debouncedCheck);
+        window.addEventListener("storage", debouncedCheck);
         window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
         window.addEventListener("fp-admin-broadcast", handleAdminBroadcast);
-        
+
         return () => {
-            window.removeEventListener("sync-store-update", checkGlobalNotifications);
-            window.removeEventListener("storage", checkGlobalNotifications);
+            if (debounceTimer) clearTimeout(debounceTimer);
+            window.removeEventListener("sync-store-update", debouncedCheck);
+            window.removeEventListener("storage", debouncedCheck);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
             window.removeEventListener("fp-admin-broadcast", handleAdminBroadcast);
         };
