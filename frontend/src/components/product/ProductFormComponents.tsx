@@ -78,13 +78,13 @@ export function ProductImageSlot({
                             <Upload className="h-5 w-5 text-indigo-500" />
                         </div>
                         <p className="text-xs font-black text-gray-500 uppercase tracking-widest">{label}</p>
-                        <p className="text-[10px] text-gray-400 mt-1">PNG, JPG, WebP</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Image or Video (MP4, MOV…)</p>
                     </div>
                 )}
                 <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     className="hidden"
                     onChange={onFileSelect}
                 />

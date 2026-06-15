@@ -1,3 +1,4 @@
+import Script from "next/script";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -316,6 +317,22 @@ export function Footer() {
             </div>
           </div>
         </div>
+
+        {/* Google Customer Reviews Badge — lazyOnload so it doesn't block paint */}
+        <Script
+          id="gcr-merchant-widget"
+          src="https://www.gstatic.com/shopping/merchant/merchantwidget.js"
+          strategy="lazyOnload"
+        />
+        <Script id="gcr-merchant-init" strategy="lazyOnload" dangerouslySetInnerHTML={{ __html: `
+          (function poll() {
+            if (window.merchantwidget) {
+              window.merchantwidget.start({ merchant_id: 5760073025, position: 'BOTTOM_RIGHT' });
+            } else {
+              setTimeout(poll, 300);
+            }
+          })();
+        ` }} />
 
         <div className="mt-8 text-center text-[12px] text-gray-400">
           <p>

@@ -1,32 +1,76 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Package, ArrowRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+
+// Extend Window for the Google Customer Reviews API
+declare global {
+    interface Window {
+        renderOptIn?: () => void;
+        gapi?: any;
+    }
+}
 
 function OrderDetails() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const [orderId, setOrderId] = useState("Processing...");
     const [deliveryDate, setDeliveryDate] = useState("Calculating...");
+    const [email, setEmail] = useState("");
+    const [estimatedDate, setEstimatedDate] = useState("");
 
     useEffect(() => {
-        // Read from URL, fallback to random ID if accessing directly
         const paramId = searchParams.get('id') || searchParams.get('order_id');
+        const paramEmail = searchParams.get('email') || '';
+        const paramDate = searchParams.get('date') || '';
+
         if (paramId) {
             setOrderId(paramId);
         } else {
             setOrderId(`ORD-${Math.floor(100000 + Math.random() * 900000)}`);
         }
 
-        // Calculate delivery 4 days from now
-        const date = new Date();
-        date.setDate(date.getDate() + 4);
-        setDeliveryDate(date.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' }));
+        setEmail(paramEmail);
+
+        if (paramDate) {
+            setEstimatedDate(paramDate);
+            const d = new Date(paramDate);
+            setDeliveryDate(d.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' }));
+        } else {
+            const d = new Date();
+            d.setDate(d.getDate() + 4);
+            const iso = d.toISOString().slice(0, 10);
+            setEstimatedDate(iso);
+            setDeliveryDate(d.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric' }));
+        }
     }, [searchParams]);
+
+    // Fire Google Customer Reviews opt-in once we have the required data
+    useEffect(() => {
+        if (orderId === "Processing..." || !estimatedDate) return;
+        // gapi may not be loaded yet — renderOptIn is called by the platform.js onload
+        window.renderOptIn = function () {
+            window.gapi?.load('surveyoptin', function () {
+                window.gapi.surveyoptin.render({
+                    merchant_id: 5760073025,
+                    order_id: orderId,
+                    email: email || undefined,
+                    delivery_country: "NG",
+                    estimated_delivery_date: estimatedDate,
+                });
+            });
+        };
+        // If gapi already loaded before this effect ran, call it now
+        if (typeof window.gapi !== 'undefined') {
+            window.renderOptIn();
+        }
+    }, [orderId, email, estimatedDate]);
 
     return (
         <div className="bg-gray-50 rounded-xl p-4 mb-8 text-left border border-gray-100">
@@ -46,6 +90,12 @@ function OrderDetails() {
 export default function OrderConfirmationPage() {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+            {/* Google Customer Reviews opt-in script */}
+            <Script
+                src="https://apis.google.com/js/platform.js?onload=renderOptIn"
+                strategy="afterInteractive"
+            />
+
             <Navbar />
 
             <main className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
@@ -73,7 +123,7 @@ export default function OrderConfirmationPage() {
                                 Continue Shopping
                             </Button>
                         </Link>
-                        <Link href="/account/orders" hidden> {/* Hidden for now until account page is built */}
+                        <Link href="/account/orders">
                             <Button variant="ghost" className="w-full rounded-xl font-bold h-12 flex items-center gap-2">
                                 View Order History <ArrowRight className="h-4 w-4" />
                             </Button>

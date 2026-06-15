@@ -2708,7 +2708,9 @@ function CheckoutContent() {
                     } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                         setShowPushOptIn(true);
                     } else {
-                        router.push("/account/orders?success=true");
+                        const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
+                        const customerEmail = user?.email || address.email || '';
+                        router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                     }
                 }}
                 product={conciergeProduct}
@@ -2868,7 +2870,9 @@ function CheckoutContent() {
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                             onClick={() => {
                                 setShowPushOptIn(false);
-                                router.push("/account/orders?success=true");
+                                const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
+                                const customerEmail = user?.email || address.email || '';
+                                router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                             }}
                         />
                         <motion.div
@@ -2900,7 +2904,9 @@ function CheckoutContent() {
                                                 }
                                             } catch { /* ignore */ }
                                             setShowPushOptIn(false);
-                                            router.push("/account/orders?success=true");
+                                            const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
+                                            const customerEmail = user?.email || address.email || '';
+                                            router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                                         }}
                                         className="w-full h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-base"
                                     >
