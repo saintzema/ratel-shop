@@ -570,7 +570,11 @@ class DataSyncServiceService {
                             if (localVersion) merged.set(pendingId, localVersion);
                         }
                         
-                        const newDataStr = JSON.stringify(Array.from(merged.values()));
+                        // Cap to 300 items to avoid hitting the 5 MB localStorage quota.
+                        // Full catalog is always available via /api/products — the cap only affects offline cache.
+                        const allMerged = Array.from(merged.values());
+                        const cappedMerged = allMerged.length > 300 ? allMerged.slice(0, 300) : allMerged;
+                        const newDataStr = JSON.stringify(cappedMerged);
                         if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
                             this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
                             window.dispatchEvent(new Event("storage"));

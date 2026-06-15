@@ -1350,7 +1350,7 @@ export default function CatalogControl() {
 
             {/* Edit Modal */}
             <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); setAiError(null); } }}>
-                <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[85vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[85vh] overflow-y-auto md:top-[5vh] md:translate-y-0">
                     <div className="p-8">
                         {aiError && (
                             <div className="flex items-start gap-2 text-sm font-medium text-red-700 bg-red-50 px-4 py-3 rounded-xl border border-red-200 mb-5">

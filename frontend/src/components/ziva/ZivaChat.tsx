@@ -1211,13 +1211,15 @@ export function ZivaChat() {
         reader.readAsDataURL(file);
     };
 
-    // ─── 3D Mouse Tracking ──────────────────────────
+    // ─── 3D Mouse Tracking (desktop only — skip on touch to save CPU) ───
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const mouseTickingRef = useRef(false);
-    
+
     useEffect(() => {
         if (!mounted) return;
-        
+        // Only wire up on devices that actually have a mouse
+        if (typeof window === 'undefined' || window.matchMedia('(hover: none)').matches) return;
+
         const handleMouseMove = (e: MouseEvent) => {
             if (!mouseTickingRef.current) {
                 window.requestAnimationFrame(() => {
@@ -1229,8 +1231,8 @@ export function ZivaChat() {
                 mouseTickingRef.current = true;
             }
         };
-        
-        window.addEventListener("mousemove", handleMouseMove);
+
+        window.addEventListener("mousemove", handleMouseMove, { passive: true });
         return () => {
             window.removeEventListener("mousemove", handleMouseMove);
             mouseTickingRef.current = false;
@@ -1295,12 +1297,29 @@ export function ZivaChat() {
     };
 
     const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
-    const desktopBottom = 48; // 3rem (bottom-12)
+    const desktopBottom = 48;
     const mobileBottom = pathname === "/checkout" ? 280 : 120;
 
-    // When keyboard is open, place container exactly 8px above it
-    const containerBottom = `calc(var(--kb-height, 0px) + ${(isDesktop ? desktopBottom : mobileBottom)}px)`;
+    // Track real keyboard height for mobile full-screen mode
+    const [kbHeight, setKbHeight] = useState(0);
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.visualViewport) return;
+        const update = () => {
+            const vv = window.visualViewport!;
+            setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+        };
+        window.visualViewport.addEventListener('resize', update, { passive: true });
+        window.visualViewport.addEventListener('scroll', update, { passive: true });
+        return () => {
+            window.visualViewport!.removeEventListener('resize', update);
+            window.visualViewport!.removeEventListener('scroll', update);
+        };
+    }, []);
 
+    // On mobile, keyboard open = switch to full-screen mode so nothing is squeezed
+    const kbOpen = !isDesktop && kbHeight > 80;
+
+    const containerBottom = `calc(var(--kb-height, 0px) + ${(isDesktop ? desktopBottom : mobileBottom)}px)`;
     const availableHeightStr = `calc(100dvh - var(--kb-height, 0px) - ${(isDesktop ? desktopBottom + 100 : mobileBottom + 100)}px)`;
 
     return (
@@ -1321,62 +1340,87 @@ export function ZivaChat() {
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        initial={{ opacity: 0, y: kbOpen ? 0 : 20, scale: kbOpen ? 1 : 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        exit={{ opacity: 0, y: kbOpen ? 0 : 20, scale: kbOpen ? 1 : 0.95 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
+                        className={cn(
+                            "flex flex-col overflow-hidden shadow-2xl pointer-events-auto",
+                            kbOpen
+                                // Full-screen mode when keyboard is open on mobile — nothing squeezes
+                                ? "fixed inset-x-0 top-0 rounded-none border-0 z-[1022]"
+                                : "absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none rounded-3xl border border-white/10 origin-bottom-left"
+                        )}
                         style={{
-                            background: "rgba(15, 15, 20, 0.95)",
-                            backdropFilter: "blur(40px) saturate(180%)",
-                            height: availableHeightStr,
-                            maxHeight: '600px'
+                            background: "rgba(15, 15, 20, 0.98)",
+                            // Backdrop blur is GPU-intensive — only on desktop
+                            backdropFilter: isDesktop ? "blur(20px)" : "none",
+                            ...(kbOpen
+                                ? { bottom: kbHeight } // dock to top of keyboard
+                                : { height: availableHeightStr, maxHeight: '600px' })
                         }}
                     >
-                        {/* Header */}
+                        {/* Header — compact when keyboard open to maximise message space */}
                         <div className={cn(
-                            "relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0 transition-all duration-300",
-                            "h-28"
+                            "relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-4 shrink-0 transition-all duration-200",
+                            kbOpen ? "h-12" : "h-28 px-5"
                         )}>
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_70%)]" />
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-25" />
+                            {/* Radial glow — skip on mobile keyboard mode to save paint */}
+                            {!kbOpen && (
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.15),transparent_70%)] pointer-events-none" />
+                            )}
 
-                            <motion.div
-                                className={cn("relative shrink-0 transition-all duration-300", "w-16 h-16")}
-                                animate={{ y: [0, -2, 0] }}
-                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                            >
-                                <motion.img
-                                    src="/assets/images/image_v2.png"
-                                    alt="Ziva AI"
-                                    className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                                    style={{ rotateX: mousePos.y * 5, rotateY: mousePos.x * 5 }}
-                                />
-                            </motion.div>
-
-                            <div className="ml-4 flex-1 relative z-10 overflow-hidden">
-                                <h2 className={cn("text-white font-black tracking-tight transition-all", "text-lg")}>Ziva AI</h2>
-                                {true && (
-                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                        <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
-                                        <div className="flex items-center gap-1.5 mt-1">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                            <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
-                                        </div>
-                                    </motion.div>
+                            {/* Avatar */}
+                            <div className={cn("relative shrink-0", kbOpen ? "w-8 h-8" : "w-16 h-16")}>
+                                {/* Float animation only on desktop — saves GPU on mobile */}
+                                {isDesktop ? (
+                                    <motion.img
+                                        src="/assets/images/image_v2.png"
+                                        alt="Ziva AI"
+                                        className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                                        animate={{ y: [0, -2, 0] }}
+                                        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                                        style={{ rotateX: mousePos.y * 5, rotateY: mousePos.x * 5 }}
+                                    />
+                                ) : (
+                                    <img
+                                        src="/assets/images/image_v2.png"
+                                        alt="Ziva AI"
+                                        className={cn("w-full h-full object-contain", kbOpen ? "rounded-full" : "drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]")}
+                                    />
                                 )}
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95 cursor-pointer">
-                                <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
+                            {/* Name + status */}
+                            <div className={cn("flex-1 relative z-10 overflow-hidden", kbOpen ? "ml-3" : "ml-4")}>
+                                <h2 className={cn("text-white font-black tracking-tight", kbOpen ? "text-sm" : "text-lg")}>Ziva AI</h2>
+                                {!kbOpen && (
+                                    <div>
+                                        <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                            <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {kbOpen && (
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                                        <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button onClick={toggleChat} className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-all active:scale-95 cursor-pointer z-[999] pointer-events-auto">
+                                <X className="h-4 w-4" strokeWidth={3} />
                             </button>
                         </div>
 
                         {/* Messages */}
                         <div
                             ref={messagesAreaRef}
-                            className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
-                            style={{ background: "linear-gradient(180deg, rgba(15,15,20,1) 0%, rgba(10,10,15,1) 100%)" }}
+                            className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+                            style={{ background: "linear-gradient(180deg, rgba(15,15,20,1) 0%, rgba(10,10,15,1) 100%)", overscrollBehavior: "contain" }}
                         >
                             {messages.map((msg, msgIdx) => (
                                 <div key={msg.id} data-role={msg.role} {...(msgIdx === messages.length - 1 ? { "data-last-msg": "true" } : {})} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
@@ -1386,8 +1430,8 @@ export function ZivaChat() {
                                             <div className="flex items-center gap-2 bg-white/5 rounded-2xl rounded-bl-none px-4 py-3 border border-white/5">
                                                 <div className="flex gap-1">
                                                     <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                                                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                                                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                                                    <span className="w-2 h-2 bg-emerald-400/70 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                                                    <span className="w-2 h-2 bg-emerald-400/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                                                 </div>
                                                 <span className="text-xs text-gray-500">{msg.content || "Ziva is thinking..."}</span>
                                             </div>

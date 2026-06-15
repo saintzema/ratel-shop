@@ -1,27 +1,44 @@
 /**
- * Premium Apple-like glass chime notification sound 
+ * Premium Apple-like glass chime notification sound
  * Calming, rich, ~2.5s duration.
  * Generated via Web Audio API for zero latency and high fidelity.
  */
+
+// Shared singleton AudioContext — only created after first user gesture to satisfy autoplay policy.
+// Chrome requires user interaction before AudioContext.resume() succeeds.
+let _sharedCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!AC) return null;
+        if (!_sharedCtx || _sharedCtx.state === 'closed') {
+            _sharedCtx = new AC() as AudioContext;
+        }
+        const ctx = _sharedCtx;
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+        }
+        return ctx;
+    } catch {
+        return null;
+    }
+}
+
 let lastPlayedTime = 0;
 const DING_THROTTLE_MS = 3000; // 3 seconds
 
 export const playDingSound = () => {
     if (typeof window === 'undefined') return;
-    
+
     // Throttle frequency to prevent multiple rapid ringings
     const nowTime = Date.now();
     if (nowTime - lastPlayedTime < DING_THROTTLE_MS) return;
     lastPlayedTime = nowTime;
     try {
-        const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) return;
-        
-        const audioCtx = new AudioContextClass();
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        
+        const audioCtx = getAudioCtx();
+        if (!audioCtx) return;
         const now = audioCtx.currentTime;
         
         // Premium glass chime: C6 base with warm harmonics, higher gain, longer sustain
@@ -91,10 +108,8 @@ export const playMessageReceiveSound = () => {
     if (nowTime - lastMsgToneTime < MSG_TONE_THROTTLE_MS) return;
     lastMsgToneTime = nowTime;
     try {
-        const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) return;
-        const ctx = new AudioContextClass();
-        if (ctx.state === 'suspended') ctx.resume();
+        const ctx = getAudioCtx();
+        if (!ctx) return;
         const now = ctx.currentTime;
 
         // Two soft sine notes (A5 -> D6) for a gentle "swim" rise

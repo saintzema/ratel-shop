@@ -139,46 +139,23 @@ export function Zema360HeroBanner() {
       className="absolute inset-0 overflow-hidden select-none"
       style={{ background: "linear-gradient(135deg, #0a0f1e 0%, #042f2e 55%, #0a0f1e 100%)" }}
     >
-      {/* Animated circuit nodes */}
-      <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.12 }}>
+      {/* Static circuit nodes — no per-node CSS animation to keep GPU load low */}
+      <svg className="absolute inset-0 w-full h-full" style={{ opacity: 0.1 }}>
         {NODES.map((n, i) => (
-          <circle
-            key={i}
-            cx={`${n.x}%`}
-            cy={`${n.y}%`}
-            r={n.r}
-            fill="#10b981"
-            style={{
-              animation: `zemaPulse ${1.4 + (i % 3) * 0.4}s ease-in-out infinite`,
-              animationDelay: `${i * 0.18}s`,
-            }}
-          />
+          <circle key={i} cx={`${n.x}%`} cy={`${n.y}%`} r={n.r} fill="#10b981" />
         ))}
         {NODES.slice(0, 8).map((n, i) => {
           const next = NODES[(i + 2) % NODES.length];
           return (
-            <line
-              key={`l${i}`}
-              x1={`${n.x}%`} y1={`${n.y}%`}
-              x2={`${next.x}%`} y2={`${next.y}%`}
-              stroke="#10b981" strokeWidth="0.5"
-            />
+            <line key={`l${i}`} x1={`${n.x}%`} y1={`${n.y}%`} x2={`${next.x}%`} y2={`${next.y}%`} stroke="#10b981" strokeWidth="0.5" />
           );
         })}
       </svg>
 
       <style>{`
-        @keyframes zemaPulse {
-          0%,100% { opacity:.3; transform:scale(1); }
-          50% { opacity:1; transform:scale(1.6); }
-        }
         @keyframes zemaFloat {
           0%,100% { transform:translateY(0); }
           50% { transform:translateY(-4px); }
-        }
-        @keyframes brandScroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
         }
         @keyframes flashGlow {
           0%,100% { box-shadow: 0 0 0px rgba(250,204,21,0); }
@@ -194,38 +171,52 @@ export function Zema360HeroBanner() {
         }
       `}</style>
 
-      <div className="absolute inset-0 flex flex-col p-4 md:p-7 pb-16 md:pb-7">
-        {/* Top row: branding + pipeline */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span
-                className="text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2 md:px-3 py-0.5 border"
-                style={{
-                  color: "#34d399",
-                  borderColor: "rgba(52,211,153,0.4)",
-                  background: "rgba(52,211,153,0.08)",
-                  opacity: pulse ? 1 : 0.55,
-                  transition: "opacity 0.4s",
-                }}
-              >
-                ⚡ AI-POWERED
-              </span>
-              <span className="hidden md:inline text-gray-500 text-[9px] font-bold uppercase tracking-widest">
-                Powered by Qwen · Alibaba Cloud
-              </span>
-            </div>
-            <h2 className="text-white font-black leading-none tracking-tight" style={{ fontSize: "clamp(1.25rem,3vw,2rem)" }}>
-              ZEMA<span style={{ color: "#10b981" }}>360</span>
-            </h2>
-            <p className="text-gray-400 text-[10px] md:text-sm font-medium mt-0.5">
-              Autonomous Commerce OS
-            </p>
+      {/* Two-column layout: branding LEFT · pipeline+metrics+CTA RIGHT */}
+      <div className="absolute inset-0 flex items-stretch p-4 md:p-6 pb-20 md:pb-6 gap-3 md:gap-6">
+
+        {/* ── LEFT: Brand identity ── */}
+        <div className="flex flex-col justify-center flex-1 min-w-0">
+          {/* Badge row */}
+          <div className="flex items-center gap-2 mb-2 md:mb-3">
+            <span
+              className="text-[8px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2 md:px-3 py-0.5 border whitespace-nowrap"
+              style={{
+                color: "#34d399",
+                borderColor: "rgba(52,211,153,0.4)",
+                background: "rgba(52,211,153,0.08)",
+                opacity: pulse ? 1 : 0.55,
+                transition: "opacity 0.4s",
+              }}
+            >
+              ⚡ AI-POWERED
+            </span>
           </div>
 
-          {/* Pipeline visualization — desktop only */}
-          <div className="hidden md:flex flex-col gap-1 items-end">
-            <span className="text-gray-500 text-[8px] font-black uppercase tracking-widest mb-0.5">Live Pipeline</span>
+          {/* Title */}
+          <h2
+            className="text-white font-black leading-none tracking-tight mb-1"
+            style={{ fontSize: "clamp(1.4rem,3.5vw,2.2rem)" }}
+          >
+            ZEMA<span style={{ color: "#10b981" }}>360</span>
+          </h2>
+
+          {/* Subtitle */}
+          <p className="font-black uppercase tracking-widest mb-1.5 md:mb-2" style={{ color: "#34d399", fontSize: "clamp(7px,1.1vw,10px)" }}>
+            Autonomous e-Commerce OS
+          </p>
+
+          {/* Tagline */}
+          <p className="text-gray-400 font-medium leading-snug" style={{ fontSize: "clamp(8px,1.1vw,12px)", maxWidth: "22ch" }}>
+            AI agents that handle every order, escrow & payout — fully hands-free.
+          </p>
+        </div>
+
+        {/* ── RIGHT: Pipeline · Metrics · CTA ── */}
+        <div className="flex flex-col justify-between items-end flex-shrink-0" style={{ minWidth: "min(42%,160px)" }}>
+
+          {/* Live pipeline — compact vertical list */}
+          <div className="flex flex-col gap-[3px] items-end">
+            <span className="text-gray-500 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-0.5">Live Pipeline</span>
             {PIPELINE.map((p, i) => (
               <div
                 key={p.label}
@@ -236,58 +227,52 @@ export function Zema360HeroBanner() {
                   transition: "all 0.4s ease",
                 }}
               >
+                <span className="text-[8px] md:text-[9px] font-bold" style={{ color: i === step ? p.color : "#6b7280" }}>
+                  {p.label}
+                </span>
                 <div
-                  className="rounded-full"
+                  className="rounded-full flex-shrink-0"
                   style={{
-                    width: 6, height: 6,
+                    width: 5, height: 5,
                     background: i === step ? p.color : "#374151",
-                    boxShadow: i === step ? `0 0 8px ${p.color}` : "none",
+                    boxShadow: i === step ? `0 0 6px ${p.color}` : "none",
                     transition: "all 0.4s ease",
                   }}
                 />
-                <span className="text-[9px] font-bold" style={{ color: i === step ? p.color : "#6b7280" }}>
-                  {p.label}
-                </span>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Middle row: CTA (left) + metrics (right) — vertically centered in remaining space */}
-        <div className="flex-1 flex items-center justify-between mt-3">
-          <div>
-            <p className="text-gray-500 text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-2">
-              Why sellers choose ZEMA360
-            </p>
-            <a
-              href="/zema360"
-              onClick={e => e.stopPropagation()}
-              className="font-black uppercase tracking-widest rounded-full transition-all active:scale-95 inline-block"
-              style={{
-                background: "linear-gradient(135deg,#10b981,#059669)",
-                color: "#fff",
-                fontSize: "clamp(8px,1.2vw,11px)",
-                padding: "7px 18px",
-                boxShadow: "0 8px 20px -4px rgba(16,185,129,0.45)",
-              }}
-            >
-              GET ACCESS →
-            </a>
-          </div>
-
-          {/* Metrics — right side */}
-          <div className="flex items-center gap-3 md:gap-6">
+          {/* Metrics */}
+          <div className="flex flex-col items-end gap-1.5 md:gap-2">
             {[
-              { val: "23s", sub: "Order→Payout", color: "#10b981", delay: "0s" },
-              { val: "3×",  sub: "Profit Margin", color: "#fff",    delay: "0.4s" },
-              { val: "99.7%", sub: "Accuracy",    color: "#a78bfa", delay: "0.8s" },
+              { val: "23s",   sub: "Order→Payout", color: "#10b981", delay: "0s"   },
+              { val: "3×",    sub: "Profit Margin", color: "#fff",    delay: "0.4s" },
+              { val: "99.7%", sub: "Accuracy",      color: "#a78bfa", delay: "0.8s" },
             ].map(({ val, sub, color, delay }) => (
-              <div key={sub} style={{ animation: `zemaFloat 2.5s ease-in-out infinite`, animationDelay: delay }}>
-                <div className="font-black" style={{ color, fontSize: "clamp(1rem,2.5vw,1.5rem)" }}>{val}</div>
-                <div className="text-gray-500 text-[7px] md:text-[8px] font-bold uppercase tracking-wider">{sub}</div>
+              <div key={sub} className="text-right" style={{ animation: `zemaFloat 2.5s ease-in-out infinite`, animationDelay: delay }}>
+                <div className="font-black leading-none" style={{ color, fontSize: "clamp(0.85rem,1.8vw,1.2rem)" }}>{val}</div>
+                <div className="text-gray-500 font-bold uppercase tracking-wider" style={{ fontSize: "clamp(5px,0.8vw,7px)" }}>{sub}</div>
               </div>
             ))}
           </div>
+
+          {/* GET ACCESS button */}
+          <a
+            href="/zema360"
+            onClick={e => e.stopPropagation()}
+            className="font-black uppercase tracking-widest rounded-full transition-all active:scale-95 text-center"
+            style={{
+              background: "linear-gradient(135deg,#10b981,#059669)",
+              color: "#fff",
+              fontSize: "clamp(7px,1vw,10px)",
+              padding: "6px 14px",
+              boxShadow: "0 8px 20px -4px rgba(16,185,129,0.45)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            GET ACCESS →
+          </a>
         </div>
       </div>
     </div>
@@ -490,23 +475,27 @@ export function NewArrivalsBanner() {
 
 /* ─── Top Brands Ad Slot ─── */
 export function TopBrandsBanner() {
-  const [activeIdx, setActiveIdx] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setActiveIdx(i => (i + 1) % BRAND_KEYS.length), 1800);
-    return () => clearInterval(t);
-  }, []);
-
-  // Show 4 brands in a 2×2 grid, cycling through all 8
-  const page = Math.floor(activeIdx / 4);
-  const groupStart = (page % 2) * 4;
-  const visible = BRAND_KEYS.slice(groupStart, groupStart + 4);
+  // Pair brands into rows of 2 for vertical scroll
+  const pairs: [string, string][] = [];
+  for (let i = 0; i < BRAND_KEYS.length; i += 2) {
+    pairs.push([BRAND_KEYS[i], BRAND_KEYS[(i + 1) % BRAND_KEYS.length]]);
+  }
+  // Duplicate for seamless infinite loop: animate translateY(0) → translateY(-50%)
+  const allPairs = [...pairs, ...pairs];
+  const duration = pairs.length * 1.6; // seconds for one full cycle
 
   return (
     <div
       className="absolute inset-0 flex flex-col overflow-hidden select-none"
       style={{ background: "#f8fafc" }}
     >
+      <style>{`
+        @keyframes brandScrollUp {
+          0%   { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+      `}</style>
+
       {/* Header strip */}
       <div style={{
         background: "linear-gradient(90deg, #0f172a 0%, #1e293b 100%)",
@@ -530,61 +519,59 @@ export function TopBrandsBanner() {
         }}>Official Sellers ✓</span>
       </div>
 
-      {/* Brand grid */}
-      <div style={{
-        flex: 1,
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gridTemplateRows: "1fr 1fr",
-        gap: 3,
-        padding: 6,
-      }}>
-        {visible.map((brand) => {
-          const { bg, svg } = BrandLogos[brand];
-          return (
+      {/* Vertical scrolling brand rows — 2 per row, peek of next row below */}
+      <div style={{ flex: 1, overflow: "hidden", position: "relative", padding: "4px 6px 0" }}>
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          animation: `brandScrollUp ${duration}s linear infinite`,
+        }}>
+          {allPairs.map(([b1, b2], idx) => (
             <div
-              key={brand}
+              key={idx}
               style={{
-                borderRadius: 8,
-                background: bg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "4px 6px",
-                overflow: "hidden",
-                cursor: "pointer",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                boxShadow: "0 1px 6px rgba(0,0,0,0.12)",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 4,
+                height: 52,
+                flexShrink: 0,
               }}
             >
-              <div style={{ width: "80%", height: "65%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {svg}
-              </div>
+              {[b1, b2].map(brand => {
+                const { bg, svg } = BrandLogos[brand];
+                return (
+                  <div
+                    key={`${idx}-${brand}`}
+                    style={{
+                      borderRadius: 8,
+                      background: bg,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      boxShadow: "0 1px 6px rgba(0,0,0,0.12)",
+                    }}
+                  >
+                    <div style={{ width: "80%", height: "65%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {svg}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {/* Explore link */}
+      {/* Footer */}
       <div style={{
         padding: "4px 8px 6px",
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "flex-end",
         flexShrink: 0,
       }}>
-        {/* Pagination dots */}
-        <div style={{ display: "flex", gap: 3 }}>
-          {[0, 1].map(i => (
-            <div key={i} style={{
-              width: page % 2 === i ? 12 : 5,
-              height: 4,
-              borderRadius: 2,
-              background: page % 2 === i ? "#10b981" : "#cbd5e1",
-              transition: "all 0.35s ease",
-            }}/>
-          ))}
-        </div>
         <span style={{
           fontSize: "clamp(6px,1.1vw,8px)",
           fontWeight: 700,
@@ -636,25 +623,23 @@ export function ZivaAIBanner() {
         pointerEvents: "none",
       }}/>
 
-      {/* Ziva avatar */}
+      {/* Ziva avatar — same image used in the Ziva chat FAB */}
       <div style={{
-        width: 36,
-        height: 36,
+        width: 48,
+        height: 48,
         borderRadius: "50%",
-        background: "linear-gradient(135deg,rgba(16,185,129,0.2),rgba(5,150,105,0.3))",
-        border: "2px solid rgba(52,211,153,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        border: "2px solid rgba(52,211,153,0.6)",
         marginBottom: 6,
-        boxShadow: "0 0 16px rgba(16,185,129,0.3)",
+        boxShadow: "0 0 20px rgba(16,185,129,0.4)",
+        overflow: "hidden",
+        flexShrink: 0,
+        background: "#021f17",
       }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" fill="#34d399" opacity="0"/>
-          <circle cx="12" cy="12" r="4" fill="#34d399"/>
-          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
-        </svg>
-        <span style={{ fontSize: 15, fontWeight: 900, color: "#34d399", position: "absolute" }}>Z</span>
+        <img
+          src="/assets/images/image_v2.png"
+          alt="Ziva AI"
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }}
+        />
       </div>
 
       {/* Name */}
