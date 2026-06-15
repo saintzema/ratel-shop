@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
-  Bot,
   Package,
   Truck,
   DollarSign,
@@ -219,8 +219,8 @@ export default function Zema360Page() {
       <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/5 bg-[#030712]/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center">
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0">
+              <Image src="/assets/images/zema-ai-logo.png" alt="Zema AI Logo" width={32} height={32} className="w-full h-full object-cover" />
             </div>
             <span className="font-black text-sm tracking-tight">
               Zema<span className="text-emerald-400">360</span>
@@ -347,8 +347,8 @@ export default function Zema360Page() {
               {/* WhatsApp mockup */}
               <div className="max-w-sm mx-auto md:mx-0 bg-[#0a1929] rounded-3xl p-5 border border-white/5 font-mono text-sm">
                 <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-emerald-400" />
+                  <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                    <Image src="/assets/images/zema-ai-logo.png" alt="Zema AI" width={32} height={32} className="w-full h-full object-cover" />
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white">ZEMA 360</div>
