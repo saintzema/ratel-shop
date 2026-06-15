@@ -751,11 +751,29 @@ model WhatsAppNegotiationSession {
   negotiationId   String
   sellerPhone     String
   customerPhone   String?
-  lastMessageId   String?  // WhatsApp message ID to track replies
+  lastMessageId   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@unique([sellerPhone, negotiationId])
   @@index([sellerPhone])
   @@index([lastMessageId])
+}
+
+// Manual revenue log for payments received outside the Paystack escrow flow
+// (bank transfers, cash, USSD). Used as XPRIZE revenue evidence.
+model OfflineTransaction {
+  id              String   @id @default(cuid())
+  amount          Float                          // NGN
+  description     String                         // what was sold / service rendered
+  buyerName       String
+  paymentMethod   String   @default("bank_transfer") // bank_transfer | cash | ussd | pos
+  bankReference   String?                        // bank transaction ID / receipt number
+  evidenceNote    String?                        // judge-facing context note
+  transactionDate DateTime                       // when payment was received
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([transactionDate])
+  @@map("offline_transactions")
 }
