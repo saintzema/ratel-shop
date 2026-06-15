@@ -13,6 +13,7 @@ import { CATEGORIES } from "@/lib/types";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
+import { upload } from "@vercel/blob/client";
 
 function NewProductContent() {
     const router = useRouter();
@@ -373,18 +374,42 @@ function NewProductContent() {
         reader.readAsDataURL(file);
     };
 
+    // Uploads any media file: images go through canvas compression, videos upload
+    // directly to Vercel Blob via a client-side token (no function body-size limit).
+    const uploadMedia = async (file: File, onDone: (url: string) => void) => {
+        if (file.type.startsWith("video/")) {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const ext = file.name.split(".").pop() || "mp4";
+                const filename = `product-videos/${Date.now()}.${ext}`;
+                const blob = await upload(filename, file, {
+                    access: "public",
+                    handleUploadUrl: "/api/upload",
+                    clientPayload: token || undefined,
+                });
+                onDone(blob.url);
+            } catch (err: any) {
+                alert(`Video upload failed: ${err?.message || "Unknown error"}. Try a smaller file or use a video URL instead.`);
+            }
+        } else {
+            compressImage(file, onDone);
+        }
+    };
+
     const handleMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) compressImage(file, (url) => setFormData(prev => ({ ...prev, image_url: url })));
+        if (file) uploadMedia(file, (url) => setFormData(prev => ({ ...prev, image_url: url })));
     };
 
     const handleGalleryImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            compressImage(file, (url) => {
-                const newImages = [...formData.images];
-                newImages[index] = url;
-                setFormData(prev => ({ ...prev, images: newImages }));
+            uploadMedia(file, (url) => {
+                setFormData(prev => {
+                    const newImages = [...prev.images];
+                    newImages[index] = url;
+                    return { ...prev, images: newImages };
+                });
             });
         }
     };
@@ -609,7 +634,7 @@ function NewProductContent() {
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
-                                <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid. Up to 8 images.</p>
+                                <p className="text-sm text-gray-500 mt-1">Upload photos or videos, or paste direct links. Add a still image + a product video — shoppers see the image and the video plays on hover.</p>
                             </div>
                         </div>
 
@@ -625,15 +650,13 @@ function NewProductContent() {
                                         }}
                                         onFileSelect={(e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) {
-                                                const reader = new FileReader();
-                                                reader.onload = (ev) => {
-                                                    const next = [...formData.images];
-                                                    next[i] = ev.target?.result as string;
-                                                    setFormData(prev => ({ ...prev, images: next }));
-                                                };
-                                                reader.readAsDataURL(file);
-                                            }
+                                            if (file) uploadMedia(file, (url) => {
+                                                setFormData(prev => {
+                                                    const next = [...prev.images];
+                                                    next[i] = url;
+                                                    return { ...prev, images: next };
+                                                });
+                                            });
                                         }}
                                         className="mb-0"
                                     />
@@ -853,15 +876,13 @@ function NewProductContent() {
                                                 }}
                                                 onFileSelect={(e) => {
                                                     const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (ev) => {
-                                                            const next = [...formData.variants];
-                                                            next[index].image_url = ev.target?.result as string;
-                                                            setFormData(p => ({ ...p, variants: next }));
-                                                        };
-                                                        reader.readAsDataURL(file);
-                                                    }
+                                                    if (file) uploadMedia(file, (url) => {
+                                                        setFormData(p => {
+                                                            const next = [...p.variants];
+                                                            next[index] = { ...next[index], image_url: url };
+                                                            return { ...p, variants: next };
+                                                        });
+                                                    });
                                                 }}
                                                 className="mb-0 w-full rounded-lg"
                                             />
