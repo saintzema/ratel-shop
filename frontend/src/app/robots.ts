@@ -16,6 +16,8 @@ const COMMON_DISALLOW = [
   '/reset-password',
   '/order-confirmation',
   '/search', // infinite/duplicate query URLs — keep out of the index
+  '/_next/static/', // JS/CSS bundle chunks — not indexable content
+  '/_next/data/',   // RSC JSON payloads — not indexable content
 ]
 
 export default function robots(): MetadataRoute.Robots {
