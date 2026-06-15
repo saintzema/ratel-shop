@@ -164,6 +164,42 @@ export default async function ProductPage({ params }: Props) {
         { date: '2026-02-01', price: avgPrice }
     ];
 
+    // Extract color from product name suffix (e.g. "iPhone 15 Pro Max — Natural Titanium")
+    const productName = productDetails?.name || '';
+    const colorMatch = productName.match(/[—–-]\s*([A-Za-z][A-Za-z\s]{2,30})$/);
+    const extractedColor = colorMatch ? colorMatch[1].trim() : null;
+
+    // Map product specs to schema.org additionalProperty (what GMC reads for
+    // Front/Rear Camera Resolution, RAM, Screen Size, Screen Resolution, Weight, etc.)
+    const specs = (productDetails as any)?.specs as Record<string, string> | null | undefined;
+    const GMC_SPEC_MAP: Record<string, string> = {
+        'RAM':                  'RAM',
+        'Storage':              'Storage Capacity',
+        'Camera':               'Rear Camera Resolution',
+        'Front Camera':         'Front Camera Resolution',
+        'Screen Size':          'Screen Size',
+        'Display Size':         'Screen Size',
+        'Screen Resolution':    'Screen Resolution',
+        'Display Resolution':   'Screen Resolution',
+        'Weight':               'Weight',
+        'Battery':              'Battery Capacity',
+        'Processor':            'Processor',
+        'CPU Model':            'Processor',
+        'Connectivity':         'Connectivity',
+        'Operating System':     'Operating System',
+        'OS':                   'Operating System',
+        'Water Resistance':     'Water Resistance',
+    };
+    const additionalProperty = specs
+        ? Object.entries(specs)
+            .filter(([, v]) => v && String(v).trim())
+            .map(([k, v]) => ({
+                '@type': 'PropertyValue',
+                name: GMC_SPEC_MAP[k] || k,
+                value: String(v).trim(),
+            }))
+        : undefined;
+
     const jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -171,9 +207,11 @@ export default async function ProductPage({ params }: Props) {
         image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://www.fairprice.ng/logo.png',
         description: productDetails?.description || 'Price verification and secure marketplace for premium products in Nigeria.',
         sku: productDetails?.id,
+        ...(extractedColor ? { color: extractedColor } : {}),
+        ...(additionalProperty?.length ? { additionalProperty } : {}),
         brand: {
             '@type': 'Brand',
-            name: 'FairPrice Shop Negotiate & Verify Market Prices'
+            name: (specs?.Brand) || 'FairPrice Shop',
         },
         offers: {
             '@type': 'Offer',
