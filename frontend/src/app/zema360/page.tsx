@@ -21,6 +21,7 @@ import {
   Cpu,
   Network,
   BarChart3,
+  Activity,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -432,11 +433,43 @@ export default function Zema360Page() {
           </div>
         </section>
 
-        {/* ── Qwen + Alibaba badge ── */}
+        {/* ── Live Ops Dashboard CTA ── */}
+        <section className="max-w-7xl mx-auto px-6 pb-16">
+          <div className="rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-teal-600/5 p-8 md:p-10 flex flex-col md:flex-row items-center gap-6">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Live Now</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Watch AI run the business in real time</h3>
+              <p className="text-sm text-white/50 max-w-md">
+                Every Gemini price query, order verification, and ZEMA agent decision — visible as it happens.
+                Powered by Gemini 2.5 Flash + Google Firebase Realtime Database.
+              </p>
+            </div>
+            <Link
+              href="/zema360/live"
+              className="flex-shrink-0 flex items-center gap-2 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black text-sm uppercase tracking-wider hover:opacity-90 transition-all shadow-xl shadow-emerald-500/25 whitespace-nowrap"
+            >
+              <Activity className="w-4 h-4" /> Open Live Dashboard
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Tech stack badges ── */}
         <section className="max-w-7xl mx-auto px-6 pb-24">
-          <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-8 md:p-10 text-center">
-            <div className="text-xs font-bold text-emerald-400/60 uppercase tracking-widest mb-3">Built on</div>
+          <div className="rounded-3xl border border-white/8 bg-white/[0.02] p-8 md:p-10 text-center">
+            <div className="text-xs font-bold text-white/30 uppercase tracking-widest mb-5">Built on</div>
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-white/50 font-bold">
+              <span className="text-blue-400">Gemini 2.5 Flash</span>
+              <span className="text-white/20">·</span>
+              <span className="text-blue-400/70">Google Search Grounding</span>
+              <span className="text-white/20">·</span>
+              <span className="text-blue-400/60">Firebase Realtime DB</span>
+              <span className="text-white/20">·</span>
               <span>Qwen qwen3-max</span>
               <span className="text-white/20">·</span>
               <span>Qwen qwen3-vl-plus</span>
@@ -447,9 +480,9 @@ export default function Zema360Page() {
               <span className="text-white/20">·</span>
               <span>Alibaba OSS</span>
             </div>
-            <p className="text-white/30 text-xs mt-4 max-w-lg mx-auto">
-              Agent orchestrator runs on Alibaba Cloud Function Compute in Singapore.
-              All documents and seller memory files stored on Alibaba OSS.
+            <p className="text-white/25 text-xs mt-4 max-w-lg mx-auto">
+              Gemini handles all price intelligence on FairPrice.ng. ZEMA agents run on Alibaba Cloud Function Compute.
+              Live event logs stream to Firebase Realtime Database (Google Cloud).
             </p>
           </div>
         </section>
