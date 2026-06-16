@@ -226,11 +226,11 @@ export function Zema360HeroBanner() {
             onClick={e => e.stopPropagation()}
             className="self-start font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03]"
             style={{
-              background: "linear-gradient(135deg,#10b981,#059669)",
-              color: "#fff",
+              background: "linear-gradient(135deg,#DAA520,#FFD700)",
+              color: "#111",
               fontSize: "clamp(10px,1.2vw,13px)",
               padding: "clamp(7px,1vw,10px) clamp(14px,2vw,20px)",
-              boxShadow: "0 6px 22px -4px rgba(16,185,129,0.55), 0 0 0 1px rgba(52,211,153,0.2)",
+              boxShadow: "0 6px 22px -4px rgba(218,165,32,0.55), 0 0 0 1px rgba(255,215,0,0.3)",
               whiteSpace: "nowrap",
               zIndex: 10,
               position: "relative",

@@ -320,7 +320,7 @@ function HomeContent() {
                   </div>
 
                   {/* Buttons Overlay — Centered Bottom on Mobile, Center-Right on Desktop (clear of right metrics column) */}
-                  <div className="absolute z-30 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-3 bottom-4 md:bottom-auto left-0 right-0 md:left-auto md:right-48 md:top-1/2 md:-translate-y-1/2 px-4 md:px-0">
+                  <div className="absolute z-30 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-3 bottom-4 md:bottom-auto left-0 right-0 md:left-auto md:right-44 md:top-1/2 md:-translate-y-1/2 px-4 md:px-0">
                     <Button
                       size="lg"
                       className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-gradient-to-b from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white font-black text-[10px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(16,185,129,0.5)] border border-emerald-400/50 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"

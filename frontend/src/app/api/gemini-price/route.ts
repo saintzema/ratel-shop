@@ -5,9 +5,58 @@ import { logZemaEvent } from "@/lib/firebase-log";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
+// ─── Qwen fallback (Alibaba DashScope) ───
+// When Gemini is billing-blocked, Qwen takes over with enable_search for
+// real-time internet data. Same prompt, same JSON output format.
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
+const QWEN_BASE = process.env.QWEN_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+
+async function tryQwenSearch(prompt: string): Promise<Response | null> {
+    if (!DASHSCOPE_API_KEY) return null;
+    try {
+        const res = await fetch(`${QWEN_BASE}/chat/completions`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${DASHSCOPE_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: "qwen-plus",          // cheaper tier, supports enable_search
+                messages: [{ role: "user", content: prompt }],
+                enable_search: true,          // Qwen real-time internet search
+                result_format: "message",
+            }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const text: string = data.choices?.[0]?.message?.content ?? "";
+        if (!text) return null;
+        // Wrap in Gemini-shaped envelope so the existing parse pipeline works unchanged
+        return new Response(
+            JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }),
+            { status: 200, headers: { "Content-Type": "application/json", "X-Provider": "qwen" } }
+        );
+    } catch {
+        return null;
+    }
+}
+
 // Server-side cache TTL: 24h. Dramatically reduces Gemini quota consumption
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// ─── In-memory IP rate limiter ───
+// Limits each IP to 10 Gemini calls per minute. Prevents runaway bots from
+// draining the Gemini spend cap. Resets automatically each window.
+const _rl = new Map<string, { n: number; t: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const e = _rl.get(ip);
+    if (!e || now - e.t > 60_000) { _rl.set(ip, { n: 1, t: now }); return true; }
+    if (e.n >= 10) return false;
+    e.n++;
+    return true;
+}
 
 // ─── Server-Side Image Hydration Engine ───
 // Mirrors /api/product-image logic but callable directly without HTTP roundtrip.
@@ -117,6 +166,16 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
     }
 
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+        ?? req.headers.get("x-real-ip")
+        ?? "unknown";
+    if (!checkRateLimit(ip)) {
+        return NextResponse.json(
+            { error: "Too many requests. Please wait a moment before searching again." },
+            { status: 429 }
+        );
+    }
+
     try {
         const { productName, region, mode = "analyze", anchorPrice, category } = await req.json();
 
@@ -130,9 +189,24 @@ export async function POST(req: Request) {
         try {
             const cached = await db.searchCache.findUnique({ where: { query: cacheKey } });
             if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL_MS) {
-                return NextResponse.json(cached.products as any, {
-                    headers: { "X-Cache": "HIT" }
-                });
+                const cachedProducts = cached.products as any;
+                // Treat cached zero-result search responses as misses — they indicate a
+                // previous Gemini failure or filter-out; force a fresh call.
+                const isEmptySearchCache = mode === "search" && (cachedProducts?.suggestions?.length ?? 0) === 0;
+                if (!isEmptySearchCache) {
+                    // Log the cache hit to Firebase so the live dashboard stays active
+                    logZemaEvent({
+                        type: mode === 'search' ? 'gemini_query' : 'price_verified',
+                        description: mode === 'search'
+                            ? `Product search (cached): "${productName}"`
+                            : `Price analysis (cached): "${productName}"`,
+                        product: productName,
+                        mode,
+                        model: 'gemini-2.5-flash',
+                        count: mode === 'search' ? (cachedProducts?.suggestions?.length || 0) : 1,
+                    }).catch(() => {});
+                    return NextResponse.json(cachedProducts, { headers: { "X-Cache": "HIT" } });
+                }
             }
         } catch (cacheErr) {
             // Cache read failure must never block the live path
@@ -300,12 +374,16 @@ default to NEW from 2024 onwards.
             `;
         }
 
-        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
-        const fetchWithRetry = async (attempt = 0, useGrounding = true): Promise<Response> => {
+        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM).
+        // Grounding (google_search) is a billing multiplier — only enable it for
+        // deep-analyze mode where real-time web prices are essential. Search-mode
+        // suggestions come from Gemini's trained knowledge which is accurate enough
+        // and ~40% cheaper without grounding.
+        const fetchWithRetry = async (attempt = 0, useGrounding = mode === "analyze"): Promise<Response> => {
             const body: any = {
                 contents: [{ parts: [{ text: prompt }] }]
             };
-            
+
             // Only use grounding if specified (to allow fallback when grounding hits limits)
             if (useGrounding) {
                 body.tools = [{ google_search: {} }];
@@ -317,11 +395,16 @@ default to NEW from 2024 onwards.
                 body: JSON.stringify(body)
             });
 
-            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
+            // Retry on 429 (rate limit) or 503 (overloaded) up to 5 times,
+            // but fail fast if the 429 is a billing/spend-cap block (no retries will help).
             if ((res.status === 429 || res.status === 503) && attempt < 5) {
+                const errText = await res.clone().text().catch(() => "");
+                const isBillingBlock = /quota|billing|spend.?cap|payment|budget/i.test(errText);
+                if (isBillingBlock) return res; // fail fast — retrying won't help
+
                 const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 await new Promise(r => setTimeout(r, backoffMs));
-                
+
                 // If we've hit 429 multiple times with grounding, try one without grounding as a last resort
                 const nextUseGrounding = (attempt >= 3 && res.status === 429) ? false : useGrounding;
                 return fetchWithRetry(attempt + 1, nextUseGrounding);
@@ -329,19 +412,28 @@ default to NEW from 2024 onwards.
             return res;
         };
 
-        const response = await fetchWithRetry();
+        let response = await fetchWithRetry();
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", response.status, errorText);
-            // Surface Gemini's rate limit clearly to the client
-            if (response.status === 429) {
-                return NextResponse.json(
-                    { error: "AI search is currently busy. Please try again in 30 seconds." },
-                    { status: 429 }
-                );
+            console.warn(`Gemini unavailable (${response.status}); attempting Qwen fallback.`);
+
+            // Qwen is fallback for ANY Gemini failure — billing block, rate limit, 5xx outage.
+            // When the Google bill is settled and Gemini returns 200 again, this block is
+            // never entered and Qwen is never called.
+            const qwenRes = await tryQwenSearch(prompt);
+            if (qwenRes) {
+                response = qwenRes; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
+            } else {
+                console.error("Gemini API Error:", response.status, errorText);
+                if (response.status === 429) {
+                    return NextResponse.json(
+                        { error: "AI search is currently busy. Please try again in 30 seconds." },
+                        { status: 429 }
+                    );
+                }
+                return NextResponse.json({ error: "Failed to fetch from AI provider" }, { status: response.status });
             }
-            return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
         }
 
         const data = await response.json();
@@ -513,11 +605,16 @@ default to NEW from 2024 onwards.
             }
 
             // ─── WRITE THROUGH TO SERVER CACHE (fire-and-forget) ───
-            db.searchCache.upsert({
-                where: { query: cacheKey },
-                create: { query: cacheKey, products: parsedData as any },
-                update: { products: parsedData as any },
-            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+            // Skip caching zero-result search responses — an empty result set
+            // would poison the cache for 24h, making all subsequent queries return nothing.
+            const shouldCache = !(mode === "search" && parsedData.suggestions?.length === 0);
+            if (shouldCache) {
+                db.searchCache.upsert({
+                    where: { query: cacheKey },
+                    create: { query: cacheKey, products: parsedData as any },
+                    update: { products: parsedData as any },
+                }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+            }
 
             // ─── FIRE-AND-FORGET: Backfill DB product images ───
             // SAFETY: Only updates global-partners products that CURRENTLY have a

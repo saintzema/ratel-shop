@@ -1157,7 +1157,7 @@ export function Navbar() {
                                                     <div className="flex items-center gap-2">
                                                         <Search className="h-3.5 w-3.5 text-gray-400 group-hover:text-brand-green-600 transition-colors" />
                                                         <span dangerouslySetInnerHTML={{
-                                                            __html: suggestion.replace(new RegExp(searchQuery.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                                            __html: suggestion.replace(new RegExp(searchQuery.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
                                                         }} />
                                                     </div>
                                                 </button>
