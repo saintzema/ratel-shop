@@ -216,11 +216,30 @@ export function Zema360HeroBanner() {
           </h2>
 
           {/* Subtitle */}
-          <p className="font-black uppercase tracking-widest" style={{ color: "#34d399", fontSize: "clamp(8px,1.1vw,10px)", whiteSpace: "nowrap" }}>
+          <p className="font-black uppercase tracking-widest mb-2.5 md:mb-3" style={{ color: "#34d399", fontSize: "clamp(8px,1.1vw,10px)", whiteSpace: "nowrap" }}>
             Autonomous e-Commerce OS
           </p>
 
-          {/* Tagline — mobile only (center column is hidden on mobile) */}
+          {/* GET ACCESS — lives under subtitle on all screen sizes */}
+          <a
+            href="/zema360"
+            onClick={e => e.stopPropagation()}
+            className="self-start font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03]"
+            style={{
+              background: "linear-gradient(135deg,#10b981,#059669)",
+              color: "#fff",
+              fontSize: "clamp(10px,1.2vw,13px)",
+              padding: "clamp(7px,1vw,10px) clamp(14px,2vw,20px)",
+              boxShadow: "0 6px 22px -4px rgba(16,185,129,0.55), 0 0 0 1px rgba(52,211,153,0.2)",
+              whiteSpace: "nowrap",
+              zIndex: 10,
+              position: "relative",
+            }}
+          >
+            GET ACCESS →
+          </a>
+
+          {/* Tagline — mobile only (center column hidden on mobile) */}
           <p className="sm:hidden text-gray-400 font-medium leading-snug mt-2" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "20ch" }}>
             AI agents — fully hands-free.
           </p>
@@ -324,24 +343,6 @@ export function Zema360HeroBanner() {
               </div>
             ))}
           </div>
-
-          {/* GET ACCESS — visible on ALL screen sizes, prominent */}
-          <a
-            href="/zema360"
-            onClick={e => e.stopPropagation()}
-            className="relative font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 text-center hover:opacity-90 hover:scale-[1.03]"
-            style={{
-              background: "linear-gradient(135deg,#10b981,#059669)",
-              color: "#fff",
-              fontSize: "clamp(10px,1.2vw,13px)",
-              padding: "clamp(7px,1vw,10px) clamp(14px,2vw,22px)",
-              boxShadow: "0 6px 22px -4px rgba(16,185,129,0.55), 0 0 0 1px rgba(52,211,153,0.25)",
-              whiteSpace: "nowrap",
-              zIndex: 10,
-            }}
-          >
-            GET ACCESS →
-          </a>
         </div>
       </div>
     </div>
