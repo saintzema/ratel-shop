@@ -3,7 +3,7 @@
 // Setup: add FIREBASE_DATABASE_URL + FIREBASE_DATABASE_SECRET to Vercel env.
 // RTDB security rules: { "rules": { "zema360": { ".read": true, ".write": false }, "zema360/events": { ".write": "auth != null" } } }
 
-const DB_URL = process.env.FIREBASE_DATABASE_URL;
+const DB_URL = process.env.FIREBASE_DATABASE_URL?.replace(/\/$/, "");
 const DB_SECRET = process.env.FIREBASE_DATABASE_SECRET;
 
 export type ZemaEventType =
