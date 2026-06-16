@@ -9,6 +9,19 @@ const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+// ─── In-memory IP rate limiter ───
+// Limits each IP to 10 Gemini calls per minute. Prevents runaway bots from
+// draining the Gemini spend cap. Resets automatically each window.
+const _rl = new Map<string, { n: number; t: number }>();
+function checkRateLimit(ip: string): boolean {
+    const now = Date.now();
+    const e = _rl.get(ip);
+    if (!e || now - e.t > 60_000) { _rl.set(ip, { n: 1, t: now }); return true; }
+    if (e.n >= 10) return false;
+    e.n++;
+    return true;
+}
+
 // ─── Server-Side Image Hydration Engine ───
 // Mirrors /api/product-image logic but callable directly without HTTP roundtrip.
 // Priority: Serper.dev → Google Custom Search → Wikipedia
@@ -115,6 +128,16 @@ export async function POST(req: Request) {
 
     if (!GEMINI_API_KEY) {
         return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
+    }
+
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+        ?? req.headers.get("x-real-ip")
+        ?? "unknown";
+    if (!checkRateLimit(ip)) {
+        return NextResponse.json(
+            { error: "Too many requests. Please wait a moment before searching again." },
+            { status: 429 }
+        );
     }
 
     try {
@@ -315,12 +338,16 @@ default to NEW from 2024 onwards.
             `;
         }
 
-        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
-        const fetchWithRetry = async (attempt = 0, useGrounding = true): Promise<Response> => {
+        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM).
+        // Grounding (google_search) is a billing multiplier — only enable it for
+        // deep-analyze mode where real-time web prices are essential. Search-mode
+        // suggestions come from Gemini's trained knowledge which is accurate enough
+        // and ~40% cheaper without grounding.
+        const fetchWithRetry = async (attempt = 0, useGrounding = mode === "analyze"): Promise<Response> => {
             const body: any = {
                 contents: [{ parts: [{ text: prompt }] }]
             };
-            
+
             // Only use grounding if specified (to allow fallback when grounding hits limits)
             if (useGrounding) {
                 body.tools = [{ google_search: {} }];

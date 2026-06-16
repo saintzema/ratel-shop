@@ -329,12 +329,17 @@ export async function POST(req: Request) {
         const productsToUse = catalogue || SEED_PRODUCTS;
         const cacheToUse = searchCache || [];
 
-        const productSummary = productsToUse.slice(0, 30).map((p: any) =>
+        // Cap history to last 8 messages — prevents unbounded token growth in long
+        // conversations (each extra turn adds ~200 tokens to every subsequent call).
+        const cappedHistory = (history || []).slice(-8);
+
+        // 20 products covers all common searches; trimmed from 30 to save ~150 tokens/call.
+        const productSummary = productsToUse.slice(0, 20).map((p: any) =>
             `${p.name} (${p.category}) ₦${p.price?.toLocaleString()}`
         ).join(" | ");
 
         const cacheSummary = cacheToUse.length > 0
-            ? `\nCached: ${cacheToUse.slice(0, 15).map((p: any) => `${p.name} ₦${p.price?.toLocaleString()}`).join(" | ")}`
+            ? `\nCached: ${cacheToUse.slice(0, 10).map((p: any) => `${p.name} ₦${p.price?.toLocaleString()}`).join(" | ")}`
             : '';
 
         const historySummary = browsingHistory?.length > 0
@@ -385,7 +390,7 @@ After using tools, respond with ONLY this JSON (no markdown fences):
             const contents = [
                 { role: "user", parts: [{ text: systemPrompt }] },
                 { role: "model", parts: [{ text: '{"message":"Understood. I am Ziva, ready to help.","intent":"greeting","shouldEscalate":false}' }] },
-                ...history.map((msg: any) => ({
+                ...cappedHistory.map((msg: any) => ({
                     role: msg.sender === "user" ? "user" : "model",
                     parts: [{ text: msg.text }]
                 })),
@@ -418,7 +423,7 @@ After using tools, respond with ONLY this JSON (no markdown fences):
             // ── QWEN PATH (default) ─────────────────────────────────────────────
             const messages: any[] = [
                 { role: "system", content: systemPrompt },
-                ...history.map((msg: any) => ({
+                ...cappedHistory.map((msg: any) => ({
                     role: msg.sender === "user" ? "user" : "assistant",
                     content: msg.text
                 })),
