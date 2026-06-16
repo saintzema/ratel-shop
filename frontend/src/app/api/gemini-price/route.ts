@@ -130,9 +130,24 @@ export async function POST(req: Request) {
         try {
             const cached = await db.searchCache.findUnique({ where: { query: cacheKey } });
             if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL_MS) {
-                return NextResponse.json(cached.products as any, {
-                    headers: { "X-Cache": "HIT" }
-                });
+                const cachedProducts = cached.products as any;
+                // Treat cached zero-result search responses as misses — they indicate a
+                // previous Gemini failure or filter-out; force a fresh call.
+                const isEmptySearchCache = mode === "search" && (cachedProducts?.suggestions?.length ?? 0) === 0;
+                if (!isEmptySearchCache) {
+                    // Log the cache hit to Firebase so the live dashboard stays active
+                    logZemaEvent({
+                        type: mode === 'search' ? 'gemini_query' : 'price_verified',
+                        description: mode === 'search'
+                            ? `Product search (cached): "${productName}"`
+                            : `Price analysis (cached): "${productName}"`,
+                        product: productName,
+                        mode,
+                        model: 'gemini-2.5-flash',
+                        count: mode === 'search' ? (cachedProducts?.suggestions?.length || 0) : 1,
+                    }).catch(() => {});
+                    return NextResponse.json(cachedProducts, { headers: { "X-Cache": "HIT" } });
+                }
             }
         } catch (cacheErr) {
             // Cache read failure must never block the live path
