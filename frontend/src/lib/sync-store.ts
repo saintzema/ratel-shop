@@ -583,9 +583,11 @@ class DataSyncServiceService {
                         const cappedMerged = allMerged.length > 300 ? allMerged.slice(0, 300) : allMerged;
                         const newDataStr = JSON.stringify(cappedMerged);
                         if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
-                            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
-                            window.dispatchEvent(new Event("storage"));
-                            window.dispatchEvent(new Event("sync-store-update"));
+                            const wrote = this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
+                            if (wrote) {
+                                window.dispatchEvent(new Event("storage"));
+                                window.dispatchEvent(new Event("sync-store-update"));
+                            }
                         }
                     }, 0);
                     }
@@ -639,9 +641,11 @@ class DataSyncServiceService {
                     const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
                     const newDataStr = JSON.stringify(sortedSellers);
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
-                        this.safeSetItem(this.STORAGE_KEYS.SELLERS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
+                        const wrote = this.safeSetItem(this.STORAGE_KEYS.SELLERS, newDataStr);
+                        if (wrote) {
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
                     }
                     }
                 }
@@ -6373,38 +6377,33 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    private safeSetItem(key: string, value: string) {
-        if (typeof window === "undefined") return;
+    // Returns true if the write succeeded.
+    private safeSetItem(key: string, value: string): boolean {
+        if (typeof window === "undefined") return false;
         try {
             localStorage.setItem(key, value);
+            return true;
         } catch (e: any) {
             if (e.name === "QuotaExceededError" || e.code === 22 || e.code === 1014) {
                 console.warn(`⚠️ LocalStorage quota exceeded while writing ${key}. Attempting emergency pruning...`);
-                
-                // 1. First attempt: Selective pruning
                 this.pruneStorage({ aggressive: false });
-                
                 try {
                     localStorage.setItem(key, value);
-                    console.log("✅ Emergency pruning successful. Data saved.");
-                    return;
-                } catch (retryError) {
-                    console.warn("⚠️ Storage still full after selective pruning. Attempting aggressive cleanup...");
-                    
-                    // 2. Second attempt: Aggressive pruning
-                    this.pruneStorage({ aggressive: true });
-                    
+                    return true;
+                } catch {
+                    console.warn("⚠️ Storage still full after selective pruning. Nuking all demo data...");
+                    // Nuclear option: wipe every fairprice_demo_* key — they're all re-fetchable from the DB
+                    Object.keys(localStorage)
+                        .filter(k => k.startsWith("fairprice_demo_") || k.startsWith("fairprice_search") || k.startsWith("fp_chat") || k.startsWith("fp_conv"))
+                        .forEach(k => { try { localStorage.removeItem(k); } catch {} });
                     try {
                         localStorage.setItem(key, value);
-                        console.log("✅ Aggressive pruning successful. Data saved.");
+                        console.log("✅ Nuclear clear successful. Data saved.");
+                        return true;
                     } catch (finalError) {
-                        console.error("❌ CRITICAL: Storage quota still exceeded after aggressive cleanup.");
-                        window.dispatchEvent(new CustomEvent("fp-quota-exceeded", { 
-                            detail: { 
-                                key, 
-                                message: "Storage full. Large datasets (chats/cache) have been cleared, but we're still over limit. Please clear your browser cache." 
-                            } 
-                        }));
+                        console.error("❌ CRITICAL: Storage quota still exceeded after nuclear clear. Skipping write.");
+                        // Do NOT dispatch any events here — prevents re-render loops
+                        return false;
                     }
                 }
             } else {
