@@ -32,7 +32,11 @@ const STORES_KEY = "fp_favorite_stores";
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     const [favorites, setFavorites] = useState<string[]>([]);
     const [favoriteStores, setFavoriteStores] = useState<string[]>([]);
-    const loaded = React.useRef(false);
+    // Each persist effect needs its own "skip first run" flag — a single shared
+    // `loaded` ref set true by the load effect would already read true by the time
+    // these effects first run, causing a spurious write+dispatch on every mount.
+    const favoritesSkipFirst = React.useRef(true);
+    const storesSkipFirst = React.useRef(true);
 
     // Load from localStorage on mount
     useEffect(() => {
@@ -44,19 +48,18 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         } catch {
             // ignore parse errors
         }
-        loaded.current = true;
     }, []);
 
     // Persist products to localStorage
     useEffect(() => {
-        if (!loaded.current) return;
+        if (favoritesSkipFirst.current) { favoritesSkipFirst.current = false; return; }
         localStorage.setItem(PRODUCTS_KEY, JSON.stringify(favorites));
         window.dispatchEvent(new Event("sync-store-update"));
     }, [favorites]);
 
     // Persist stores to localStorage
     useEffect(() => {
-        if (!loaded.current) return;
+        if (storesSkipFirst.current) { storesSkipFirst.current = false; return; }
         localStorage.setItem(STORES_KEY, JSON.stringify(favoriteStores));
         window.dispatchEvent(new Event("sync-store-update"));
     }, [favoriteStores]);

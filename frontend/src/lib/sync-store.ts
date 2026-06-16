@@ -713,9 +713,11 @@ class DataSyncServiceService {
                 const newDataArray = Array.from(mergedOrders.values());
                 const newDataStr = JSON.stringify(newDataArray);
                 if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-                    this.safeSetItem(this.STORAGE_KEYS.ORDERS, newDataStr);
-                    window.dispatchEvent(new Event("storage"));
-                    window.dispatchEvent(new Event("sync-store-update"));
+                    const wrote = this.safeSetItem(this.STORAGE_KEYS.ORDERS, newDataStr);
+                    if (wrote) {
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("sync-store-update"));
+                    }
                 }
                 }
             
@@ -802,10 +804,12 @@ class DataSyncServiceService {
                     }
 
                     if (hasNewUpdate) {
-                        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
-                        window.dispatchEvent(new Event("negotiation-updated-remote"));
+                        const wrote = this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+                        if (wrote) {
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                            window.dispatchEvent(new Event("negotiation-updated-remote"));
+                        }
                     }
                 }
             }
@@ -835,9 +839,11 @@ class DataSyncServiceService {
                         }
                     }
                     if (changed) {
-                        this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
+                        const wrote = this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
+                        if (wrote) {
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
                     }
                 }
             }
@@ -867,8 +873,8 @@ class DataSyncServiceService {
                             timestamp: n.created_at || new Date().toISOString()
                         });
                     });
-                    this.safeSetItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
-                    window.dispatchEvent(new Event("storage"));
+                    const wroteNotifs = this.safeSetItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
+                    if (wroteNotifs) window.dispatchEvent(new Event("storage"));
                 }
             }
 
@@ -876,8 +882,8 @@ class DataSyncServiceService {
             if (disputesResult.status === "fulfilled" && disputesResult.value.ok) {
                 const data = await disputesResult.value.json();
                 if (data.success && Array.isArray(data.disputes)) {
-                    this.safeSetItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
-                    window.dispatchEvent(new Event("storage"));
+                    const wrote = this.safeSetItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
+                    if (wrote) window.dispatchEvent(new Event("storage"));
                 }
             }
 
@@ -885,8 +891,8 @@ class DataSyncServiceService {
             if (complaintsResult.status === "fulfilled" && complaintsResult.value.ok) {
                 const data = await complaintsResult.value.json();
                 if (data.success && Array.isArray(data.complaints)) {
-                    this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
-                    window.dispatchEvent(new Event("storage"));
+                    const wrote = this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
+                    if (wrote) window.dispatchEvent(new Event("storage"));
                 }
             }
 
@@ -894,8 +900,8 @@ class DataSyncServiceService {
             if (kycResult.status === "fulfilled" && kycResult.value.ok) {
                 const data = await kycResult.value.json();
                 if (data.success && Array.isArray(data.submissions)) {
-                    this.safeSetItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
-                    window.dispatchEvent(new Event("storage"));
+                    const wrote = this.safeSetItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
+                    if (wrote) window.dispatchEvent(new Event("storage"));
                 }
             }
 
@@ -903,9 +909,8 @@ class DataSyncServiceService {
             if (reviewsResult.status === "fulfilled" && reviewsResult.value.ok) {
                 const data = await reviewsResult.value.json();
                 if (data.success && Array.isArray(data.reviews)) {
-                    // Reviews might be handled differently, check key
-                    this.safeSetItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
-                    window.dispatchEvent(new Event("storage"));
+                    const wrote = this.safeSetItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
+                    if (wrote) window.dispatchEvent(new Event("storage"));
                 }
             }
 
@@ -6391,11 +6396,16 @@ class DataSyncServiceService {
                     localStorage.setItem(key, value);
                     return true;
                 } catch {
-                    console.warn("⚠️ Storage still full after selective pruning. Nuking all demo data...");
-                    // Nuclear option: wipe every fairprice_demo_* key — they're all re-fetchable from the DB
-                    Object.keys(localStorage)
-                        .filter(k => k.startsWith("fairprice_demo_") || k.startsWith("fairprice_search") || k.startsWith("fp_chat") || k.startsWith("fp_conv"))
-                        .forEach(k => { try { localStorage.removeItem(k); } catch {} });
+                    console.warn("⚠️ Storage still full after selective pruning. Nuking all re-fetchable data...");
+                    // Nuclear option: wipe everything except user identity + cart. All other data is
+                    // re-fetchable from the DB. Preserving fp_user prevents session loss.
+                    const preserve = new Set(['fp_user', 'fp_guest_id', 'fp_guest_name', 'fairprice_data_version']);
+                    const toRemove: string[] = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (k && !preserve.has(k) && !k.startsWith('fp-cart-')) toRemove.push(k);
+                    }
+                    toRemove.forEach(k => { try { localStorage.removeItem(k); } catch {} });
                     try {
                         localStorage.setItem(key, value);
                         console.log("✅ Nuclear clear successful. Data saved.");

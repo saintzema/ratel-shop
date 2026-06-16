@@ -1239,6 +1239,25 @@ export function ZivaChat() {
         };
     }, [mounted]);
 
+    // Track real keyboard height for mobile full-screen mode
+    // NOTE: must stay above the `if (!mounted) return null` early return below —
+    // hooks called conditionally (only once mounted=true) corrupt React's hook
+    // order between renders and cause error #310 ("too many re-renders").
+    const [kbHeight, setKbHeight] = useState(0);
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.visualViewport) return;
+        const update = () => {
+            const vv = window.visualViewport!;
+            setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+        };
+        window.visualViewport.addEventListener('resize', update, { passive: true });
+        window.visualViewport.addEventListener('scroll', update, { passive: true });
+        return () => {
+            window.visualViewport!.removeEventListener('resize', update);
+            window.visualViewport!.removeEventListener('scroll', update);
+        };
+    }, []);
+
     if (!mounted) return null;
 
     // ─── Render Markdown-lite ───────────────────────
@@ -1299,22 +1318,6 @@ export function ZivaChat() {
     const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
     const desktopBottom = 48;
     const mobileBottom = pathname === "/checkout" ? 280 : 120;
-
-    // Track real keyboard height for mobile full-screen mode
-    const [kbHeight, setKbHeight] = useState(0);
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.visualViewport) return;
-        const update = () => {
-            const vv = window.visualViewport!;
-            setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-        };
-        window.visualViewport.addEventListener('resize', update, { passive: true });
-        window.visualViewport.addEventListener('scroll', update, { passive: true });
-        return () => {
-            window.visualViewport!.removeEventListener('resize', update);
-            window.visualViewport!.removeEventListener('scroll', update);
-        };
-    }, []);
 
     // On mobile, keyboard open = switch to full-screen mode so nothing is squeezed
     const kbOpen = !isDesktop && kbHeight > 80;
