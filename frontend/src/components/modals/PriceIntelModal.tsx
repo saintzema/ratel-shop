@@ -624,8 +624,12 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     specs: intel.specs
                 };
                 
-                // 1. Save synchronously locally for instant UX and persist to DB if allowed
-                DataSyncService.addRawProduct(newGlobalProduct, autoCatalogEnabled);
+                // 1. Save synchronously locally for instant UX and persist to DB if allowed.
+                // Strip heavy fields before localStorage write — description (200 words) and
+                // specs (15-25 pairs) balloon the storage entry and trigger quota failures.
+                // The PDP re-fetches full data from DB if the product gets promoted.
+                const { description: _d, specs: _s, ...lightweightProduct } = newGlobalProduct as any;
+                DataSyncService.addRawProduct(lightweightProduct as any, autoCatalogEnabled);
 
                 matchedProduct = newGlobalProduct; // Attach it so they can buy it directly!
                 intel.matchedProduct = newGlobalProduct;
@@ -1408,7 +1412,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                         <div className="flex items-center gap-2">
                                             <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                                             <span dangerouslySetInnerHTML={{
-                                                __html: suggestion.replace(new RegExp(value.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                                __html: suggestion.replace(new RegExp(value.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
                                             }} />
                                         </div>
                                         <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />

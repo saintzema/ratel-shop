@@ -176,7 +176,7 @@ export function SmartSearchInput({
                                     <div className="flex items-center gap-2">
                                         <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                                         <span dangerouslySetInnerHTML={{
-                                            __html: suggestion.replace(new RegExp(actualQuery, 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                            __html: suggestion.replace(new RegExp(actualQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
                                         }} />
                                     </div>
                                     <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
