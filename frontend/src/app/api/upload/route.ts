@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserFromRequest } from "@/lib/jwt";
+import { getUserFromRequest, verifyToken } from "@/lib/jwt";
 import { put } from "@vercel/blob";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
@@ -8,29 +8,33 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 // and we return a short-lived token; the client then uploads directly to Vercel Blob
 // without passing the file through our function — no body-size limit applies.
 export async function POST(req: Request): Promise<Response> {
-    const user = getUserFromRequest(req);
-    if (!user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const contentType = req.headers.get("content-type") || "";
 
     // ── Path 1: client-side blob token handshake (for large files / videos) ───
+    // @vercel/blob/client's upload() makes this request; it passes the JWT as both
+    // an Authorization header AND as clientPayload — we accept either.
     if (contentType.includes("application/json")) {
+        // Auth: prefer header, fall back to clientPayload (parsed after reading body below)
+        const headerUser = getUserFromRequest(req);
         try {
             const body = (await req.json()) as HandleUploadBody;
             const result = await handleUpload({
                 body,
                 request: req,
-                onBeforeGenerateToken: async (_pathname: string, _clientPayload: string | null, _multipart: boolean) => ({
-                    allowedContentTypes: [
-                        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
-                        "video/mp4", "video/quicktime", "video/webm", "video/avi",
-                        "video/x-msvideo", "video/x-matroska",
-                    ],
-                    maximumSizeInBytes: 100 * 1024 * 1024, // 100 MB
-                    tokenPayload: JSON.stringify({ userId: user.userId }),
-                }),
+                onBeforeGenerateToken: async (_pathname: string, clientPayload: string | null, _multipart: boolean) => {
+                    // Resolve user from header auth or clientPayload JWT
+                    const user = headerUser ?? (clientPayload ? verifyToken(clientPayload) : null);
+                    if (!user) throw new Error("Unauthorized");
+                    return {
+                        allowedContentTypes: [
+                            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+                            "video/mp4", "video/quicktime", "video/webm", "video/avi",
+                            "video/x-msvideo", "video/x-matroska",
+                        ],
+                        maximumSizeInBytes: 100 * 1024 * 1024, // 100 MB
+                        tokenPayload: JSON.stringify({ userId: user.userId }),
+                    };
+                },
                 onUploadCompleted: async ({ blob }) => {
                     console.log("Client upload completed:", blob.url);
                 },
@@ -39,6 +43,12 @@ export async function POST(req: Request): Promise<Response> {
         } catch (err: any) {
             return NextResponse.json({ error: err.message || "Token error" }, { status: 400 });
         }
+    }
+
+    // ── Path 2 auth (server-side uploads — form/multipart) ───────────────────
+    const user = getUserFromRequest(req);
+    if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // ── Path 2: server-side upload (small images, existing flow) ─────────────
