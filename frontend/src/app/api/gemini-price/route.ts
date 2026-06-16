@@ -332,11 +332,16 @@ default to NEW from 2024 onwards.
                 body: JSON.stringify(body)
             });
 
-            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
+            // Retry on 429 (rate limit) or 503 (overloaded) up to 5 times,
+            // but fail fast if the 429 is a billing/spend-cap block (no retries will help).
             if ((res.status === 429 || res.status === 503) && attempt < 5) {
+                const errText = await res.clone().text().catch(() => "");
+                const isBillingBlock = /quota|billing|spend.?cap|payment|budget/i.test(errText);
+                if (isBillingBlock) return res; // fail fast — retrying won't help
+
                 const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 await new Promise(r => setTimeout(r, backoffMs));
-                
+
                 // If we've hit 429 multiple times with grounding, try one without grounding as a last resort
                 const nextUseGrounding = (attempt >= 3 && res.status === 429) ? false : useGrounding;
                 return fetchWithRetry(attempt + 1, nextUseGrounding);
