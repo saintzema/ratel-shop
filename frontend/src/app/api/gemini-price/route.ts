@@ -5,6 +5,42 @@ import { logZemaEvent } from "@/lib/firebase-log";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
+// ─── Qwen fallback (Alibaba DashScope) ───
+// When Gemini is billing-blocked, Qwen takes over with enable_search for
+// real-time internet data. Same prompt, same JSON output format.
+const DASHSCOPE_API_KEY = process.env.DASHSCOPE_API_KEY;
+const QWEN_BASE = process.env.QWEN_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+
+async function tryQwenSearch(prompt: string): Promise<Response | null> {
+    if (!DASHSCOPE_API_KEY) return null;
+    try {
+        const res = await fetch(`${QWEN_BASE}/chat/completions`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${DASHSCOPE_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: "qwen-plus",          // cheaper tier, supports enable_search
+                messages: [{ role: "user", content: prompt }],
+                enable_search: true,          // Qwen real-time internet search
+                result_format: "message",
+            }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const text: string = data.choices?.[0]?.message?.content ?? "";
+        if (!text) return null;
+        // Wrap in Gemini-shaped envelope so the existing parse pipeline works unchanged
+        return new Response(
+            JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }),
+            { status: 200, headers: { "Content-Type": "application/json", "X-Provider": "qwen" } }
+        );
+    } catch {
+        return null;
+    }
+}
+
 // Server-side cache TTL: 24h. Dramatically reduces Gemini quota consumption
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -376,19 +412,34 @@ default to NEW from 2024 onwards.
             return res;
         };
 
-        const response = await fetchWithRetry();
+        let response = await fetchWithRetry();
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", response.status, errorText);
-            // Surface Gemini's rate limit clearly to the client
-            if (response.status === 429) {
-                return NextResponse.json(
-                    { error: "AI search is currently busy. Please try again in 30 seconds." },
-                    { status: 429 }
-                );
+            const isBillingBlock = /quota|billing|spend.?cap|payment|budget/i.test(errorText);
+
+            if (response.status === 429 && isBillingBlock) {
+                // Gemini spend cap exceeded — fall back to Qwen with real-time internet search
+                console.warn("Gemini billing block detected; falling back to Qwen search.");
+                const qwenRes = await tryQwenSearch(prompt);
+                if (qwenRes) {
+                    response = qwenRes; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
+                } else {
+                    return NextResponse.json(
+                        { error: "AI search is currently unavailable. Please try again shortly." },
+                        { status: 503 }
+                    );
+                }
+            } else {
+                console.error("Gemini API Error:", response.status, errorText);
+                if (response.status === 429) {
+                    return NextResponse.json(
+                        { error: "AI search is currently busy. Please try again in 30 seconds." },
+                        { status: 429 }
+                    );
+                }
+                return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
             }
-            return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
         }
 
         const data = await response.json();
