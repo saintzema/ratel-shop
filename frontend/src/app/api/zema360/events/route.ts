@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const DB_URL = process.env.FIREBASE_DATABASE_URL;
+const DB_URL = process.env.FIREBASE_DATABASE_URL?.replace(/\/$/, "");
 const DB_SECRET = process.env.FIREBASE_DATABASE_SECRET;
 
 // Public proxy to Firebase RTDB — keeps DB credentials server-side only.
