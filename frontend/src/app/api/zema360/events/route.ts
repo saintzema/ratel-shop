@@ -13,11 +13,14 @@ export async function GET() {
     }
 
     try {
-        const url = `${DB_URL}/zema360/events.json?auth=${DB_SECRET}&orderBy=%22ts%22&limitToLast=30`;
+        // No orderBy — avoids requiring a .indexOn rule in RTDB security rules.
+        // We sort and limit client-side instead.
+        const url = `${DB_URL}/zema360/events.json?auth=${DB_SECRET}`;
         const res = await fetch(url, { cache: "no-store" });
 
         if (!res.ok) {
-            return NextResponse.json({ events: [], configured: true, error: "Firebase fetch failed" });
+            const errText = await res.text().catch(() => "");
+            return NextResponse.json({ events: [], configured: true, error: `Firebase ${res.status}: ${errText.slice(0, 120)}` });
         }
 
         const raw = await res.json();
@@ -26,10 +29,11 @@ export async function GET() {
             return NextResponse.json({ events: [], configured: true });
         }
 
-        // Firebase RTDB returns an object keyed by auto-generated IDs; convert to array
+        // Firebase RTDB returns an object keyed by auto-generated push IDs; convert, sort, cap.
         const events = Object.entries(raw)
             .map(([id, val]) => ({ id, ...(val as object) }))
-            .sort((a: any, b: any) => b.ts - a.ts);
+            .sort((a: any, b: any) => b.ts - a.ts)
+            .slice(0, 30);
 
         return NextResponse.json({ events, configured: true });
     } catch {
