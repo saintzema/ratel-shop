@@ -513,11 +513,16 @@ default to NEW from 2024 onwards.
             }
 
             // ─── WRITE THROUGH TO SERVER CACHE (fire-and-forget) ───
-            db.searchCache.upsert({
-                where: { query: cacheKey },
-                create: { query: cacheKey, products: parsedData as any },
-                update: { products: parsedData as any },
-            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+            // Skip caching zero-result search responses — an empty result set
+            // would poison the cache for 24h, making all subsequent queries return nothing.
+            const shouldCache = !(mode === "search" && parsedData.suggestions?.length === 0);
+            if (shouldCache) {
+                db.searchCache.upsert({
+                    where: { query: cacheKey },
+                    create: { query: cacheKey, products: parsedData as any },
+                    update: { products: parsedData as any },
+                }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+            }
 
             // ─── FIRE-AND-FORGET: Backfill DB product images ───
             // SAFETY: Only updates global-partners products that CURRENTLY have a

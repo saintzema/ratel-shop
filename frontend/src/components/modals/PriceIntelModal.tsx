@@ -431,15 +431,21 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
         setSuggestions([]);
 
         try {
-            // Local Match
-            const local = SEED_PRODUCTS.filter(p =>
-                p.name.toLowerCase().includes(query.toLowerCase()) ||
-                p.category.toLowerCase().includes(query.toLowerCase())
-            );
+            // Local Match — search both seed products and any dynamically synced products
+            const q = query.toLowerCase();
+            const allLocal = [...SEED_PRODUCTS, ...DataSyncService.getProducts()];
+            const seen = new Set<string>();
+            const local = allLocal.filter(p => {
+                if (seen.has(p.id)) return false;
+                seen.add(p.id);
+                return p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+            });
 
-            // API Match
+            // Show local results immediately — don't block on the slow API call
+            setSearchResults({ local, api: [] });
+
+            // API Match — update results when Gemini responds
             const api = await PriceEngine.searchProducts(query);
-
             setSearchResults({ local, api });
         } catch (error) {
             console.error("Search failed", error);
