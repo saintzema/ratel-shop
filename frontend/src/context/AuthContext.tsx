@@ -23,6 +23,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: session, status: sessionStatus } = useSession();
     const isFirstMount = React.useRef(true);
+    // In-memory dedup for handleStorageChange — avoids a localStorage write that fails under quota pressure
+    // and would cause every storage event to call setUser(newObject), triggering React #310.
+    const lastSyncedUserStr = React.useRef<string | null>(null);
 
     useEffect(() => {
         // Initial sync on mount
@@ -146,28 +149,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [user?.id, sessionStatus]);
 
     useEffect(() => {
-        // Synchronize across tabs and state updates
+        // Synchronize across tabs and state updates.
+        // Dedup via a ref (not localStorage) so the check never fails under quota pressure.
+        // Old approach wrote "fp_user_last_synced" to localStorage — when quota was full that
+        // write silently failed, meaning every storage event called setUser(newObj) → React #310.
         const handleStorageChange = () => {
             const updatedUser = localStorage.getItem("fp_user");
             if (updatedUser) {
-                // To avoid redundant re-renders from frequent "storage" events (e.g. from DataSyncService sync),
-                // we only update if the string value has actually changed.
-                const currentUserStr = localStorage.getItem("fp_user_last_synced");
-                if (updatedUser !== currentUserStr) {
+                if (updatedUser !== lastSyncedUserStr.current) {
+                    lastSyncedUserStr.current = updatedUser;
                     try {
                         const parsed = JSON.parse(updatedUser);
                         if (!parsed.role) parsed.role = "customer";
                         setUser(parsed);
-                        localStorage.setItem("fp_user_last_synced", updatedUser);
                     } catch (e) {
                         console.error("Auth sync error: invalid JSON in storage", e);
                     }
                 }
-            } else {
+            } else if (lastSyncedUserStr.current !== null) {
+                lastSyncedUserStr.current = null;
                 setUser(null);
-                localStorage.removeItem("fp_user_last_synced");
             }
-            setIsLoading(false);
         };
 
         window.addEventListener("storage", handleStorageChange);
