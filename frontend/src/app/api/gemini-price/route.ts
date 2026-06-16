@@ -416,20 +416,14 @@ default to NEW from 2024 onwards.
 
         if (!response.ok) {
             const errorText = await response.text();
-            const isBillingBlock = /quota|billing|spend.?cap|payment|budget/i.test(errorText);
+            console.warn(`Gemini unavailable (${response.status}); attempting Qwen fallback.`);
 
-            if (response.status === 429 && isBillingBlock) {
-                // Gemini spend cap exceeded — fall back to Qwen with real-time internet search
-                console.warn("Gemini billing block detected; falling back to Qwen search.");
-                const qwenRes = await tryQwenSearch(prompt);
-                if (qwenRes) {
-                    response = qwenRes; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
-                } else {
-                    return NextResponse.json(
-                        { error: "AI search is currently unavailable. Please try again shortly." },
-                        { status: 503 }
-                    );
-                }
+            // Qwen is fallback for ANY Gemini failure — billing block, rate limit, 5xx outage.
+            // When the Google bill is settled and Gemini returns 200 again, this block is
+            // never entered and Qwen is never called.
+            const qwenRes = await tryQwenSearch(prompt);
+            if (qwenRes) {
+                response = qwenRes; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
             } else {
                 console.error("Gemini API Error:", response.status, errorText);
                 if (response.status === 429) {
@@ -438,7 +432,7 @@ default to NEW from 2024 onwards.
                         { status: 429 }
                     );
                 }
-                return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
+                return NextResponse.json({ error: "Failed to fetch from AI provider" }, { status: response.status });
             }
         }
 
