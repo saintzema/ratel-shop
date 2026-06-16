@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Package, Zap, MessageCircle } from "lucide-react";
 
 // Static data at module level — avoids recreation on every render
 const PIPELINE = [
@@ -21,6 +22,12 @@ const NODES = [
 ];
 
 const ZIVA_MSGS = ["Find me the best deal...", "Compare phone prices...", "Track my order...", "Negotiate a discount..."];
+
+const SELLER_PERKS = [
+  { icon: Package,      label: "Auto Fulfillment" },
+  { icon: Zap,          label: "Instant Payouts" },
+  { icon: MessageCircle, label: "24/7 AI Support" },
+];
 
 /* ─── Brand Logo SVGs ─── */
 const BrandLogos: Record<string, { svg: React.ReactNode; bg: string }> = {
@@ -171,15 +178,23 @@ export function Zema360HeroBanner() {
         }
       `}</style>
 
-      {/* Two-column layout: branding LEFT · pipeline+metrics+CTA RIGHT */}
-      <div className="absolute inset-0 flex items-stretch p-4 md:p-6 pb-20 md:pb-6 gap-3 md:gap-6">
+      {/* Full-banner click target — sits below all interactive elements */}
+      <a
+        href="/zema360"
+        className="absolute inset-0"
+        style={{ zIndex: 6 }}
+        aria-label="Explore ZEMA360 Autonomous Commerce OS"
+      />
+
+      {/* Three-column layout: brand LEFT · tagline+perks CENTER · pipeline+metrics+CTA RIGHT */}
+      <div className="absolute inset-0 flex items-stretch p-4 md:p-6 pb-6 gap-3 md:gap-6" style={{ zIndex: 7 }}>
 
         {/* ── LEFT: Brand identity ── */}
-        <div className="flex flex-col justify-center flex-1 min-w-0">
-          {/* Badge row */}
+        <div className="flex flex-col justify-center flex-shrink-0 min-w-0">
+          {/* Badge */}
           <div className="flex items-center gap-2 mb-2 md:mb-3">
             <span
-              className="text-[8px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2 md:px-3 py-0.5 border whitespace-nowrap"
+              className="text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2 md:px-3 py-0.5 border whitespace-nowrap"
               style={{
                 color: "#34d399",
                 borderColor: "rgba(52,211,153,0.4)",
@@ -201,21 +216,59 @@ export function Zema360HeroBanner() {
           </h2>
 
           {/* Subtitle */}
-          <p className="font-black uppercase tracking-widest mb-1.5 md:mb-2" style={{ color: "#34d399", fontSize: "clamp(7px,1.1vw,10px)" }}>
+          <p className="font-black uppercase tracking-widest" style={{ color: "#34d399", fontSize: "clamp(8px,1.1vw,10px)", whiteSpace: "nowrap" }}>
             Autonomous e-Commerce OS
           </p>
 
-          {/* Tagline */}
-          <p className="text-gray-400 font-medium leading-snug" style={{ fontSize: "clamp(8px,1.1vw,12px)", maxWidth: "22ch" }}>
-            AI agents that handle every order, escrow & payout — fully hands-free.
+          {/* Tagline — mobile only (center column is hidden on mobile) */}
+          <p className="sm:hidden text-gray-400 font-medium leading-snug mt-2" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "20ch" }}>
+            AI agents — fully hands-free.
           </p>
         </div>
 
-        {/* ── RIGHT: Pipeline · Metrics · CTA ── */}
-        <div className="flex flex-col justify-between items-end flex-shrink-0" style={{ minWidth: "min(42%,160px)" }}>
+        {/* ── CENTER: Tagline · What sellers get (desktop only) ── */}
+        <div className="hidden sm:flex flex-col justify-center flex-1 min-w-0 px-1 md:px-3">
+          {/* Tagline */}
+          <p className="text-gray-400 font-medium leading-snug mb-3 md:mb-4" style={{ fontSize: "clamp(9px,1.15vw,13px)", maxWidth: "26ch" }}>
+            AI agents that handle every order, escrow & payout — fully hands-free.
+          </p>
 
-          {/* Live pipeline — compact vertical list */}
-          <div className="flex flex-col gap-[3px] items-end">
+          {/* What sellers get */}
+          <span className="text-gray-500 text-[7px] md:text-[9px] font-black uppercase tracking-widest mb-2 md:mb-2.5">
+            What Sellers Get
+          </span>
+          <div className="flex items-start gap-3 md:gap-5">
+            {SELLER_PERKS.map(({ icon: Icon, label }, i) => (
+              <div
+                key={label}
+                className="flex flex-col items-center text-center"
+                style={{ animation: "zemaFloat 2.5s ease-in-out infinite", animationDelay: `${i * 0.4}s` }}
+              >
+                <div
+                  className="flex items-center justify-center rounded-full mb-1.5"
+                  style={{
+                    width: "clamp(22px,2.8vw,32px)",
+                    height: "clamp(22px,2.8vw,32px)",
+                    background: "rgba(16,185,129,0.14)",
+                    border: "1px solid rgba(52,211,153,0.35)",
+                    boxShadow: "0 0 10px rgba(16,185,129,0.12)",
+                  }}
+                >
+                  <Icon style={{ width: "clamp(9px,1.1vw,14px)", height: "clamp(9px,1.1vw,14px)" }} color="#34d399" strokeWidth={2.5} />
+                </div>
+                <span className="text-gray-400 font-bold leading-tight" style={{ fontSize: "clamp(7px,0.85vw,9px)", maxWidth: "10ch" }}>
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── RIGHT: Pipeline (desktop) · Metrics (desktop) · GET ACCESS (all screens) ── */}
+        <div className="flex flex-col items-end flex-shrink-0" style={{ minWidth: "min(40%,155px)", gap: "clamp(8px,1.5vw,14px)" }}>
+
+          {/* Live pipeline — desktop only */}
+          <div className="hidden sm:flex flex-col gap-[3px] items-end">
             <span className="text-gray-500 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-0.5">Live Pipeline</span>
             {PIPELINE.map((p, i) => (
               <div
@@ -243,32 +296,48 @@ export function Zema360HeroBanner() {
             ))}
           </div>
 
-          {/* Metrics */}
-          <div className="flex flex-col items-end gap-1.5 md:gap-2">
+          {/* Metrics — desktop only */}
+          <div className="hidden sm:flex flex-col items-end gap-1.5 md:gap-2">
             {[
               { val: "23s",   sub: "Order→Payout", color: "#10b981", delay: "0s"   },
               { val: "3×",    sub: "Profit Margin", color: "#fff",    delay: "0.4s" },
               { val: "99.7%", sub: "Accuracy",      color: "#a78bfa", delay: "0.8s" },
             ].map(({ val, sub, color, delay }) => (
-              <div key={sub} className="text-right" style={{ animation: `zemaFloat 2.5s ease-in-out infinite`, animationDelay: delay }}>
+              <div key={sub} className="text-right" style={{ animation: "zemaFloat 2.5s ease-in-out infinite", animationDelay: delay }}>
                 <div className="font-black leading-none" style={{ color, fontSize: "clamp(0.85rem,1.8vw,1.2rem)" }}>{val}</div>
                 <div className="text-gray-500 font-bold uppercase tracking-wider" style={{ fontSize: "clamp(5px,0.8vw,7px)" }}>{sub}</div>
               </div>
             ))}
           </div>
 
-          {/* GET ACCESS button */}
+          {/* Mobile-only seller perks — 3 mini badges stacked */}
+          <div className="sm:hidden flex flex-col items-end gap-1.5 flex-1 justify-center">
+            {SELLER_PERKS.map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span style={{ color: "#9ca3af", fontSize: "10px", fontWeight: 700 }}>{label}</span>
+                <div
+                  className="flex items-center justify-center rounded-full flex-shrink-0"
+                  style={{ width: 18, height: 18, background: "rgba(16,185,129,0.14)", border: "1px solid rgba(52,211,153,0.3)" }}
+                >
+                  <Icon size={9} color="#34d399" strokeWidth={2.5} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* GET ACCESS — visible on ALL screen sizes, prominent */}
           <a
             href="/zema360"
             onClick={e => e.stopPropagation()}
-            className="font-black uppercase tracking-widest rounded-full transition-all active:scale-95 text-center"
+            className="relative font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 text-center hover:opacity-90 hover:scale-[1.03]"
             style={{
               background: "linear-gradient(135deg,#10b981,#059669)",
               color: "#fff",
-              fontSize: "clamp(7px,1vw,10px)",
-              padding: "6px 14px",
-              boxShadow: "0 8px 20px -4px rgba(16,185,129,0.45)",
+              fontSize: "clamp(10px,1.2vw,13px)",
+              padding: "clamp(7px,1vw,10px) clamp(14px,2vw,22px)",
+              boxShadow: "0 6px 22px -4px rgba(16,185,129,0.55), 0 0 0 1px rgba(52,211,153,0.25)",
               whiteSpace: "nowrap",
+              zIndex: 10,
             }}
           >
             GET ACCESS →
