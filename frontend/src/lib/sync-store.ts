@@ -95,31 +95,36 @@ class DataSyncServiceService {
     private _lastFullSync: number = 0;
     private _isDbOffline: boolean = false;
     private readonly _PENDING_KEY = "fp_pending_product_edits";
-    
-    /**
-     * seedDemoData: Safety net that populates the marketplace with 
-     * existing TEMU_PRODUCTS if the database is offline and the store is empty.
-     */
+    // Prevent seedDemoData re-entering after a quota-exceeded failure (would cause infinite loop)
+    private _seedAttempted: boolean = false;
+
     public seedDemoData() {
         if (typeof window === "undefined") return;
-        
-        const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
-        if (currentProducts.length === 0) {
-            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding full SEED_PRODUCTS catalog.");
-            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
-            
-            // Also seed sellers to ensure getApprovedProducts works
-            const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
-            if (currentSellers.length === 0) {
-                // Ensure all seeded sellers are marked as verified/active for the demo
-                const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
-                this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
-            }
+        if (this._seedAttempted) return;
 
-            // Trigger UI update
-            window.dispatchEvent(new Event("storage"));
-            window.dispatchEvent(new Event("sync-store-update"));
+        const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+        if (currentProducts.length > 0) return;
+
+        this._seedAttempted = true;
+        console.log("🛠️ Resilience: Database unreachable and store empty. Seeding fallback catalog.");
+
+        // Cap seed products to avoid blowing the 5MB quota
+        const capped = SEED_PRODUCTS.slice(0, 50);
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(capped));
+
+        // Only dispatch events if the write actually landed — prevents infinite event loop
+        // when storage is already full and the write silently fails.
+        const wrote = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]').length > 0;
+        if (!wrote) return;
+
+        const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+        if (currentSellers.length === 0) {
+            const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
+            this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
         }
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     public isSyncing = false;
@@ -470,9 +475,11 @@ class DataSyncServiceService {
             if (isDbOffline) {
                 console.warn("📢 Resilience: Database reported offline (503). Preserving local cache.");
                 this._isDbOffline = true;
-                this.seedDemoData(); // Last resort: seed if totally empty
+                this.seedDemoData(); // Last resort: seed if totally empty (guarded by _seedAttempted)
                 this.isSyncing = false;
-                window.dispatchEvent(new Event("sync-store-update"));
+                // Do NOT dispatch sync-store-update here — seedDemoData already does it if
+                // the write succeeded, and dispatching unconditionally re-triggers syncWithDB
+                // on components that react to the event, causing an infinite loop.
                 return;
             }
 
