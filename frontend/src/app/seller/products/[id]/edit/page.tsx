@@ -319,6 +319,7 @@ function EditProductContent() {
                     access: "public",
                     handleUploadUrl: "/api/upload",
                     clientPayload: token || undefined,
+                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                 });
                 onDone(blob.url);
             } catch (err: any) {
