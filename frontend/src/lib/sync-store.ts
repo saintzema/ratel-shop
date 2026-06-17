@@ -2271,21 +2271,21 @@ class DataSyncServiceService {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
         if (!stored) return [];
-        
+
         try {
             const deals: Deal[] = JSON.parse(stored);
             const now = new Date().getTime();
-            
+
             // Auto-cleanup expired deals
             const validDeals = deals.filter(d => {
                 if (!d.end_at) return true;
                 return new Date(d.end_at).getTime() > now;
             });
-            
+
             if (validDeals.length !== deals.length) {
                 this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(validDeals));
             }
-            
+
             return validDeals;
         } catch {
             return [];

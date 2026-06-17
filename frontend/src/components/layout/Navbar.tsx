@@ -305,6 +305,7 @@ export function Navbar() {
                 .filter(p => p && p.name);
 
             // 1. Local product matches (The "PRODUCTS" section)
+            const words = q.split(/\s+/).filter(w => w.length > 1);
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -313,9 +314,16 @@ export function Navbar() {
                     }
                     return { product: p, score };
                 })
-                .filter(s => s.score > 40)
+                // For multi-word queries require at least one word to appear as a distinct token in the product name,
+                // preventing short words like "pro" from matching "professional" unrelated products.
+                .filter(s => {
+                    if (s.score <= 55) return false;
+                    if (words.length < 2) return true;
+                    const name = (s.product.name || "").toLowerCase();
+                    return words.some(w => w.length <= 2 ? name.includes(w) : new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(name));
+                })
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 5); 
+                .slice(0, 5);
             setSuggestions(scored.map(s => s.product));
 
             // 2. Text Suggestions (The "SUGGESTIONS" section)
@@ -1066,8 +1074,8 @@ export function Navbar() {
                                                                 </h3>
                                                                 <div className="flex flex-wrap gap-2">
                                                                     {recentSearches.map(term => (
-                                                                        <button 
-                                                                            key={term} 
+                                                                        <button
+                                                                            key={term}
                                                                             onMouseDown={(e) => {
                                                                                 e.preventDefault();
                                                                                 e.stopPropagation();
@@ -1077,7 +1085,7 @@ export function Navbar() {
                                                                                 setTimeout(() => {
                                                                                     searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
                                                                                 }, 10);
-                                                                            }} 
+                                                                            }}
                                                                             className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5"
                                                                         >
                                                                             <History className="h-3 w-3 text-gray-400" />
@@ -1093,8 +1101,8 @@ export function Navbar() {
                                                             </h3>
                                                             <div className="flex flex-wrap gap-2">
                                                                 {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
-                                                                    <button 
-                                                                        key={term} 
+                                                                    <button
+                                                                        key={term}
                                                                         onMouseDown={(e) => {
                                                                             e.preventDefault();
                                                                             e.stopPropagation();
@@ -1104,7 +1112,7 @@ export function Navbar() {
                                                                             setTimeout(() => {
                                                                                 searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
                                                                             }, 10);
-                                                                        }} 
+                                                                        }}
                                                                         className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5"
                                                                     >
                                                                         <Zap className="h-3 w-3" />

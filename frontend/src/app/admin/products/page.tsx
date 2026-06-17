@@ -25,10 +25,9 @@ import {
     X,
     Plus,
     Package,
-    Flame, // Added Flame icon
+    Flame,
     Timer,
-    Zap, // Added Zap
-    CheckCircle2 as CheckIcon, // Added CheckIcon to avoid conflicts
+    Zap,
     Settings,
     Sparkles,
     ChevronLeft,
