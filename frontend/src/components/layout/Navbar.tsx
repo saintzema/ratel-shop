@@ -305,6 +305,7 @@ export function Navbar() {
                 .filter(p => p && p.name);
 
             // 1. Local product matches (The "PRODUCTS" section)
+            const words = q.split(/\s+/).filter(w => w.length > 1);
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -313,9 +314,16 @@ export function Navbar() {
                     }
                     return { product: p, score };
                 })
-                .filter(s => s.score > 40)
+                // For multi-word queries require at least one word to appear as a distinct token in the product name,
+                // preventing short words like "pro" from matching "professional" unrelated products.
+                .filter(s => {
+                    if (s.score <= 55) return false;
+                    if (words.length < 2) return true;
+                    const name = (s.product.name || "").toLowerCase();
+                    return words.some(w => w.length <= 2 ? name.includes(w) : new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(name));
+                })
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 5); 
+                .slice(0, 5);
             setSuggestions(scored.map(s => s.product));
 
             // 2. Text Suggestions (The "SUGGESTIONS" section)

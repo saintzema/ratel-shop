@@ -16,7 +16,7 @@ import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { RequestDepositModal } from "./RequestDepositModal";
 import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/price-engine";
-import { formatPrice, getProductUrl } from "@/lib/utils";
+import { formatPrice, getProductUrl, getProxiedImageUrl } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
@@ -957,7 +957,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                                 <div className="w-12 h-12 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center p-1.5 overflow-hidden">
                                                                     {s.image_url ? (
                                                                         <img
-                                                                            src={s.image_url}
+                                                                            src={getProxiedImageUrl(s.image_url)}
                                                                             alt={s.name}
                                                                             className="w-full h-full object-contain mix-blend-multiply"
                                                                             onError={(e) => {
@@ -1061,18 +1061,52 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         </div>
 
                                         {/* Tier 3: Customers Also Bought */}
-                                        <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm mt-6">
-                                            <RecommendedProducts
-                                                products={[
-                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 3) || [],
-                                                    ...SEED_PRODUCTS.filter(p => p.is_active && !p.name.toLowerCase().includes(result.name.toLowerCase().split(' ')[0])).sort((a,b) => b.sold_count - a.sold_count).slice(0, 2)
-                                                ].slice(0, 3)}
-                                                title="Customers Also Bought"
-                                                subtitle="Frequently paired with this item"
-                                                icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
-                                                onItemClick={onClose}
-                                            />
-                                        </div>
+                                        {(() => {
+                                            // Build a contextually relevant "also bought" list:
+                                            // 1. Companion categories for this product type (e.g. earphones → cables, cases, cleaning kits)
+                                            const COMPANION_CATS: Record<string, string[]> = {
+                                                electronics: ["phones", "computing", "gaming", "home"],
+                                                phones: ["electronics", "computing", "gaming"],
+                                                computing: ["electronics", "phones", "gaming", "office"],
+                                                gaming: ["electronics", "computing", "phones"],
+                                                fashion: ["beauty", "bags", "sports"],
+                                                beauty: ["fashion", "health", "baby"],
+                                                home: ["furniture", "appliances", "garden"],
+                                                cars: ["automotive", "electronics", "industrial"],
+                                                sports: ["health", "fashion", "fitness"],
+                                                baby: ["health", "home", "beauty"],
+                                                default: [],
+                                            };
+                                            const cat = result.category?.toLowerCase() || "default";
+                                            const companions = COMPANION_CATS[cat] || COMPANION_CATS.default;
+                                            const allCatalog = [...SEED_PRODUCTS, ...DataSyncService.getApprovedProducts()];
+                                            const seen = new Set<string>([result.matchedProduct?.id || ""].filter(Boolean));
+
+                                            const companionProducts = allCatalog
+                                                .filter(p => companions.includes(p.category) && !seen.has(p.id) && p.is_active)
+                                                .sort((a, b) => b.sold_count - a.sold_count);
+                                            companionProducts.forEach(p => seen.add(p.id));
+
+                                            // 2. Accessories / best-sellers from same category as filler
+                                            const sameCat = allCatalog
+                                                .filter(p => p.category === cat && !seen.has(p.id) && p.is_active)
+                                                .sort((a, b) => b.sold_count - a.sold_count);
+
+                                            const combined = [...companionProducts.slice(0, 4), ...sameCat.slice(0, 3)]
+                                                .filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx)
+                                                .slice(0, 6);
+                                            return (
+                                                <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm mt-6 mb-2">
+                                                    <RecommendedProducts
+                                                        products={combined}
+                                                        title="Customers Also Bought"
+                                                        subtitle="Frequently paired with this item"
+                                                        icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
+                                                        onItemClick={onClose}
+                                                    />
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Tier 4: Similar Products from Catalog (NEW) */}
                                         <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm">
@@ -1105,7 +1139,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         </div>
 
                                         {/* Tier 5: Trending in Market */}
-                                        <div className="-mx-2 flex flex-col items-center">
+                                        <div className="-mx-2 flex flex-col items-center pb-4">
                                             <RecommendedProducts
                                                 products={SEED_PRODUCTS.filter(p => p.is_trending).sort((a,b) => b.avg_rating - a.avg_rating).slice(0, 8)}
                                                 title="Trending in Market"
@@ -1113,7 +1147,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                 icon={<Sparkles className="h-4 w-4 text-amber-500" />}
                                                 onItemClick={onClose}
                                             />
-                                            <Link href={`/category/${result.category || "electronics"}`} onClick={onClose} className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-emerald-50 border border-gray-200 hover:border-emerald-200 text-gray-700 hover:text-emerald-700 text-sm font-bold rounded-xl transition-colors shadow-sm w-full md:w-auto justify-center">
+                                            <Link href={`/category/${result.category || "electronics"}`} onClick={onClose} className="mt-4 mb-4 inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-emerald-50 border border-gray-200 hover:border-emerald-200 text-gray-700 hover:text-emerald-700 text-sm font-bold rounded-xl transition-colors shadow-sm w-full md:w-auto justify-center">
                                                 View all recommendations <ArrowRight className="h-4 w-4" />
                                             </Link>
                                         </div>
