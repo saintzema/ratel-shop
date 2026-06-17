@@ -413,6 +413,7 @@ default to NEW from 2024 onwards.
         };
 
         let response = await fetchWithRetry();
+        let usedQwenFallback = false;
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -423,7 +424,8 @@ default to NEW from 2024 onwards.
             // never entered and Qwen is never called.
             const qwenRes = await tryQwenSearch(prompt);
             if (qwenRes) {
-                response = qwenRes; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
+                response = qwenRes;
+                usedQwenFallback = true; // Qwen returns Gemini-shaped JSON — parse path below works unchanged
             } else {
                 console.error("Gemini API Error:", response.status, errorText);
                 if (response.status === 429) {
@@ -523,6 +525,17 @@ default to NEW from 2024 onwards.
                     }
                     return item;
                 });
+
+                // ─── QWEN IMAGE STRIP ───
+                // Qwen is a text model — it often invents syntactically valid but non-existent
+                // image URLs that pass URL validation, skip Serper hydration, and then time out
+                // at the CDN proxy. Clear them upfront so Serper always runs for Qwen results.
+                if (usedQwenFallback) {
+                    parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                        item.image_url = '';
+                        return item;
+                    });
+                }
 
                 // ─── IMAGE SHARING FALLBACK (Zero-latency) ───
                 // If some results have valid permanent images and others don't, share the valid
