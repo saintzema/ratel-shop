@@ -310,7 +310,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Persist user FIRST so subsequent fetches in migrateGuestData have context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
-        
+
+        pendo.identify({
+            visitor: {
+                id: userData.id,
+                email: userData.email,
+                full_name: userData.name,
+                role: userData.role,
+                location: userData.location,
+                is_premium: userData.isPremium,
+                created_at: userData.created_at,
+                premium_expires_at: userData.premiumExpiresAt,
+            },
+        });
+
         // HOT migration: reconcile guest data with new identity immediately
         await migrateGuestData(userData);
         
@@ -318,6 +331,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = () => {
+        pendo.clearSession();
+
         // Grab the user email BEFORE removing fp_user so we can clear their cart
         const currentEmail = user?.email;
 
@@ -362,6 +377,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Persist user FIRST for context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+
+        pendo.identify({
+            visitor: {
+                id: userData.id,
+                email: userData.email,
+                full_name: userData.name,
+                role: userData.role,
+                location: userData.location,
+                is_premium: userData.isPremium,
+                created_at: userData.created_at,
+                premium_expires_at: userData.premiumExpiresAt,
+            },
+        });
 
         // HOT migration for new account creation
         await migrateGuestData(userData);
