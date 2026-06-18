@@ -88,6 +88,18 @@ function DiscountSection({
             onApplyCoupon(mappedCoupon);
             setMsg(`Discount Applied: ₦2,000 OFF`);
             setShowDropdown(false);
+
+            // Track coupon applied
+            if (typeof window !== "undefined" && window.pendo) {
+                window.pendo.track("coupon_applied", {
+                    coupon_code: "SAVE2000",
+                    discount_amount: 2000,
+                    discount_type: "fixed",
+                    coupon_source: "exit_intent",
+                    cart_subtotal: subtotal,
+                });
+            }
+
             return;
         }
 
@@ -98,6 +110,18 @@ function DiscountSection({
             onApplyCoupon(validCoupon);
             setMsg(`Discount Applied: ₦${validCoupon.amount.toLocaleString()} OFF`);
             setShowDropdown(false);
+
+            // Track coupon applied
+            if (typeof window !== "undefined" && window.pendo) {
+                window.pendo.track("coupon_applied", {
+                    coupon_code: validCoupon.code,
+                    discount_amount: validCoupon.amount,
+                    discount_type: "fixed",
+                    coupon_source: "local",
+                    cart_subtotal: subtotal,
+                });
+            }
+
             return;
         }
 
@@ -136,6 +160,17 @@ function DiscountSection({
                 onApplyCoupon(mappedCoupon);
                 setMsg(`Discount Applied: ₦${amountOff.toLocaleString()} OFF`);
                 setShowDropdown(false);
+
+                // Track coupon applied
+                if (typeof window !== "undefined" && window.pendo) {
+                    window.pendo.track("coupon_applied", {
+                        coupon_code: discount.code,
+                        discount_amount: amountOff,
+                        discount_type: discount.type || "fixed",
+                        coupon_source: "api",
+                        cart_subtotal: subtotal,
+                    });
+                }
             } else {
                 const data = await res.json();
                 setMsg(data.error || "Invalid or expired discount code");
@@ -976,6 +1011,17 @@ function CheckoutContent() {
                 const waOrderId = "WA-" + Date.now();
                 finalizeOrder(waOrderId);
 
+                // Track WhatsApp order placed
+                if (typeof window !== "undefined" && window.pendo) {
+                    window.pendo.track("whatsapp_order_placed", {
+                        order_id: waOrderId,
+                        total_amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
+                        item_count: checkoutItems.length,
+                        delivery_method: deliveryMethod,
+                        customer_state: address.state || pickupDetails.state || "",
+                    });
+                }
+
                 // Generate the message and redirect
                 const msg = generateWhatsAppMessage(waOrderId);
                 const waUrl = `https://wa.me/${whatsappOrderNumber}?text=${encodeURIComponent(msg)}`;
@@ -1222,6 +1268,25 @@ function CheckoutContent() {
 
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
+
+            // Track order placed event
+            if (typeof window !== "undefined" && window.pendo) {
+                window.pendo.track("order_placed", {
+                    order_id: createdOrders[0]?.order?.id || "",
+                    payment_method: _reference?.startsWith("COD-") ? "cod" : _reference?.startsWith("WA-") ? "whatsapp" : "paystack",
+                    total_amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
+                    item_count: checkoutItems.length,
+                    has_negotiated_items: checkoutItems.some(item => item.isNegotiated),
+                    has_vehicle_items: checkoutItems.some(item => isVehicle(item.product)),
+                    has_global_products: hasGlobalProduct,
+                    delivery_method: deliveryMethod,
+                    shipping_cost: shipping,
+                    discount_applied: !!appliedCoupon,
+                    discount_amount: appliedCoupon?.amount || 0,
+                    is_guest_checkout: !user,
+                    customer_state: address.state || pickupDetails.state || "",
+                });
+            }
 
             if (negotiationId) {
                 // Mark negotiation as purchased to clear notification
@@ -2790,6 +2855,14 @@ function CheckoutContent() {
                                             });
                                             const data = await res.json();
                                             if (res.ok && data.success) {
+                                                // Track guest account secured
+                                                if (typeof window !== "undefined" && window.pendo) {
+                                                    window.pendo.track("guest_account_secured", {
+                                                        email: address.email || "",
+                                                        order_id: conciergeOrderId || "",
+                                                    });
+                                                }
+
                                                 setShowGuestPasswordSetup(false);
                                                 if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                                                     setShowPushOptIn(true);

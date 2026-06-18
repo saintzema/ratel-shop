@@ -195,6 +195,15 @@ export default function AdminUserDetailPage() {
                 body: JSON.stringify({ status: "active", verified: true }),
             });
         } catch { }
+
+        // Track admin KYC approved
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("admin_kyc_approved", {
+                seller_id: userEntity.id,
+                business_name: userEntity.business_name || "",
+            });
+        }
+
         await loadData();
         setIsUpdating(false);
     };

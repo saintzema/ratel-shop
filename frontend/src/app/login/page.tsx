@@ -319,6 +319,22 @@ export default function UnifiedAuthPage() {
                 login(dbUser);
                 saveRegisteredUser(dbUser.email, dbUser.name, dbUser.role);
 
+                const finalRedirect =
+                    dbUser.role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                        dbUser.role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                            redirectPath;
+
+                // Track login event
+                if (typeof window !== "undefined" && window.pendo) {
+                    window.pendo.track("user_logged_in", {
+                        login_method: isWhatsAppAuth ? "whatsapp_otp" : "password",
+                        user_role: dbUser.role,
+                        is_db_verified: true,
+                        is_offline_fallback: false,
+                        redirect_path: finalRedirect,
+                    });
+                }
+
                 DataSyncService.addNotification({
                     userId: dbUser.email,
                     type: "system",
@@ -326,10 +342,6 @@ export default function UnifiedAuthPage() {
                     link: "/"
                 });
 
-                const finalRedirect =
-                    dbUser.role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                        dbUser.role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
-                            redirectPath;
                 router.push(finalRedirect);
                 return;
             }
@@ -395,6 +407,22 @@ export default function UnifiedAuthPage() {
             login(finalUser);
             saveRegisteredUser(finalUser.email, finalUser.name, finalUser.role);
 
+            const finalRedirect =
+                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                        redirectPath;
+
+            // Track login event (offline fallback)
+            if (typeof window !== "undefined" && window.pendo) {
+                window.pendo.track("user_logged_in", {
+                    login_method: isWhatsAppAuth ? "whatsapp_otp" : "password",
+                    user_role: determinedRole,
+                    is_db_verified: false,
+                    is_offline_fallback: true,
+                    redirect_path: finalRedirect,
+                });
+            }
+
             DataSyncService.addNotification({
                 userId: userEmail,
                 type: "system",
@@ -402,10 +430,6 @@ export default function UnifiedAuthPage() {
                 link: "/"
             });
 
-            const finalRedirect =
-                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
-                        redirectPath;
             router.push(finalRedirect);
         } catch (err) {
             console.error("Login error:", err);
@@ -538,6 +562,18 @@ export default function UnifiedAuthPage() {
             // Persist this user as registered with password
             saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined, password);
 
+            // Track registration event
+            if (typeof window !== "undefined" && window.pendo) {
+                window.pendo.track("user_registered", {
+                    registration_method: isWhatsAppAuth ? "whatsapp" : "email",
+                    user_role: determinedRole,
+                    verification_skipped: skipped,
+                    has_birthday: !!birthday,
+                    redirect_path: finalRedirect,
+                    is_preexisting_guest: !!preexistingId,
+                });
+            }
+
             // Send Welcome Email
             fetch("/api/email", {
                 method: "POST",
@@ -654,6 +690,16 @@ export default function UnifiedAuthPage() {
                     setFirstName(parts[0] || "");
                     setLastName(parts.slice(1).join(" ") || "");
                 }
+
+                // Track WhatsApp auth completed (existing user)
+                if (typeof window !== "undefined" && window.pendo) {
+                    window.pendo.track("whatsapp_auth_completed", {
+                        is_new_user: false,
+                        country_code: waCountryCode,
+                        has_existing_email: !!data.user.email,
+                    });
+                }
+
                 setStep(data.user.hasPassword ? "password_existing" : "password_new");
             } else if (data.offline) {
                 // DB offline — check local
@@ -670,6 +716,16 @@ export default function UnifiedAuthPage() {
             } else {
                 // NEW USER — go to WA signup step
                 setIsExistingUser(false);
+
+                // Track WhatsApp auth completed (new user)
+                if (typeof window !== "undefined" && window.pendo) {
+                    window.pendo.track("whatsapp_auth_completed", {
+                        is_new_user: true,
+                        country_code: waCountryCode,
+                        has_existing_email: false,
+                    });
+                }
+
                 setStep("wa_signup");
             }
         } catch (err: any) {

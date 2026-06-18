@@ -73,6 +73,16 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
                 const result = await res.json();
                 // Store the returned application ID for subsequent saves
                 if (result.applicationId) appIdRef.current = result.applicationId;
+
+                // Track financing progress saved
+                if (typeof window !== "undefined" && (window as any).pendo) {
+                    (window as any).pendo.track("financing_progress_saved", {
+                        product_id: product.id,
+                        current_step: currentStep,
+                        applicant_type: data.applicantType || "",
+                        application_id: result.applicationId || appIdRef.current || "",
+                    });
+                }
             }
         } catch { /* fail silently — save is best-effort */ }
     }, [product.id]);
@@ -147,6 +157,22 @@ export function FinancingFlow({ product, isOpen, onClose, applicationId: initial
                 return;
             }
             if (data.success) {
+                // Track financing application submitted
+                if (typeof window !== "undefined" && (window as any).pendo) {
+                    (window as any).pendo.track("financing_application_submitted", {
+                        product_id: product.id,
+                        product_name: product.name,
+                        applicant_type: flowData.applicantType || "",
+                        contract_type: flowData.contract?.contractType || "",
+                        loan_amount: product.price,
+                        tenure_months: flowData.contract?.tenure || 0,
+                        monthly_repayment: flowData.contract?.monthlyPayment || 0,
+                        deposit_amount: flowData.contract?.depositAmount || 0,
+                        interest_rate: flowData.contract?.interestRate || 0,
+                        application_id: data.applicationId || "",
+                    });
+                }
+
                 // Store type so success page can show correct upsell
                 if (typeof window !== 'undefined') {
                     sessionStorage.setItem('fp_fin_type', flowData.applicantType || '');

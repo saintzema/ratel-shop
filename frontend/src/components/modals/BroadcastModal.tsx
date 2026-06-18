@@ -62,6 +62,14 @@ export function BroadcastModal({ open, onOpenChange, selectedCustomerIds, onSucc
             if (sellerId) {
                 DataSyncService.sendBroadcastMessage(selectedCustomerIds, message);
 
+                // Track seller broadcast sent
+                if (typeof window !== "undefined" && (window as any).pendo) {
+                    (window as any).pendo.track("seller_broadcast_sent", {
+                        recipient_count: selectedCustomerIds.length,
+                        message_length: message.length,
+                    });
+                }
+
                 // Fire promotional emails to selected customers via Resend
                 try {
                     const allUsers = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");

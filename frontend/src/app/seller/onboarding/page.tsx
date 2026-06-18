@@ -263,6 +263,23 @@ export default function KYCOnboarding() {
             });
         } catch (e) { }
 
+        // Track seller onboarding completed
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("seller_onboarding_completed", {
+                seller_role: sellerRole,
+                business_name: businessName || "",
+                state: stateRegion || "",
+                city: city || "",
+                is_registered_business: isRegistered,
+                has_cac: !!cacNumber,
+                has_bank_details: !!(bankName && accountNumber),
+                weekly_orders: weeklyOrders || "",
+                staff_count: staffCount || "",
+                physical_stores: physicalStores || "",
+                currencies: currencies.join(","),
+            });
+        }
+
         setTimeout(() => {
             router.push("/seller/dashboard");
         }, 100);
