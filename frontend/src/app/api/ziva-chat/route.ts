@@ -98,14 +98,28 @@ async function searchCatalog(keywords: string, maxBudget?: number): Promise<any>
         .filter(p => p._score > 10)
         .sort((a, b) => b._score - a._score);
 
-    if (maxBudget && maxBudget > 0) results = results.filter(p => p.price <= maxBudget);
+    let nearBudget = false;
+    if (maxBudget && maxBudget > 0) {
+        const withinBudget = results.filter(p => p.price <= maxBudget);
+        if (withinBudget.length > 0) {
+            results = withinBudget;
+        } else {
+            // Nothing in budget — return nearest results up to 60% over budget so
+            // Qwen has real catalog names to reference (prevents hallucinated/shortened names).
+            results = results.filter(p => p.price <= maxBudget * 1.6);
+            nearBudget = true;
+        }
+    }
 
     const top = results.slice(0, 8);
     return {
         found: top.length,
+        nearBudget,
         products: top.map(p => ({ name: p.name, price: p.price, category: p.category, source: p._src, id: p.id })),
         summary: top.length > 0
-            ? `Found ${top.length} product${top.length > 1 ? 's' : ''} matching "${keywords}".`
+            ? nearBudget
+                ? `No products found at exactly ₦${maxBudget?.toLocaleString()} — here are the closest matches (slightly above budget): ${top.map(p => p.name).join(', ')}.`
+                : `Found ${top.length} product${top.length > 1 ? 's' : ''} matching "${keywords}".`
             : `No products found matching "${keywords}" in our catalog.`
     };
 }
