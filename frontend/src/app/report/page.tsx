@@ -39,7 +39,24 @@ export default function ReportPage() {
                                 <p className="text-sm text-emerald-600">Our Trust & Safety team will investigate within 24 hours.</p>
                             </div>
                         ) : (
-                            <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="space-y-4">
+                            <form onSubmit={(e) => {
+                                e.preventDefault();
+                                const form = e.target as HTMLFormElement;
+                                const selectEl = form.querySelector("select") as HTMLSelectElement;
+                                const urlInput = form.querySelectorAll("input")[1] as HTMLInputElement;
+                                const textArea = form.querySelector("textarea") as HTMLTextAreaElement;
+
+                                // Track report submitted
+                                if (typeof window !== "undefined" && (window as any).pendo) {
+                                    (window as any).pendo.track("report_submitted", {
+                                        report_type: selectEl?.value || "",
+                                        has_url: !!(urlInput?.value?.trim()),
+                                        description_length: textArea?.value?.length || 0,
+                                    });
+                                }
+
+                                setSubmitted(true);
+                            }} className="space-y-4">
                                 <Input placeholder="Your Email" type="email" required className="rounded-xl" />
                                 <Input placeholder="Product/Seller URL (if applicable)" className="rounded-xl" />
                                 <select className="w-full h-10 rounded-xl border border-gray-300 px-3 text-sm bg-white" required>

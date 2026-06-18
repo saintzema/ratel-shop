@@ -515,6 +515,24 @@ function NewProductContent() {
             }
 
             await DataSyncService.addRawProduct(newProduct);
+
+            // Track product listed
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("product_listed", {
+                    product_name: finalProductName,
+                    category: formData.category || "",
+                    subcategory: formData.subcategory || "",
+                    price: numericPrice || 0,
+                    original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : 0,
+                    has_ai_description: !!formData.description && formData.description.length > 50,
+                    image_count: finalImages.length,
+                    has_variants: formData.variants.some(v => v.name.trim() !== ""),
+                    has_financing: formData.financing_available,
+                    has_specs: formData.specs.some(s => s.key.trim() !== ""),
+                    stock_count: parseInt(formData.stock) || 0,
+                });
+            }
+
             router.push("/seller/products");
         } catch (error) {
             console.error("Submission failed:", error);

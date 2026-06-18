@@ -146,6 +146,15 @@ export function WhatsAppCatalogImporter() {
                 });
             }
 
+            // Track WhatsApp catalog synced
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                const categories = [...new Set(valid.map(p => p.category))];
+                (window as any).pendo.track("whatsapp_catalog_synced", {
+                    product_count: valid.length,
+                    categories_used: categories.join(","),
+                });
+            }
+
             setSavedCount(data.created ?? valid.length);
             setProducts([BLANK_PRODUCT()]);
             setTimeout(() => { setSavedCount(0); setExpanded(false); }, 3000);

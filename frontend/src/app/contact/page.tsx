@@ -95,7 +95,22 @@ export default function ContactPage() {
                                     <p className="text-sm text-emerald-600">We&apos;ll get back to you within 24 hours.</p>
                                 </div>
                             ) : (
-                                <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="space-y-4">
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const form = e.target as HTMLFormElement;
+                                    const subjectInput = form.querySelectorAll("input")[2] as HTMLInputElement;
+                                    const textArea = form.querySelector("textarea") as HTMLTextAreaElement;
+
+                                    // Track contact form submitted
+                                    if (typeof window !== "undefined" && (window as any).pendo) {
+                                        (window as any).pendo.track("contact_form_submitted", {
+                                            inquiry_topic: subjectInput?.value || "",
+                                            message_length: textArea?.value?.length || 0,
+                                        });
+                                    }
+
+                                    setSubmitted(true);
+                                }} className="space-y-4">
                                     <Input placeholder="Your Name" required className="rounded-xl" />
                                     <Input placeholder="Email Address" type="email" required className="rounded-xl" />
                                     <Input placeholder="Subject" required className="rounded-xl" />

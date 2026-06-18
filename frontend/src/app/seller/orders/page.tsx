@@ -165,6 +165,15 @@ function SellerOrdersContent() {
             seller.account_number.slice(-4)
         );
 
+        // Track seller payout requested
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("seller_payout_requested", {
+                amount: payoutInfo.payout,
+                bank_name: seller.bank_name || "",
+                payout_method: "Bank Transfer",
+            });
+        }
+
         alert(`Payout of ${formatPrice(payoutInfo.payout)} requested for order ${order.id}.`);
 
         // Reload to show pending layout

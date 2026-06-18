@@ -119,6 +119,18 @@ export default function BillingPage() {
         const sellerId = DataSyncService.getCurrentSellerId();
         const seller = DataSyncService.getCurrentSeller();
         if (sellerId) {
+            // Track seller plan upgraded
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("seller_plan_upgraded", {
+                    previous_plan: currentPlan,
+                    new_plan: paystackPlan,
+                    billing_cycle: billingCycle,
+                    payment_amount: paystackAmount / 100,
+                    payment_reference: reference,
+                    business_name: seller?.business_name || "",
+                });
+            }
+
             DataSyncService.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
             setCurrentPlan(paystackPlan);
             window.dispatchEvent(new Event("storage"));

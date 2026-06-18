@@ -102,6 +102,16 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
         const newConvId = startConversation(orderId, seller.business_name, seller.logo_url, initialMsg);
         setConvId(newConvId);
 
+        // Track contact seller message sent
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("contact_seller_message_sent", {
+                seller_id: seller.id,
+                seller_name: seller.business_name || "",
+                inquiry_category: category,
+                message_length: message.length,
+            });
+        }
+
         // Notify seller via in-app dashboard
         try {
             const { DataSyncService } = await import("@/lib/sync-store");

@@ -158,6 +158,15 @@ export function WaitlistModal() {
             }
         } catch { }
 
+        // Track waitlist signup
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            const emailDomain = email.includes("@") ? email.split("@")[1] : "";
+            (window as any).pendo.track("waitlist_signup", {
+                email_domain: emailDomain,
+                waitlist_count: waitlistCount || 0,
+            });
+        }
+
         setIsSubmitting(false);
         setSubmitted(true);
         setTimeout(() => {

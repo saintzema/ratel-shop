@@ -43,6 +43,16 @@ export default function ReferralsPage() {
         if (success) {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+
+            // Track referral link copied
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                const code = user?.referralCode || user?.id?.slice(0, 8) || "";
+                (window as any).pendo.track("referral_link_copied", {
+                    referral_code: code,
+                    total_referred: stats.total_referred,
+                    earned_rewards: stats.earned_rewards,
+                });
+            }
         }
     };
 

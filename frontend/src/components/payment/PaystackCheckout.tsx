@@ -144,6 +144,18 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 callback: (response: { reference: string }) => {
                     cleanupPaystack();
                     setStep("success");
+
+                    // Track payment completed
+                    if (typeof window !== "undefined" && (window as any).pendo) {
+                        (window as any).pendo.track("payment_completed", {
+                            payment_reference: response.reference,
+                            amount_kobo: amount,
+                            email: email,
+                            is_live_mode: IS_LIVE_MODE,
+                            currency: "NGN",
+                        });
+                    }
+
                     setTimeout(() => {
                         onSuccess(response.reference);
                         if (!autoStart) onClose();
