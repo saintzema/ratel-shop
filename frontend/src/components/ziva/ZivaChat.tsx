@@ -242,6 +242,7 @@ export function ZivaChat() {
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pendoConversationId = useRef(crypto.randomUUID());
 
     // Play a soft Apple-style chime when a NEW inbound (assistant/admin) message lands.
     // Seeds silently on first run so the welcome message doesn't ring.
@@ -602,7 +603,7 @@ export function ZivaChat() {
     }, [messages, user]);
 
     // ─── Send Message Handler ────────────────────────
-    const handleSend = useCallback(async (text?: string) => {
+    const handleSend = useCallback(async (text?: string, options?: { suggestedPrompt?: boolean }) => {
         const msgText = text || input.trim();
         if (!msgText || isProcessing) return;
 
@@ -630,6 +631,15 @@ export function ZivaChat() {
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsProcessing(true);
+
+        // Track user prompt with Pendo
+        window.pendo?.trackAgent("prompt", {
+            agentId: "96jhVwZgUnaTe-ZiTsO5qvbrIcI",
+            conversationId: pendoConversationId.current,
+            messageId: userMsg.id,
+            content: resolvedText,
+            suggestedPrompt: options?.suggestedPrompt ?? false,
+        });
 
         // Show typing indicator
         const typingId = `typing_${Date.now()}`;
@@ -1137,12 +1147,21 @@ export function ZivaChat() {
                 }
             }
             const response = await generateResponse(contextualText);
+            const responseId = `resp_${Date.now()}`;
+
+            // Track agent response with Pendo
+            window.pendo?.trackAgent("agent_response", {
+                agentId: "96jhVwZgUnaTe-ZiTsO5qvbrIcI",
+                conversationId: pendoConversationId.current,
+                messageId: responseId,
+                content: response.content,
+            });
 
             // Remove typing, add real response
             setMessages(prev => [
                 ...prev.filter(m => m.id !== typingId),
                 {
-                    id: `resp_${Date.now()}`,
+                    id: responseId,
                     role: "assistant",
                     content: response.content,
                     products: response.products,
@@ -1177,6 +1196,15 @@ export function ZivaChat() {
             const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: "Sent an image", image: imageDataUrl };
             setMessages(prev => [...prev, userMsg]);
             setIsProcessing(true);
+
+            // Track image upload prompt with Pendo
+            window.pendo?.trackAgent("prompt", {
+                agentId: "96jhVwZgUnaTe-ZiTsO5qvbrIcI",
+                conversationId: pendoConversationId.current,
+                messageId: userMsg.id,
+                content: "Sent an image",
+                fileUploaded: true,
+            });
             const typingId = `typing_${Date.now()}`;
             setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
 
@@ -1556,7 +1584,7 @@ export function ZivaChat() {
                                                                                     onClick={(e) => {
                                                                                         e.preventDefault();
                                                                                         e.stopPropagation();
-                                                                                        handleSend(`I want to negotiate the price of ${product.name}`);
+                                                                                        handleSend(`I want to negotiate the price of ${product.name}`, { suggestedPrompt: true });
                                                                                     }}
                                                                                     className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
                                                                                     title="Negotiate Price"
@@ -1621,9 +1649,17 @@ export function ZivaChat() {
                                                                             window.location.href = actionText.replace('__NAV__', '');
                                                                         } else if (isRetry) {
                                                                             const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                                                                            if (lastUserMsg) handleSend(lastUserMsg.content);
+                                                                            if (lastUserMsg) {
+                                                                                window.pendo?.trackAgent("user_reaction", {
+                                                                                    agentId: "96jhVwZgUnaTe-ZiTsO5qvbrIcI",
+                                                                                    conversationId: pendoConversationId.current,
+                                                                                    messageId: lastUserMsg.id,
+                                                                                    content: "retry",
+                                                                                });
+                                                                                handleSend(lastUserMsg.content);
+                                                                            }
                                                                         } else {
-                                                                            handleSend(actionText);
+                                                                            handleSend(actionText, { suggestedPrompt: true });
                                                                         }
                                                                     }}
                                                                     className="text-[11px] font-semibold bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/30 text-gray-300 hover:text-emerald-400 rounded-full px-3 py-1.5 transition-all flex items-center gap-1.5"
