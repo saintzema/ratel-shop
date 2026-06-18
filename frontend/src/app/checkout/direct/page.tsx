@@ -135,6 +135,19 @@ function DirectCheckoutContent() {
             const negotiatedPrice = amount > 0 && amount !== product.price ? amount : undefined;
             addToCart(product, 1, negotiatedPrice);
 
+            // Track QR checkout initiated
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("qr_checkout_initiated", {
+                    product_id: product.id,
+                    product_name: product.name,
+                    amount: amount || product.price,
+                    seller_id: product.seller_id || "",
+                    is_direct_payment: !!(product as any).is_direct_payment,
+                    has_negotiated_price: !!negotiatedPrice,
+                    category: product.category || "",
+                });
+            }
+
             setStatus("redirecting");
 
             // Hard navigation so the Next.js router cache is cleared.

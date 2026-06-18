@@ -149,6 +149,14 @@ export default function ProfilePage() {
 
             if (formData.location) setLocation(formData.location);
 
+            // Track profile updated
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("profile_updated", {
+                    has_whatsapp: !!combinedWa,
+                    has_location: !!formData.location,
+                });
+            }
+
             setEditingField(null);
             showNotification({
                 title: "Profile Updated",
@@ -169,6 +177,11 @@ export default function ProfilePage() {
         }
         setIsLoading(true);
         updateUser({ password: newPassword } as any);
+
+        // Track password changed
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("password_changed", {});
+        }
         
         if (user?.id) {
             DataSyncService.addNotification({

@@ -108,6 +108,18 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             setProposedPrice(fairPrice.toString());
             setIsSystemCalculated(true);
             setAnalysisStep(4);
+
+            // Track AI price check completed
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("ai_price_check_completed", {
+                    product_name: product?.name || "",
+                    product_price: product?.price || 0,
+                    suggested_fair_price: fairPrice,
+                    market_average: analysis.marketAverage || 0,
+                    market_low: analysis.marketLow || 0,
+                    price_flag: product?.price_flag || "fair",
+                });
+            }
         } catch (err) {
             console.error("Negotiation Analysis failed:", err);
             setError("Failed to fetch real-time market data. Please suggest a price manually.");
@@ -171,6 +183,23 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         };
 
         DataSyncService.addNegotiation(newNegotiation);
+
+        // Track negotiation submitted
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            const discountPct = product.price > 0 ? Math.round(((product.price - Number(proposedPrice)) / product.price) * 100) : 0;
+            (window as any).pendo.track("negotiation_submitted", {
+                product_id: product.id,
+                product_name: product.name,
+                product_category: product.category || "",
+                original_price: product.price,
+                proposed_price: Number(proposedPrice),
+                discount_percentage: discountPct,
+                used_ai_price_checker: isSystemCalculated,
+                has_message: !!message,
+                has_whatsapp_number: !!whatsappNumber,
+                seller_name: product.seller_name || "",
+            });
+        }
 
         // Save WhatsApp number to user profile if provided and logged in
         if (whatsappNumber && user?.email) {

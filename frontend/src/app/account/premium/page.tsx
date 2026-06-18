@@ -22,6 +22,14 @@ export default function PremiumPage() {
             if (updatedUser) login(updatedUser);
             window.dispatchEvent(new Event("storage"));
             setShowPaystack(false);
+
+            // Track premium subscription purchased
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("premium_subscription_purchased", {
+                    payment_reference: reference,
+                    amount: 5000,
+                });
+            }
         }
     };
     const benefits = [

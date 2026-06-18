@@ -1102,6 +1102,19 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             images: []
         });
 
+        // Track review submitted
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("review_submitted", {
+                product_id: product.id,
+                product_name: product.name || "",
+                rating: newReview.rating,
+                has_title: !!newReview.title,
+                has_body: !!newReview.body,
+                body_length: (newReview.body || "").length,
+                is_verified_purchase: true,
+            });
+        }
+
         setIsWritingReview(false);
         setNewReview({ rating: 0, title: "", body: "" });
         setIsSubmittingReview(false);

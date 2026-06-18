@@ -169,6 +169,16 @@ export function InstagramCatalogImporter() {
             if (data.success) {
                 setImportResult({ created: data.created, message: data.message });
                 setSelectedIds([]);
+
+                // Track Instagram catalog imported
+                if (typeof window !== "undefined" && (window as any).pendo) {
+                    const categories = [...new Set(editProducts.map(p => p.category).filter(Boolean))];
+                    (window as any).pendo.track("instagram_catalog_imported", {
+                        product_count: data.created || editProducts.length,
+                        categories_assigned: categories.join(","),
+                    });
+                }
+
                 // Trigger site-wide product list refresh
                 window.dispatchEvent(new Event("sync-store-update"));
             } else {

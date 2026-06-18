@@ -631,6 +631,20 @@ export function ZivaChat() {
         setInput("");
         setIsProcessing(true);
 
+        // Track Ziva chat message sent
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            const detectedIntent = msgText.toLowerCase().includes("price") || msgText.toLowerCase().includes("cost") ? "price_check"
+                : msgText.toLowerCase().includes("track") || msgText.toLowerCase().includes("order") ? "order_tracking"
+                : msgText.toLowerCase().includes("negotiate") || msgText.toLowerCase().includes("offer") ? "negotiation"
+                : msgText.toLowerCase().includes("find") || msgText.toLowerCase().includes("search") ? "product_search"
+                : "general";
+            (window as any).pendo.track("ziva_chat_message_sent", {
+                detected_intent: detectedIntent,
+                has_product_context: !!currentProduct,
+                response_type: adminActive ? "admin" : "ai",
+            });
+        }
+
         // Show typing indicator
         const typingId = `typing_${Date.now()}`;
 

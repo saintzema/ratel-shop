@@ -165,6 +165,14 @@ export default function EscrowManagement() {
     };
 
     const handleBulkRelease = () => {
+        // Track admin bulk escrow action
+        if (typeof window !== "undefined" && (window as any).pendo) {
+            (window as any).pendo.track("admin_bulk_escrow_action", {
+                action_type: "bulk_release",
+                order_count: selectedOrderIds.length,
+            });
+        }
+
         setActionModal({ isOpen: true, type: "bulk_release", orderId: null, message: `Are you sure you want to bulk release escrow funds for ${selectedOrderIds.length} selected orders?` });
     };
 
@@ -181,6 +189,14 @@ export default function EscrowManagement() {
 
         if (type === "release" && orderId) {
             DataSyncService.releaseEscrow(orderId);
+
+            // Track admin escrow released
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("admin_escrow_released", {
+                    order_id: orderId,
+                    action_type: "release",
+                });
+            }
         } else if (type === "refund" && orderId) {
             const dispute = DataSyncService.getDisputeByOrderId(orderId);
             if (dispute) {

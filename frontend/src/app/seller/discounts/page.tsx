@@ -118,6 +118,17 @@ export default function DiscountsPage() {
                 return;
             }
 
+            // Track discount created
+            if (typeof window !== "undefined" && (window as any).pendo) {
+                (window as any).pendo.track("discount_created", {
+                    discount_code: newDiscount.code,
+                    discount_type: newDiscount.type,
+                    discount_value: newDiscount.value,
+                    usage_limit: newDiscount.usageLimit || "",
+                    expiry_date: newDiscount.expiry || "",
+                });
+            }
+
             setIsCreateOpen(false);
             setNewDiscount({ code: "", type: "Percentage", value: "", usageLimit: "", expiry: "" });
             loadDiscounts();

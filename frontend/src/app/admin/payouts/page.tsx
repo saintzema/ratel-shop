@@ -115,6 +115,16 @@ export default function PayoutRequestsDirectory() {
                 // Update local state and sync store
                 DataSyncService.updatePayoutStatus(selectedPayout.id, "completed", finalAmount);
                 window.dispatchEvent(new Event("storage"));
+
+                // Track admin payout approved
+                if (typeof window !== "undefined" && (window as any).pendo) {
+                    (window as any).pendo.track("admin_payout_approved", {
+                        payout_id: selectedPayout.id,
+                        seller_id: selectedPayout.seller_id || "",
+                        amount: selectedPayout.amount,
+                        override_amount: finalAmount !== selectedPayout.amount ? finalAmount : 0,
+                    });
+                }
             } else {
                 alert(`Error processing payout: ${data.error}`);
             }

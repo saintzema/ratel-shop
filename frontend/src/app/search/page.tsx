@@ -603,6 +603,20 @@ function SearchContent() {
         .then((data) => {
           if (data.suggestions && Array.isArray(data.suggestions)) {
             setGlobalResults(data.suggestions);
+
+            // Track search executed
+            if (typeof window !== "undefined" && window.pendo) {
+              window.pendo.track("search_executed", {
+                query: effectiveQuery,
+                category: detectedCategory || "",
+                sort_by: sortBy,
+                is_verified_filter: isVerified,
+                local_results_count: filteredProducts.length,
+                global_results_count: data.suggestions.length,
+                detected_category: detectedCategory || "",
+              });
+            }
+
             if (data.suggestions.length > 0) {
               setShowGlobalResults(true); // Auto-show the global results seamlessly
               // Formatting for auto-cache seeding
@@ -636,6 +650,16 @@ function SearchContent() {
     setPage(p => p + 1); // Reveal more paginated local results immediately
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
+
+    // Track global search expanded
+    if (typeof window !== "undefined" && window.pendo) {
+      window.pendo.track("global_search_expanded", {
+        query: (query || "").trim(),
+        search_iteration: globalSearchCount + 1,
+        previous_results_count: globalResults.length,
+        category: detectedCategory || "",
+      });
+    }
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
     if (effectiveQuery && effectiveQuery.length > 2) {
       setIsGlobalSearching(true);
