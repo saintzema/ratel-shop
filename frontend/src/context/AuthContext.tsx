@@ -311,7 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
 
-        pendo.identify({
+        window.pendo?.identify({
             visitor: {
                 id: userData.id,
                 email: userData.email,
@@ -331,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = () => {
-        pendo.clearSession();
+        window.pendo?.clearSession();
 
         // Grab the user email BEFORE removing fp_user so we can clear their cart
         const currentEmail = user?.email;
@@ -378,7 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
 
-        pendo.identify({
+        window.pendo?.identify({
             visitor: {
                 id: userData.id,
                 email: userData.email,

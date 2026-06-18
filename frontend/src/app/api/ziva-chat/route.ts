@@ -254,14 +254,17 @@ async function executeTool(name: string, args: any): Promise<any> {
 /* ──────────────────────────────────────────────────────────
    Qwen chat (OpenAI-compatible)
    ────────────────────────────────────────────────────────── */
-async function callQwen(messages: any[]): Promise<{ toolCall?: { name: string; args: any; id: string }; text?: string }> {
+async function callQwen(messages: any[], opts: { disableTools?: boolean } = {}): Promise<{ toolCall?: { name: string; args: any; id: string }; text?: string }> {
+    const body: Record<string, any> = { model: QWEN_MODEL, messages, temperature: 0.7 };
+    if (!opts.disableTools) body.tools = OPENAI_TOOLS;
+
     const res = await fetch(QWEN_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${DASHSCOPE_API_KEY}`
         },
-        body: JSON.stringify({ model: QWEN_MODEL, messages, tools: OPENAI_TOOLS, temperature: 0.7 })
+        body: JSON.stringify(body)
     });
 
     if (!res.ok) {
@@ -313,10 +316,20 @@ async function callGemini(contents: any[]): Promise<{ toolCall?: { name: string;
    ────────────────────────────────────────────────────────── */
 function parseAiJson(text: string) {
     let raw = text.trim();
+    // Qwen3 thinking mode wraps reasoning in <think> tags before the JSON
+    raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    // Strip markdown fences
     if (raw.startsWith('```')) {
         raw = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
     }
-    return JSON.parse(raw);
+    try {
+        return JSON.parse(raw);
+    } catch {
+        // Extract first {...} block from mixed text+JSON responses
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error('No JSON object found in response');
+    }
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -421,7 +434,7 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 
         } else {
             // ── QWEN PATH (default) ─────────────────────────────────────────────
-            const messages: any[] = [
+            let messages: any[] = [
                 { role: "system", content: systemPrompt },
                 ...cappedHistory.map((msg: any) => ({
                     role: msg.sender === "user" ? "user" : "assistant",
@@ -432,14 +445,16 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 
             let result = await callQwen(messages);
 
-            if (result.toolCall) {
+            // Handle up to 3 rounds of tool calls (Qwen3 sometimes chains tools)
+            for (let round = 0; round < 3 && result.toolCall; round++) {
                 const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
-                const updatedMessages = [
+                messages = [
                     ...messages,
                     { role: "assistant", content: null, tool_calls: [{ id: result.toolCall.id, type: "function", function: { name: result.toolCall.name, arguments: JSON.stringify(result.toolCall.args) } }] },
                     { role: "tool", tool_call_id: result.toolCall.id, content: JSON.stringify(toolResult) }
                 ];
-                result = await callQwen(updatedMessages);
+                // Last round: disable tools so the model must emit text, not another tool call
+                result = await callQwen(messages, { disableTools: round >= 1 });
             }
 
             if (!result.text) {
