@@ -89,7 +89,15 @@ export default function RootLayout({
               z=e.getElementsByTagName(n)[0];z.parentNode.insertBefore(y,z);})(window,document,'script','pendo');
             })('fce20f2b-7a89-4215-b5d0-852172b2669a');
 
-            pendo.initialize({ visitor: { id: '' } });
+            var anonId = (function(){
+              try {
+                var k = 'fp_anon_id';
+                var v = localStorage.getItem(k);
+                if (!v) { v = 'anon-' + Math.random().toString(36).slice(2) + Date.now(); localStorage.setItem(k, v); }
+                return v;
+              } catch(e) { return 'anon-' + Math.random().toString(36).slice(2); }
+            })();
+            pendo.initialize({ visitor: { id: anonId }, account: { id: 'fairprice-ng' } });
           `
         }} />
         <link rel="preload" href="/logo.png" as="image" />
