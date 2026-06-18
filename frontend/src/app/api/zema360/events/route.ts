@@ -9,7 +9,21 @@ export async function GET() {
     if (isDynamoConfigured()) {
         try {
             await ensureTable();
-            const events = await readAgentLogs(30);
+            const raw = await readAgentLogs(30);
+            // Normalise: items written by logZemaEvent already have ZemaEvent fields (type, description…).
+            // Items written by the orchestrator POST use AgentLogEntry fields — map them so the
+            // dashboard renders both shapes correctly.
+            const events = raw.map((item: any) => ({
+                id: item.id,
+                type: item.type ?? item.event ?? "agent_decision",
+                description: item.description ?? item.event ?? "",
+                product: item.product ?? item.payload?.productId ?? undefined,
+                model: item.model ?? item.payload?.model ?? undefined,
+                mode: item.mode ?? item.payload?.mode ?? undefined,
+                count: item.count ?? undefined,
+                value: item.value ?? item.payload?.value ?? undefined,
+                ts: item.ts,
+            }));
             return NextResponse.json({ events, configured: true, provider: "dynamodb" });
         } catch (err) {
             console.error("[zema360/events] DynamoDB read failed:", err);

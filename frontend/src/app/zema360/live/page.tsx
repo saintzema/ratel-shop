@@ -332,8 +332,8 @@ export default function Zema360LivePage() {
                                         textColor: "text-emerald-400",
                                     },
                                     {
-                                        label: "Firebase Realtime DB",
-                                        sub: "Google Cloud · this dashboard",
+                                        label: "AWS DynamoDB",
+                                        sub: "us-east-1 · agent log store",
                                         status: configured ? "live" : "pending",
                                         color: configured ? "bg-emerald-500" : "bg-yellow-500",
                                         textColor: configured ? "text-emerald-400" : "text-yellow-400",
@@ -360,24 +360,28 @@ export default function Zema360LivePage() {
                             </div>
                         </div>
 
-                        {/* Google Cloud badge */}
-                        <div className="rounded-2xl border border-blue-500/15 bg-blue-500/5 p-5">
+                        {/* Cloud infrastructure badge */}
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5">
                             <div className="flex items-center gap-2 mb-3">
-                                <Globe className="w-4 h-4 text-blue-400" />
-                                <span className="text-xs font-black text-blue-400 uppercase tracking-wider">Powered by Google</span>
+                                <Globe className="w-4 h-4 text-white/50" />
+                                <span className="text-xs font-black text-white/50 uppercase tracking-wider">Cloud Infrastructure</span>
                             </div>
-                            <div className="space-y-1.5 text-[11px] text-white/50">
-                                <div className="flex items-center gap-2">
+                            <div className="space-y-2 text-[11px]">
+                                <div className="flex items-center gap-2 text-blue-300">
                                     <CheckCircle className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                                    Gemini 2.5 Flash API
+                                    Vercel — serverless compute
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                                    Google Search grounding
+                                <div className="flex items-center gap-2 text-orange-300">
+                                    <CheckCircle className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                                    AWS DynamoDB — agent log store
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 text-blue-300">
                                     <CheckCircle className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                                    Firebase Realtime Database
+                                    Gemini 2.5 Flash — AI search
+                                </div>
+                                <div className="flex items-center gap-2 text-violet-300">
+                                    <CheckCircle className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                                    Qwen — agent orchestration
                                 </div>
                             </div>
                         </div>
