@@ -255,7 +255,14 @@ async function executeTool(name: string, args: any): Promise<any> {
    Qwen chat (OpenAI-compatible)
    ────────────────────────────────────────────────────────── */
 async function callQwen(messages: any[], opts: { disableTools?: boolean } = {}): Promise<{ toolCall?: { name: string; args: any; id: string }; text?: string }> {
-    const body: Record<string, any> = { model: QWEN_MODEL, messages, temperature: 0.7 };
+    const body: Record<string, any> = {
+        model: QWEN_MODEL,
+        messages,
+        temperature: 0.7,
+        // Disable qwen3 extended thinking — it puts output in reasoning_content
+        // instead of content, returning content:null and breaking JSON extraction.
+        enable_thinking: false,
+    };
     if (!opts.disableTools) body.tools = OPENAI_TOOLS;
 
     const res = await fetch(QWEN_URL, {
@@ -284,7 +291,8 @@ async function callQwen(messages: any[], opts: { disableTools?: boolean } = {}):
         return { toolCall: { name: tc.function.name, args, id: tc.id } };
     }
 
-    return { text: msg.content || '' };
+    // qwen3 thinking mode may put the answer in reasoning_content with content:null
+    return { text: msg.content || msg.reasoning_content || '' };
 }
 
 /* ──────────────────────────────────────────────────────────
