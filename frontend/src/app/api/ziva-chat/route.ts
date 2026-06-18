@@ -398,42 +398,44 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 }`;
 
         const AI_PROVIDER = await getAIProvider();
-        if (AI_PROVIDER === 'gemini') {
-            // ── GEMINI PATH ─────────────────────────────────────────────────────
-            const contents = [
-                { role: "user", parts: [{ text: systemPrompt }] },
-                { role: "model", parts: [{ text: '{"message":"Understood. I am Ziva, ready to help.","intent":"greeting","shouldEscalate":false}' }] },
-                ...cappedHistory.map((msg: any) => ({
-                    role: msg.sender === "user" ? "user" : "model",
-                    parts: [{ text: msg.text }]
-                })),
-                { role: "user", parts: [{ text: message }] }
-            ];
+        let resultText: string | null = null;
 
-            let result = await callGemini(contents);
-
-            if (result.toolCall) {
-                const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
-                const updatedContents = [
-                    ...contents,
-                    { role: "model", parts: [{ functionCall: { name: result.toolCall.name, args: result.toolCall.args } }] },
-                    { role: "user", parts: [{ functionResponse: { name: result.toolCall.name, response: toolResult } }] }
-                ];
-                result = await callGemini(updatedContents);
-            }
-
-            if (!result.text) {
-                return NextResponse.json({ message: "I found something but had trouble formatting it. Try again?", intent: "error", shouldEscalate: false });
-            }
-
+        // ── Try Gemini when configured ───────────────────────────────────────
+        // If Gemini is down (billing/quota), the catch silently falls through to Qwen.
+        // Once the Gemini bill is paid, this path auto-recovers — no config change needed.
+        if (AI_PROVIDER === 'gemini' && GEMINI_API_KEY) {
             try {
-                return NextResponse.json(parseAiJson(result.text));
-            } catch {
-                return NextResponse.json({ message: result.text, intent: "general", shouldEscalate: false, suggestedProducts: [] });
-            }
+                const contents = [
+                    { role: "user", parts: [{ text: systemPrompt }] },
+                    { role: "model", parts: [{ text: '{"message":"Understood. I am Ziva, ready to help.","intent":"greeting","shouldEscalate":false}' }] },
+                    ...cappedHistory.map((msg: any) => ({
+                        role: msg.sender === "user" ? "user" : "model",
+                        parts: [{ text: msg.text }]
+                    })),
+                    { role: "user", parts: [{ text: message }] }
+                ];
 
-        } else {
-            // ── QWEN PATH (default) ─────────────────────────────────────────────
+                let result = await callGemini(contents);
+
+                if (result.toolCall) {
+                    const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
+                    result = await callGemini([
+                        ...contents,
+                        { role: "model", parts: [{ functionCall: { name: result.toolCall.name, args: result.toolCall.args } }] },
+                        { role: "user", parts: [{ functionResponse: { name: result.toolCall.name, response: toolResult } }] }
+                    ]);
+                }
+
+                // Empty text means Gemini hit quota/billing — treat as failure and fall through
+                if (!result.text) throw new Error('Gemini returned empty response (quota/billing?)');
+                resultText = result.text;
+            } catch (geminiErr: any) {
+                console.warn('[Ziva] Gemini unavailable, recalibrating to Qwen:', geminiErr?.message);
+            }
+        }
+
+        // ── Qwen path: primary when AI_PROVIDER=qwen, or Gemini fallback ────
+        if (!resultText && DASHSCOPE_API_KEY) {
             let messages: any[] = [
                 { role: "system", content: systemPrompt },
                 ...cappedHistory.map((msg: any) => ({
@@ -445,7 +447,8 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 
             let result = await callQwen(messages);
 
-            // Handle up to 3 rounds of tool calls (Qwen3 sometimes chains tools)
+            // Qwen3 can chain multiple tool calls; loop up to 3 rounds.
+            // disableTools on rounds ≥1 forces the model to emit text, not another tool call.
             for (let round = 0; round < 3 && result.toolCall; round++) {
                 const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
                 messages = [
@@ -453,19 +456,20 @@ After using tools, respond with ONLY this JSON (no markdown fences):
                     { role: "assistant", content: null, tool_calls: [{ id: result.toolCall.id, type: "function", function: { name: result.toolCall.name, arguments: JSON.stringify(result.toolCall.args) } }] },
                     { role: "tool", tool_call_id: result.toolCall.id, content: JSON.stringify(toolResult) }
                 ];
-                // Last round: disable tools so the model must emit text, not another tool call
                 result = await callQwen(messages, { disableTools: round >= 1 });
             }
 
-            if (!result.text) {
-                return NextResponse.json({ message: "I found something but had trouble formatting it. Try again?", intent: "error", shouldEscalate: false });
-            }
+            if (result.text) resultText = result.text;
+        }
 
-            try {
-                return NextResponse.json(parseAiJson(result.text));
-            } catch {
-                return NextResponse.json({ message: result.text, intent: "general", shouldEscalate: false, suggestedProducts: [] });
-            }
+        if (!resultText) {
+            return NextResponse.json({ message: "I found something but had trouble formatting it. Try again?", intent: "error", shouldEscalate: false });
+        }
+
+        try {
+            return NextResponse.json(parseAiJson(resultText));
+        } catch {
+            return NextResponse.json({ message: resultText, intent: "general", shouldEscalate: false, suggestedProducts: [] });
         }
 
     } catch (error: any) {
