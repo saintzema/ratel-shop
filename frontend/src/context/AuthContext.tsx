@@ -322,6 +322,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 created_at: userData.created_at,
                 premium_expires_at: userData.premiumExpiresAt,
             },
+            account: { id: 'fairprice-ng' },
         });
 
         // HOT migration: reconcile guest data with new identity immediately
@@ -389,6 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 created_at: userData.created_at,
                 premium_expires_at: userData.premiumExpiresAt,
             },
+            account: { id: 'fairprice-ng' },
         });
 
         // HOT migration for new account creation
