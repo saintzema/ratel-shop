@@ -2,6 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next';
 import { notFound } from 'next/navigation';
 import ProductClient from './ProductClient';
 import { db } from '@/lib/db';
+import { mapDbProductToClient } from '@/lib/product-mapper';
 
 export const revalidate = 3600;
 import { SEED_PRODUCTS, DEMO_REVIEWS } from '@/lib/data';
@@ -100,16 +101,40 @@ export default async function ProductPage({ params }: Props) {
     const resolvedParams = await params;
     const decodedId = decodeURIComponent(resolvedParams.id);
     let productDetails = null;
-    
-    // Fetch for Schema mapping
+    let dbProductRaw: any = null;
+
+    // Fetch for Schema mapping AND for server-authoritative hydration of the client.
+    // Including the seller here means the client receives the SAME data on every device,
+    // instead of rebuilding it from per-device localStorage.
     try {
-        const dbProduct = await db.product.findUnique({ where: { id: decodedId } });
-        if (dbProduct) productDetails = dbProduct;
+        dbProductRaw = await db.product.findUnique({
+            where: { id: decodedId },
+            include: {
+                seller: {
+                    select: {
+                        businessName: true,
+                        status: true,
+                        verified: true,
+                        rating: true,
+                        trustScore: true,
+                        createdAt: true,
+                        subscriptionPlan: true,
+                    },
+                },
+            },
+        });
+        if (dbProductRaw) productDetails = dbProductRaw;
     } catch(e) {}
-    
+
     if (!productDetails) {
         productDetails = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === resolvedParams.id);
     }
+
+    // Server-authoritative product passed into the client. DB product preferred; seed
+    // product as fallback for statically-known catalog. Global/unknown ids resolve client-side.
+    const initialProduct = dbProductRaw
+        ? mapDbProductToClient(dbProductRaw)
+        : (productDetails || null);
 
     // SEO: return a real 404 for genuinely dead product IDs (e.g. old temu_*, p33) instead
     // of rendering a thin page Google flags as a "Soft 404". The global auto-generated PDP
@@ -348,7 +373,7 @@ export default async function ProductPage({ params }: Props) {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
             />
-            <ProductClient />
+            <ProductClient initialProduct={initialProduct} />
         </>
     );
 }

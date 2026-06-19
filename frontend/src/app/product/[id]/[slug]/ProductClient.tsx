@@ -132,7 +132,7 @@ function generateZivaAnswers(product: typeof SEED_PRODUCTS[0]): { question: stri
 }
 
 
-export default function ProductDetailPage() {
+export default function ProductDetailPage({ initialProduct = null }: { initialProduct?: any }) {
     const params = useParams();
     const id = params?.id as string;
     const { location, setLocation } = useLocation();
@@ -201,9 +201,13 @@ export default function ProductDetailPage() {
     
     // 1. Initial lookup from all sources
     const cachedProduct = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
-    
-    // 2. Use fetched version if available, otherwise cached
-    let product = fetchedProduct || cachedProduct;
+
+    // 2. Resolution priority (server-authoritative first):
+    //    fetchedProduct (fresh /api fetch) > initialProduct (server-rendered, identical
+    //    across devices) > cachedProduct (per-device localStorage/seed fallback).
+    //    Using initialProduct before localStorage is what fixes the cross-device
+    //    "same URL, different product" bug.
+    let product = fetchedProduct || initialProduct || cachedProduct;
 
     // 3. Lazy fetch full details when product is missing from localStorage or lacks description
     useEffect(() => {
