@@ -657,6 +657,22 @@ export function Navbar() {
             // Find the clicked product (local / cached / global) and route to its detail page
             const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
             const clickedProd = clickedLocal || clickedCached || clickedGlobal;
+
+            // Canonicalize: persist the clicked global product to the DB so the
+            // server-rendered PDP shows IDENTICAL data on every device (fixes the
+            // cross-device "same URL, different price/image" bug). Fire-and-forget;
+            // keepalive lets it complete through the navigation that follows.
+            if (clickedProd && /^global[-_]/i.test(clickedProd.id)) {
+                try {
+                    fetch('/api/products/global', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ product: clickedProd }),
+                        keepalive: true,
+                    }).catch(() => {});
+                } catch { /* never block navigation on persistence */ }
+            }
+
             if (clickedProd) {
                 setShowSuggestions(false);
                 setIsCategoryOpen(false);

@@ -252,6 +252,30 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
         return () => { cancelled = true; };
     }, [mounted, product?.seller_id]);
 
+    // Canonicalize global products: if this is a global-* product that ISN'T already
+    // backed by a server/DB record (no initialProduct), persist it to the DB once we
+    // have GOOD data (real price + real, non-placeholder image). This closes the
+    // direct-link / shared-URL path so every device converges on the same record.
+    // Quality-gated so we never lock in a placeholder. Endpoint is idempotent.
+    const persistedGlobalRef = useRef(false);
+    useEffect(() => {
+        if (!mounted || initialProduct) return; // initialProduct => already in DB
+        if (persistedGlobalRef.current) return;
+        const pid: string | undefined = product?.id || decodedId;
+        if (!pid || !/^global[-_]/i.test(pid)) return;
+        if (!product || !(product.price > 0)) return;
+        const img: string | undefined = product.image_url || product.images?.[0];
+        const goodImage = typeof img === 'string' && img.startsWith('http')
+            && !img.includes('placeholder') && !img.includes('logo.png');
+        if (!goodImage) return;
+        persistedGlobalRef.current = true;
+        fetch('/api/products/global', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product: { ...product, id: pid } }),
+        }).catch(() => {});
+    }, [mounted, initialProduct, product?.id, product?.price, product?.image_url, decodedId]);
+
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
         // id format: "global-airpods-pro-2" or legacy "global_samsung_galaxy_s24_ultra"
