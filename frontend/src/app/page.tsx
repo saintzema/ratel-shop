@@ -155,10 +155,24 @@ function HomeContent() {
       }
     };
 
-    refresh(); // Initial load on client
+    refresh(); // Initial load on client (reads localStorage)
     loadGrids();
     loadHeroConfig();
     setMounted(true);
+
+    // If localStorage store is empty (first visit after seed-blob removal), fetch from DB immediately
+    // so the homepage isn't blank until the idle sync fires.
+    if (DataSyncService.getProducts().length === 0) {
+      fetch("/api/products?limit=200")
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.products?.length) {
+            DataSyncService.addRawProducts(data.products, false);
+            // addRawProducts dispatches sync-store-update → refresh() fires automatically
+          }
+        })
+        .catch(() => {});
+    }
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "ratel_homepage_banners" || e.key === "ratel_homepage_grids") {
