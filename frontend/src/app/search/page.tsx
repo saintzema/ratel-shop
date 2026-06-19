@@ -567,6 +567,28 @@ function SearchContent() {
     return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
 
+  // Server-side product search: whenever the query changes, ask the DB for matching
+  // products directly (q=) instead of relying on the 200-product mount fetch + client
+  // filter. This keeps the SRP correct as the catalog scales to thousands of products.
+  useEffect(() => {
+    const effectiveQ = (query || "").trim();
+    if (!effectiveQ || effectiveQ.length < 2) return;
+    let cancelled = false;
+    fetch(`/api/products?q=${encodeURIComponent(effectiveQ)}&limit=60`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.products?.length) return;
+        data.products.forEach((p: any) => {
+          try { DataSyncService.addRawProduct(p, false); } catch { /* ignore */ }
+        });
+        try {
+          setAllProducts(DataSyncService.getApprovedProducts().filter((p) => p.is_active));
+        } catch { /* ignore */ }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [query]);
+
   // Debounced global search for the search page
   useEffect(() => {
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");

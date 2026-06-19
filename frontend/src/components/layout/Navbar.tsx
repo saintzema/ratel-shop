@@ -108,6 +108,8 @@ export function Navbar() {
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("All");
+    // Bumped when server search enriches the local store, so the instant scorer re-runs.
+    const [catalogVersion, setCatalogVersion] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
     const [suggestions, setSuggestions] = useState<Product[]>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -385,6 +387,7 @@ export function Navbar() {
 
             // 3. Cached Results
             const scoredIds = new Set(scored.map(s => s.product.id));
+            void catalogVersion; // re-run scorer when server search enriches the store
             const cached = DataSyncService.searchCacheFuzzyMatch(searchQuery);
             setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
 
@@ -396,7 +399,7 @@ export function Navbar() {
         }, 200); // 200ms debounce for local search
 
         return () => clearTimeout(timer);
-    }, [searchQuery]);
+    }, [searchQuery, catalogVersion]);
 
     // Debounced global search — fetches after user stops typing for 350ms
     useEffect(() => {
@@ -459,6 +462,31 @@ export function Navbar() {
         return () => {
             clearTimeout(fetchTimer);
         };
+    }, [searchQuery]);
+
+    // Server-side catalog search (scale): pull DB matches for the query into the local
+    // store so instant suggestions stay correct even when the full catalog is far larger
+    // than what's synced to this device. Non-disruptive — it only enriches the candidate
+    // pool; the synchronous scorer above picks them up on the next keystroke/render.
+    useEffect(() => {
+        const q = searchQuery.trim();
+        if (q.length < 2) return;
+        let cancelled = false;
+        const t = setTimeout(() => {
+            fetch(`/api/products?q=${encodeURIComponent(q)}&limit=12`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (cancelled || !data?.products?.length) return;
+                    let added = false;
+                    data.products.forEach((p: any) => {
+                        try { DataSyncService.addRawProduct(p, false); added = true; } catch { /* ignore */ }
+                    });
+                    // Nudge the scorer to re-run over the enriched store.
+                    if (added && !cancelled) setCatalogVersion(v => v + 1);
+                })
+                .catch(() => {});
+        }, 300);
+        return () => { cancelled = true; clearTimeout(t); };
     }, [searchQuery]);
 
     // Helper: Save results to search cache and navigate.

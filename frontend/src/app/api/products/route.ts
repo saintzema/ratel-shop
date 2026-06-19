@@ -15,6 +15,7 @@ export async function GET(req: Request) {
         const updatedAfter = searchParams.get("updated_after");
         const cursor = searchParams.get("cursor") || undefined;
         const sellerIdFilter = searchParams.get("sellerId") || undefined;
+        const q = (searchParams.get("q") || "").trim();
         // Keep the limit high for admin, but manageable
         const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
 
@@ -35,6 +36,28 @@ export async function GET(req: Request) {
 
         if (updatedAfter) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };
+        }
+
+        // DB-side text search: filter at the database so the client never has to pull
+        // and fuzzy-match the whole catalog (the old SRP fetched 200 and filtered locally,
+        // which breaks past 200 products). Match each whitespace-separated term against
+        // name / category / tags. Case-insensitive.
+        if (q) {
+            const terms = q.split(/\s+/).filter(t => t.length > 1).slice(0, 6);
+            if (terms.length > 0) {
+                whereClause.AND = terms.map(term => ({
+                    OR: [
+                        { name: { contains: term, mode: "insensitive" } },
+                        { category: { contains: term, mode: "insensitive" } },
+                        { tags: { has: term.toLowerCase() } },
+                    ],
+                }));
+            } else {
+                whereClause.OR = [
+                    { name: { contains: q, mode: "insensitive" } },
+                    { category: { contains: q, mode: "insensitive" } },
+                ];
+            }
         }
 
         // 1. ADDED: Fetch the real total count from the DB
