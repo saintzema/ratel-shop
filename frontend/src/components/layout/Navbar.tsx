@@ -240,9 +240,8 @@ export function Navbar() {
             .then(r => r.json())
             .then(data => {
                 if (data.products && Array.isArray(data.products)) {
-                    data.products.forEach((p: any) => {
-                        try { DataSyncService.addRawProduct(p, false); } catch {}
-                    });
+                    // Bulk insert — single write/event instead of 200 O(n²) calls.
+                    try { DataSyncService.addRawProducts(data.products, false); } catch {}
                 }
             })
             .catch(() => {});
@@ -477,12 +476,10 @@ export function Navbar() {
                 .then(r => r.ok ? r.json() : null)
                 .then(data => {
                     if (cancelled || !data?.products?.length) return;
-                    let added = false;
-                    data.products.forEach((p: any) => {
-                        try { DataSyncService.addRawProduct(p, false); added = true; } catch { /* ignore */ }
-                    });
+                    let added = 0;
+                    try { added = DataSyncService.addRawProducts(data.products, false); } catch { /* ignore */ }
                     // Nudge the scorer to re-run over the enriched store.
-                    if (added && !cancelled) setCatalogVersion(v => v + 1);
+                    if (added > 0 && !cancelled) setCatalogVersion(v => v + 1);
                 })
                 .catch(() => {});
         }, 300);

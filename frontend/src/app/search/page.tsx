@@ -551,14 +551,14 @@ function SearchContent() {
     refresh();
     window.addEventListener("sync-store-update", refresh);
 
-    // Also seed from the API on first load so fresh sessions always have catalogue products
+    // Also seed from the API on first load so fresh sessions always have catalogue products.
+    // Bulk insert (single localStorage write + one event) — looping addRawProduct here was
+    // O(n²) and fired a Google-index ping per product, which froze the search page.
     fetch("/api/products?limit=200")
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.products?.length) {
-          data.products.forEach((p: any) => {
-            try { DataSyncService.addRawProduct(p, false); } catch { /* ignore */ }
-          });
+          try { DataSyncService.addRawProducts(data.products, false); } catch { /* ignore */ }
           refresh();
         }
       })
@@ -578,10 +578,8 @@ function SearchContent() {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.products?.length) return;
-        data.products.forEach((p: any) => {
-          try { DataSyncService.addRawProduct(p, false); } catch { /* ignore */ }
-        });
         try {
+          DataSyncService.addRawProducts(data.products, false);
           setAllProducts(DataSyncService.getApprovedProducts().filter((p) => p.is_active));
         } catch { /* ignore */ }
       })

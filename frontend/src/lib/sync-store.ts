@@ -3451,6 +3451,73 @@ class DataSyncServiceService {
     }
 
     /**
+     * BULK insert/merge of server-sourced products. Use this instead of calling
+     * addRawProduct() in a loop — that path is O(n²) (it re-reads + re-serializes the
+     * ENTIRE product array on every call) and fires a /api/google-index ping per new
+     * product, which froze the search page when seeding 200+ results.
+     *
+     * This reads localStorage once, merges in memory, writes once, and dispatches a
+     * single update event. Intended for trusted server data (persist defaults to false:
+     * no Postgres write-back, no indexing pings — the data already came from the DB).
+     */
+    public addRawProducts(incoming: Product[], persist: boolean = false): number {
+        if (typeof window === "undefined" || !Array.isArray(incoming) || incoming.length === 0) return 0;
+
+        const products = this.getProducts();
+        const byId = new Map(products.map(p => [p.id, p] as [string, Product]));
+        const deletedStubs = new Set(this.getDeletedStubs());
+
+        let changed = 0;
+        for (const raw of incoming) {
+            if (!raw || !raw.id) continue;
+            const product = { ...raw } as Product;
+
+            // GMC 50-char id cap (mirrors addRawProduct)
+            if (product.id.length > 50) product.id = product.id.slice(0, 50).replace(/-+$/, "");
+            if (deletedStubs.has(product.id)) continue; // never resurrect user-deleted items
+
+            const { category, subcategory } = this.normalizeCategory(product.category, product.subcategory || "");
+            product.category = category as ProductCategory;
+            product.subcategory = subcategory;
+
+            const existing = byId.get(product.id);
+            if (existing) {
+                // Preserve a real image if the incoming one is a placeholder (anti-downgrade)
+                if (existing.image_url && !existing.image_url.includes('placeholder') &&
+                    (product.image_url?.includes('placeholder') || !product.image_url)) {
+                    product.image_url = existing.image_url;
+                }
+                byId.set(product.id, { ...existing, ...product });
+            } else {
+                byId.set(product.id, product);
+            }
+            changed++;
+        }
+
+        if (changed === 0) return 0;
+
+        // Newest-first, soft-capped — single serialization for the whole batch.
+        let merged = Array.from(byId.values());
+        if (merged.length > 500) merged = merged.slice(0, 500);
+        try {
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+        } catch {
+            merged = merged.slice(0, 150);
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+        }
+
+        if (persist) {
+            // Rare path — only when caller explicitly wants write-back.
+            for (const p of incoming) {
+                resilientFetch("/api/products", { method: "POST", body: p, type: "product_update" });
+            }
+        }
+
+        window.dispatchEvent(new Event("sync-store-update"));
+        return changed;
+    }
+
+    /**
      * targeted sync for a single product to ensure hot-updates are visible
      */
     public async syncProduct(id: string) {
