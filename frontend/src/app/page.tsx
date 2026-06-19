@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard";
@@ -517,7 +516,7 @@ function HomeContent() {
                 <StoreDiscoveryRail />
 
                 <section className="w-full px-1 md:px-2 mb-8">
-                  <RecommendedProducts products={allProducts.length > 0 ? allProducts : SEED_PRODUCTS} title="Recommended For You" />
+                  <RecommendedProducts products={allProducts} title="Recommended For You" />
                 </section>
                       </>
                     )

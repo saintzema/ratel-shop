@@ -14,7 +14,6 @@ import { playMessageReceiveSound, playDingSound } from "@/lib/audio";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
-import { getDemoPriceComparison } from "@/lib/data";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
@@ -619,8 +618,12 @@ export function ZivaChat() {
         // If on a product page, always inject product context into the message so Ziva knows what we're looking at
         let contextualText = resolvedText;
         if (currentProduct) {
-            const comparison = getDemoPriceComparison(currentProduct.id);
-            const marketAvg = comparison.market_avg > 0 ? comparison.market_avg : Math.round(currentProduct.price * 1.08);
+            // Use the real product in hand for the market reference (recommended price if
+            // present, else a small markup over current). No seed-catalog lookup needed —
+            // this avoids dragging the 139KB seed blob into the global Ziva FAB bundle.
+            const marketAvg = (currentProduct as any).recommended_price > 0
+                ? (currentProduct as any).recommended_price
+                : Math.round(currentProduct.price * 1.08);
             const verdict = currentProduct.price <= marketAvg ? 'Good Deal' : 'Above Market';
             // Add invisible context that Ziva API can use
             contextualText = `${resolvedText} [CONTEXT: The user is currently viewing the product "${currentProduct.name}" priced at ${formatPrice(currentProduct.price)}. Market average is ${formatPrice(marketAvg)}. Price flag: ${currentProduct.price_flag || 'fair'}. Verdict: ${verdict}. Category: ${currentProduct.category}. Please use this context if the user asks "this", "it", or questions about the product.]`;

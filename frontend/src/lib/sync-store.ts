@@ -4,9 +4,12 @@ import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, N
 export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
-import { TEMU_PRODUCTS } from "./demo-data-temu";
-import { SEED_PRODUCTS, SEED_SELLERS } from "./data";
 import { ADMIN_EMAILS, SECURITY_EMAILS } from "./constants";
+// NOTE: The seed catalog (./data ~139KB + ./demo-data-temu ~42KB) is intentionally NOT
+// statically imported here. sync-store is loaded by AuthProvider in the root layout, so a
+// static import would drag the entire seed blob into the shared bundle for EVERY page —
+// the root cause of the main-thread jank / browser hangs. It is now lazy-loaded inside
+// seedDemoData() (a rare DB-offline fallback) as a separate async chunk.
 
 export interface Category {
     id: string;
@@ -98,7 +101,7 @@ class DataSyncServiceService {
     // Prevent seedDemoData re-entering after a quota-exceeded failure (would cause infinite loop)
     private _seedAttempted: boolean = false;
 
-    public seedDemoData() {
+    public async seedDemoData() {
         if (typeof window === "undefined") return;
         if (this._seedAttempted) return;
 
@@ -107,6 +110,16 @@ class DataSyncServiceService {
 
         this._seedAttempted = true;
         console.log("🛠️ Resilience: Database unreachable and store empty. Seeding fallback catalog.");
+
+        // Lazy-load the heavy seed blob ONLY in this rare DB-offline fallback path, so it
+        // never ships in the synchronous main/shared bundle. Code-split into its own chunk.
+        let SEED_PRODUCTS: any[], SEED_SELLERS: any[];
+        try {
+            ({ SEED_PRODUCTS, SEED_SELLERS } = await import("./data"));
+        } catch (e) {
+            console.warn("Seed data chunk failed to load:", e);
+            return;
+        }
 
         // Cap seed products to avoid blowing the 5MB quota
         const capped = SEED_PRODUCTS.slice(0, 50);
@@ -119,7 +132,7 @@ class DataSyncServiceService {
 
         const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
         if (currentSellers.length === 0) {
-            const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
+            const verifiedSellers = SEED_SELLERS.map((s: any) => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
             this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
         }
 

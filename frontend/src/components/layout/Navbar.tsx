@@ -51,7 +51,11 @@ import { NotificationBell } from "@/components/ui/NotificationBell";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
-import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
+import type { Product } from "@/lib/types";
+// NOTE: SEED_PRODUCTS is NOT imported here. Navbar renders in the root layout, so a static
+// import would force the 139KB seed blob into the shared bundle for every page AND get
+// fuzzy-scored on every keystroke — the navsearch hang. Instant suggestions now come from
+// the live synced catalog (DataSyncService), with global/server search filling the rest.
 import { DataSyncService } from "@/lib/sync-store";
 import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGroundingUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
@@ -105,7 +109,7 @@ export function Navbar() {
     const [apiError, setApiError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<typeof SEED_PRODUCTS>([]); // State for suggestions
+    const [suggestions, setSuggestions] = useState<Product[]>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
     const [priceIntelQuery, setPriceIntelQuery] = useState("");
@@ -246,7 +250,7 @@ export function Navbar() {
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     // Search scoring algorithm
-    const scoreProduct = (product: typeof SEED_PRODUCTS[0], query: string): number => {
+    const scoreProduct = (product: Product, query: string): number => {
         const q = query.toLowerCase();
         const name = (product.name || "").toLowerCase();
         const cat = (product.category || "").toLowerCase();
@@ -300,9 +304,11 @@ export function Navbar() {
         const timer = setTimeout(() => {
           try {
             const q = searchQuery.toLowerCase();
+            // Search candidates come from the live synced catalog only (these are the same
+            // products the DB seeds, so no static seed array is needed). Server search (below)
+            // and the global search API cover anything not yet in the local store.
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))]
-                .filter(p => p && p.name);
+            const allSearchProducts = storeProducts.filter((p: any) => p && p.name);
 
             // 1. Local product matches (The "PRODUCTS" section)
             const words = q.split(/\s+/).filter(w => w.length > 1);
