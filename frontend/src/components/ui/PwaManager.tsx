@@ -87,10 +87,21 @@ export function PwaManager() {
         localStorage.setItem("pwa_prompt_dismissed", "true");
     };
 
+    // Push navbar down on mobile when banner is visible
+    useEffect(() => {
+        const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+        if (showInstallBanner && isMobile) {
+            document.documentElement.style.setProperty('--pwa-banner-h', '56px');
+        } else {
+            document.documentElement.style.removeProperty('--pwa-banner-h');
+        }
+        return () => { document.documentElement.style.removeProperty('--pwa-banner-h'); };
+    }, [showInstallBanner]);
+
     if (!showInstallBanner) return null;
 
     return (
-        <div className="fixed left-0 right-0 z-[2000] flex flex-col-reverse items-center pointer-events-none bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0">
+        <div className="fixed top-0 left-0 right-0 z-[2000] flex flex-col items-center pointer-events-none md:bottom-0 md:top-auto md:bottom-0">
             {/* Banner — sits directly on top of the mobile bottom nav (h-16) */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

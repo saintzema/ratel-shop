@@ -1431,25 +1431,19 @@ function SearchContent() {
                           )}
                           title={brand.name}
                         >
-                          {brand.logoImage ? (
-                            <img
-                              src={brand.logoImage}
-                              alt={brand.name}
-                              className="h-7 w-auto max-w-[52px] object-contain"
-                              onError={(e) => {
-                                // Hide failed logo image and reveal the text-badge fallback
-                                e.currentTarget.style.display = 'none';
-                                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                                if (fallback) fallback.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <span
-                            className="items-center justify-center gap-1.5 text-[11px] font-bold"
-                            style={{ display: brand.logoImage ? "none" : "flex" }}
-                          >
-                            <span className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-black text-gray-600 shrink-0">{brand.logo}</span>
-                            {brand.name}
+                          <span className="flex items-center gap-1.5">
+                            {brand.logoImage ? (
+                              <img
+                                src={brand.logoImage}
+                                alt=""
+                                loading="lazy"
+                                className="h-4 w-auto max-w-[20px] object-contain shrink-0"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <span className="h-4 w-4 rounded-full bg-gray-100 flex items-center justify-center text-[9px] font-black text-gray-500 shrink-0">{brand.logo}</span>
+                            )}
+                            <span className="text-[11px] font-semibold whitespace-nowrap">{brand.name}</span>
                           </span>
                         </button>
                       );

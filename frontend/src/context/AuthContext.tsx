@@ -31,11 +31,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Initial sync on mount
         DataSyncService.syncWithDB();
 
-        // High frequency sync for specific collections on first load to get instant UX
+        // Defer heavy collection syncs so they don't compete with first paint.
+        // requestIdleCallback fires when the browser is idle; fall back to 4s timeout.
         if (isFirstMount.current) {
-            DataSyncService.syncWithDB("products");
-            DataSyncService.syncWithDB("sellers");
             isFirstMount.current = false;
+            const idle: (cb: () => void) => void =
+                typeof window !== 'undefined' && 'requestIdleCallback' in window
+                    ? (cb) => (window as any).requestIdleCallback(cb, { timeout: 8000 })
+                    : (cb) => setTimeout(cb, 4000);
+            idle(() => {
+                DataSyncService.syncWithDB("products");
+                DataSyncService.syncWithDB("sellers");
+            });
         }
 
         // Periodic sync every 5 minutes (300,000 ms) to balance freshness and Neon DB quotas
