@@ -473,7 +473,7 @@ function EditProductContent() {
         const finalImageUrl = wrapInCDN(formData.image_url);
         const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
-        await DataSyncService.updateProduct(product.id, {
+        const updates = {
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
@@ -499,7 +499,21 @@ function EditProductContent() {
                 image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                 is_default: false
             }))
-        });
+        };
+
+        // 1. Update localStorage for immediate UI feedback
+        await DataSyncService.updateProduct(product.id, updates);
+
+        // 2. Await the DB write directly so the products list page sees fresh data
+        // when we navigate to it (the background write from updateProduct races with
+        // the list-page fetch and often loses, showing stale data).
+        try {
+            await fetch("/api/products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...product, ...updates }),
+            });
+        } catch { /* non-critical: background write in updateProduct is still in flight */ }
 
         setIsSaving(false);
         setSaved(true);

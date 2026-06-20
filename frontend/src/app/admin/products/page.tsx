@@ -148,12 +148,21 @@ export default function CatalogControl() {
                 const dbProducts: any[] = Array.isArray(data) ? data : (data?.products ?? []);
                 if (dbProducts.length === 0) return;
 
-                // Merge local-only flags (trending/sponsored toggles set locally) onto DB rows
+                // Merge local edits onto DB rows.
+                // If the local version is NEWER than the DB version (i.e. a pending edit
+                // hasn't landed in DB yet), use the local version wholesale so the UI never
+                // reverts to stale DB data mid-flight.
                 const local = DataSyncService.getProducts();
                 const localMap = new Map(local.map((p: any) => [p.id, p]));
                 const merged = dbProducts.map((p: any) => {
                     const l = localMap.get(p.id);
-                    return l ? { ...p, is_trending: p.is_trending ?? l.is_trending, is_sponsored: p.is_sponsored ?? l.is_sponsored } : p;
+                    if (!l) return p;
+                    const localTs = new Date(l.updated_at || l.created_at || 0).getTime();
+                    const dbTs = new Date(p.updated_at || p.created_at || 0).getTime();
+                    // Local is newer — a pending edit is still in flight; trust local
+                    if (localTs > dbTs) return l;
+                    // DB is authoritative; preserve local-only UI toggles
+                    return { ...p, is_trending: p.is_trending ?? l.is_trending, is_sponsored: p.is_sponsored ?? l.is_sponsored };
                 });
                 console.log("Admin Catalog loaded from DB:", merged.length, "products");
                 setProducts(merged);
@@ -438,7 +447,7 @@ export default function CatalogControl() {
             );
             const finalImages = editImages.filter(Boolean).map(wrapInCDN);
 
-            await DataSyncService.updateProduct(editingProduct.id, {
+            const updates = {
                 name: editName || editingProduct.name,
                 category: normCat as ProductCategory,
                 subcategory: normSub,
@@ -456,23 +465,22 @@ export default function CatalogControl() {
                 financing_config: editFinancingConfig,
                 slug: editSlug,
                 variants: editVariants
-            });
+            };
 
-            // Belt-and-suspenders: fire a targeted image-only POST so the image
-            // URL always lands in DB even if the full product upsert loses the
-            // updatedAt race against syncWithDB (DB timestamp slightly > local).
-            if (finalImageUrl && !finalImageUrl.includes('placeholder')) {
-                fetch("/api/products", {
+            // 1. Update localStorage + dispatch sync-store-update for instant UI feedback.
+            //    updateProduct fires the DB write as fire-and-forget in the background.
+            await DataSyncService.updateProduct(editingProduct.id, updates);
+
+            // 2. Await the DB write directly so that loadFromDB() (triggered by
+            //    sync-store-update above) reads FRESH data instead of racing the
+            //    background write and returning stale values.
+            try {
+                await fetch("/api/products", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        id: editingProduct.id,
-                        image_url: finalImageUrl,
-                        images: finalImages.length ? finalImages : undefined,
-                        _imageOnly: true,
-                    }),
-                }).catch(() => {});
-            }
+                    body: JSON.stringify({ ...editingProduct, ...updates }),
+                });
+            } catch { /* non-critical: background write from updateProduct is still in flight */ }
 
             setEditingProduct(null);
         }
