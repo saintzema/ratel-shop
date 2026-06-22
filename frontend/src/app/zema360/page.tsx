@@ -447,7 +447,7 @@ export default function Zema360Page() {
               <h3 className="text-xl font-black text-white mb-2">Watch AI run the business in real time</h3>
               <p className="text-sm text-white/50 max-w-md">
                 Every Gemini price query, order verification, and ZEMA agent decision — visible as it happens.
-                Powered by Gemini 2.5 Flash + Google Firebase Realtime Database.
+                Powered by Gemini 2.5 Flash + AWS DynamoDB.
               </p>
             </div>
             <Link
