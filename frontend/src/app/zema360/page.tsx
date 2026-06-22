@@ -468,7 +468,7 @@ export default function Zema360Page() {
               <span className="text-white/20">·</span>
               <span className="text-blue-400/70">Google Search Grounding</span>
               <span className="text-white/20">·</span>
-              <span className="text-blue-400/60">Firebase Realtime DB</span>
+              <span className="text-orange-400/70">AWS DynamoDB</span>
               <span className="text-white/20">·</span>
               <span>Qwen qwen3-max</span>
               <span className="text-white/20">·</span>
@@ -482,7 +482,7 @@ export default function Zema360Page() {
             </div>
             <p className="text-white/25 text-xs mt-4 max-w-lg mx-auto">
               Gemini handles all price intelligence on FairPrice.ng. ZEMA agents run on Alibaba Cloud Function Compute.
-              Live event logs stream to Firebase Realtime Database (Google Cloud).
+              Live event logs stream to AWS DynamoDB (primary) with Firebase fallback.
             </p>
           </div>
         </section>
