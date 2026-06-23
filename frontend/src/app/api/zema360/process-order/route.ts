@@ -65,7 +65,7 @@ async function stepFulfillment(orderId: string) {
         data: {
             trackingId,
             carrier,
-            trackingStatus: "in_transit" as any,
+            trackingStatus: "shipped" as any,
             trackingSteps: [
                 { status: "Order confirmed", ts: new Date().toISOString() },
                 { status: "Picked up by carrier", ts: new Date().toISOString() },
