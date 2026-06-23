@@ -134,6 +134,55 @@ async function stepEscrowRelease(orderId: string, approvalId: string) {
     return { ok: res.ok, ...data };
 }
 
+async function stepNotifySeller(orderId: string) {
+    const order = await db.order.findUnique({
+        where: { id: orderId },
+        include: {
+            product: { select: { name: true, stock: true } },
+            seller: { select: { whatsappNumber: true, businessName: true } },
+        },
+    });
+    if (!order) return { ok: false, error: "order_not_found" };
+
+    const sellerWa = (order.seller as any)?.whatsappNumber;
+    if (sellerWa) {
+        const msg =
+            `⚠️ *FairPrice.ng — Restock Alert*\n\n` +
+            `Hi ${order.seller?.businessName ?? "there"},\n` +
+            `A buyer tried to order *${order.product?.name}* but it's out of stock.\n\n` +
+            `Current stock: *${order.product?.stock ?? 0} units*\n` +
+            `Please restock so buyers can complete their orders.\n\n` +
+            `Manage inventory: ${SITE}/seller/products`;
+        await WhatsAppService.sendMessage(sellerWa, msg);
+    }
+    await log("CommsAgent", `Seller restock alert sent: ${sellerWa ?? "no WA number"}`, "completed", { product: order.product?.name }, orderId);
+    return { ok: true, notified_seller: !!sellerWa, channel: "whatsapp" };
+}
+
+async function stepNotifyBuyerOutOfStock(orderId: string) {
+    const order = await db.order.findUnique({
+        where: { id: orderId },
+        include: {
+            product: { select: { name: true } },
+            customer: { select: { whatsappNumber: true, name: true } },
+        },
+    });
+    if (!order) return { ok: false, error: "order_not_found" };
+
+    const buyerWa = (order.customer as any)?.whatsappNumber;
+    if (buyerWa) {
+        const msg =
+            `😔 *FairPrice.ng — Order Unavailable*\n\n` +
+            `Hi ${order.customer?.name ?? "there"},\n` +
+            `Sorry, *${order.product?.name}* is currently out of stock.\n\n` +
+            `We've notified the seller to restock. You'll receive a message when it's available again.\n\n` +
+            `Browse alternatives: ${SITE}/search`;
+        await WhatsAppService.sendMessage(buyerWa, msg);
+    }
+    await log("CommsAgent", `Buyer out-of-stock notice sent: ${buyerWa ?? "no WA number"}`, "completed", {}, orderId);
+    return { ok: true, notified_buyer: !!buyerWa, channel: "whatsapp" };
+}
+
 async function stepNotify(orderId: string) {
     const order = await db.order.findUnique({
         where: { id: orderId },
@@ -185,7 +234,9 @@ export async function POST(req: NextRequest) {
             case "finance":         result = await stepFinance(orderId); break;
             case "hitl_request":    result = await stepHitlRequest(orderId, agentDecision); break;
             case "escrow_release":  result = await stepEscrowRelease(orderId, approvalId ?? ""); break;
-            case "notify":          result = await stepNotify(orderId); break;
+            case "notify":                    result = await stepNotify(orderId); break;
+            case "notify_seller":             result = await stepNotifySeller(orderId); break;
+            case "notify_buyer_out_of_stock": result = await stepNotifyBuyerOutOfStock(orderId); break;
             default:
                 return NextResponse.json({ error: `Unknown step: ${step}` }, { status: 400 });
         }
