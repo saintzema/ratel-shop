@@ -69,6 +69,12 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
 
     const IS_LIVE_MODE = dynamicKey?.startsWith("pk_live_") || false;
 
+    // Explicit demo escape hatch for recording demo videos without a real card:
+    //   /checkout?demo=1   (only honoured when NOT using a live key)
+    const DEMO_FLAG =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("demo") === "1";
+
     const cleanupPaystack = useCallback(() => {
         document.querySelectorAll('iframe').forEach(iframe => {
             if (iframe.src.includes('paystack.co') || iframe.name.includes('paystack')) {
@@ -90,15 +96,29 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     }, []);
 
     const runDemoFallback = useCallback(() => {
+        // CRITICAL: never fake a successful payment when a live key is configured.
+        // A real Paystack failure must surface as an error so no order is recorded
+        // without an actual charge. Mock success is allowed ONLY in test/no-key mode,
+        // or when the demo escape hatch (?demo=1) is explicitly set on a non-live key.
+        if (IS_LIVE_MODE && !DEMO_FLAG) {
+            setErrorMsg("We couldn't reach the payment provider. You have NOT been charged. Please try again.");
+            setStep("error");
+            return;
+        }
+
+        // Explicit demo hatch (?demo=1, non-live key) emits a DEMO- reference that
+        // the checkout treats as off-platform and records without a real charge.
+        // Otherwise (test/no-key) emit a mock_ref_ which the checkout REJECTS.
+        const fakeRef = DEMO_FLAG ? `DEMO-${Date.now()}` : `mock_ref_${Date.now()}`;
         setStep("processing");
         setTimeout(() => {
             setStep("success");
             setTimeout(() => {
-                onSuccess(`mock_ref_${Date.now()}`);
+                onSuccess(fakeRef);
                 if (!autoStart) onClose();
             }, 2000);
         }, 2000);
-    }, [onSuccess, onClose, autoStart]);
+    }, [onSuccess, onClose, autoStart, IS_LIVE_MODE, DEMO_FLAG]);
 
     const startPayment = (key: string) => {
         setStep("processing");

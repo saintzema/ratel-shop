@@ -1167,7 +1167,52 @@ function CheckoutContent() {
         return lines.join('\n');
     };
 
-    const finalizeOrder = (_reference?: string) => {
+    // Entry point from the Paystack popup / COD / WhatsApp flows.
+    // Paystack references MUST be verified server-side before we credit an order;
+    // COD- and WA- references are off-platform and skip verification.
+    const finalizeOrder = async (_reference?: string) => {
+        const ref = _reference || "";
+        // COD/WA are off-platform; DEMO- is the explicit ?demo=1 escape hatch (non-live key only).
+        const isOffPlatform = ref.startsWith("COD-") || ref.startsWith("WA-") || ref.startsWith("DEMO-");
+
+        if (!isOffPlatform) {
+            // Reject the client-side demo/mock fallback outright — it never charged.
+            if (ref.startsWith("mock_")) {
+                setShowPaystack(false);
+                setIsProcessing(false);
+                alert("Payment could not be completed. No charge was made — please try again.");
+                return;
+            }
+            // Confirm the charge against Paystack with our secret key.
+            try {
+                const vRes = await fetch("/api/paystack/verify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reference: ref, expectedAmount: Math.round(total * 100) }),
+                });
+                const vData = await vRes.json().catch(() => ({}));
+                if (!vRes.ok || !vData?.ok) {
+                    setShowPaystack(false);
+                    setIsProcessing(false);
+                    alert("We couldn't confirm your payment. If you were charged, contact support — no order was placed.");
+                    console.warn("[checkout] Paystack verification failed:", vData);
+                    return;
+                }
+            } catch (err) {
+                setShowPaystack(false);
+                setIsProcessing(false);
+                alert("Payment verification failed. Please try again.");
+                console.error("[checkout] verify request error", err);
+                return;
+            }
+        }
+
+        recordOrder(_reference);
+    };
+
+    // Records the order(s) after a payment reference is confirmed. Split out so
+    // we can gate it behind server-side Paystack verification.
+    const recordOrder = (_reference?: string) => {
         setShowPaystack(false);
         setIsProcessing(true);
         playDingSound(); // Play the sweet glass chime on successful order initiation/finalization
