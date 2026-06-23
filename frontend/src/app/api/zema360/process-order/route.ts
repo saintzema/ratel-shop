@@ -114,10 +114,10 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
         `Escrow: held ✅\n\n` +
         `Reply:\n✅ *approve ${approval.id}*\n❌ *reject ${approval.id}*`;
 
-    await WhatsAppService.sendMessage(APPROVER_WA, msg);
-    await log("HITLAgent", `Approval requested — ${approval.id}`, "pending", { approval_id: approval.id, run_id: runId }, orderId);
+    const waResult = await WhatsAppService.sendMessage(APPROVER_WA, msg);
+    await log("HITLAgent", `Approval requested — ${approval.id}`, "pending", { approval_id: approval.id, run_id: runId, wa_result: waResult }, orderId);
 
-    return { ok: true, approval_id: approval.id, run_id: runId, status: "pending", message_sent_to: APPROVER_WA };
+    return { ok: true, approval_id: approval.id, run_id: runId, status: "pending", message_sent_to: APPROVER_WA, wa_debug: waResult };
 }
 
 async function stepEscrowRelease(orderId: string, approvalId: string) {
