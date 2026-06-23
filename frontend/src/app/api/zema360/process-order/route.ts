@@ -56,22 +56,38 @@ async function stepInventory(orderId: string) {
 }
 
 async function stepFulfillment(orderId: string) {
+    const order = await db.order.findUnique({
+        where: { id: orderId },
+        select: { trackingId: true, carrier: true },
+    });
+    if (!order) return { ok: false, error: "order_not_found" };
+
+    // idempotent — already fulfilled
+    if (order.trackingId) {
+        return { ok: true, tracking_id: order.trackingId, carrier: order.carrier ?? "Unknown", already_fulfilled: true };
+    }
+
     const trackingId = `FP${Date.now().toString(36).toUpperCase()}`;
     const carriers = ["GIG Logistics", "DHL Nigeria", "Jumia Logistics", "RedStar Express"];
     const carrier = carriers[Math.floor(Math.random() * carriers.length)];
 
-    await db.order.update({
-        where: { id: orderId },
-        data: {
-            trackingId,
-            carrier,
-            trackingStatus: "shipped" as any,
-            trackingSteps: [
-                { status: "Order confirmed", ts: new Date().toISOString() },
-                { status: "Picked up by carrier", ts: new Date().toISOString() },
-            ],
-        },
-    });
+    try {
+        await db.order.update({
+            where: { id: orderId },
+            data: {
+                trackingId,
+                carrier,
+                trackingStatus: "shipped",
+                trackingSteps: [
+                    { status: "Order confirmed", ts: new Date().toISOString() },
+                    { status: "Picked up by carrier", ts: new Date().toISOString() },
+                ],
+            },
+        });
+    } catch (dbErr: any) {
+        return { ok: false, error: "db_update_failed", detail: dbErr?.message ?? String(dbErr) };
+    }
+
     await log("FulfillmentAgent", `Tracking assigned: ${trackingId} via ${carrier}`, "completed", { trackingId, carrier }, orderId);
     return { ok: true, tracking_id: trackingId, carrier };
 }
