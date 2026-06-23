@@ -110,7 +110,7 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
         `Order: *${order.id.slice(-8).toUpperCase()}*\n` +
         `Product: ${order.product?.name ?? "—"}\n` +
         `Seller: ${order.seller?.businessName ?? "—"}\n` +
-        `Amount: *₦${order.amount.toLocaleString()}*\n` +
+        `Amount: *₦${Number(order.amount).toLocaleString()}*\n` +
         `Escrow: held ✅\n\n` +
         `Reply:\n✅ *approve ${approval.id}*\n❌ *reject ${approval.id}*`;
 
