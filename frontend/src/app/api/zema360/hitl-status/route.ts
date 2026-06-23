@@ -7,9 +7,11 @@ export const dynamic = "force-dynamic";
 // GET /api/zema360/hitl-status?id=<approvalId>
 // Returns: { status: "pending" | "approved" | "rejected", approval_id, run_id, resolved_at }
 export async function GET(req: NextRequest) {
-    const id = req.nextUrl.searchParams.get("id");
+    const id = req.nextUrl.searchParams.get("id")
+        || req.nextUrl.searchParams.get("approvalId")
+        || req.nextUrl.searchParams.get("approval_id");
     if (!id) {
-        return NextResponse.json({ error: "id is required" }, { status: 400 });
+        return NextResponse.json({ error: "id or approvalId is required" }, { status: 400 });
     }
 
     const record = await db.zemaApprovalRequest.findUnique({
