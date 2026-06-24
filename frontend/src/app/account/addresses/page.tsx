@@ -45,13 +45,23 @@ export default function AddressesPage() {
         setAddresses(localAddrs);
 
         // Fetch from DB for cross-device sync
-        const userId = (() => {
+        const fpUser = (() => {
             try {
                 const raw = localStorage.getItem("fp_user");
-                if (raw) return JSON.parse(raw)?.id;
+                if (raw) return JSON.parse(raw);
             } catch { }
             return null;
         })();
+        const userId = fpUser?.id || null;
+        // The server can relink an order's customerId (email collision / shared demo
+        // user), so match orders by any of the user's identities — same guarded
+        // approach as the orders list — otherwise the placed order's delivery
+        // address never surfaces here.
+        const ownsOrder = (o: any) =>
+            o.customer_id === userId ||
+            o.customer_email === userId ||
+            (!!fpUser?.email && (o.customer_id === fpUser.email || o.customer_email === fpUser.email)) ||
+            (!!fpUser?.name && !!o.customer_name && o.customer_name === fpUser.name);
 
         if (userId) {
             // Fetch from DB for cross-device sync
@@ -73,7 +83,7 @@ export default function AddressesPage() {
 
                     // ALSO extract unique addresses from orders for resilience
                     import("@/lib/sync-store").then(({ DataSyncService }) => {
-                        const orders = DataSyncService.getOrders().filter(o => o.customer_id === userId || o.customer_email === userId);
+                        const orders = DataSyncService.getOrders().filter(ownsOrder);
                         const orderAddrs: Address[] = [];
                         
                         orders.forEach(o => {
