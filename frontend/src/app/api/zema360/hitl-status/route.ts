@@ -22,17 +22,17 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "id, approvalId, or orderId is required" }, { status: 400 });
     }
 
-    // Prefer a specific id/code; otherwise fall back to the most recent approval
-    // for the given order. Resolve id by short code OR the underlying cuid.
+    // Prefer a specific handle (runId or cuid); otherwise fall back to the most
+    // recent approval for the given order.
     const record = id
         ? await db.zemaApprovalRequest.findFirst({
-            where: { OR: [{ code: id }, { code: id.toUpperCase() }, { id }] },
-            select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
+            where: { OR: [{ runId: id }, { runId: id.toUpperCase() }, { id }] },
+            select: { id: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
         })
         : await db.zemaApprovalRequest.findFirst({
             where: { orderId: orderId! },
             orderBy: { createdAt: "desc" },
-            select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
+            select: { id: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
         });
 
     if (!record) {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-        approval_id: record.code ?? record.id,
+        approval_id: record.runId,
         run_id: record.runId,
         status: record.status,
         resolved_at: record.resolvedAt ?? null,

@@ -499,9 +499,9 @@ export async function POST(req: Request) {
             if (approvalId) {
                 const decision = approveMatch ? "approved" : "rejected";
                 try {
-                    // Resolve by short code (preferred) OR the underlying cuid (backward compat).
+                    // Resolve by runId (short handle, e.g. RUN-XXXX) OR the underlying cuid.
                     const request = await db.zemaApprovalRequest.findFirst({
-                        where: { OR: [{ code: approvalId }, { code: approvalId.toUpperCase() }, { id: approvalId }] },
+                        where: { OR: [{ runId: approvalId }, { runId: approvalId.toUpperCase() }, { id: approvalId }] },
                     });
                     if (!request) {
                         await WhatsAppService.sendMessage(from, `⚠️ ZEMA: Approval request *${approvalId}* not found or already resolved.`);

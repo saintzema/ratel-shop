@@ -732,7 +732,6 @@ model FinancingApplication {
 }
 model ZemaApprovalRequest {
   id             String    @id @default(cuid())
-  code           String?   @unique
   runId          String
   orderId        String?
   status         String    @default("pending")
