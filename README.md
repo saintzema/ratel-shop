@@ -10,6 +10,72 @@ FairPrice.ng is an AI-powered, escrow-based marketplace designed to solve trust 
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph client["Client"]
+        Web["Next.js Web / Mobile App"]
+        WA["WhatsApp Cloud API"]
+    end
+
+    subgraph vercel["FairPrice API — Vercel (Next.js Serverless)"]
+        Orders["/api/orders"]
+        Trigger["lib/zema-trigger (after-response)"]
+        OnOrder["/api/zema360/on-order (webhook)"]
+        Process["/api/zema360/process-order"]
+        Hitl["/api/zema360/hitl-status"]
+        Hook["/api/whatsapp/webhook"]
+    end
+
+    subgraph uipath["UiPath Maestro"]
+        BPMN["ZEMA 360 Order Ops Squad (BPMN)"]
+    end
+
+    subgraph alibaba["Alibaba Cloud"]
+        FC["FastAPI Agents — Function Compute"]
+        Qwen["Qwen qwen-max / qwen-vl-max"]
+        OSS[("OSS bucket")]
+    end
+
+    DB[("Neon PostgreSQL")]
+    Pay["Paystack — Escrow & Payout"]
+
+    Web --> Orders --> DB
+    Orders -- "after()" --> Trigger --> BPMN
+    OnOrder --> BPMN
+    BPMN --> Process --> DB
+    Process -- "HITL request" --> WA
+    WA --> Hook --> Hitl
+    BPMN -- "poll ?orderId=" --> Hitl
+    Process --> Pay
+    BPMN -. orchestrates .-> FC --> Qwen
+    FC --> OSS
+```
+
+### ZEMA 360 Order Pipeline (UiPath Maestro BPMN)
+
+When an order is placed, the FairPrice API auto-triggers the BPMN (`after()` on `/api/orders`, or via the `/api/zema360/on-order` webhook). The multi-agent squad runs the order end-to-end with a human-in-the-loop checkpoint before any funds move:
+
+```mermaid
+flowchart LR
+    A["New Order"] --> B["Inventory Check"]
+    B -- in stock --> C["Fulfillment Agent"]
+    C --> D["Finance Verify"]
+    D -- approved --> E["Request HITL Approval"]
+    E --> F["WhatsApp to Approver"]
+    F --> G{"Poll Approval Status"}
+    G -- pending --> G
+    G -- approved --> H["Release Escrow"]
+    G -- timeout --> X["Order Approval Expired (escrow held)"]
+    H --> I["Notify Buyer"]
+    I --> J["Order Complete"]
+```
+
+The approver replies `approve RUN-XXXX` (a short, human-typable handle) on WhatsApp; the inbound webhook resolves it and the BPMN polls `hitl-status` by `orderId` until the decision lands. On timeout, escrow stays held for manual review — no funds move without a human.
+
+---
+
 ## Key Features
 
 ### 1. Trusted Marketplace
