@@ -69,6 +69,17 @@ function OrdersContent() {
 
     const successHandledRef = useRef(false);
 
+    // Order ownership match. The server can relink an order's customerId to an
+    // existing account (email collision / shared demo user), so the id alone may
+    // not equal the client's user.id/email after a DB sync. Fall back to a guarded
+    // name match (same approach as negotiations) so your own orders never vanish.
+    const ownsOrder = (o: any) =>
+        (!!user && (
+            o.customer_id === user.email ||
+            o.customer_id === user.id ||
+            (!!user.name && !!o.customer_name && o.customer_name === user.name)
+        ));
+
     const loadData = () => {
         if (!user) return;
         const allProducts = DataSyncService.getProducts();
@@ -83,10 +94,7 @@ function OrdersContent() {
             return o;
         });
 
-        const userOrders = enrichedOrders.filter(o =>
-            o.customer_id === user.email ||
-            o.customer_id === user.id
-        );
+        const userOrders = enrichedOrders.filter(o => ownsOrder(o));
         const sortedOrders = userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setOrders(sortedOrders);
 
@@ -120,7 +128,7 @@ function OrdersContent() {
             successHandledRef.current = true;
             const allOrders = DataSyncService.getOrders();
             const userOrders = allOrders
-                .filter(o => o.customer_id === user.email || o.customer_id === user.id)
+                .filter(o => ownsOrder(o))
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             if (userOrders.length > 0) {
                 setConciergeOrder(userOrders[0]);
