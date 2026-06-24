@@ -95,12 +95,17 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
         // Paystack handles its own cleanup and hiding.
     }, []);
 
-    const runDemoFallback = useCallback(() => {
+    const runDemoFallback = useCallback((keyForMode?: string) => {
         // CRITICAL: never fake a successful payment when a live key is configured.
         // A real Paystack failure must surface as an error so no order is recorded
         // without an actual charge. Mock success is allowed ONLY in test/no-key mode,
         // or when the demo escape hatch (?demo=1) is explicitly set on a non-live key.
-        if (IS_LIVE_MODE && !DEMO_FLAG) {
+        //
+        // Determine live-mode from the key actually in use, NOT the dynamicKey state —
+        // on a quick retry startPayment(key) can run before setDynamicKey() re-renders,
+        // and a stale IS_LIVE_MODE=false would wrongly emit a mock_ref on a LIVE key.
+        const isLive = (keyForMode ?? dynamicKey)?.startsWith("pk_live_") || false;
+        if (isLive && !DEMO_FLAG) {
             setErrorMsg("We couldn't reach the payment provider. You have NOT been charged. Please try again.");
             setStep("error");
             return;
@@ -118,21 +123,21 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 if (!autoStart) onClose();
             }, 2000);
         }, 2000);
-    }, [onSuccess, onClose, autoStart, IS_LIVE_MODE, DEMO_FLAG]);
+    }, [onSuccess, onClose, autoStart, dynamicKey, DEMO_FLAG]);
 
     const startPayment = (key: string) => {
         setStep("processing");
 
         // Demo / mock mode — no real Paystack key configured
         if (!key || key === "mock_key" || key.startsWith("pk_test_mock")) {
-            runDemoFallback();
+            runDemoFallback(key);
             return;
         }
 
         // Guard: ensure PaystackPop is actually available before calling setup
         if (!window.PaystackPop || typeof window.PaystackPop.setup !== "function") {
             console.warn("PaystackPop not available, falling back to demo mode");
-            runDemoFallback();
+            runDemoFallback(key);
             return;
         }
 
@@ -192,13 +197,13 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
             });
         } catch (setupErr) {
             console.warn("Paystack setup() threw — falling back to demo mode:", setupErr);
-            runDemoFallback();
+            runDemoFallback(key);
             return;
         }
 
         if (!handler || typeof handler.openIframe !== "function") {
             console.warn("Paystack handler missing openIframe, falling back to demo mode");
-            runDemoFallback();
+            runDemoFallback(key);
             return;
         }
 
@@ -212,7 +217,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                     } catch (iframeErr) {
                         console.warn("Paystack openIframe() threw — falling back to demo mode:", iframeErr);
                         cleanupPaystack();
-                        runDemoFallback();
+                        runDemoFallback(key);
                     }
                 }, 150);
             });
@@ -252,6 +257,24 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     const initiatePayment = useCallback(() => {
         startPayment(dynamicKey || "");
     }, [dynamicKey]);
+
+    // Retry in place (error screen) — re-fetch key, reload script, re-open the
+    // popup without forcing the user to refresh the whole checkout page.
+    const retryPayment = async () => {
+        cleanupPaystack();
+        setErrorMsg("");
+        setStep("loading");
+        try {
+            const keyRes = await fetch('/api/settings/paystack-key');
+            const keyData = await keyRes.json();
+            const key = keyData.key || "";
+            setDynamicKey(key);
+            await loadPaystackScript();
+            startPayment(key);
+        } catch {
+            startPayment("");
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
@@ -441,13 +464,21 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                                         <h2 className="text-xl font-bold text-gray-900">Payment Failed</h2>
                                         <p className="text-gray-500 text-sm px-8">{errorMsg || "The customer canceled the payment."}</p>
                                     </div>
-                                    <Button
-                                        onClick={onClose}
-                                        variant="outline"
-                                        className="h-11 px-8 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50"
-                                    >
-                                        Close
-                                    </Button>
+                                    <div className="flex items-center justify-center gap-3">
+                                        <Button
+                                            onClick={onClose}
+                                            variant="outline"
+                                            className="h-11 px-6 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50"
+                                        >
+                                            Close
+                                        </Button>
+                                        <Button
+                                            onClick={retryPayment}
+                                            className="h-11 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                                        >
+                                            Try Again
+                                        </Button>
+                                    </div>
                                 </motion.div>
                             )}
                         </AnimatePresence>
