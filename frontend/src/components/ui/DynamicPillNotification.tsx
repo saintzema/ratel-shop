@@ -71,7 +71,16 @@ export function DynamicPillNotification() {
                 const lastTime = notifiedHistory.current.get(notifyKey) || 0;
                 const isNewToUs = Date.now() - lastTime > 15000;
 
-                return isRecent && isNewToUs && !n.read;
+                // The transient pill is for real-time events (offers, order updates),
+                // NOT passive nudges. The seeded "complete your profile" welcome keeps
+                // re-popping (re-seeded with a fresh timestamp, never marked read), so
+                // skip it here — it still lives in the notification bell.
+                const isPassiveNudge =
+                    n.id === "notif_1" ||
+                    n.link === "/account/profile" ||
+                    /complete your profile/i.test(n.message || "");
+
+                return isRecent && isNewToUs && !n.read && !isPassiveNudge;
             });
 
             if (recentNotif) {
