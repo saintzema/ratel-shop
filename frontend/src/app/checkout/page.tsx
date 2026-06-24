@@ -908,6 +908,26 @@ function CheckoutContent() {
         const updated = [newAddr, ...existing].slice(0, 5); // Keep max 5
         setSavedAddresses(updated);
         persistAddresses(updated);
+
+        // Best-effort DB persist so the address syncs cross-device to /account/addresses.
+        // Fire-and-forget — a failure here must NEVER affect the order. (WhatsApp number
+        // is intentionally not sent: the Address model has no column for it, so it stays
+        // in localStorage only.)
+        const dbUserId = user?.id || user?.email;
+        if (dbUserId && newAddr.street.trim() && newAddr.state) {
+            fetch("/api/addresses", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: dbUserId,
+                    label: newAddr.label,
+                    street: newAddr.street,
+                    city: newAddr.city,
+                    state: newAddr.state,
+                    phone: newAddr.phone || null,
+                }),
+            }).catch(() => { /* non-blocking */ });
+        }
     };
 
     const selectSavedAddress = (addr: SavedAddress) => {
