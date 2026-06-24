@@ -489,15 +489,20 @@ export async function POST(req: Request) {
         const isApprover = fromDigits.endsWith(ZEMA_APPROVER) || ZEMA_APPROVER.endsWith(fromDigits);
 
         if (isApprover) {
-            const lowerText = text.toLowerCase().trim();
-            const approveMatch = lowerText.match(/^approve\s+(\S+)/);
-            const rejectMatch  = lowerText.match(/^reject\s+(\S+)/);
+            // Match case-insensitively but preserve the original-case handle —
+            // approval codes are UPPERCASE (e.g. ZMA-7G2QK), so we must NOT lowercase them.
+            const trimmed = text.trim();
+            const approveMatch = trimmed.match(/^approve\s+(\S+)/i);
+            const rejectMatch  = trimmed.match(/^reject\s+(\S+)/i);
             const approvalId   = (approveMatch || rejectMatch)?.[1];
 
             if (approvalId) {
                 const decision = approveMatch ? "approved" : "rejected";
                 try {
-                    const request = await db.zemaApprovalRequest.findUnique({ where: { id: approvalId } });
+                    // Resolve by short code (preferred) OR the underlying cuid (backward compat).
+                    const request = await db.zemaApprovalRequest.findFirst({
+                        where: { OR: [{ code: approvalId }, { code: approvalId.toUpperCase() }, { id: approvalId }] },
+                    });
                     if (!request) {
                         await WhatsAppService.sendMessage(from, `⚠️ ZEMA: Approval request *${approvalId}* not found or already resolved.`);
                         return NextResponse.json({ ok: true });
@@ -507,7 +512,7 @@ export async function POST(req: Request) {
                         return NextResponse.json({ ok: true });
                     }
                     await db.zemaApprovalRequest.update({
-                        where: { id: approvalId },
+                        where: { id: request.id },
                         data: { status: decision, approvedBy: from, resolvedAt: new Date() },
                     });
                     if (decision === "approved") {

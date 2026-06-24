@@ -16,9 +16,10 @@ export async function GET(
         return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
-    const record = await db.zemaApprovalRequest.findUnique({
-        where: { id },
-        select: { id: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
+    // Resolve by short code (preferred) OR the underlying cuid (backward compat).
+    const record = await db.zemaApprovalRequest.findFirst({
+        where: { OR: [{ code: id }, { code: id.toUpperCase() }, { id }] },
+        select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
     });
 
     if (!record) {
@@ -26,7 +27,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-        approval_id: record.id,
+        approval_id: record.code ?? record.id,
         run_id: record.runId,
         status: record.status,
         resolved_at: record.resolvedAt ?? null,

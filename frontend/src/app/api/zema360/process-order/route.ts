@@ -8,6 +8,24 @@ export const dynamic = "force-dynamic";
 const SITE = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
 const APPROVER_WA = process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305";
 
+// Short, human-typable approval code. Uppercase, unambiguous alphabet
+// (no 0/O/1/I/L) so the approver can copy/type it from WhatsApp easily.
+// Format: ZMA-XXXXX  (e.g. ZMA-7G2QK)
+const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+async function generateApprovalCode(): Promise<string> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+        let body = "";
+        for (let i = 0; i < 5; i++) {
+            body += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+        }
+        const code = `ZMA-${body}`;
+        const clash = await db.zemaApprovalRequest.findUnique({ where: { code }, select: { id: true } });
+        if (!clash) return code;
+    }
+    // Astronomically unlikely fallback — keep it unique with a time suffix.
+    return `ZMA-${Date.now().toString(36).toUpperCase()}`;
+}
+
 // ── Auth guard ────────────────────────────────────────────────────────────────
 function isAuthorized(req: NextRequest) {
     const token = process.env.ZEMA_SERVICE_TOKEN;
@@ -112,8 +130,10 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
     if (!order) return { ok: false, error: "order_not_found" };
 
     const runId = `RUN-${Date.now().toString(36).toUpperCase()}`;
+    const code = await generateApprovalCode();
     const approval = await db.zemaApprovalRequest.create({
         data: {
+            code,
             runId,
             orderId,
             status: "pending",
@@ -128,12 +148,14 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
         `Seller: ${order.seller?.businessName ?? "—"}\n` +
         `Amount: *₦${Number(order.amount).toLocaleString()}*\n` +
         `Escrow: held ✅\n\n` +
-        `Reply:\n✅ *approve ${approval.id}*\n❌ *reject ${approval.id}*`;
+        `Reply:\n✅ *approve ${code}*\n❌ *reject ${code}*`;
 
     const waResult = await WhatsAppService.sendMessage(APPROVER_WA, msg);
-    await log("HITLAgent", `Approval requested — ${approval.id}`, "pending", { approval_id: approval.id, run_id: runId, wa_result: waResult }, orderId);
+    await log("HITLAgent", `Approval requested — ${code}`, "pending", { approval_id: code, run_id: runId, wa_result: waResult }, orderId);
 
-    return { ok: true, approval_id: approval.id, run_id: runId, status: "pending", message_sent_to: APPROVER_WA, wa_debug: waResult };
+    // approval_id returned to UiPath is the short code; the poll + webhook both
+    // resolve by code OR the underlying cuid, so either works.
+    return { ok: true, approval_id: code, run_id: runId, status: "pending", message_sent_to: APPROVER_WA, wa_debug: waResult };
 }
 
 async function stepEscrowRelease(orderId: string, approvalId: string) {
