@@ -4,21 +4,36 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 // UiPath Maestro polls this endpoint to check if a human approval has been resolved.
-// GET /api/zema360/hitl-status?id=<approvalId>
+//
+// Two ways to call it:
+//   GET /api/zema360/hitl-status?id=<approvalId|code>   — resolve a specific approval
+//   GET /api/zema360/hitl-status?orderId=<orderId>      — resolve the latest approval
+//                                                          for an order (recommended:
+//                                                          orderId is always populated
+//                                                          in the BPMN, no fragile
+//                                                          approval-id variable passing).
 // Returns: { status: "pending" | "approved" | "rejected", approval_id, run_id, resolved_at }
 export async function GET(req: NextRequest) {
-    const id = req.nextUrl.searchParams.get("id")
-        || req.nextUrl.searchParams.get("approvalId")
-        || req.nextUrl.searchParams.get("approval_id");
-    if (!id) {
-        return NextResponse.json({ error: "id or approvalId is required" }, { status: 400 });
+    const sp = req.nextUrl.searchParams;
+    const id = sp.get("id") || sp.get("approvalId") || sp.get("approval_id");
+    const orderId = sp.get("orderId") || sp.get("order_id");
+
+    if (!id && !orderId) {
+        return NextResponse.json({ error: "id, approvalId, or orderId is required" }, { status: 400 });
     }
 
-    // Resolve by short code (preferred) OR the underlying cuid (backward compat).
-    const record = await db.zemaApprovalRequest.findFirst({
-        where: { OR: [{ code: id }, { code: id.toUpperCase() }, { id }] },
-        select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
-    });
+    // Prefer a specific id/code; otherwise fall back to the most recent approval
+    // for the given order. Resolve id by short code OR the underlying cuid.
+    const record = id
+        ? await db.zemaApprovalRequest.findFirst({
+            where: { OR: [{ code: id }, { code: id.toUpperCase() }, { id }] },
+            select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
+        })
+        : await db.zemaApprovalRequest.findFirst({
+            where: { orderId: orderId! },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, code: true, runId: true, status: true, resolvedAt: true, approvedBy: true },
+        });
 
     if (!record) {
         return NextResponse.json({ error: "approval_not_found" }, { status: 404 });
