@@ -227,6 +227,35 @@ async function stepNotify(orderId: string) {
     return { ok: true, notified: !!buyerWa, channel: "whatsapp" };
 }
 
+// Timeout / cancellation path — called by the BPMN when the approval poll loop
+// exhausts (nobody approved in the allotted window). Safe by design: it marks the
+// approval `expired` and notifies the buyer, but does NOT move any money — escrow
+// stays held for manual review so a slow approver never costs anyone funds.
+async function stepHitlTimeout(orderId: string) {
+    const pending = await db.zemaApprovalRequest.findFirst({
+        where: { orderId, status: "pending" },
+        orderBy: { createdAt: "desc" },
+    });
+
+    if (pending) {
+        await db.zemaApprovalRequest.update({
+            where: { id: pending.id },
+            data: { status: "expired", resolvedAt: new Date(), approvedBy: "system_timeout" },
+        });
+    }
+
+    // Let the approver know it lapsed (and stays actionable).
+    await WhatsAppService.sendMessage(
+        APPROVER_WA,
+        `⌛ *ZEMA 360 — Approval Timed Out*\n\n` +
+        `Order ${orderId.slice(-8).toUpperCase()} was not approved in time.\n` +
+        `Escrow remains *held* — no funds moved. Review it manually:\n${SITE}/admin/orders`
+    ).catch(() => {});
+
+    await log("HITLAgent", `Approval timed out — order ${orderId}`, "expired", { approval_id: pending?.runId ?? null }, orderId);
+    return { ok: true, status: "expired", approval_id: pending?.runId ?? null, escrow: "held" };
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -253,6 +282,7 @@ export async function POST(req: NextRequest) {
             case "fulfillment":     result = await stepFulfillment(orderId); break;
             case "finance":         result = await stepFinance(orderId); break;
             case "hitl_request":    result = await stepHitlRequest(orderId, agentDecision); break;
+            case "hitl_timeout":    result = await stepHitlTimeout(orderId); break;
             case "escrow_release":  result = await stepEscrowRelease(orderId, approvalId ?? ""); break;
             case "notify":                    result = await stepNotify(orderId); break;
             case "notify_seller":             result = await stepNotifySeller(orderId); break;
