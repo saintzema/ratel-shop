@@ -379,8 +379,8 @@ export function Navbar() {
                     }
                     return name;
                 })
-                .slice(0, 6);
-            
+                .slice(0, 3); // Keep typeahead compact so catalog products stay visible
+
             setTextSuggestions(sortedText);
             setMatchingBrands(Array.from(brandsPool).slice(0, 3));
 
@@ -1404,11 +1404,22 @@ export function Navbar() {
                                         </div>
                                     )}
 
+                                    {/* "Finding more" indicator — shown when catalog results are already
+                                        visible but the global search is still bringing in more. */}
+                                    {isGlobalSearching && globalResults.length === 0 && (suggestions.length > 0 || cachedResults.length > 0) && (
+                                        <div className="border-t border-gray-100 px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                                            <Globe className="h-3.5 w-3.5 text-emerald-600 animate-spin" />
+                                            Finding more products for you…
+                                        </div>
+                                    )}
+
                                     {/* GLOBAL FAIRPRICE RESULTS */}
                                     {globalResults.length > 0 && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-black text-emerald-700 uppercase tracking-wider">
-                                                <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                                                {isGlobalSearching
+                                                    ? <Globe className="h-3.5 w-3.5 text-emerald-600 animate-spin" />
+                                                    : <Sparkles className="h-3.5 w-3.5 text-emerald-600" />}
                                                 MORE FAIRPRICE RESULTS
                                             </div>
                                             {globalResults.slice(0, 4).map((result, i) => {
