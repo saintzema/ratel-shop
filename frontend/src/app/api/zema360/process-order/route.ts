@@ -124,7 +124,7 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
     });
 
     const msg =
-        `🤖 *ZEMA 360 — Human Approval Required*\n\n` +
+        `🛍️ *ZEMA 360 — Human Approval Required*\n\n` +
         `Order: *${order.id.slice(-8).toUpperCase()}*\n` +
         `Product: ${order.product?.name ?? "—"}\n` +
         `Seller: ${order.seller?.businessName ?? "—"}\n` +
