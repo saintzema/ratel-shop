@@ -207,7 +207,29 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     //    across devices) > cachedProduct (per-device localStorage/seed fallback).
     //    Using initialProduct before localStorage is what fixes the cross-device
     //    "same URL, different product" bug.
-    let product = fetchedProduct || initialProduct || cachedProduct;
+    // Non-downgrading resolution: the freshest record wins for descriptive fields,
+    // but a zero price or placeholder image must NEVER overwrite a real price/image
+    // that another source already has. This stops the lazy /api fetch (which can
+    // return a degraded global row) from clobbering the server-rendered ₦/image and
+    // triggering a wrong AI re-hydration. Backfill only fires when the winner is
+    // degraded, so legitimate price/image updates still flow through untouched.
+    let product = (() => {
+        const primary = fetchedProduct || initialProduct || cachedProduct;
+        if (!primary) return primary;
+        const sources = [fetchedProduct, initialProduct, cachedProduct].filter(Boolean) as any[];
+        const isPlaceholderImg = (u: any) =>
+            !u || typeof u !== "string" || !u.startsWith("http") || /placeholder|logo\.png/i.test(u);
+        const betterPriced = sources.find((s) => Number(s.price) > 0);
+        const betterImaged = sources.find((s) => !isPlaceholderImg(s.image_url));
+        return {
+            ...primary,
+            price: Number(primary.price) > 0 ? primary.price : (betterPriced?.price ?? primary.price),
+            original_price: Number(primary.price) > 0 ? primary.original_price : (betterPriced?.original_price ?? primary.original_price),
+            recommended_price: Number(primary.price) > 0 ? primary.recommended_price : (betterPriced?.recommended_price ?? primary.recommended_price),
+            image_url: !isPlaceholderImg(primary.image_url) ? primary.image_url : (betterImaged?.image_url ?? primary.image_url),
+            images: (primary.images?.length ? primary.images : betterImaged?.images) ?? primary.images,
+        };
+    })();
 
     // 3. Lazy fetch full details when product is missing from localStorage or lacks description
     useEffect(() => {
