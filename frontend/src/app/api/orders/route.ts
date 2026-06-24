@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { triggerZema360 } from "@/lib/zema-trigger";
 
 export const runtime = "nodejs";
 
@@ -285,6 +287,10 @@ export async function POST(request: Request) {
 
         // Broadcast update for real-time sync
         broadcast({ type: "order_updated", id: newOrder.id });
+
+        // Kick off the ZEMA 360 autonomous pipeline (UiPath Maestro BPMN).
+        // Runs after the response is sent — never blocks or fails the order.
+        after(() => triggerZema360(newOrder.id));
 
         return NextResponse.json({ success: true, order: newOrder });
     } catch (error: any) {
