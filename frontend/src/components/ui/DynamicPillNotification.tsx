@@ -23,6 +23,22 @@ import { playDingSound } from "@/lib/audio";
 // Premium Apple-like glass chime notification sound — calming, rich, ~2.5s
 // Migrated to src/lib/audio.ts for global use
 
+// Persistent "already shown" set so a deal pill (e.g. an accepted negotiation)
+// doesn't re-pop on every page reload. Keyed by negotiation id + status, so a
+// genuinely NEW status change still surfaces. In-memory dedup alone resets on
+// reload — this survives it.
+const DEAL_ACK_KEY = "fp_ack_deal_pills";
+const getDealAckSet = (): Set<string> => {
+    try { return new Set(JSON.parse(localStorage.getItem(DEAL_ACK_KEY) || "[]")); } catch { return new Set(); }
+};
+const ackDeal = (key: string) => {
+    try {
+        const s = getDealAckSet();
+        s.add(key);
+        localStorage.setItem(DEAL_ACK_KEY, JSON.stringify([...s].slice(-200)));
+    } catch { }
+};
+
 export function DynamicPillNotification() {
     const { pendingNotification, pendingConversationId, dismissNotification, openMessageBox } = useMessages();
     const { addToCart } = useCart();
@@ -150,13 +166,17 @@ export function DynamicPillNotification() {
                     const notifyKey = `buyer_${n.id}_${n.status}_${(n as any).counter_status}`;
                     const lastTime = notifiedHistory.current.get(notifyKey) || 0;
 
-                    return isSignificantChange && n.customer_id === currentUser.id && (Date.now() - lastTime > 15000);
+                    // Skip if this exact deal-state was already acknowledged on a prior
+                    // visit — stops the same accepted deal nagging on every reload.
+                    return isSignificantChange && n.customer_id === currentUser.id
+                        && (Date.now() - lastTime > 15000) && !getDealAckSet().has(notifyKey);
                 });
 
                 if (recentBuyerNeg) {
                     const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
                     const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status}`;
                     notifiedHistory.current.set(notifyKey, Date.now());
+                    ackDeal(notifyKey); // remember across reloads
                     triggerBuyerNotification(recentBuyerNeg, product);
                 }
             }
