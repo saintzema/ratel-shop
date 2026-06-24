@@ -504,13 +504,27 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const openMessageBox = useCallback((conversationId?: string) => {
-        if (conversationId) setActiveConversationId(conversationId);
+        // Resolve the real conversation. Callers (e.g. the negotiation pill) may pass
+        // a key like `neg_<productId>` while the thread is stored under a different id
+        // (cuid) or a timestamped orderId `neg_<productId>_<ts>`. Match by id OR orderId,
+        // tolerating the prefix, so "Open Chat" actually finds the thread.
+        let resolvedId: string | null = conversationId ?? null;
+        if (conversationId) {
+            const match =
+                conversations.find(c => c.id === conversationId || c.orderId === conversationId) ||
+                conversations.find(c =>
+                    (!!c.orderId && (conversationId.startsWith(c.orderId) || c.orderId.startsWith(conversationId)))
+                );
+            if (match) resolvedId = match.id;
+        }
+
+        if (resolvedId) setActiveConversationId(resolvedId);
         setIsMessageBoxOpen(true);
         setPendingNotification(null);
-        
+
         // Also mark as read manually if we know the ID
-        if (conversationId) {
-            setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c));
+        if (resolvedId) {
+            setConversations(prev => prev.map(c => c.id === resolvedId ? { ...c, unreadCount: 0 } : c));
         } else {
             // Also mark as read for current active if applicable
             setConversations(prev => prev.map(c => {
@@ -519,7 +533,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 return { ...c, unreadCount: 0 };
             }));
         }
-    }, [activeConversationId]);
+    }, [activeConversationId, conversations]);
 
     const closeMessageBox = useCallback(() => {
         setIsMessageBoxOpen(false);
