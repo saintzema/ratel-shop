@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
+import { effectiveRole } from "@/lib/constants";
 
 /**
  * POST /api/auth/issue-token
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
         if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-        const token = signToken({ userId: user.id, email: user.email, role: user.role as any });
+        const token = signToken({ userId: user.id, email: user.email, role: effectiveRole(user.email, user.role) as any });
         return NextResponse.json({ token });
     } catch (err: any) {
         console.error("[issue-token] error:", err);

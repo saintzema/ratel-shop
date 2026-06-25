@@ -8,8 +8,9 @@ export async function GET(
 ) {
     try {
         const { id } = await params;
-        const seller = await db.seller.findUnique({
-            where: { id },
+        // Admin pages often pass the USER id, not the seller id — resolve by either.
+        const seller = await db.seller.findFirst({
+            where: { OR: [{ id }, { userId: id }] },
             include: {
                 user: true,
                 orders: {
@@ -89,12 +90,21 @@ export async function PATCH(
         if (body.email || body.owner_email)         userUpdate.email = body.email || body.owner_email;
         // Only promote to "seller" if the user isn't already an admin — never downgrade an admin.
         if (body.status === "active") {
-            const existingSeller = await db.seller.findUnique({ where: { id }, select: { user: { select: { role: true } } } });
+            const existingSeller = await db.seller.findFirst({ where: { OR: [{ id }, { userId: id }] }, select: { user: { select: { role: true } } } });
             if (existingSeller?.user?.role !== "admin") userUpdate.role = "seller";
         }
 
+        // Admin pages may pass the USER id rather than the seller id — resolve either.
+        const target = await db.seller.findFirst({
+            where: { OR: [{ id }, { userId: id }] },
+            select: { id: true },
+        });
+        if (!target) {
+            return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+        }
+
         const seller = await db.seller.update({
-            where: { id },
+            where: { id: target.id },
             data: {
                 ...sellerData,
                 ...(Object.keys(userUpdate).length > 0 ? { user: { update: userUpdate } } : {})
@@ -104,7 +114,7 @@ export async function PATCH(
         // If active, ensure products are active
         if (body.status === "active") {
             await db.product.updateMany({
-                where: { sellerId: id },
+                where: { sellerId: target.id },
                 data: { isActive: true }
             });
         }

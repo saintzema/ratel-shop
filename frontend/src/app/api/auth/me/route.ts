@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
+import { effectiveRole } from "@/lib/constants";
 
 export async function GET(request: Request) {
     const payload = getUserFromRequest(request);
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
                 name: user.name,
                 email: user.email,
                 whatsapp_number: (user as any).whatsappNumber ?? null,
-                role: user.role,
+                role: effectiveRole(user.email, user.role),
                 avatar_url: user.avatarUrl,
                 location: user.location,
                 birthday: user.birthday,

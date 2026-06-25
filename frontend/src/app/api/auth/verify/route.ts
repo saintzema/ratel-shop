@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { signToken } from "@/lib/jwt";
+import { effectiveRole } from "@/lib/constants";
 
 export async function POST(req: Request) {
     try {
@@ -40,7 +41,8 @@ export async function POST(req: Request) {
         }
 
         // Sign a JWT so the client can authenticate API calls
-        const token = signToken({ userId: user.id, email: user.email, role: user.role as any });
+        const role = effectiveRole(user.email, user.role);
+        const token = signToken({ userId: user.id, email: user.email, role: role as any });
 
         return NextResponse.json({
             success: true,
@@ -49,7 +51,7 @@ export async function POST(req: Request) {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                role: user.role,
+                role,
                 avatar_url: user.avatarUrl,
                 whatsappNumber: user.whatsappNumber,
                 created_at: user.createdAt?.toISOString(),

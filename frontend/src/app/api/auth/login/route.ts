@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
+import { effectiveRole } from "@/lib/constants";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
@@ -45,11 +46,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
         }
 
+        // Allowlisted emails are admins regardless of stored DB role.
+        const role = effectiveRole(user.email, user.role);
+
         // Generate JWT
         const token = signToken({
             userId: user.id,
             email: user.email,
-            role: user.role,
+            role: role as any,
         });
 
         return NextResponse.json({
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
                 id: user.id,
                 name: user.name,
                 email: user.email,
-                role: user.role,
+                role,
                 avatar_url: user.avatarUrl,
                 location: user.location,
                 birthday: user.birthday,

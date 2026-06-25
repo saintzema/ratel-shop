@@ -167,6 +167,18 @@ export const DEFAULT_AD_SLOTS = [
     { id: 'ad4', title: 'Ziva AI Chat',  img: '', link: '#',                   componentId: 'ziva-ai'       },
 ];
 
-export const ADMIN_EMAILS = ['admin@fairprice.ng', 'techzema@gmail.com'];
+export const ADMIN_EMAILS = ['admin@fairprice.ng', 'techzema@gmail.com', 'fairprice2026@gmail.com'];
 export const SECURITY_EMAILS = ['techzema@gmail.com', 'admin@fairprice.ng'];
+
+// Single source of truth for "is this account an admin". An allowlisted email is
+// treated as admin regardless of its stored DB role, so admin powers don't depend
+// on a manual DB role flip. Applied at the auth boundary (token issue) so the JWT
+// carries role:"admin" and every existing role === "admin" check just works.
+export function isAdminEmail(email?: string | null): boolean {
+    if (!email) return false;
+    return ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+export function effectiveRole(email: string | null | undefined, dbRole: string): string {
+    return isAdminEmail(email) ? "admin" : dbRole;
+}
 
