@@ -216,7 +216,7 @@ export function Zema360HeroBanner() {
           </h2>
 
           {/* Subtitle */}
-          <p className="font-black uppercase tracking-widest mb-2.5 md:mb-3" style={{ color: "#34d399", fontSize: "clamp(8px,1.1vw,10px)", whiteSpace: "nowrap" }}>
+          <p className="font-black uppercase tracking-widest mb-1 md:mb-3" style={{ color: "#34d399", fontSize: "clamp(8px,1.1vw,10px)", whiteSpace: "nowrap" }}>
             Autonomous e-Commerce OS
           </p>
 

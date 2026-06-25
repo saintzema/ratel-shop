@@ -287,7 +287,7 @@ function HomeContent() {
   if (!mounted) return <div className="min-h-screen bg-[#E3E6E6]" />;
 
   return (
-    <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
+    <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-clip font-sans">
       <Navbar />
 
       <div className="flex-1 flex flex-col relative">
@@ -295,7 +295,7 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Restored Single Image) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-5 md:pb-8">
+          <section className="relative w-full bg-[#E3E6E6] pt-[128px] md:pt-[130px] pb-5 md:pb-8">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
@@ -416,7 +416,7 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
-            <div className="sticky top-[84px] md:top-[100px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
+            <div className="sticky top-[96px] md:top-[100px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {TEMU_CATEGORIES.map((cat) => {
                   const isActive = activeTab === cat;
