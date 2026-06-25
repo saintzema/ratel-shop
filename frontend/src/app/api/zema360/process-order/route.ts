@@ -104,6 +104,35 @@ async function stepFinance(orderId: string) {
     return { ok: verified, amount: order.amount, escrow_status: order.escrowStatus, currency: "NGN" };
 }
 
+// ZEMA 360 — Gemini-powered market intelligence for the human approver.
+// Calls /api/gemini-price (Gemini primary, Qwen fallback — same engine as the
+// FairPrice Price Checker) and returns a one-line verdict comparing the order
+// price to the live market price. Best-effort: any failure returns null and the
+// approval is sent without it, so this never blocks or breaks the HITL step.
+async function getMarketIntel(productName: string | undefined, amount: number): Promise<string | null> {
+    if (!productName) return null;
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        const res = await fetch(`${SITE}/api/gemini-price`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName, mode: "search" }),
+            signal: ctrl.signal,
+        }).finally(() => clearTimeout(t));
+        if (!res.ok) return null;
+        const provider = res.headers.get("x-provider") === "qwen" ? "Qwen" : "Gemini";
+        const data = await res.json();
+        const market = data?.suggestions?.[0]?.approxPrice;
+        if (!market || market <= 0) return null;
+        const ratio = amount / market;
+        const verdict = ratio <= 0.95 ? "good deal ✅" : ratio <= 1.1 ? "fair price" : "above market ⚠️";
+        return `🤖 *AI market intel (${provider})*\nMarket ~₦${Math.round(market).toLocaleString()} · ${verdict}`;
+    } catch {
+        return null;
+    }
+}
+
 async function stepHitlRequest(orderId: string, agentDecision: any) {
     const order = await db.order.findUnique({
         where: { id: orderId },
@@ -123,14 +152,18 @@ async function stepHitlRequest(orderId: string, agentDecision: any) {
         },
     });
 
+    // Gemini-powered market intelligence (best-effort) to inform the approver.
+    const intel = await getMarketIntel(order.product?.name ?? undefined, Number(order.amount));
+
     const msg =
         `🛍️ *ZEMA 360 — Human Approval Required*\n\n` +
         `Order: *${order.id.slice(-8).toUpperCase()}*\n` +
         `Product: ${order.product?.name ?? "—"}\n` +
         `Seller: ${order.seller?.businessName ?? "—"}\n` +
         `Amount: *₦${Number(order.amount).toLocaleString()}*\n` +
-        `Escrow: held ✅\n\n` +
-        `Reply:\n✅ *approve ${runId}*\n❌ *reject ${runId}*`;
+        `Escrow: held ✅\n` +
+        (intel ? `\n${intel}\n` : ``) +
+        `\nReply:\n✅ *approve ${runId}*\n❌ *reject ${runId}*`;
 
     const waResult = await WhatsAppService.sendMessage(APPROVER_WA, msg);
     await log("HITLAgent", `Approval requested — ${runId}`, "pending", { approval_id: runId, run_id: runId, wa_result: waResult }, orderId);
