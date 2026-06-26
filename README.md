@@ -193,4 +193,37 @@ See [`frontend/.env.example`](frontend/.env.example) and [`backend/.env.example`
 
 ---
 
+---
+
+## 🤖 Built with Claude Code
+
+This entire project — FairPrice.ng and the ZEMA 360 Autonomous Commerce OS — was designed,
+implemented, and debugged using **[Claude Code](https://claude.ai/code)** by Anthropic.
+
+### By the numbers
+
+| Metric | Value |
+|---|---|
+| Total Claude Code tool calls | **8,228** |
+| File edits | **442** |
+| Shell / Bash commands run | **1,577** |
+| New files written | **76** |
+| Unique source files modified | **100+** |
+
+### What Claude Code did
+
+- **Architecture** — Proposed the UiPath Maestro + Qwen + WhatsApp HITL architecture from scratch
+- **Agent backend** — Wrote all ZEMA 360 agents (`orchestrator.py`, `agents.py`, `mcp_server.py`, `memory.py`) on Alibaba Function Compute
+- **API routes** — Implemented every Next.js serverless endpoint (`/api/zema360/*`, `/api/escrow/*`, `/api/payouts/*`, `/api/whatsapp/*`)
+- **Database schema** — Designed and iterated the full Prisma schema across 15+ migrations
+- **TypeScript safety** — Ran `npx tsc --noEmit` after every change; zero type errors in production
+- **Debugging** — Resolved Alibaba FC cold-start timeouts, Qwen tool-call format differences, WhatsApp webhook signature validation, Paystack transfer edge cases
+- **UiPath integration** — Wired the BPMN trigger (`after()` on `/api/orders`), HITL polling loop, and approval webhook
+
+### Session logs
+
+Full build evidence (session stats, file lists, key commands) is in [`claude-code-logs/`](claude-code-logs/).
+
+---
+
 Developed by **[Zema Technologies Group](https://zemaai.com)** — making commerce work for everyone.
