@@ -97,7 +97,7 @@ export async function PATCH(
         // Admin pages may pass the USER id rather than the seller id — resolve either.
         const target = await db.seller.findFirst({
             where: { OR: [{ id }, { userId: id }] },
-            select: { id: true },
+            select: { id: true, userId: true },
         });
         if (!target) {
             return NextResponse.json({ error: "Seller not found" }, { status: 404 });
@@ -111,10 +111,16 @@ export async function PATCH(
             }
         });
 
-        // If active, ensure products are active
-        if (body.status === "active") {
+        // Whenever the seller is approved/active, make sure their products go live.
+        // Products uploaded while the account was still pending were saved with
+        // isActive:false; flip them now. Match every id products may have been
+        // stored under (seller id, user id, or the route param) so none are orphaned.
+        const isApproved = body.status === "active" || body.verified === true
+            || body.kyc_status === "approved" || body.kycStatus === "approved";
+        if (isApproved) {
+            const sellerIds = Array.from(new Set([target.id, target.userId, id].filter(Boolean))) as string[];
             await db.product.updateMany({
-                where: { sellerId: target.id },
+                where: { sellerId: { in: sellerIds } },
                 data: { isActive: true }
             });
         }
