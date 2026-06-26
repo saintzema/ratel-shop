@@ -154,7 +154,7 @@ class DataSyncServiceService {
         SELLERS: "fairprice_demo_sellers",
         PRODUCTS: "fairprice_demo_products",
         CURRENT_SELLER: "fairprice_demo_current_seller",
-        NOTIFICATIONS: "fairprice_demo_notifications",
+        NOTIFICATIONS: "fp_notifications",
         KYC: "fairprice_demo_kyc",
         COMPLAINTS: "fairprice_demo_complaints",
         PAYOUTS: "fairprice_demo_payouts",
@@ -4389,22 +4389,27 @@ class DataSyncServiceService {
     // --- Notifications ---
     getNotifications(userId?: string): AppNotification[] {
         if (typeof window === "undefined") return [];
+
+        // One-time migration: move data from the old "demo" key to the production key
+        const LEGACY_KEY = "fairprice_demo_notifications";
+        const legacyRaw = localStorage.getItem(LEGACY_KEY);
+        if (legacyRaw) {
+            try {
+                const legacy: AppNotification[] = JSON.parse(legacyRaw);
+                // Strip the seeded demo welcome notification before migrating
+                const real = legacy.filter(n => n.id !== "notif_1" && !/complete your profile/i.test(n.message || ""));
+                const existing = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+                if (!existing) {
+                    localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(real));
+                }
+            } catch { /* corrupt data — discard */ }
+            localStorage.removeItem(LEGACY_KEY);
+        }
+
         const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
         if (!stored) {
-            // Seed initial notifications (generic ones use "all")
-            const initial: AppNotification[] = [
-                {
-                    id: "notif_1",
-                    userId: "all",
-                    type: "system",
-                    message: "Welcome to FairPrice! Complete your profile to get started.",
-                    read: false,
-                    timestamp: new Date().toISOString(),
-                    link: "/account/profile"
-                }
-            ];
-            localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(initial));
-            return initial.filter(n => n.userId === "all" || n.userId === userId);
+            localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+            return [];
         }
 
         const all: AppNotification[] = JSON.parse(stored);

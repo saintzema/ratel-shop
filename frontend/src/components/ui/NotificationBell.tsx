@@ -27,17 +27,38 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // Load notifications from DataSyncService (localStorage) as primary source
-    const refreshNotifications = useCallback(() => {
+    // Merge local (localStorage) + DB notifications, deduping by id, newest first
+    const refreshNotifications = useCallback(async () => {
         if (!user?.email && !user?.id) {
             setNotifications([]);
             return;
         }
-        const userId = user.id || user.email;
-        const local = DataSyncService.getNotifications(userId);
-        // Sort newest first
-        local.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setNotifications(local);
+        const userId = user.id || user.email!;
+        const local: LocalNotification[] = DataSyncService.getNotifications(userId);
+
+        // Fetch DB notifications (real events: orders, approvals, negotiations, etc.)
+        let dbNotifs: LocalNotification[] = [];
+        if (user.email) {
+            try {
+                const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) dbNotifs = data as LocalNotification[];
+                }
+            } catch { /* offline — show local only */ }
+        }
+
+        // Dedupe: DB wins on id collision (more authoritative read state)
+        const seen = new Set<string>();
+        const merged: LocalNotification[] = [];
+        for (const n of [...dbNotifs, ...local]) {
+            if (!seen.has(n.id)) {
+                seen.add(n.id);
+                merged.push(n);
+            }
+        }
+        merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setNotifications(merged);
     }, [user?.email, user?.id]);
 
     useEffect(() => {
@@ -48,8 +69,8 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         window.addEventListener("storage", handler);
         window.addEventListener("sync-store-update", handler);
 
-        // Also poll every 5s for cross-browser/device realtime sync
-        const poll = setInterval(refreshNotifications, 5000);
+        // Poll every 15s — DB fetch is included so keep interval relaxed
+        const poll = setInterval(refreshNotifications, 15000);
 
         return () => {
             window.removeEventListener("storage", handler);
@@ -76,12 +97,18 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
-    const handleMarkAllRead = () => {
+    const handleMarkAllRead = async () => {
         if (!user?.email && !user?.id) return;
         setIsLoading(true);
-        const userId = user.id || user.email;
+        const userId = user.id || user.email!;
         DataSyncService.markAllNotificationsRead(userId);
-        refreshNotifications();
+        // Also mark read in DB
+        if (user.email) {
+            try {
+                await fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, { method: "PATCH" });
+            } catch { /* best-effort */ }
+        }
+        await refreshNotifications();
         setIsLoading(false);
     };
 

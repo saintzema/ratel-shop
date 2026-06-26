@@ -88,8 +88,10 @@ export default function StoreProfile() {
                 try {
                     const res = await fetch(`/api/products?sellerId=${encodeURIComponent(foundSeller.id)}`);
                     if (res.ok) {
-                        const dbProducts = await res.json();
-                        if (Array.isArray(dbProducts) && dbProducts.length > 0) {
+                        const payload = await res.json();
+                        // API returns { success, products, total, nextCursor } — not a plain array
+                        const dbProducts = Array.isArray(payload) ? payload : (payload.products ?? []);
+                        if (dbProducts.length > 0) {
                             setProducts(dbProducts);
                             setLoading(false);
                             return;
