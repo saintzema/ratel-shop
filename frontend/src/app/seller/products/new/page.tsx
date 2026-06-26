@@ -732,11 +732,12 @@ function NewProductContent() {
                                         onChange={(e) => handleChange("category", e.target.value)}
                                     >
                                         <option value="">Select Category</option>
-                                        {taxonomy.map(cat => (
+                                        {/* Admin-only tabs (Trending, Best-Selling, Price Drop) are curated by admins — hide from sellers */}
+                                        {taxonomy.filter(cat => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(cat.name.toLowerCase())).map(cat => (
                                             <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
                                         ))}
-                                        {/* Fallback for hardcoded categories not in DB */}
-                                        {CATEGORIES.filter(c => !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
+                                        {/* Fallback for hardcoded categories not in DB (exclude admin-only) */}
+                                        {CATEGORIES.filter(c => !c.adminOnly && !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                             <option key={cat.value} value={cat.value}>{cat.label}</option>
                                         ))}
                                         {/* Auto-select newly created custom category if it's in state but not in list yet */}

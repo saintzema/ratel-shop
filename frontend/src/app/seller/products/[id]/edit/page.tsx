@@ -754,11 +754,12 @@ function EditProductContent() {
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: "" })}
                             >
                                 <option value="">Select Category</option>
-                                {taxonomy.map(cat => (
+                                {/* Admin-only tabs (Trending, Best-Selling, Price Drop) are curated by admins — hide from sellers */}
+                                {taxonomy.filter(cat => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(cat.name.toLowerCase())).map(cat => (
                                     <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
                                 ))}
-                                {/* Fallback for legacy categories or missing ones */}
-                                {CATEGORIES.filter(c => !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
+                                {/* Fallback for legacy categories or missing ones (exclude admin-only) */}
+                                {CATEGORIES.filter(c => !c.adminOnly && !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                                 ))}
                                 {/* Hardcoded check for the current value if it's not in the list (e.g. legacy ampersand categories) */}
