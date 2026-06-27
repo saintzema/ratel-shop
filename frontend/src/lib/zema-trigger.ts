@@ -37,7 +37,8 @@ export async function triggerZema360(orderId: string): Promise<void> {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ orderId }),
+            // UiPath API Triggers require inputArguments envelope — flat body is ignored
+            body: JSON.stringify({ inputArguments: { orderId } }),
             signal: controller.signal,
         });
 
