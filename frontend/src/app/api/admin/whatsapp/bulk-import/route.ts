@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest } from "@/lib/jwt";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 
 const PHONE_RE = /(?:\+?234|0)[\s\-]?[7-9][01][\s\-]?\d[\s\-]?\d[\s\-]?\d[\s\-]?\d[\s\-]?\d[\s\-]?\d[\s\-]?\d/g;
@@ -96,8 +98,14 @@ function extractContactsFromText(raw: string): { phone: string; name: string }[]
  */
 export async function POST(req: NextRequest) {
     try {
-        const admin = getUserFromRequest(req);
-        if (!admin || (admin as any).role !== 'admin') {
+        // Accept either JWT Bearer token (fp_token) OR NextAuth session cookie
+        const jwtAdmin = getUserFromRequest(req);
+        const session = (!jwtAdmin || (jwtAdmin as any).role !== 'admin')
+            ? await getServerSession(authOptions)
+            : null;
+        const isAdmin = (jwtAdmin && (jwtAdmin as any).role === 'admin') ||
+            (session?.user?.role === 'admin');
+        if (!isAdmin) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 

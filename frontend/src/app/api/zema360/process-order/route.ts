@@ -99,8 +99,13 @@ async function stepFinance(orderId: string) {
     });
     if (!order) return { ok: false, error: "order_not_found" };
 
-    const verified = order.escrowStatus === "held";
-    await log("FinanceAgent", `Escrow verified: ₦${order.amount.toLocaleString()} — status: ${order.escrowStatus}`, verified ? "completed" : "failed", { amount: order.amount, escrow_status: order.escrowStatus }, orderId);
+    // "held" = Paystack confirmed, "pending" = payment in-flight (Paystack webhook
+    // arrives ~5-30s after order creation; the BPMN trigger fires immediately via
+    // after(). Allow "pending" so the HITL step is never skipped on fast triggers.
+    // "released" / "refunded" are terminal states that must not proceed.
+    const BLOCKED = ["released", "refunded", "failed"];
+    const verified = !BLOCKED.includes(order.escrowStatus ?? "");
+    await log("FinanceAgent", `Escrow check: ₦${order.amount.toLocaleString()} — status: ${order.escrowStatus}`, verified ? "completed" : "failed", { amount: order.amount, escrow_status: order.escrowStatus }, orderId);
     return { ok: verified, amount: order.amount, escrow_status: order.escrowStatus, currency: "NGN" };
 }
 

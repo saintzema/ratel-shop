@@ -23,11 +23,22 @@ export default function MessagesPage() {
     const userId = user?.id || user?.email || "";
     const userName = user?.name || user?.email?.split("@")[0] || "You";
 
-    const loadConversations = useCallback(() => {
+    const loadConversations = useCallback((restoreConvId?: string) => {
         if (!userId) return;
         const convs = DataSyncService.getConversations(userId);
         convs.sort((a: any, b: any) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
         setConversations(convs);
+        // Restore last-viewed conversation (survives back navigation)
+        const targetId = restoreConvId || sessionStorage.getItem("fp_active_conv");
+        if (targetId) {
+            const match = convs.find((c: any) => c.id === targetId);
+            if (match) {
+                setActiveConv(match);
+                setMobileShowChat(true);
+                const msgs = DataSyncService.getChatMessages(match.id);
+                setMessages(msgs);
+            }
+        }
     }, [userId]);
 
     const loadMessages = (convId: string) => {
@@ -38,7 +49,7 @@ export default function MessagesPage() {
     };
 
     useEffect(() => {
-        loadConversations();
+        loadConversations(undefined);
         const handleUpdate = () => {
             loadConversations();
             if (userId) setNotifications(DataSyncService.getNotifications(userId));
@@ -61,6 +72,7 @@ export default function MessagesPage() {
         setActiveConv(conv);
         loadMessages(conv.id);
         setMobileShowChat(true);
+        sessionStorage.setItem("fp_active_conv", conv.id);
     };
 
     const handleSend = () => {
@@ -280,7 +292,7 @@ export default function MessagesPage() {
                                 {/* Chat Header */}
                                 <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
                                     <button
-                                        onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
+                                        onClick={() => { setMobileShowChat(false); setActiveConv(null); sessionStorage.removeItem("fp_active_conv"); }}
                                         className="md:hidden h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center"
                                     >
                                         <ArrowLeft className="h-4 w-4 text-gray-600" />

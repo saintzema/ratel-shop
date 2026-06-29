@@ -678,7 +678,19 @@ function CheckoutContent() {
     useEffect(() => {
         // Only load saved addresses for authenticated users to prevent cross-session leaks
         if (user) {
-            const saved = getSavedAddresses();
+            const local = getSavedAddresses();
+            // If localStorage is empty (new device/cleared storage), pull from DB
+            if (local.length === 0 && user.id) {
+                fetch(`/api/addresses?userId=${encodeURIComponent(user.id)}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (data?.addresses?.length > 0) {
+                            setSavedAddresses(data.addresses);
+                        }
+                    })
+                    .catch(() => {});
+            }
+            const saved = local.length > 0 ? local : [];
             setSavedAddresses(saved);
 
             if (isWhatsAppPlaceholder && !identityReconciled) {
@@ -1119,6 +1131,11 @@ function CheckoutContent() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ oldId: user?.id, newId: user?.id, email: address.email })
                     });
+                    // Hot-update the in-memory session so navbar + review emails use the real address
+                    updateUser({
+                        email: address.email,
+                        name: `${address.firstName} ${address.lastName}`.trim() || user?.name
+                    } as any);
                     setIdentityReconciled(true);
                     setShowIdentityPrompt(false);
                     setIsProcessing(false);
