@@ -465,6 +465,10 @@ class DataSyncServiceService {
                 ordersUrl = `/api/orders?customerId=${customerId}${customerEmail ? `&customerEmail=${encodeURIComponent(customerEmail)}` : ''}`;
             }
 
+            // Negotiations scoped to the current user (admin → all) — never pull other
+            // users' private negotiations into this client.
+            const negUrl = this.negotiationsUrl();
+
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
                 negotiationsResult, notificationsResult, conversationsResult,
@@ -480,7 +484,7 @@ class DataSyncServiceService {
                 fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSearchCache ? fetchWithTimeout("/api/search-cache") : mockUnfetched,
                 fetchOrders ? fetchWithTimeout(ordersUrl) : mockUnfetched,
-                fetchNegotiations ? fetchWithTimeout(`/api/negotiations?all=true`) : mockUnfetched,
+                fetchNegotiations && negUrl ? fetchWithTimeout(negUrl) : mockUnfetched,
                 fetchNotifications && notificationUrl ? fetchWithTimeout(notificationUrl) : mockUnfetched,
                 fetchConversations && user?.email ? fetchWithTimeout(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
                 fetchDisputes ? fetchWithTimeout("/api/disputes?all=true") : mockUnfetched,
@@ -990,7 +994,9 @@ class DataSyncServiceService {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
-            const res = await fetch("/api/negotiations?all=true", { signal: controller.signal });
+            const negUrl = this.negotiationsUrl();
+            if (!negUrl) { clearTimeout(timeoutId); return; }
+            const res = await fetch(negUrl, { signal: controller.signal });
             clearTimeout(timeoutId);
             if (!res.ok) return;
             const negData = await res.json();
@@ -4400,6 +4406,19 @@ class DataSyncServiceService {
     }
 
     // --- Notifications ---
+    // Build the negotiations fetch URL scoped to the CURRENT user, so we never pull (or
+    // cache) other users' private negotiations. Admin gets the full view; a seller-who-buys
+    // passes both ids (route ORs them: incoming offers + their own outgoing offers).
+    private negotiationsUrl(): string {
+        const user = this.getCurrentUser();
+        if (user?.role === "admin") return "/api/negotiations?all=true";
+        const params: string[] = [];
+        if (user?.id) params.push(`customerId=${encodeURIComponent(user.id)}`);
+        const sellerId = this.getCurrentSeller()?.id || this.getCurrentSeller()?.user_id;
+        if (sellerId) params.push(`sellerId=${encodeURIComponent(sellerId)}`);
+        return params.length ? `/api/negotiations?${params.join("&")}` : "";
+    }
+
     // ── Read-state reconciliation ────────────────────────────────────────────
     // A notification often exists twice: a local copy (short id "notif_xxx") and its
     // DB copy (Prisma cuid). They have different ids, so marking one read left the other

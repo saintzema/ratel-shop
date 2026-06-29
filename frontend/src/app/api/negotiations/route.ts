@@ -11,10 +11,35 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const customerId = searchParams.get("customerId");
         const sellerId = searchParams.get("sellerId");
+        const fetchAll = searchParams.get("all") === "true";
 
-        const whereClause: any = {};
-        if (customerId) whereClause.customerId = customerId;
-        if (sellerId) whereClause.sellerId = sellerId;
+        // Negotiations carry PII (customer names, chat messages, offer prices). Scope every
+        // read to the requester's own records. A seller who also buys passes BOTH ids and we
+        // OR them (incoming offers on their store + their own outgoing offers). Only an
+        // explicit all=true (admin sync) returns the full table — and that response is never
+        // shared-cached. Previously an unscoped call returned EVERY user's negotiations and
+        // cached them publicly: a data-exposure bug, now closed.
+        let whereClause: any;
+        if (customerId && sellerId) {
+            whereClause = { OR: [{ customerId }, { sellerId }] };
+        } else if (customerId) {
+            whereClause = { customerId };
+        } else if (sellerId) {
+            whereClause = { sellerId };
+        } else if (fetchAll) {
+            whereClause = {}; // admin full view
+        } else {
+            // No scope and not an explicit admin request — return nothing rather than leak.
+            return NextResponse.json({ success: true, negotiations: [] }, {
+                headers: { "Cache-Control": "no-store" }
+            });
+        }
+
+        // Scoped reads may be cached in the user's OWN browser only; the admin all=true blob
+        // is PII and must never touch a shared CDN.
+        const cacheHeader = fetchAll && !(customerId || sellerId)
+            ? "no-store"
+            : "private, max-age=15";
 
         // Fetch negotiations with a global try-catch for resiliency
         try {
@@ -50,9 +75,7 @@ export async function GET(request: Request) {
             });
             
             return NextResponse.json({ success: true, negotiations }, {
-                headers: {
-                    "Cache-Control": "public, s-maxage=30, stale-while-revalidate=15"
-                }
+                headers: { "Cache-Control": cacheHeader }
             });
         } catch (dbError: any) {
             console.error("Database fetch error:", dbError);

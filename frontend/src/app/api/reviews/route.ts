@@ -45,7 +45,13 @@ export async function GET(request: Request) {
             created_at: r.createdAt,
         }));
 
-        return NextResponse.json({ success: true, reviews: mapped });
+        // Reviews are public, non-personalized data; the CDN caches per-URL so a
+        // ?productId / ?userId / all=true read each get their own cache entry. Edge-caching
+        // means review reads (incl. every full sync) hit the CDN, not Neon. New reviews
+        // appear within ~30s (POST also broadcasts + the client adds it locally instantly).
+        return NextResponse.json({ success: true, reviews: mapped }, {
+            headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" }
+        });
     } catch (error: any) {
         console.error("Reviews API Error:", error);
         return NextResponse.json({ success: true, reviews: [] }, {
