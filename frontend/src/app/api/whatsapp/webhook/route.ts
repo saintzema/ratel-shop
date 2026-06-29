@@ -253,17 +253,28 @@ export async function POST(req: Request) {
 
                 if (upper === "YES" || upper === "CONFIRM") {
                     try {
+                        // Admin number always publishes to Global Stores catalogue
+                        const ADMIN_WA = (process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305").replace(/\D/g, "").slice(-10);
                         const fromDigits10 = from.replace(/\D/g, "").slice(-10);
-                        let seller = await db.seller.findFirst({
-                            where: { whatsappNumber: { endsWith: fromDigits10 }, status: "active" },
-                        });
-                        if (!seller) {
-                            const normalised = from.startsWith("+") ? from : `+${from}`;
-                            const user = await db.user.findFirst({
-                                where: { OR: [{ whatsappNumber: normalised }, { whatsappNumber: from }] },
-                                include: { sellers: { where: { status: "active" }, take: 1 } },
+                        const isAdmin = fromDigits10 === ADMIN_WA;
+
+                        let seller = isAdmin
+                            ? await db.seller.findFirst({ where: { id: "global-partners" } })
+                                ?? await db.seller.findFirst({ where: { businessName: { contains: "Global" } } })
+                            : null;
+
+                        if (!isAdmin) {
+                            seller = await db.seller.findFirst({
+                                where: { whatsappNumber: { endsWith: fromDigits10 }, status: "active" },
                             });
-                            seller = user?.sellers?.[0] ?? null;
+                            if (!seller) {
+                                const normalised = from.startsWith("+") ? from : `+${from}`;
+                                const user = await db.user.findFirst({
+                                    where: { OR: [{ whatsappNumber: normalised }, { whatsappNumber: from }] },
+                                    include: { sellers: { where: { status: "active" }, take: 1 } },
+                                });
+                                seller = user?.sellers?.[0] ?? null;
+                            }
                         }
 
                         if (!seller) {
