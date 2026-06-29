@@ -4400,6 +4400,63 @@ class DataSyncServiceService {
     }
 
     // --- Notifications ---
+    // ── Read-state reconciliation ────────────────────────────────────────────
+    // A notification often exists twice: a local copy (short id "notif_xxx") and its
+    // DB copy (Prisma cuid). They have different ids, so marking one read left the other
+    // showing as unread forever (the "repeated welcome notification" bug). We reconcile by
+    // a stable CONTENT signature (type|message): once read on this device, every copy with
+    // the same signature is treated as read, regardless of id or source (local/DB).
+    private READ_SIGS_KEY = "fp_read_notif_sigs";
+
+    private notifSig(n: { type?: string; message?: string } | null | undefined): string {
+        return `${(n?.type || "").toLowerCase()}|${(n?.message || "").trim().toLowerCase().slice(0, 140)}`;
+    }
+
+    private getReadSigs(): Set<string> {
+        if (typeof window === "undefined") return new Set();
+        try { return new Set(JSON.parse(localStorage.getItem(this.READ_SIGS_KEY) || "[]")); }
+        catch { return new Set(); }
+    }
+
+    private addReadSigs(sigs: string[]) {
+        if (typeof window === "undefined" || !sigs.length) return;
+        const set = this.getReadSigs();
+        let changed = false;
+        for (const s of sigs) { if (s && s !== "|" && !set.has(s)) { set.add(s); changed = true; } }
+        if (changed) {
+            // Cap to the most recent 500 signatures so this can't grow unbounded.
+            const arr = Array.from(set).slice(-500);
+            try { localStorage.setItem(this.READ_SIGS_KEY, JSON.stringify(arr)); } catch { /* quota */ }
+        }
+    }
+
+    /**
+     * Reconcile read-state + dedupe a notification list coming from ANY source (local
+     * cache and/or the DB API). A notification is read if its own flag is set OR its
+     * content-signature was read on this device. Duplicates (same signature) collapse to
+     * one entry, preferring a DB-style cuid id so a later mark-read reaches Postgres.
+     */
+    public reconcileNotifications<T extends { id: string; read?: boolean; type?: string; message?: string; timestamp?: string; created_at?: string }>(list: T[]): T[] {
+        if (!Array.isArray(list)) return [];
+        const readSigs = this.getReadSigs();
+        const bySig = new Map<string, T>();
+        for (const n of list) {
+            if (!n) continue;
+            const sig = this.notifSig(n);
+            const isRead = !!n.read || readSigs.has(sig);
+            const existing = bySig.get(sig);
+            if (!existing) {
+                bySig.set(sig, { ...n, read: isRead });
+            } else {
+                // Prefer a DB cuid id (>20 chars) so mark-read can update Postgres; a
+                // notification is read if EITHER copy is read.
+                const preferThis = (n.id?.length || 0) > 20 && (existing.id?.length || 0) <= 20;
+                bySig.set(sig, { ...(preferThis ? n : existing), read: isRead || !!existing.read });
+            }
+        }
+        return Array.from(bySig.values());
+    }
+
     getNotifications(userId?: string): AppNotification[] {
         if (typeof window === "undefined") return [];
 
@@ -4449,7 +4506,9 @@ class DataSyncServiceService {
         // Admin users see admin-targeted notifications too
         if (user?.role === 'admin') matchIds.add('admin');
 
-        return all.filter(n => n.userId && matchIds.has(n.userId));
+        const mine = all.filter(n => n.userId && matchIds.has(n.userId));
+        // Reconcile read-state so a notification read on this device stays read.
+        return this.reconcileNotifications(mine);
     }
 
     addNotification(notification: Omit<AppNotification, "id" | "timestamp" | "read">) {
@@ -4458,10 +4517,17 @@ class DataSyncServiceService {
 
         const newNotif: AppNotification = {
             ...notification,
-            id: `notif_${Math.random().toString(36).substr(2, 9)} `,
+            id: `notif_${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toISOString(),
             read: false
         };
+
+        // Dedupe: if an identical notification (same content signature) already exists
+        // OR was already read on this device, don't pile on another copy. This stops the
+        // same "welcome"/reminder notification re-seeding itself unread on every poll.
+        const sig = this.notifSig(newNotif);
+        if (this.getReadSigs().has(sig)) return;
+        if (current.some(n => this.notifSig(n) === sig && !n.read)) return;
         const updated = [newNotif, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
@@ -4498,17 +4564,25 @@ class DataSyncServiceService {
         }
     }
 
-    markNotificationRead(notifId: string) {
+    markNotificationRead(notifId: string, notif?: { type?: string; message?: string }) {
         if (typeof window === "undefined") return;
         const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-        if (!stored) return;
-        const all: AppNotification[] = JSON.parse(stored);
+        const all: AppNotification[] = stored ? JSON.parse(stored) : [];
         const updated = all.map(n => n.id === notifId ? { ...n, read: true } : n);
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
+        if (stored) {
+            localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
+        }
+
+        // Record the content-signature so EVERY copy of this notification (local + DB,
+        // which carry different ids) is treated as read from now on — this is what stops
+        // a read notification from reappearing on the next poll.
+        const target = notif || all.find(n => n.id === notifId);
+        if (target) this.addReadSigs([this.notifSig(target)]);
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
-        // Sync to backend
+        // Sync to backend (works for DB cuid ids; harmless for short local ids).
         fetch(`/api/notifications?id=${notifId}`, { method: "PATCH" }).catch(() => {});
     }
 
@@ -4547,10 +4621,18 @@ class DataSyncServiceService {
         if (user?.id) matchIds.add(user.id);
         if (user?.role === 'admin') matchIds.add('admin');
 
-        const updated = all.map(n =>
-            n.userId && matchIds.has(n.userId) ? { ...n, read: true } : n
-        );
+        const mineSigs: string[] = [];
+        const updated = all.map(n => {
+            if (n.userId && matchIds.has(n.userId)) {
+                mineSigs.push(this.notifSig(n));
+                return { ...n, read: true };
+            }
+            return n;
+        });
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
+        // Suppress every signature the user just cleared, so DB copies (different ids)
+        // don't resurrect them as unread on the next poll.
+        this.addReadSigs(mineSigs);
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 

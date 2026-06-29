@@ -48,8 +48,11 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
                 merged.push(n);
             }
         }
-        merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setNotifications(merged);
+        // Reconcile read-state + collapse local/DB duplicates by content signature so a
+        // notification read on this device never reappears as unread.
+        const reconciled = DataSyncService.reconcileNotifications(merged) as LocalNotification[];
+        reconciled.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setNotifications(reconciled);
     }, [user?.email, user?.id]);
 
     // Kept for callers that want an explicit refresh (e.g. after marking all read).
@@ -113,7 +116,9 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
 
     const handleNotificationClick = (n: LocalNotification) => {
         if (!n.read) {
-            DataSyncService.markNotificationRead(n.id);
+            // Pass the notification object so its content-signature is recorded — this is
+            // what marks the DB copy (different id) read too, so it won't come back.
+            DataSyncService.markNotificationRead(n.id, { type: n.type, message: n.message });
             refreshNotifications();
         }
         setIsOpen(false);

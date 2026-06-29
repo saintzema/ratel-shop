@@ -7,6 +7,30 @@ import { put } from "@vercel/blob";
 // Override with FAIRPRICE_URL env var if needed.
 const SITE = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
 
+// Regenerate a listing's marketing content from a seller-supplied product name, reusing
+// the SAME engine as the admin/seller "AI Auto-Fill" (/api/gemini-seller). Used when Qwen-VL
+// misidentifies a product from its photo and the seller corrects the name over WhatsApp.
+// Best-effort: returns null on any failure so the caller keeps the original details.
+async function regenerateListingFromName(
+    productName: string,
+    category?: string
+): Promise<{ description?: string; tags?: string[]; specs?: Record<string, unknown>; subcategory?: string; highlights?: string[] } | null> {
+    try {
+        const res = await fetch(`${SITE}/api/gemini-seller`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName, category: category || "General" }),
+            signal: AbortSignal.timeout(45_000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data?.description) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const mode = searchParams.get("hub.mode");
@@ -187,7 +211,8 @@ export async function POST(req: Request) {
                         `📝 ${listing.description}\n\n` +
                         `🔖 Tags: ${(listing.tags || []).join(", ")}\n` +
                         `🎯 Confidence: ${Math.round((listing.confidence || 0) * 100)}%\n\n` +
-                        `*Reply with your asking price* (numbers only, e.g. *45000*) to continue listing this on FairPrice.ng ↓`
+                        `*Reply with your asking price* (numbers only, e.g. *45000*) to continue.\n\n` +
+                        `❌ Wrong product? Reply *NAME* then the correct name (e.g. *NAME Toyota Venza 2021*) and I'll regenerate the details for you.`
                     );
                 } else {
                     await WhatsAppService.sendMessage(from,
@@ -215,6 +240,53 @@ export async function POST(req: Request) {
                 status: string; listing: Record<string, unknown>;
                 imageUrl: string; price?: number;
             };
+
+            // ── Universal name correction ────────────────────────────────────
+            // Qwen-VL image recognition is still improving and sometimes mislabels a
+            // product (e.g. a Venza read as a RAV4). At ANY draft step the seller can
+            // reply "NAME <correct product name>" and we regenerate a marketplace-grade
+            // description / specs / tags from that name using the same AI Auto-Fill engine
+            // the admin & seller product forms use, then return them to where they were.
+            const nameCmd = (text || "").trim().match(/^(?:name|rename|edit|correct|fix)\s+(.{2,80})$/i);
+            if (nameCmd) {
+                const newName = nameCmd[1].trim().replace(/\s+/g, " ");
+                const l = draft.listing as Record<string, any>;
+                await WhatsAppService.sendMessage(from,
+                    `✏️ Got it — updating to *${newName}* and regenerating the listing details…`);
+
+                const regen = await regenerateListingFromName(newName, l.category as string);
+                const updatedListing: Record<string, any> = {
+                    ...l,
+                    title: newName,
+                    description: regen?.description || l.description,
+                    tags: (regen?.tags && regen.tags.length ? regen.tags : l.tags) || [],
+                    ...(regen?.specs ? { specs: regen.specs } : {}),
+                    confidence: 1, // seller-confirmed name
+                };
+                await db.whatsAppInteraction.update({
+                    where: { id: activeDraftRow.id },
+                    data: { payload: JSON.stringify({ ...draft, listing: updatedListing }) },
+                });
+
+                const priceLine = draft.status === "awaiting_confirm" && draft.price
+                    ? `💰 Price: ₦${Number(draft.price).toLocaleString()}\n`
+                    : (updatedListing.price_ngn ? `💡 ZEMA suggests ≈ ₦${Number(updatedListing.price_ngn).toLocaleString()}\n` : "");
+                const nextStep = draft.status === "awaiting_confirm"
+                    ? `Reply *YES* to publish, or *NAME* + a different name to change it again.`
+                    : `*Reply with your asking price* (numbers only, e.g. *45000*) to continue.\nStill wrong? Reply *NAME* + the correct name again.`;
+
+                await WhatsAppService.sendMessage(from,
+                    `✅ *Updated — ${newName}*\n\n` +
+                    `📦 *${newName}*\n` +
+                    `📂 ${updatedListing.category}  |  🏷️ ${updatedListing.condition}\n` +
+                    priceLine + `\n` +
+                    `📝 ${updatedListing.description}\n\n` +
+                    `🔖 Tags: ${(updatedListing.tags || []).join(", ")}\n` +
+                    (regen ? `` : `\n_(AI couldn't refresh the details just now — kept the previous description.)_\n`) +
+                    `\n${nextStep}`
+                );
+                return NextResponse.json({ ok: true });
+            }
 
             if (draft.status === "awaiting_price") {
                 const price = parseFloat(text.replace(/[^0-9.]/g, ""));

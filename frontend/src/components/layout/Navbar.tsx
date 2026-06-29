@@ -186,21 +186,21 @@ export function Navbar() {
         const computeUnread = (dbNotifs: any[]) => {
             if (!user?.email && !user?.id) { setUnreadNotifs(0); return; }
 
-            // Always include local DataSyncService notification unread count
+            // Reconcile local + DB into one deduped, read-state-correct set, then count
+            // unread. Using a single reconciled set (instead of max of two separate counts)
+            // means a notification read on this device is never counted as unread again.
             const localNotifs = DataSyncService.getNotifications(user.id || user.email);
-            let localUnread = localNotifs.filter(n => !n.read).length;
+            const union: any[] = [...(Array.isArray(dbNotifs) ? dbNotifs : []), ...localNotifs];
 
-            // If user is a seller, also include notifications addressed to their store ID
             if (isSeller) {
                 const sellerId = DataSyncService.getCurrentSellerId();
                 if (sellerId && sellerId !== user.id && sellerId !== user.email) {
-                    const sellerNotifs = DataSyncService.getNotifications(sellerId);
-                    localUnread += sellerNotifs.filter(n => !n.read).length;
+                    union.push(...DataSyncService.getNotifications(sellerId));
                 }
             }
 
-            const dbUnread = Array.isArray(dbNotifs) ? dbNotifs.filter((n: any) => !n.read).length : 0;
-            setUnreadNotifs(Math.max(dbUnread, localUnread));
+            const reconciled = DataSyncService.reconcileNotifications(union);
+            setUnreadNotifs(reconciled.filter((n: any) => !n.read).length);
         };
 
         const unsub = NotificationHub.subscribe(user?.email, computeUnread);

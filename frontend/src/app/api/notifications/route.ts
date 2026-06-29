@@ -103,14 +103,43 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { userId, type, message, link, userEmail } = body;
 
+        // NotificationType is a lowercase Postgres enum (system|order|negotiation|promo).
+        // The frontend sends many free-form types (success, info, price_alert, …) and the
+        // old code wrote "SYSTEM" — both violate the enum and the row was silently dropped,
+        // so the notification never persisted and "vanished" on the next login. Coerce any
+        // unknown/invalid type to "system" so EVERY notification is durably stored.
+        const VALID_TYPES = new Set(["system", "order", "negotiation", "promo"]);
+        const safeType = VALID_TYPES.has(String(type || "").toLowerCase())
+            ? (String(type).toLowerCase() as any)
+            : ("system" as any);
+
         // 1. Sync to Prisma if we have a user identity
         const effectiveEmail = userEmail || userId;
-        if (effectiveEmail && effectiveEmail.includes("@")) {
+        if (effectiveEmail === "admin") {
+            // Admin-targeted notifications were localStorage-only and disappeared on a new
+            // login / quota clear. Persist them to every admin user so they're durable.
+            try {
+                const admins = await db.user.findMany({ where: { role: "admin" }, select: { id: true } });
+                if (admins.length) {
+                    await db.notification.createMany({
+                        data: admins.map((a) => ({
+                            userId: a.id,
+                            type: safeType,
+                            message,
+                            link: link || null,
+                            read: false,
+                        })),
+                    });
+                }
+            } catch (e) {
+                console.warn("Admin notification persist failed:", e);
+            }
+        } else if (effectiveEmail && effectiveEmail.includes("@")) {
             try {
                 await db.notification.create({
                     data: {
                         user: { connect: { email: effectiveEmail.toLowerCase().trim() } },
-                        type: type || "SYSTEM",
+                        type: safeType,
                         message: message,
                         link: link || null,
                         read: false
