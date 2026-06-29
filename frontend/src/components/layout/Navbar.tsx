@@ -424,13 +424,22 @@ export function Navbar() {
             return;
         }
 
-        setIsGlobalSearching(true);
         setApiError(null);
+        // isGlobalSearching is set INSIDE the timer so it only activates when
+        // the fetch actually starts (after 800 ms of no typing). Cleaning up the
+        // timer before it fires leaves isGlobalSearching untouched — no stuck globe.
+        let abortCtrl: AbortController | null = null;
         const fetchTimer = setTimeout(() => {
+            setIsGlobalSearching(true);
+            abortCtrl = new AbortController();
+            // Hard 12-second cap — Gemini/Qwen cold-starts should never strand the UI
+            const abortTimeout = setTimeout(() => abortCtrl!.abort(), 12000);
+
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ productName: trimmed, mode: 'search' })
+                body: JSON.stringify({ productName: trimmed, mode: 'search' }),
+                signal: abortCtrl.signal,
             })
                 .then(res => {
                     if (res.status === 429) {
@@ -443,7 +452,6 @@ export function Navbar() {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
                         const filtered = data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10);
                         setGlobalResults(filtered);
-                        // Save to persistent session cache
                         try {
                             sessionStorage.setItem(`nav_search_${trimmed}`, JSON.stringify(filtered));
                         } catch { /* quota */ }
@@ -452,14 +460,24 @@ export function Navbar() {
                     }
                 })
                 .catch((err) => {
-                    console.error("Gemini price fetch failed:", err);
+                    if (err?.name !== 'AbortError') {
+                        console.error("Gemini price fetch failed:", err);
+                    }
                     setGlobalResults([]);
                 })
-                .finally(() => setIsGlobalSearching(false));
+                .finally(() => {
+                    clearTimeout(abortTimeout);
+                    setIsGlobalSearching(false);
+                });
         }, 800);
 
         return () => {
             clearTimeout(fetchTimer);
+            // If fetch already started, abort it and clear the spinning state
+            if (abortCtrl) {
+                abortCtrl.abort();
+                setIsGlobalSearching(false);
+            }
         };
     }, [searchQuery]);
 
