@@ -426,6 +426,13 @@ class DataSyncServiceService {
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
             const syncAll = !collection;
+            // Role gating: disputes / complaints / KYC / payouts are admin-only moderation
+            // data. Previously EVERY customer's full sync pulled all of them (wasted Neon
+            // reads + exposed admin data to buyers). Now they only ride a full sync for an
+            // admin; any page can still request them explicitly via syncWithDB("disputes").
+            const role = (user as any)?.role;
+            const isAdminUser = role === "admin";
+            const isSellerUser = role === "seller" || isAdminUser;
             const fetchProducts = syncAll || collection === "products";
             const fetchSellers = syncAll || collection === "sellers";
             // Search Cache is HEAVY — ONLY fetch if specifically requested (Lazy)
@@ -434,9 +441,9 @@ class DataSyncServiceService {
             const fetchNegotiations = syncAll || collection === "negotiations" || isCritical;
             const fetchNotifications = syncAll || collection === "notifications" || isCritical;
             const fetchConversations = syncAll || collection === "conversations";
-            const fetchDisputes = syncAll || collection === "disputes";
-            const fetchComplaints = syncAll || collection === "complaints";
-            const fetchKYC = syncAll || collection === "kyc";
+            const fetchDisputes = (syncAll && isAdminUser) || collection === "disputes";
+            const fetchComplaints = (syncAll && isAdminUser) || collection === "complaints";
+            const fetchKYC = (syncAll && isAdminUser) || collection === "kyc";
             const fetchReviews = syncAll || collection === "reviews";
 
             const lastSync = localStorage.getItem("fp_last_sync_time");
@@ -464,7 +471,12 @@ class DataSyncServiceService {
                 disputesResult, complaintsResult, kycResult, reviewsResult,
                 promotionsResult, payoutsResult
             ] = await Promise.allSettled([
-                fetchProducts ? fetchWithTimeout(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
+                // Public catalog sync uses the EDGE-CACHED bounded read (active products only,
+                // s-maxage=30) instead of the uncached all=true firehose — this was the main
+                // Neon cost driver. Admin/seller pages that need inactive products fetch
+                // all=true themselves (admin/products, seller/products), so active-only is
+                // correct here: getApprovedProducts() filters to active anyway.
+                fetchProducts ? fetchWithTimeout(`/api/products?limit=200${updatedAfter}`) : mockUnfetched,
                 fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSearchCache ? fetchWithTimeout("/api/search-cache") : mockUnfetched,
                 fetchOrders ? fetchWithTimeout(ordersUrl) : mockUnfetched,
@@ -475,8 +487,9 @@ class DataSyncServiceService {
                 fetchComplaints ? fetchWithTimeout("/api/complaints?all=true") : mockUnfetched,
                 fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
                 fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched,
-                fetchWithTimeout("/api/promotions?all=true"), // Always fetch ads for admin/seller awareness
-                fetchWithTimeout("/api/payouts?all=true")    // Always fetch payouts
+                (syncAll || collection === "promotions") ? fetchWithTimeout("/api/promotions?all=true") : mockUnfetched, // ads — shown to buyers too
+                // Payouts are admin/seller financial data — don't pull them for buyers.
+                ((syncAll && isSellerUser) || collection === "payouts") ? fetchWithTimeout("/api/payouts?all=true") : mockUnfetched
             ]);
 
             // Resilience Check: If any critical results are 503 (offline), 

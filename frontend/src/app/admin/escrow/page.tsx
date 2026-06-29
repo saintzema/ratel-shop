@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { DataSyncService } from "@/lib/sync-store";
+import { visibleInterval } from "@/lib/client-poll";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateExact } from "@/lib/utils";
 import { Order } from "@/lib/types";
@@ -103,9 +104,11 @@ export default function EscrowManagement() {
         };
         load();
         
-        // Initial sync and periodic heartbeat for Admin freshness
-        DataSyncService.syncWithDB();
-        const interval = setInterval(() => DataSyncService.syncWithDB(), 10000);
+        // Initial sync + periodic heartbeat for admin freshness. Escrow only needs ORDERS,
+        // not the whole catalog — the old setInterval(syncWithDB(), 10s) pulled every product
+        // every 10s and was a top Neon cost driver. Now: orders-only, 15s, paused while hidden.
+        DataSyncService.syncWithDB("orders", true);
+        const stopInterval = visibleInterval(() => DataSyncService.syncWithDB("orders", true), 15000);
 
         window.addEventListener("storage", load);
         window.addEventListener("sync-store-update", load);
@@ -113,7 +116,7 @@ export default function EscrowManagement() {
         return () => {
             window.removeEventListener("storage", load);
             window.removeEventListener("sync-store-update", load);
-            clearInterval(interval);
+            stopInterval();
         };
     }, []);
 
