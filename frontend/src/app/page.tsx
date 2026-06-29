@@ -606,10 +606,18 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
 
 function BestSellersScroller({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
   const initOffsetDone = useRef(false);
+  const pausedRef = useRef(false);
+  const reduceMotion = useRef(false);
 
-  if (products.length === 0) return null;
+  const setPaused = useCallback((p: boolean) => {
+    pausedRef.current = p;
+    const el = scrollRef.current;
+    if (p && el) {
+      el.style.scrollBehavior = "auto";
+      el.scrollTo({ left: el.scrollLeft });
+    }
+  }, []);
 
   const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -617,9 +625,13 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
     scrollRef.current.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (!autoScroll) return;
+    reduceMotion.current = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  useEffect(() => {
+    if (!autoScroll || reduceMotion.current) return;
     const el = scrollRef.current;
     if (!el) return;
 
@@ -631,11 +643,15 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       initOffsetDone.current = true;
     }
 
-    // Step-by-step scroll: scroll one card width, pause 2.5s, repeat
+    // Continuous loop reads pausedRef each tick so hover/tap-hold pauses instantly.
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const stepScroll = () => {
-      if (!el || isHovered) return;
+      if (!el) return;
+      if (pausedRef.current || document.hidden) {
+        timeoutId = setTimeout(stepScroll, 600);
+        return;
+      }
       const cardWidth = 240;
       const scrollAmount = direction === "left" ? cardWidth : -cardWidth;
 
@@ -645,28 +661,30 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       } else if (direction === "right" && el.scrollLeft <= 0) {
         el.scrollLeft = el.scrollWidth / 3;
       } else {
+        el.style.scrollBehavior = "smooth";
         el.scrollBy({ left: scrollAmount, behavior: "smooth" });
       }
 
-      // Schedule next step after pause
       timeoutId = setTimeout(stepScroll, 2800);
     };
 
-    if (!isHovered) {
-      // Initial delay before first step
-      timeoutId = setTimeout(stepScroll, 1500);
-    }
+    timeoutId = setTimeout(stepScroll, 1500);
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [autoScroll, isHovered, direction]);
+  }, [autoScroll, direction]);
+
+  if (products.length === 0) return null;
 
   return (
     <div
       className="bg-white rounded-lg py-1.5 px-2 shadow-sm relative group/scroller"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") setPaused(true); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") setPaused(false); }}
+      onTouchStart={() => setPaused(true)}
+      onTouchEnd={() => setTimeout(() => setPaused(false), 3000)}
+      onTouchCancel={() => setTimeout(() => setPaused(false), 3000)}
     >
       <div className="flex items-center justify-between mb-1.5">
         <h2 className="text-[16px] sm:text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2 whitespace-nowrap">
@@ -695,7 +713,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
           <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ touchAction: 'pan-x' }}>
           {[...products, ...products, ...products].map((product, idx) => (
             <div key={`${product.id}-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
               <ProductCard product={product} />
@@ -715,8 +733,28 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
   const initOffsetDone = useRef(false);
+  // Live pause flag the running loop reads each tick — lets hover/tap-hold pause
+  // INSTANTLY without tearing down & rebuilding the timer chain (which dropped pauses).
+  const pausedRef = useRef(false);
+  const reduceMotion = useRef(false);
+
+  // Pausing must also kill any smooth-scroll already in flight, otherwise the
+  // current glide finishes and it "feels" like hover didn't pause.
+  const setPaused = useCallback((p: boolean) => {
+    pausedRef.current = p;
+    const el = scrollRef.current;
+    if (p && el) {
+      // Snap to current position with instant behavior to halt in-flight momentum.
+      el.style.scrollBehavior = "auto";
+      el.scrollTo({ left: el.scrollLeft });
+    }
+  }, []);
+
+  useEffect(() => {
+    reduceMotion.current = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  }, []);
 
   const checkScroll = useCallback(() => {
     if (scrollRef.current && !autoScroll) {
@@ -732,9 +770,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     return () => window.removeEventListener("resize", checkScroll);
   }, [products, checkScroll]);
 
-  // Step-by-step auto-scroll: advance one card, pause 2s, repeat (easier on eyes & performance)
+  // Step-by-step auto-scroll: advance one card, pause ~2s, repeat. The loop runs
+  // continuously and reads pausedRef each tick, so a pause takes effect on the very
+  // next tick instead of requiring an effect teardown (which previously dropped pauses).
   useEffect(() => {
-    if (!autoScroll || isPaused || isLoading) return;
+    if (!autoScroll || isLoading || reduceMotion.current) return;
 
     const el = scrollRef.current;
     if (!el) return;
@@ -750,6 +790,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
 
     const stepScroll = () => {
       if (!el) return;
+      // Skip the move while paused (hover / tap-hold) but keep the loop alive.
+      if (pausedRef.current || document.hidden) {
+        timeoutId = setTimeout(stepScroll, 600);
+        return;
+      }
       const scrollAmount = direction === "left" ? CARD_WIDTH : -CARD_WIDTH;
 
       // Seamless wrap-around at 1/3 of total width (tripled array)
@@ -758,6 +803,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       } else if (direction === "right" && el.scrollLeft <= 0) {
         el.scrollLeft = el.scrollWidth / 3;
       } else {
+        el.style.scrollBehavior = "smooth";
         el.scrollBy({ left: scrollAmount, behavior: "smooth" });
       }
 
@@ -767,7 +813,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     // Initial delay before first step
     timeoutId = setTimeout(stepScroll, 1800);
     return () => clearTimeout(timeoutId);
-  }, [autoScroll, isPaused, direction, isLoading]);
+  }, [autoScroll, direction, isLoading]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
@@ -786,10 +832,13 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
   return (
     <div
       className="bg-white rounded-lg p-4 md:p-5 shadow-sm relative group/slider"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={() => setIsPaused(true)}
-      onTouchEnd={() => setTimeout(() => setIsPaused(false), 3000)}
+      // Mouse hover (desktop) pauses; pointer leave resumes.
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") setPaused(true); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") setPaused(false); }}
+      // Touch: tap/hold/swipe pauses immediately, resumes 3s after finger lifts.
+      onTouchStart={() => setPaused(true)}
+      onTouchEnd={() => setTimeout(() => setPaused(false), 3000)}
+      onTouchCancel={() => setTimeout(() => setPaused(false), 3000)}
     >
       <div className="flex items-center gap-4 mb-2 md:mb-2">
         <h2 className="text-[16px] sm:text-lg md:text-xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2 whitespace-nowrap">
@@ -828,7 +877,9 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
           className="flex gap-2 md:gap-2 overflow-x-auto pb-2 md:pb-4 scrollbar-hide snap-none items-stretch"
-          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
+          // scroll-behavior is managed imperatively (setPaused / stepScroll) so pausing
+          // can instantly halt an in-flight glide. Manual arrow clicks pass behavior:'smooth'.
+          style={{ paddingRight: autoScroll ? '0' : '1.5rem', touchAction: 'pan-x' }}
         >
           {displayProducts.map((product, idx) => (
             <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="w-[172px] md:w-[220px] flex-shrink-0 flex flex-col">
