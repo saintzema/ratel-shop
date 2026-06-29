@@ -5,6 +5,7 @@ import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 
 import { User } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
+import { visibleInterval } from "@/lib/client-poll";
 
 interface AuthContextType {
     user: User | null;
@@ -45,12 +46,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
         }
 
-        // Periodic sync every 5 minutes (300,000 ms) to balance freshness and Neon DB quotas
-        const syncInterval = setInterval(() => {
+        // Periodic sync every 5 minutes to balance freshness and Neon DB quotas.
+        // Paused while the tab is hidden so backgrounded tabs don't keep pulling the
+        // full catalog; refreshes immediately when the user returns to the tab.
+        const stopSync = visibleInterval(() => {
             DataSyncService.syncWithDB();
         }, 300000);
 
-        return () => clearInterval(syncInterval);
+        return () => stopSync();
     }, []);
 
     useEffect(() => {

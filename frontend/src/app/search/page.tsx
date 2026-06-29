@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { SearchResultCard } from "@/components/product/SearchResultCard";
 import { SearchGridCard } from "@/components/product/SearchGridCard";
+import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -507,6 +508,15 @@ function SearchContent() {
     catch { return []; }
   });
 
+  // True while the initial catalogue seed fetch is in flight AND we have nothing local
+  // to show yet. Prevents a premature "No results" flash on cleared/quota-nuked storage —
+  // we render skeletons during this window instead of a blank page.
+  const [seeding, setSeeding] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return DataSyncService.getApprovedProducts().filter((p) => p.is_active).length === 0; }
+    catch { return true; }
+  });
+
   // Pagination State
   const [page, setPage] = useState(pageParam ? parseInt(pageParam, 10) : 1);
   const ITEMS_PER_PAGE = 12;
@@ -562,7 +572,8 @@ function SearchContent() {
           refresh();
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSeeding(false));
 
     return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
@@ -1546,7 +1557,17 @@ function SearchContent() {
               </div>
             )}
 
-            {combinedCurrentResults.length === 0 && !isGlobalSearching && (
+            {/* Seeding window: storage was empty/cleared and the catalogue fetch is still
+                in flight — show skeletons so the page is never blank or prematurely "empty". */}
+            {combinedCurrentResults.length === 0 && !isGlobalSearching && seeding && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <ProductCardSkeleton key={`seed-skel-${i}`} />
+                ))}
+              </div>
+            )}
+
+            {combinedCurrentResults.length === 0 && !isGlobalSearching && !seeding && (
               catalogueFallback.length > 0 ? (
                 <div>
                   {globalSearchError && (

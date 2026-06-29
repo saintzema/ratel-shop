@@ -57,6 +57,7 @@ import type { Product } from "@/lib/types";
 // fuzzy-scored on every keystroke — the navsearch hang. Instant suggestions now come from
 // the live synced catalog (DataSyncService), with global/server search filling the rest.
 import { DataSyncService } from "@/lib/sync-store";
+import { NotificationHub } from "@/lib/client-poll";
 import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGroundingUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
@@ -179,14 +180,17 @@ export function Navbar() {
     }, []);
 
     useEffect(() => {
-        const loadNotifs = async () => {
+        // Unread badge count = max(unread DB notifications, unread local notifications).
+        // The DB list comes from the shared NotificationHub (one visibility-gated poll
+        // for the whole app) instead of a second per-Navbar interval hitting the API.
+        const computeUnread = (dbNotifs: any[]) => {
             if (!user?.email && !user?.id) { setUnreadNotifs(0); return; }
 
             // Always include local DataSyncService notification unread count
             const localNotifs = DataSyncService.getNotifications(user.id || user.email);
             let localUnread = localNotifs.filter(n => !n.read).length;
 
-            // If user is a seller, also fetch notifications addressed to their seller store ID
+            // If user is a seller, also include notifications addressed to their store ID
             if (isSeller) {
                 const sellerId = DataSyncService.getCurrentSellerId();
                 if (sellerId && sellerId !== user.id && sellerId !== user.email) {
@@ -195,27 +199,20 @@ export function Navbar() {
                 }
             }
 
-            try {
-                const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}&count_only=true`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setUnreadNotifs(Math.max(data.unread_count ?? 0, localUnread));
-                } else {
-                    // API failed — use local count
-                    setUnreadNotifs(localUnread);
-                }
-            } catch {
-                // Offline — use local count
-                setUnreadNotifs(localUnread);
-            }
+            const dbUnread = Array.isArray(dbNotifs) ? dbNotifs.filter((n: any) => !n.read).length : 0;
+            setUnreadNotifs(Math.max(dbUnread, localUnread));
         };
-        loadNotifs();
-        const poll = setInterval(loadNotifs, 30000);
-        // Also listen for DataSyncService changes
-        const onStorageChange = () => loadNotifs();
+
+        const unsub = NotificationHub.subscribe(user?.email, computeUnread);
+        // Local DataSyncService changes re-derive the count without a network call.
+        const onStorageChange = () => computeUnread(NotificationHub.getLatest());
         window.addEventListener("sync-store-update", onStorageChange);
         window.addEventListener("storage", onStorageChange);
-        return () => { clearInterval(poll); window.removeEventListener("sync-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
+        return () => {
+            unsub();
+            window.removeEventListener("sync-store-update", onStorageChange);
+            window.removeEventListener("storage", onStorageChange);
+        };
     }, [user, isSeller]);
 
     // Trigger bounce when cart count increases

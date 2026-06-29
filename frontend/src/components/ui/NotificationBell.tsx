@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
+import { NotificationHub } from "@/lib/client-poll";
 
 interface LocalNotification {
     id: string;
@@ -27,8 +28,10 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // Merge local (localStorage) + DB notifications, deduping by id, newest first
-    const refreshNotifications = useCallback(async () => {
+    // Merge local (localStorage) notifications with DB notifications (from the shared
+    // NotificationHub), deduping by id, newest first. The DB fetch is NOT done here —
+    // it's owned by NotificationHub so the whole app shares a single visibility-gated poll.
+    const mergeWith = useCallback((dbNotifs: LocalNotification[]) => {
         if (!user?.email && !user?.id) {
             setNotifications([]);
             return;
@@ -36,23 +39,11 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         const userId = user.id || user.email!;
         const local: LocalNotification[] = DataSyncService.getNotifications(userId);
 
-        // Fetch DB notifications (real events: orders, approvals, negotiations, etc.)
-        let dbNotifs: LocalNotification[] = [];
-        if (user.email) {
-            try {
-                const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data)) dbNotifs = data as LocalNotification[];
-                }
-            } catch { /* offline — show local only */ }
-        }
-
         // Dedupe: DB wins on id collision (more authoritative read state)
         const seen = new Set<string>();
         const merged: LocalNotification[] = [];
-        for (const n of [...dbNotifs, ...local]) {
-            if (!seen.has(n.id)) {
+        for (const n of [...(dbNotifs || []), ...local]) {
+            if (n && !seen.has(n.id)) {
                 seen.add(n.id);
                 merged.push(n);
             }
@@ -61,23 +52,31 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         setNotifications(merged);
     }, [user?.email, user?.id]);
 
-    useEffect(() => {
-        refreshNotifications();
+    // Kept for callers that want an explicit refresh (e.g. after marking all read).
+    const refreshNotifications = useCallback(() => {
+        mergeWith(NotificationHub.getLatest() as LocalNotification[]);
+        NotificationHub.refresh();
+    }, [mergeWith]);
 
-        // Listen for real-time updates from DataSyncService
-        const handler = () => refreshNotifications();
+    useEffect(() => {
+        // Subscribe to the shared hub — one poll for the whole app, paused while the
+        // tab is hidden. The callback fires on every shared DB refresh.
+        const unsub = NotificationHub.subscribe(user?.email, (dbNotifs) =>
+            mergeWith(dbNotifs as LocalNotification[])
+        );
+
+        // Local-only updates (DataSyncService writes) re-merge against the hub's cache
+        // without triggering a network call.
+        const handler = () => mergeWith(NotificationHub.getLatest() as LocalNotification[]);
         window.addEventListener("storage", handler);
         window.addEventListener("sync-store-update", handler);
-
-        // Poll every 15s — DB fetch is included so keep interval relaxed
-        const poll = setInterval(refreshNotifications, 15000);
 
         return () => {
             window.removeEventListener("storage", handler);
             window.removeEventListener("sync-store-update", handler);
-            clearInterval(poll);
+            unsub();
         };
-    }, [refreshNotifications]);
+    }, [mergeWith, user?.email]);
 
     // Close when clicking outside
     useEffect(() => {

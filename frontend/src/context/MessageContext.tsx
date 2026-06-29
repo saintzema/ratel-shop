@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { DataSyncService } from "@/lib/sync-store";
 import { playMessageReceiveSound } from "@/lib/audio";
+import { visibleInterval } from "@/lib/client-poll";
 
 // ─── Types ───────────────────────────────────────────────
 export interface ChatMessage {
@@ -372,9 +373,10 @@ export function MessageProvider({ children }: { children: ReactNode }) {
              } catch (e) {}
         };
 
-        // Layer 1: Pull from Postgres (cross-device) & trigger sync
-        const pollInterval = setInterval(() => {
-            if (typeof window === "undefined") return;
+        // Layer 1: Pull from Postgres (cross-device) & trigger sync.
+        // visibleInterval pauses this entirely while the tab is backgrounded — no
+        // /api/negotiations spend for idle tabs — and refreshes on re-focus.
+        const stopPoll = visibleInterval(() => {
             DataSyncService.syncNegotiations();
             syncFromDataSyncService();
         }, 12000);
@@ -386,7 +388,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
             window.removeEventListener("sync-store-update", syncFromDataSyncService);
-            clearInterval(pollInterval);
+            stopPoll();
         };
     }, [mounted]);
 
