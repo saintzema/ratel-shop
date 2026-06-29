@@ -855,7 +855,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         {canScrollLeft && !autoScroll && (
           <button
             onClick={() => scroll("left")}
-            className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:-translate-x-2"
+            className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] hidden md:flex items-center justify-center md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:-translate-x-2"
             aria-label="Scroll left"
           >
             <ChevronLeft className="h-6 w-6 text-gray-800 drop-shadow-sm" />
@@ -866,7 +866,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         {canScrollRight && !autoScroll && (
           <button
             onClick={() => scroll("right")}
-            className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:translate-x-2"
+            className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] hidden md:flex items-center justify-center md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:translate-x-2"
             aria-label="Scroll right"
           >
             <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
