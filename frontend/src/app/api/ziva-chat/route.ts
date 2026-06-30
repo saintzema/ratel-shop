@@ -171,8 +171,9 @@ async function comparePrices(productNames: string[]): Promise<any> {
                 const tokens = q.split(/\s+/).filter(t => t.length > 2);
                 return tokens.length > 0 && tokens.every(t => (p.name || '').toLowerCase().includes(t));
             });
+        // Include specs so the model can do a true side-by-side spec comparison, not just price.
         return match
-            ? { name: match.name, price: match.price, originalPrice: match.original_price || null, category: match.category, rating: match.avg_rating || 0, priceFlag: match.price_flag || 'unknown', id: match.id }
+            ? { name: match.name, price: match.price, originalPrice: match.original_price || null, category: match.category, rating: match.avg_rating || 0, priceFlag: match.price_flag || 'unknown', specs: match.specs || null, id: match.id }
             : { name, price: null, notFound: true };
     });
 
@@ -182,9 +183,10 @@ async function comparePrices(productNames: string[]): Promise<any> {
     return {
         products,
         cheapest: cheapest ? cheapest.name : null,
+        notFoundCount: products.length - found.length,
         summary: found.length > 0
             ? `Compared ${found.length} products. ${cheapest ? `Best price: ${cheapest.name} at ₦${cheapest.price?.toLocaleString()}.` : ''}`
-            : 'Could not find any of the requested products for comparison.'
+            : 'None of these are currently sold on FairPrice. Answer using your own general product knowledge instead — clearly note they are not in our catalog.'
     };
 }
 
@@ -225,7 +227,7 @@ const OPENAI_TOOLS = [
         type: "function",
         function: {
             name: "compare_prices",
-            description: "Compare prices of multiple products side by side. Use when the user wants to compare options.",
+            description: "Compare price, rating and specs of 2-4 products side by side. Use when the user wants to compare options — including general spec comparisons (e.g. phone A vs phone B), even if you're not sure the items are sold on FairPrice. The tool tells you which ones it found.",
             parameters: {
                 type: "object",
                 properties: {
@@ -401,8 +403,9 @@ INTERACTION FLOW:
 5. COMPARE if they're deciding between options (use compare_prices)
 
 RULES:
-- ALWAYS use your tools for product queries — don't guess or hallucinate products
+- ALWAYS use your tools for product queries — don't guess or hallucinate PRICES or claim something is sold on FairPrice when it isn't
 - CRITICAL: If the user asks ANY question about finding a product, checking a price, or asking if we have an item, call the search_catalog or explore_product tool IMMEDIATELY in your FIRST RESPONSE. Do NOT ask clarifying questions first. Search first, then talk!
+- COMPARISONS (e.g. "compare X and Y specs"): ALWAYS call compare_prices once, even for products you suspect aren't sold here. If the tool reports a product was not found in our catalog, you MUST still answer using your own general product knowledge — give a real, useful spec comparison (camera, chip, display, battery, etc.) and clearly mention which items (if any) aren't currently sold on FairPrice. NEVER refuse and NEVER call the same tool again — answer in the JSON format below using what you know.
 - Use the exact product names from tool results in suggestedProducts
 - Be proactive: if they ask about a product, explore it AND suggest alternatives
 - Use Nigerian English occasionally (e.g., "Omo", "We gat you", "No wahala")
@@ -498,6 +501,19 @@ After using tools, respond with ONLY this JSON (no markdown fences):
                     { role: "tool", tool_call_id: result.toolCall.id, content: JSON.stringify(toolResult) }
                 ];
                 result = await callQwen(messages, { disableTools: round >= 1 });
+            }
+
+            // Safety net: if the loop exhausted (still requesting tools) or returned empty
+            // text, force ONE final answer-only call before giving up. Without this, queries
+            // about products the model isn't sure are in our catalog (e.g. "compare phone A
+            // vs phone B specs") could leave resultText empty and surface the generic
+            // "had trouble formatting" error even though a perfectly good answer was possible.
+            if (!result.text) {
+                const forced = await callQwen([
+                    ...messages,
+                    { role: "user", content: "Answer now using the JSON format from your instructions. If a product wasn't found in our catalog, use your own general knowledge to give a real, useful answer — do not refuse and do not call any more tools." }
+                ], { disableTools: true });
+                result = forced.text ? forced : result;
             }
 
             if (result.text) resultText = result.text;
