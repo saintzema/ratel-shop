@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { put } from "@vercel/blob";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 // Always link to the production domain in WhatsApp messages — never a Vercel preview URL.
 // Override with FAIRPRICE_URL env var if needed.
@@ -598,8 +600,44 @@ export async function POST(req: Request) {
                         where: { id: request.id },
                         data: { status: decision, approvedBy: from, resolvedAt: new Date() },
                     });
+                    const agentData = JSON.parse(request.agentDecision || "{}");
+
+                    // ── High-value auto-payout approval (₦ threshold gate, not marketplace escrow) ──
+                    if (agentData.type === "payout") {
+                        if (decision === "approved") {
+                            const result = await initiatePaystackTransfer({
+                                payoutId: agentData.payoutId,
+                                amount: agentData.amount,
+                                bankName: agentData.bankName,
+                                accountNumber: agentData.accountNumber,
+                                accountName: agentData.accountName,
+                                sellerId: agentData.sellerId,
+                                paymentReference: agentData.paymentReference,
+                                isAutoPayout: true,
+                            });
+                            if (result.success) {
+                                await notifySellerPayout(agentData.sellerId, agentData.amount, "completed", agentData.payoutId);
+                                await emailSellerPayout(agentData.sellerId, agentData.amount, "completed");
+                                await notifyAdmins(`✅ Payout ${request.runId} approved & sent: ₦${agentData.amount.toLocaleString()}.`, { type: "order", link: "/admin/payouts" });
+                                await WhatsAppService.sendMessage(from, `✅ *Payout Approved*\n\nRun: ${request.runId}\n₦${agentData.amount.toLocaleString()} sent to ${agentData.accountName}.`);
+                            } else {
+                                await notifySellerPayout(agentData.sellerId, agentData.amount, "failed", agentData.payoutId);
+                                await notifyAdmins(`🔴 Approved payout ${request.runId} FAILED to send: ${result.message}.`, { type: "system", link: "/admin/payouts" });
+                                await WhatsAppService.sendMessage(from, `⚠️ *Payout Approved but Transfer Failed*\n\nRun: ${request.runId}\nReason: ${result.message}. Requires manual review in admin/payouts.`);
+                            }
+                        } else {
+                            await db.payout.update({ where: { id: agentData.payoutId }, data: { status: "pending" } }).catch(() => {});
+                            await notifyAdmins(`❌ Payout ${request.runId} (₦${agentData.amount.toLocaleString()}) rejected — left pending for manual review.`, { type: "system", link: "/admin/payouts" });
+                            await WhatsAppService.sendMessage(from, `❌ *Payout Rejected*\n\nRun ${request.runId} cancelled. Left in admin/payouts for manual review.`);
+                        }
+                        await db.whatsAppInteraction.create({
+                            data: { phoneNumber: from, interaction_type: "payout_hitl_resolution", payload: JSON.stringify({ approvalId, decision, runId: request.runId }) },
+                        }).catch(() => {});
+                        return NextResponse.json({ ok: true });
+                    }
+
+                    // ── Marketplace escrow release (ZEMA 360 order HITL) ──
                     if (decision === "approved") {
-                        const agentData = JSON.parse(request.agentDecision || "{}");
                         const offer = agentData.offer ?? {};
                         if (request.orderId) {
                             await fetch(`${SITE}/api/escrow/release`, {
