@@ -607,10 +607,15 @@ class DataSyncServiceService {
                             if (localVersion) merged.set(pendingId, localVersion);
                         }
                         
-                        // Cap to 300 items to avoid hitting the 5 MB localStorage quota.
-                        // Full catalog is always available via /api/products — the cap only affects offline cache.
+                        // Bound the offline cache to stay well under the 5 MB localStorage
+                        // quota. The full catalog is always available via /api/products, so
+                        // this cap only affects the local mirror. We also drop base64 data-URL
+                        // gallery images (the biggest quota offenders) and keep a few hosted
+                        // URLs. image_url, description and specs are untouched, so product
+                        // cards and the PDP's local-first render are unaffected (the PDP also
+                        // re-fetches full data from the DB by id).
                         const allMerged = Array.from(merged.values());
-                        const cappedMerged = allMerged.length > 300 ? allMerged.slice(0, 300) : allMerged;
+                        const cappedMerged = this.leanProductsForStorage(allMerged, 180); // was 300
                         const newDataStr = JSON.stringify(cappedMerged);
                         if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
                             const wrote = this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
@@ -3479,6 +3484,24 @@ class DataSyncServiceService {
      * single update event. Intended for trusted server data (persist defaults to false:
      * no Postgres write-back, no indexing pings — the data already came from the DB).
      */
+    /**
+     * Bound + slim a product list before it goes into localStorage, to stay under the 5 MB
+     * quota: cap the count and drop base64 data-URL gallery images (the biggest quota
+     * offenders), keeping up to 5 hosted gallery URLs. image_url, description and specs are
+     * preserved so product cards and the PDP's local-first render are unaffected — the PDP
+     * also re-fetches full data from the DB by id.
+     */
+    private leanProductsForStorage(list: any[], limit: number): any[] {
+        const capped = list.length > limit ? list.slice(0, limit) : list;
+        return capped.map((p: any) => {
+            if (!p || !Array.isArray(p.images) || p.images.length === 0) return p;
+            const slim = p.images
+                .filter((u: any) => typeof u === "string" && !u.startsWith("data:"))
+                .slice(0, 5);
+            return slim.length === p.images.length ? p : { ...p, images: slim };
+        });
+    }
+
     public addRawProducts(incoming: Product[], persist: boolean = false): number {
         if (typeof window === "undefined" || !Array.isArray(incoming) || incoming.length === 0) return 0;
 
@@ -3515,13 +3538,12 @@ class DataSyncServiceService {
 
         if (changed === 0) return 0;
 
-        // Newest-first, soft-capped — single serialization for the whole batch.
-        let merged = Array.from(byId.values());
-        if (merged.length > 500) merged = merged.slice(0, 500);
+        // Bounded + slimmed (data-URL gallery images dropped) — single serialization.
+        let merged = this.leanProductsForStorage(Array.from(byId.values()), 180);
         try {
             this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
         } catch {
-            merged = merged.slice(0, 150);
+            merged = merged.slice(0, 120);
             this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
         }
 
