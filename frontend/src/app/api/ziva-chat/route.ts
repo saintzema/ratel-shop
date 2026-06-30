@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { SEED_PRODUCTS } from '@/lib/data';
 import { db } from '@/lib/db';
+import { fireworksChat, isFireworksEnabled } from '@/lib/fireworks';
 
 // ── Provider switch ───────────────────────────────────────────────────────────
 // Priority: DB setting (admin/settings toggle) → VERCEL env var → default "qwen"
@@ -421,6 +422,24 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 
         const AI_PROVIDER = await getAIProvider();
         let resultText: string | null = null;
+
+        // ── Fireworks AI (AMD GPUs): primary when AI_PROVIDER=fireworks ───────
+        // Runs Ziva's reasoning on AMD-hosted inference. Produces the structured JSON
+        // response directly from the system prompt (which defines the schema). Any failure
+        // falls through to the Qwen path below, so the assistant never goes dark.
+        if (AI_PROVIDER === 'fireworks' && isFireworksEnabled()) {
+            const convo = [
+                ...cappedHistory.map((m: any) => `${m.sender === 'user' ? 'User' : 'Ziva'}: ${m.text}`),
+                `User: ${message}`,
+            ].join('\n');
+            resultText = await fireworksChat({
+                system: systemPrompt,
+                prompt: convo,
+                jsonMode: true,
+                temperature: 0.5,
+                maxTokens: 800,
+            });
+        }
 
         // ── Try Gemini when configured ───────────────────────────────────────
         // If Gemini is down (billing/quota), the catch silently falls through to Qwen.

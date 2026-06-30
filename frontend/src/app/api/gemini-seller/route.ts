@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { fireworksJSON, isFireworksEnabled, fireworksModel } from "@/lib/fireworks";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -71,6 +72,28 @@ export async function POST(req: Request) {
         - Output ONLY raw, valid JSON. NO markdown.
         - Description must be at least 150 words.
         `;
+
+        // ── Fireworks AI (AMD GPUs) — PRIMARY provider ───────────────────────────
+        // Generates the product listing on AMD-hosted inference when configured. Falls
+        // through to Gemini on any failure so seller/admin auto-fill never breaks.
+        if (isFireworksEnabled()) {
+            const fw = await fireworksJSON<any>({
+                system: "You are an expert Nigerian e-commerce copywriter. Output ONLY one valid JSON object, no markdown.",
+                prompt,
+                temperature: 0.7,
+                maxTokens: 1600,
+            });
+            if (fw && fw.description) {
+                db.searchCache.upsert({
+                    where: { query: cacheKey },
+                    create: { query: cacheKey, products: fw as any },
+                    update: { products: fw as any },
+                }).catch(() => {});
+                return NextResponse.json(fw, {
+                    headers: { "X-Cache": "MISS", "X-Provider": "fireworks", "X-Model": fireworksModel() },
+                });
+            }
+        }
 
         const fetchWithRetry = async (attempt = 0): Promise<Response> => {
             const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
