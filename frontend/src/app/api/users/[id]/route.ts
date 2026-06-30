@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { getUserFromRequest } from "@/lib/jwt";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 /**
  * PATCH /api/users/:id
@@ -69,7 +72,21 @@ export async function DELETE(
             return NextResponse.json({ error: "Missing ID" }, { status: 400 });
         }
 
-        console.log(`🗑️ Processing Hard Delete for ID: ${id}`);
+        // Authorization: only an admin OR the account owner (self-delete) may hard-delete.
+        // Previously this endpoint had NO auth — any caller could erase any account by id
+        // (access-control failure). Self-delete powers the in-app "Delete my account" flow
+        // required for App Store submission; admins delete via the admin users panel (cookie).
+        const jwtUser = getUserFromRequest(req);
+        const session = await getServerSession(authOptions);
+        const callerId = (jwtUser as any)?.id || (session?.user as any)?.id;
+        const callerRole = (jwtUser as any)?.role || (session?.user as any)?.role;
+        const isAdmin = callerRole === "admin";
+        const isSelf = !!callerId && callerId === id;
+        if (!isAdmin && !isSelf) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        console.log(`🗑️ Processing Hard Delete for ID: ${id} (by ${isAdmin ? "admin" : "self"})`);
 
         // 1. Try deleting from User table
         // This will cascade to linked Seller, Orders, Products, etc.

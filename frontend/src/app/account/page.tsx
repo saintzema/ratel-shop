@@ -8,6 +8,7 @@ import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, 
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
+import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 
 import { useRouter } from "next/navigation";
 
@@ -200,6 +201,9 @@ export default function AccountPage() {
                         </Link>
                     ))}
                 </div>
+
+                {/* In-app account deletion (App Store 5.1.1(v) / NDPR right to erasure) */}
+                <DeleteAccountSection />
 
                 {/* Secondary navigation or support links could go here */}
                 <div className="mt-8 pb-10" />
