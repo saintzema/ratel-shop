@@ -2,6 +2,50 @@ import { NextResponse } from 'next/server';
 import { SEED_PRODUCTS } from '@/lib/data';
 import { db } from '@/lib/db';
 import { fireworksChat, isFireworksEnabled } from '@/lib/fireworks';
+import { generateCompliantId } from '@/lib/utils';
+
+// FairPrice is a GLOBAL marketplace — products absent from the local DB catalog are
+// not "unavailable," they just haven't been sourced into our database yet. This calls
+// the SAME global-search engine NavSearch/SRP use (Gemini-powered worldwide product
+// discovery with AI-estimated FairPrice pricing + a real image) so Ziva never has to
+// say "we don't sell that." Best-effort: returns [] on any failure.
+const SITE = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+
+async function globalSearch(productName: string, category?: string): Promise<any[]> {
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 12_000);
+        const res = await fetch(`${SITE}/api/gemini-price`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName, mode: "search", category }),
+            signal: ctrl.signal,
+        }).finally(() => clearTimeout(t));
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data?.suggestions) ? data.suggestions : [];
+    } catch {
+        return [];
+    }
+}
+
+// Converts a raw Gemini search suggestion into a full product-shaped object — same
+// fields the client renders product cards from (id/name/price/image_url/specs/etc).
+function suggestionToProduct(s: any): any {
+    return {
+        id: generateCompliantId(s.name),
+        name: s.name,
+        price: s.approxPrice || 0,
+        category: s.category || "General",
+        subcategory: s.subcategory || "",
+        image_url: s.image_url || "",
+        description: s.description || "",
+        specs: s.specs || {},
+        tags: s.tags || [],
+        condition: s.condition || "new",
+        source: "global",
+    };
+}
 
 // ── Provider switch ───────────────────────────────────────────────────────────
 // Priority: DB setting (admin/settings toggle) → VERCEL env var → default "qwen"
@@ -112,16 +156,29 @@ async function searchCatalog(keywords: string, maxBudget?: number): Promise<any>
         }
     }
 
-    const top = results.slice(0, 8);
+    let top = results.slice(0, 8);
+
+    // Nothing in our local DB — FairPrice is a GLOBAL marketplace, so fall back to live
+    // global search (same engine as NavSearch) instead of telling the user we don't have it.
+    let globalProducts: any[] = [];
+    if (top.length === 0) {
+        const suggestions = await globalSearch(keywords);
+        globalProducts = suggestions.slice(0, 5).map(suggestionToProduct);
+    }
+
     return {
-        found: top.length,
+        found: top.length || globalProducts.length,
         nearBudget,
-        products: top.map(p => ({ name: p.name, price: p.price, category: p.category, source: p._src, id: p.id })),
+        products: top.map(p => ({ name: p.name, price: p.price, category: p.category, source: p._src, id: p.id }))
+            .concat(globalProducts.map(g => ({ name: g.name, price: g.price, category: g.category, source: 'global', id: g.id }))),
+        globalProducts, // full objects (image/specs) — surfaced to the client, not echoed verbatim to the model
         summary: top.length > 0
             ? nearBudget
                 ? `No products found at exactly ₦${maxBudget?.toLocaleString()} — here are the closest matches (slightly above budget): ${top.map(p => p.name).join(', ')}.`
                 : `Found ${top.length} product${top.length > 1 ? 's' : ''} matching "${keywords}".`
-            : `No products found matching "${keywords}" in our catalog.`
+            : globalProducts.length > 0
+                ? `Not in our local catalog, but found ${globalProducts.length} on FairPrice's global marketplace: ${globalProducts.map(g => g.name).join(', ')}. Present these with their FairPrice pricing.`
+                : `No products found matching "${keywords}" anywhere.`
     };
 }
 
@@ -164,7 +221,7 @@ async function comparePrices(productNames: string[]): Promise<any> {
         allProducts = SEED_PRODUCTS;
     }
 
-    const products = productNames.map(name => {
+    const localMatches = productNames.map(name => {
         const q = name.toLowerCase();
         const match = allProducts.find(p => (p.name || '').toLowerCase().includes(q)) ||
             allProducts.find(p => {
@@ -173,20 +230,34 @@ async function comparePrices(productNames: string[]): Promise<any> {
             });
         // Include specs so the model can do a true side-by-side spec comparison, not just price.
         return match
-            ? { name: match.name, price: match.price, originalPrice: match.original_price || null, category: match.category, rating: match.avg_rating || 0, priceFlag: match.price_flag || 'unknown', specs: match.specs || null, id: match.id }
-            : { name, price: null, notFound: true };
+            ? { name: match.name, price: match.price, originalPrice: match.original_price || null, category: match.category, rating: match.avg_rating || 0, priceFlag: match.price_flag || 'unknown', specs: match.specs || null, id: match.id, source: 'catalog' as const }
+            : { name, price: null, notFound: true as const };
     });
 
-    const found = products.filter(p => !p.notFound);
+    // FairPrice is a GLOBAL marketplace — anything not in our local DB still goes through
+    // the same global-search engine NavSearch uses, so comparisons never dead-end into
+    // "we don't sell that." Run all missing lookups concurrently.
+    const globalProducts: any[] = [];
+    const products = await Promise.all(localMatches.map(async (p) => {
+        if (!p.notFound) return p;
+        const suggestions = await globalSearch(p.name);
+        if (suggestions.length === 0) return p;
+        const g = suggestionToProduct(suggestions[0]);
+        globalProducts.push(g);
+        return { name: g.name, price: g.price, originalPrice: null, category: g.category, rating: 0, priceFlag: 'unknown', specs: g.specs, id: g.id, source: 'global' as const };
+    }));
+
+    const found = products.filter((p): p is Exclude<typeof p, { notFound: true }> => !('notFound' in p));
     const cheapest = found.length > 0 ? found.reduce((a, b) => (a.price! < b.price! ? a : b)) : null;
 
     return {
         products,
+        globalProducts, // full objects (image/description) for genuinely missing products — surfaced to the client
         cheapest: cheapest ? cheapest.name : null,
         notFoundCount: products.length - found.length,
         summary: found.length > 0
-            ? `Compared ${found.length} products. ${cheapest ? `Best price: ${cheapest.name} at ₦${cheapest.price?.toLocaleString()}.` : ''}`
-            : 'None of these are currently sold on FairPrice. Answer using your own general product knowledge instead — clearly note they are not in our catalog.'
+            ? `Compared ${found.length} products${globalProducts.length > 0 ? ` (${globalProducts.length} sourced live from FairPrice's global marketplace)` : ''}. ${cheapest ? `Best price: ${cheapest.name} at ₦${cheapest.price?.toLocaleString()}.` : ''}`
+            : 'Could not find or source any of these products. Answer using your own general product knowledge — clearly note FairPrice does not currently have pricing for them.'
     };
 }
 
@@ -198,7 +269,7 @@ const OPENAI_TOOLS = [
         type: "function",
         function: {
             name: "search_catalog",
-            description: "Search the FairPrice product catalog for products matching keywords. Use this when the user wants to find, browse, or discover products.",
+            description: "Search FairPrice's local catalog AND, if nothing matches locally, its global marketplace (worldwide sourcing, real FairPrice pricing + image). Use this when the user wants to find, browse, or discover products — including items you're not sure we stock locally.",
             parameters: {
                 type: "object",
                 properties: {
@@ -363,6 +434,12 @@ function parseAiJson(text: string) {
 export async function POST(req: Request) {
     const { message, history, userName, catalogue, searchCache, browsingHistory } = await req.json();
 
+    // Request-scoped (not module-level — safe under concurrent invocations) collector for
+    // full global-marketplace product objects surfaced by any tool call this turn, so the
+    // final response can render real cards (image + FairPrice price) for products the model
+    // only refers to by name in suggestedProducts.
+    const collectedGlobalProducts: any[] = [];
+
     try {
         const productsToUse = catalogue || SEED_PRODUCTS;
         const cacheToUse = searchCache || [];
@@ -384,14 +461,14 @@ export async function POST(req: Request) {
             ? `\nRecently viewed: ${browsingHistory.slice(0, 5).map((p: any) => p.name).join(", ")}`
             : '';
 
-        const systemPrompt = `You are Ziva, the advanced AI shopping assistant for FairPrice (Nigeria's First AI-Regulated Marketplace). You work like Amazon Rufus — a brilliant shopping concierge powered by tools.
+        const systemPrompt = `You are Ziva, the advanced AI shopping assistant for FairPrice — Nigeria's First AI-Regulated Marketplace, AND a GLOBAL marketplace: if a product isn't in our local catalog yet, our tools automatically search FairPrice's worldwide sourcing network and return a real FairPrice price + image. You work like Amazon Rufus — a brilliant shopping concierge powered by tools.
 
 User: ${userName || "Valued Customer"}
 
 AVAILABLE TOOLS:
-- search_catalog: Search our product catalog + cached results. Use for ANY product search/browse request.
+- search_catalog: Search our LOCAL catalog first; if nothing matches, it automatically searches FairPrice's GLOBAL marketplace too. Use for ANY product search/browse request.
 - explore_product: Get detailed specs, reviews, price analysis. Use when user asks about a specific product.
-- compare_prices: Compare 2-4 products side by side. Use when user wants to compare options.
+- compare_prices: Compare 2-4 products side by side (price + specs). Also searches globally for items not in our local catalog — use it even for products you're not sure we sell.
 
 CATALOG SNAPSHOT: ${productSummary}${cacheSummary}${historySummary}
 
@@ -405,7 +482,8 @@ INTERACTION FLOW:
 RULES:
 - ALWAYS use your tools for product queries — don't guess or hallucinate PRICES or claim something is sold on FairPrice when it isn't
 - CRITICAL: If the user asks ANY question about finding a product, checking a price, or asking if we have an item, call the search_catalog or explore_product tool IMMEDIATELY in your FIRST RESPONSE. Do NOT ask clarifying questions first. Search first, then talk!
-- COMPARISONS (e.g. "compare X and Y specs"): ALWAYS call compare_prices once, even for products you suspect aren't sold here. If the tool reports a product was not found in our catalog, you MUST still answer using your own general product knowledge — give a real, useful spec comparison (camera, chip, display, battery, etc.) and clearly mention which items (if any) aren't currently sold on FairPrice. NEVER refuse and NEVER call the same tool again — answer in the JSON format below using what you know.
+- COMPARISONS (e.g. "compare X and Y specs"): ALWAYS call compare_prices once, even for products you suspect aren't in our local catalog — it automatically searches FairPrice's global marketplace for them too and returns a real price + specs. Present whatever it finds (local or global) as genuine FairPrice products — do NOT say "we don't sell that." Only if the tool truly finds nothing anywhere should you fall back to your own general knowledge, clearly noting FairPrice doesn't have current pricing for it. NEVER refuse and NEVER call the same tool again — answer in the JSON format below using what the tool returned.
+- search_catalog and compare_prices both search GLOBALLY when there's no local match — never tell a user a product isn't available just because it's not in the local catalog snapshot above.
 - Use the exact product names from tool results in suggestedProducts
 - Be proactive: if they ask about a product, explore it AND suggest alternatives
 - Use Nigerian English occasionally (e.g., "Omo", "We gat you", "No wahala")
@@ -463,10 +541,12 @@ After using tools, respond with ONLY this JSON (no markdown fences):
 
                 if (result.toolCall) {
                     const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
+                    if (Array.isArray(toolResult?.globalProducts)) collectedGlobalProducts.push(...toolResult.globalProducts);
+                    const { globalProducts: _gp, ...toolResultForModel } = toolResult || {};
                     result = await callGemini([
                         ...contents,
                         { role: "model", parts: [{ functionCall: { name: result.toolCall.name, args: result.toolCall.args } }] },
-                        { role: "user", parts: [{ functionResponse: { name: result.toolCall.name, response: toolResult } }] }
+                        { role: "user", parts: [{ functionResponse: { name: result.toolCall.name, response: toolResultForModel } }] }
                     ]);
                 }
 
@@ -495,10 +575,15 @@ After using tools, respond with ONLY this JSON (no markdown fences):
             // disableTools on rounds ≥1 forces the model to emit text, not another tool call.
             for (let round = 0; round < 3 && result.toolCall; round++) {
                 const toolResult = await executeTool(result.toolCall.name, result.toolCall.args);
+                if (Array.isArray(toolResult?.globalProducts)) collectedGlobalProducts.push(...toolResult.globalProducts);
+                // Don't echo full global product objects (descriptions/specs) back into the
+                // model's context — it only needs the lean summary; the real objects are
+                // attached to the HTTP response separately via collectedGlobalProducts.
+                const { globalProducts: _gp, ...toolResultForModel } = toolResult || {};
                 messages = [
                     ...messages,
                     { role: "assistant", content: null, tool_calls: [{ id: result.toolCall.id, type: "function", function: { name: result.toolCall.name, arguments: JSON.stringify(result.toolCall.args) } }] },
-                    { role: "tool", tool_call_id: result.toolCall.id, content: JSON.stringify(toolResult) }
+                    { role: "tool", tool_call_id: result.toolCall.id, content: JSON.stringify(toolResultForModel) }
                 ];
                 result = await callQwen(messages, { disableTools: round >= 1 });
             }
@@ -523,10 +608,19 @@ After using tools, respond with ONLY this JSON (no markdown fences):
             return NextResponse.json({ message: "I found something but had trouble formatting it. Try again?", intent: "error", shouldEscalate: false });
         }
 
+        // Dedupe any global-marketplace products surfaced this turn by id.
+        const globalProducts = Array.from(
+            new Map(collectedGlobalProducts.map((p: any) => [p.id, p])).values()
+        );
+
         try {
-            return NextResponse.json(parseAiJson(resultText));
+            const parsed = parseAiJson(resultText);
+            return NextResponse.json(globalProducts.length > 0 ? { ...parsed, globalProducts } : parsed);
         } catch {
-            return NextResponse.json({ message: resultText, intent: "general", shouldEscalate: false, suggestedProducts: [] });
+            return NextResponse.json({
+                message: resultText, intent: "general", shouldEscalate: false, suggestedProducts: [],
+                ...(globalProducts.length > 0 ? { globalProducts } : {}),
+            });
         }
 
     } catch (error: any) {

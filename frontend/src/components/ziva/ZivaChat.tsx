@@ -9,7 +9,7 @@ import {
     Zap, Clock, AlertTriangle, CheckCircle, Loader2, Paperclip, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, generateCompliantId } from "@/lib/utils";
 import { playMessageReceiveSound, playDingSound } from "@/lib/audio";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
@@ -537,6 +537,45 @@ export function ZivaChat() {
                         terms.some(t => p.name.toLowerCase().includes(t.toLowerCase())) ||
                         terms.some(t => p.category.toLowerCase().includes(t.toLowerCase()))
                     ).slice(0, 4);
+                }
+            }
+
+            // ─── Global-marketplace products (FairPrice is a global marketplace — Ziva's
+            // search_catalog/compare_prices tools fetch items not in our local DB live via
+            // Gemini search, same engine NavSearch uses). Render them as real cards with their
+            // FairPrice price + image, and persist into the search cache so they're instantly
+            // findable in NavSearch/SRP too, exactly like a global NavSearch result would be. ───
+            if (data.globalProducts && Array.isArray(data.globalProducts) && data.globalProducts.length > 0) {
+                const globalAsProducts: Product[] = data.globalProducts.map((g: any) => ({
+                    id: g.id || generateCompliantId(g.name),
+                    name: g.name,
+                    price: g.price || 0,
+                    original_price: null,
+                    category: g.category || "General",
+                    subcategory: g.subcategory || "",
+                    image_url: g.image_url || "",
+                    images: g.image_url ? [g.image_url] : [],
+                    description: g.description || "",
+                    specs: g.specs || {},
+                    tags: g.tags || [],
+                    seller_id: "global-partners",
+                    seller_name: "FairPrice Global",
+                    is_active: true,
+                    stock: 50,
+                    avg_rating: 4.5,
+                    review_count: 0,
+                    sold_count: 0,
+                    price_flag: "none",
+                    is_sponsored: false,
+                    is_trending: false,
+                    created_at: new Date().toISOString(),
+                } as unknown as Product));
+
+                try { DataSyncService.addToSearchCache(userInput, globalAsProducts); } catch { /* non-critical */ }
+
+                const existingIds = new Set(suggestedProducts.map((p: any) => p.id));
+                for (const gp of globalAsProducts) {
+                    if (!existingIds.has(gp.id)) { suggestedProducts.push(gp); existingIds.add(gp.id); }
                 }
             }
 
