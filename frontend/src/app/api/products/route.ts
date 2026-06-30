@@ -64,43 +64,79 @@ export async function GET(req: Request) {
         // This is what fixes the "255" display issue.
         const totalCount = await db.product.count({ where: whereClause });
 
-        // 2. Fetch the specific page/batch of products
-        const products = await db.product.findMany({
-            where: whereClause,
-            ...(limit ? { take: limit + 1 } : {}),
-            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-            select: {
-                id: true,
-                sellerId: true,
-                sellerName: true,
-                name: true,
-                description: true,
-                price: true,
-                originalPrice: true,
-                recommendedPrice: true,
-                category: true,
-                imageUrl: true,
-                images: true,
-                stock: true,
-                priceFlag: true,
-                isSponsored: true,
-                isTrending: true,
-                isActive: true,
-                avgRating: true,
-                reviewCount: true,
-                soldCount: true,
-                highlights: true,
-                specs: true,
-                financingAvailable: true,
-                createdAt: true,
-                slug: true,
-            } as any,
-            orderBy: { createdAt: "desc" },
-        });
+        const productSelect = {
+            id: true,
+            sellerId: true,
+            sellerName: true,
+            name: true,
+            description: true,
+            price: true,
+            originalPrice: true,
+            recommendedPrice: true,
+            category: true,
+            imageUrl: true,
+            images: true,
+            stock: true,
+            priceFlag: true,
+            isSponsored: true,
+            isTrending: true,
+            isActive: true,
+            avgRating: true,
+            reviewCount: true,
+            soldCount: true,
+            highlights: true,
+            specs: true,
+            financingAvailable: true,
+            createdAt: true,
+            slug: true,
+        } as any;
 
-        const hasMore = limit ? products.length > limit : false;
-        if (hasMore) products.pop();
-        const nextCursor = hasMore ? products[products.length - 1]?.id : null;
+        // 2. Fetch the specific page/batch of products
+        let products: any[];
+        let nextCursor: string | null = null;
+
+        if (q) {
+            // Relevance-ranked search: pull a wider candidate pool of DB matches, then rank
+            // by how well each NAME matches the query (exact > prefix > all-words > substring
+            // > tag/category-only), with popularity tiebreakers. This makes a searched product
+            // instantly surface near the top in NavSearch + SRP — not buried by newest-first
+            // ordering — even when the catalogue has thousands of items.
+            const pool = await db.product.findMany({
+                where: whereClause,
+                select: productSelect,
+                orderBy: { createdAt: "desc" },
+                take: 200,
+            });
+            const ql = q.toLowerCase();
+            const qWords = ql.split(/\s+/).filter((w) => w.length > 1);
+            const relevance = (p: any): number => {
+                const name = (p.name || "").toLowerCase();
+                let s = 0;
+                if (name === ql) s += 1000;
+                else if (name.startsWith(ql)) s += 600;
+                else if (name.includes(ql)) s += 400;
+                else if (qWords.length > 0 && qWords.every((w) => name.includes(w))) s += 250;
+                else s += 50; // matched via category/tags only
+                s += Math.min((p.soldCount || 0) / 10, 30);
+                s += (p.avgRating || 0) * 3;
+                if (p.isSponsored) s += 20;
+                return s;
+            };
+            products = pool
+                .sort((a, b) => relevance(b) - relevance(a))
+                .slice(0, limit || 60);
+        } else {
+            products = await db.product.findMany({
+                where: whereClause,
+                ...(limit ? { take: limit + 1 } : {}),
+                ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+                select: productSelect,
+                orderBy: { createdAt: "desc" },
+            });
+            const hasMore = limit ? products.length > limit : false;
+            if (hasMore) products.pop();
+            nextCursor = hasMore ? products[products.length - 1]?.id : null;
+        }
 
         const mappedProducts = products.map((p: any) => ({
             ...p,
