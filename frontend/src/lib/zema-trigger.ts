@@ -18,39 +18,70 @@
  * after the response is sent without delaying the buyer.
  */
 export async function triggerZema360(orderId: string): Promise<void> {
+    if (!orderId) return;
     const url = process.env.UIPATH_TRIGGER_URL;
     const token = process.env.UIPATH_TOKEN;
 
-    if (!url || !token) {
-        // Not configured — nothing to do. (Keeps dev + unconfigured envs clean.)
-        return;
+    // ── Path A: UiPath Maestro BPMN (full agentic pipeline) when configured ──
+    if (url && token) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                // UiPath API Triggers require inputArguments envelope — flat body is ignored
+                body: JSON.stringify({ inputArguments: { orderId } }),
+                signal: controller.signal,
+            });
+            if (res.ok) {
+                console.log(`[zema360] pipeline triggered for order ${orderId}`);
+                return; // BPMN will call /process-order itself — don't double-fire HITL.
+            }
+            const detail = await res.text().catch(() => "");
+            console.error(`[zema360] UiPath trigger failed [${res.status}] for ${orderId}: ${detail.slice(0, 300)} — using direct fallback`);
+        } catch (err: any) {
+            console.error(`[zema360] UiPath trigger error for ${orderId} (falling back):`, err?.message ?? err);
+        } finally {
+            clearTimeout(timeout);
+        }
     }
-    if (!orderId) return;
 
+    // ── Path B: Direct fallback ──
+    // UiPath absent or unreachable — fire the Human-In-The-Loop approval DIRECTLY so the
+    // WhatsApp approval request still reaches the approver. Guarantees HITL works on every
+    // new order (and in a live demo) without depending on UiPath being online. This is
+    // independent of the per-seller auto-payout setting, which only governs QR/direct payouts.
+    await directHitlFallback(orderId);
+}
+
+async function directHitlFallback(orderId: string): Promise<void> {
+    const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+    const svcToken = process.env.ZEMA_SERVICE_TOKEN;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
+    // Generous: stepHitlRequest fetches Gemini market-intel and sends WhatsApp before returning.
+    const timeout = setTimeout(() => controller.abort(), 25000);
     try {
-        const res = await fetch(url, {
+        const res = await fetch(`${site}/api/zema360/process-order`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
+                ...(svcToken ? { Authorization: `Bearer ${svcToken}` } : {}),
             },
-            // UiPath API Triggers require inputArguments envelope — flat body is ignored
-            body: JSON.stringify({ inputArguments: { orderId } }),
+            body: JSON.stringify({ step: "hitl_request", orderId, agentDecision: { source: "direct_fallback" } }),
             signal: controller.signal,
         });
-
         if (!res.ok) {
             const detail = await res.text().catch(() => "");
-            console.error(`[zema360] trigger failed [${res.status}] for ${orderId}: ${detail.slice(0, 300)}`);
+            console.error(`[zema360] direct HITL fallback failed [${res.status}] for ${orderId}: ${detail.slice(0, 300)}`);
             return;
         }
-        console.log(`[zema360] pipeline triggered for order ${orderId}`);
+        console.log(`[zema360] direct HITL fallback fired for order ${orderId}`);
     } catch (err: any) {
-        // AbortError, network error, etc. — non-blocking by design.
-        console.error(`[zema360] trigger error for ${orderId} (non-blocking):`, err?.message ?? err);
+        console.error(`[zema360] direct HITL fallback error for ${orderId} (non-blocking):`, err?.message ?? err);
     } finally {
         clearTimeout(timeout);
     }

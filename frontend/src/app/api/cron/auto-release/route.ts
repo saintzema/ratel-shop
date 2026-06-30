@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { buildEmailTemplate } from "@/lib/email-templates";
 import { Resend } from "resend";
 import { ADMIN_EMAILS } from "@/lib/constants";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
 
@@ -58,8 +59,8 @@ export async function GET(request: Request) {
             });
         }
 
-        const results = [];
-        const errors = [];
+        const results: string[] = [];
+        const errors: { id: string; error: string }[] = [];
 
         // 3. Process each order
         for (const order of eligibleOrders) {
@@ -135,8 +136,16 @@ export async function GET(request: Request) {
             }
         }
 
-        // 5. Log activity to Admins
+        // 5. Log activity to Admins — in-app (bell) + email.
         if (results.length > 0) {
+            const totalReleased = eligibleOrders
+                .filter(o => results.includes(o.id))
+                .reduce((sum, o) => sum + (o.amount || 0), 0);
+            await notifyAdmins(
+                `🤖 Escrow auto-release: ${results.length} order(s) released, ₦${totalReleased.toLocaleString()} now payoutable${errors.length ? ` · ${errors.length} error(s)` : ""}.`,
+                { type: "order", link: "/admin/escrow" }
+            );
+
             await resend.emails.send({
                 from: '🤖 FairPrice System <system@fairprice.ng>',
                 to: ADMIN_EMAILS,

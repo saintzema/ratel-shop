@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
+import { notifyAdmins } from "@/lib/admin-notify";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -157,19 +158,13 @@ async function handleChargeSuccess(data: any) {
             // Broadcast to admin dashboard
             broadcast({ type: "payout_created", payoutId: payout.id, sellerId: seller.id });
 
-            // 4. Notify admin about the incoming QR payment
-            try {
-                await db.notification.create({
-                    data: {
-                        type: "order",
-                        message: `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
-                        link: "/admin/payouts",
-                        read: false,
-                    }
-                });
-            } catch (notifErr) {
-                console.warn("Admin notification failed (non-critical):", notifErr);
-            }
+            // 4. Notify admins about the incoming QR payment. (Was previously written with
+            //    no userId → orphaned row, invisible to everyone. notifyAdmins fans it out to
+            //    every admin user so it actually shows in the admin bell.)
+            await notifyAdmins(
+                `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
+                { type: "order", link: "/admin/payouts" }
+            );
 
             // 5. Auto-payout flow (if enabled AND bank details are verified)
             if (seller.autoPayoutEnabled && seller.bankName && seller.accountNumber) {
@@ -190,20 +185,21 @@ async function handleChargeSuccess(data: any) {
                     console.log(`✅ Auto-payout completed for ${seller.businessName}: ₦${netAmount}`);
                     await notifySellerPayout(seller.id, netAmount, "completed", payout.id);
                     await emailSellerPayout(seller.id, netAmount, "completed");
+                    // Admin visibility: every auto-payout that actually moves money is logged
+                    // to the admin bell (previously there was NO admin record on success).
+                    await notifyAdmins(
+                        `✅ Auto-payout SENT: ₦${netAmount.toLocaleString()} → ${seller.businessName} (${seller.bankName} ••${(seller.accountNumber || "").slice(-4)}). Ref ${payout.id}.`,
+                        { type: "order", link: "/admin/payouts" }
+                    );
                 } else {
                     console.error(`❌ Auto-payout FAILED for ${seller.businessName}: ${result.message}`);
                     await notifySellerPayout(seller.id, netAmount, "failed", payout.id);
                     await emailSellerPayout(seller.id, netAmount, "failed");
-
-                    // Notify admin about the failed auto-payout
-                    await db.notification.create({
-                        data: {
-                            type: "system",
-                            message: `🔴 Auto-payout FAILED for ${seller.businessName}: ₦${netAmount.toLocaleString()}. Reason: ${result.message}. Requires manual review.`,
-                            link: "/admin/payouts",
-                            read: false,
-                        }
-                    }).catch(() => {});
+                    // Was an orphaned (userId-less) row → invisible. Now fans out to all admins.
+                    await notifyAdmins(
+                        `🔴 Auto-payout FAILED for ${seller.businessName}: ₦${netAmount.toLocaleString()}. Reason: ${result.message}. Requires manual review.`,
+                        { type: "system", link: "/admin/payouts" }
+                    );
                 }
             } else {
                 // Manual mode — notify seller that funds are pending admin approval
@@ -300,6 +296,10 @@ async function handleTransferSuccess(data: any) {
             // Notify the seller about successful transfer
             await notifySellerPayout(payout.sellerId, payout.amount, "completed", payout.id);
             await emailSellerPayout(payout.sellerId, payout.amount, "completed");
+            await notifyAdmins(
+                `✅ Bank transfer confirmed: ₦${payout.amount.toLocaleString()} payout ${payout.id} settled.`,
+                { type: "order", link: "/admin/payouts" }
+            );
 
             broadcast({ type: "payout_completed", sellerId: payout.sellerId, payoutId: payout.id });
             console.log(`✅ Payout ${payout.id} marked as completed.`);
@@ -335,14 +335,10 @@ async function handleTransferFailed(data: any) {
                     select: { businessName: true }
                 });
 
-                await db.notification.create({
-                    data: {
-                        type: "system",
-                        message: `🔴 Bank transfer FAILED for ${seller?.businessName || payout.sellerId}: ₦${payout.amount.toLocaleString()}. Reason: ${reason || "Unknown"}`,
-                        link: "/admin/payouts",
-                        read: false,
-                    }
-                }).catch(() => {});
+                await notifyAdmins(
+                    `🔴 Bank transfer FAILED for ${seller?.businessName || payout.sellerId}: ₦${payout.amount.toLocaleString()}. Reason: ${reason || "Unknown"}`,
+                    { type: "system", link: "/admin/payouts" }
+                );
 
                 console.log(`❌ Payout ${payout.id} marked as failed.`);
             }
