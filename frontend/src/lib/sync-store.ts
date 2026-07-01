@@ -459,7 +459,9 @@ class DataSyncServiceService {
             const customerEmail = user?.email;
             
             let ordersUrl = "/api/orders?all=true";
-            if (sellerId) {
+            if (isAdminUser) {
+                ordersUrl = "/api/orders?all=true";
+            } else if (sellerId) {
                 ordersUrl = `/api/orders?sellerId=${sellerId}`;
             } else if (customerId) {
                 ordersUrl = `/api/orders?customerId=${customerId}${customerEmail ? `&customerEmail=${encodeURIComponent(customerEmail)}` : ''}`;
@@ -4093,14 +4095,17 @@ class DataSyncServiceService {
 
         // Trigger Emails & Notifications based on status change
         if (order.status !== status) {
-            const customerEmail = `user_${order.customer_id}@fairprice.ng`;
-            let resolvedCustomerEmail = customerEmail;
-            
+            // The real email captured at checkout is far more reliable than the
+            // synthetic `user_<id>@fairprice.ng` guess below — guest orders in
+            // particular have no matching row in getAllUsers(), which silently
+            // sent shipping/delivery emails into a non-existent address.
+            let resolvedCustomerEmail = order.customer_email || `user_${order.customer_id}@fairprice.ng`;
+
             // Resolve customer name from user record
             let resolvedName = order.customer_name || "";
             if (typeof window !== "undefined") {
                  const customerUser = this.getAllUsers().find(u => u.id === order.customer_id || u.email === order.customer_id);
-                 if (customerUser?.email) resolvedCustomerEmail = customerUser.email;
+                 if (!order.customer_email && customerUser?.email) resolvedCustomerEmail = customerUser.email;
                  if (customerUser?.name && !resolvedName) resolvedName = customerUser.name;
             }
             if (!resolvedName) resolvedName = order.customer_id; // Final fallback
@@ -4257,7 +4262,7 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    updateTrackingStatus(id: string, status: string, location: string, carrier?: string, tracking_id?: string) {
+    updateTrackingStatus(id: string, status: string, location: string, carrier?: string, tracking_id?: string, driver?: { name?: string; phone?: string }) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === id);
         if (!order) return;
@@ -4266,7 +4271,11 @@ class DataSyncServiceService {
             status,
             location,
             timestamp: new Date().toISOString(),
-            completed: true
+            completed: true,
+            // Stored in the JSON tracking step (no schema change needed) so the order
+            // details modal can surface the driver's contact instead of the buyer's own.
+            ...(driver?.name ? { driver_name: driver.name } : {}),
+            ...(driver?.phone ? { driver_phone: driver.phone } : {}),
         };
 
         const updatedSteps = [...(order.tracking_steps || []), newStep];

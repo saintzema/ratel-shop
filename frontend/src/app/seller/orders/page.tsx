@@ -629,7 +629,9 @@ function SellerOrdersContent() {
                                                                     ? `${shipLocation} (Est. Arrival: ${shipArrivalDate})`
                                                                     : shipLocation;
 
-                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", locationWithDate, shipCarrier, shipTrackingId);
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", locationWithDate, shipCarrier, shipTrackingId, { name: shipDriverName, phone: shipDriverPhone });
+                                                                // handleStatusUpdate -> updateOrderStatus already emails the buyer
+                                                                // (ORDER_SHIPPED) using order.customer_email as the primary address.
                                                                 handleStatusUpdate(order.id, "shipped");
 
                                                                 // Reset form

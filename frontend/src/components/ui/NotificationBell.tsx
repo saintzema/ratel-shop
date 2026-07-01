@@ -17,6 +17,14 @@ interface LocalNotification {
     link?: string;
     read: boolean;
     timestamp: string;
+    created_at?: string;
+}
+
+// DB-sourced notifications carry `created_at`, locally-created ones carry `timestamp` —
+// always fall back between the two so neither source sorts as an Invalid Date.
+function notifTime(n: LocalNotification): number {
+    const t = new Date(n.timestamp || n.created_at || 0).getTime();
+    return Number.isNaN(t) ? 0 : t;
 }
 
 export function NotificationBell({ variant = "light" }: { variant?: "light" | "dark" }) {
@@ -51,7 +59,7 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         // Reconcile read-state + collapse local/DB duplicates by content signature so a
         // notification read on this device never reappears as unread.
         const reconciled = DataSyncService.reconcileNotifications(merged) as LocalNotification[];
-        reconciled.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        reconciled.sort((a, b) => notifTime(b) - notifTime(a));
         setNotifications(reconciled);
     }, [user?.email, user?.id]);
 
@@ -127,8 +135,10 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         }
     };
 
-    const formatTimeAgo = (timestamp: string) => {
+    const formatTimeAgo = (timestamp?: string) => {
+        if (!timestamp) return "";
         const diff = Date.now() - new Date(timestamp).getTime();
+        if (Number.isNaN(diff)) return "";
         const mins = Math.floor(diff / 60000);
         if (mins < 1) return "Just now";
         if (mins < 60) return `${mins}m ago`;
@@ -234,7 +244,7 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
                                                         {n.type}
                                                     </span>
                                                     <span className="text-[10px] text-gray-600 font-bold italic">
-                                                        • {formatTimeAgo(n.timestamp)}
+                                                        • {formatTimeAgo(n.timestamp || n.created_at)}
                                                     </span>
                                                 </div>
                                             </div>

@@ -318,7 +318,7 @@ function persistAddresses(addresses: SavedAddress[]) {
 }
 
 function CheckoutContent() {
-    const { cart, cartTotal, removeFromCart, updateQuantity, clearCart } = useCart();
+    const { cart, cartTotal, removeFromCart, updateQuantity, clearCart, isLoaded: isCartLoaded } = useCart();
     const router = useRouter();
     const { user, login, updateUser } = useAuth();
     const [isClient, setIsClient] = useState(false);
@@ -989,6 +989,11 @@ function CheckoutContent() {
         }, 100);
     };
 
+    // QR / direct-payment carts are in-person transactions (e.g. paying for a meal at
+    // a restaurant) — there's nothing to ship, so the address/pickup-station fields
+    // that block a normal cart checkout shouldn't block these.
+    const isDirectPaymentOnly = checkoutItems.length > 0 && checkoutItems.every(item => (item.product as any).is_direct_payment);
+
     const handlePlaceOrder = () => {
         const email = (user && !isWhatsAppPlaceholder) ? user.email : address.email;
         if (!address.firstName.trim() || !email.trim()) {
@@ -1007,7 +1012,7 @@ function CheckoutContent() {
             scrollToShippingAddress();
             return;
         }
-        if (deliveryMethod === "doorstep") {
+        if (!isDirectPaymentOnly && deliveryMethod === "doorstep") {
             if (!address.street.trim()) {
                 setAddressError("Please enter your street address.");
                 scrollToShippingAddress();
@@ -1024,7 +1029,7 @@ function CheckoutContent() {
                 return;
             }
         }
-        if (deliveryMethod === "pickup" && (!pickupDetails.state || !pickupDetails.city || !pickupDetails.station)) {
+        if (!isDirectPaymentOnly && deliveryMethod === "pickup" && (!pickupDetails.state || !pickupDetails.city || !pickupDetails.station)) {
             setAddressError("Please select a valid pickup station.");
             scrollToShippingAddress();
             return;
@@ -1542,6 +1547,22 @@ function CheckoutContent() {
         }, 1500);
     };
 
+    // While the cart is still hydrating from localStorage (e.g. right after a hard
+    // navigation from a QR/direct-payment scan), avoid flashing "Review Items (0)".
+    if (!negotiationId && !isCartLoaded) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+                <Navbar />
+                <main className="flex-1 container mx-auto max-w-6xl px-4 py-30 flex items-center justify-center">
+                    <div className="text-center">
+                        <div className="h-10 w-10 border-4 border-gray-200 border-t-brand-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="text-gray-500 text-sm">Loading your order...</p>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             {/* Header */}
@@ -1720,8 +1741,13 @@ function CheckoutContent() {
 
                         {checkoutStep < 3 ? (
                             <div className="p-6">
+                                {isDirectPaymentOnly && (
+                                    <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium">
+                                        This is an instant in-person payment — delivery address isn't required. Just confirm your name & phone and continue to payment.
+                                    </div>
+                                )}
                                 {/* Saved Address Card List - ALWAYS RENDER AT TOP */}
-                                {savedAddresses.length > 0 && (
+                                {!isDirectPaymentOnly && savedAddresses.length > 0 && (
                                     <div className="mb-8">
                                         <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                                             <Sparkles className="h-3 w-3 text-brand-orange" />
@@ -2435,7 +2461,10 @@ function CheckoutContent() {
 
                                 <div className="mt-6 flex justify-end lg:hidden">
                                     <Button
-                                        onClick={() => setCheckoutStep(3)}
+                                        onClick={() => {
+                                            setCheckoutStep(3);
+                                            setTimeout(() => paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                                        }}
                                         className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 text-white rounded-lg font-bold px-8"
                                     >
                                         PROCEED TO ORDER SUMMARY

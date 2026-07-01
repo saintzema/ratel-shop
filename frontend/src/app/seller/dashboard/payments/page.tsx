@@ -291,7 +291,14 @@ function PaymentDetailModal({
                                 <button
                                     onClick={() => {
                                         const canvas = document.getElementById(`modal-qr-${inv.id}`) as HTMLCanvasElement;
-                                        if (canvas) { const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = `payment-${inv.id}.png`; a.click(); }
+                                        if (canvas) {
+                                            const a = document.createElement("a");
+                                            a.href = canvas.toDataURL("image/png");
+                                            a.download = `payment-${inv.id}.png`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                        }
                                     }}
                                     className="flex items-center gap-1 text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-widest"
                                 >

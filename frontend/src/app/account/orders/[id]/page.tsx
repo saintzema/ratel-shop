@@ -95,7 +95,7 @@ export default function OrderDetailsPage() {
     }
 
     const handleReleaseEscrow = () => {
-        DataSyncService.updateOrderEscrow(order.id, "released");
+        DataSyncService.releaseEscrow(order.id);
         // Re-read order from store to get updated status and tracking steps
         const updatedOrders = DataSyncService.getOrders();
         const updatedOrder = updatedOrders.find(o => o.id === order.id);

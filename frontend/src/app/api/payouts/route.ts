@@ -95,13 +95,21 @@ export async function POST(request: Request) {
             );
         }
 
+        // Source the real bank details from the seller's stored profile — the client may only
+        // send a masked/last-4 account number (e.g. from an auto-generated payout request), and
+        // trusting that value here would silently break the Paystack transfer downstream.
+        const sellerRecord = await db.seller.findUnique({
+            where: { id: seller_id },
+            select: { bankName: true, accountNumber: true, accountName: true, businessName: true },
+        });
+
         const payout = await db.payout.create({
             data: {
                 sellerId: seller_id,
                 amount,
-                bankName: bank_name,
-                accountNumber: account_number,
-                accountName: account_name || "N/A",
+                bankName: sellerRecord?.bankName || bank_name,
+                accountNumber: sellerRecord?.accountNumber || account_number,
+                accountName: sellerRecord?.accountName || sellerRecord?.businessName || account_name || "N/A",
                 orderIds: order_ids || [],
                 status: "processing",
             },

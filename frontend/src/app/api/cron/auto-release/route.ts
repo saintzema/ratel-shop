@@ -4,6 +4,7 @@ import { buildEmailTemplate } from "@/lib/email-templates";
 import { Resend } from "resend";
 import { ADMIN_EMAILS } from "@/lib/constants";
 import { notifyAdmins } from "@/lib/admin-notify";
+import { getUserFromRequest } from "@/lib/jwt";
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
 
@@ -20,10 +21,13 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
  */
 export async function GET(request: Request) {
     try {
-        // 1. Security Check (Vercel Cron Secret)
+        // 1. Security Check — Vercel Cron Secret OR a logged-in admin manually
+        // triggering the worker from /admin/escrow.
         const authHeader = request.headers.get('authorization');
         if (process.env.NODE_ENV === 'production') {
-            if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+            const user = isCron ? null : getUserFromRequest(request);
+            if (!isCron && user?.role !== "admin") {
                 return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
             }
         }

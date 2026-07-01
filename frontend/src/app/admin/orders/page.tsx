@@ -29,7 +29,19 @@ export default function AdminOrdersPage() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.orders) {
-                    setOrders(data.orders.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+                    // /api/orders returns raw Prisma rows (camelCase); normalize to the
+                    // snake_case fields this page (and the rest of the app) reads, same
+                    // mapping DataSyncService applies when it syncs orders into the store.
+                    const normalized = data.orders.map((o: any) => ({
+                        ...o,
+                        customer_id: o.customerId ?? o.customer_id,
+                        customer_name: o.customerName ?? o.customer_name,
+                        customer_email: o.customerEmail ?? o.customer_email,
+                        seller_id: o.sellerId ?? o.seller_id,
+                        created_at: o.createdAt ?? o.created_at,
+                        escrow_status: o.escrowStatus ?? o.escrow_status,
+                    }));
+                    setOrders(normalized.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
                 }
             }
         } catch (e) {

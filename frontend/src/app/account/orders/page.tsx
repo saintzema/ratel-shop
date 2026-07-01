@@ -789,7 +789,23 @@ function OrdersContent() {
                                 <div className="space-y-1">
                                     <p className="text-xs font-bold text-gray-900">{selectedOrderForTracking.customer_name || user?.name}</p>
                                     <p className="text-xs text-gray-600 leading-relaxed">{selectedOrderForTracking.shipping_address || 'Standard Shipping Address'}</p>
-                                    <p className="text-[11px] font-medium text-brand-green-600 mt-1">{selectedOrderForTracking.customer_phone || selectedOrderForTracking.customer_whatsapp || user?.phone || 'No phone attached'}</p>
+                                    {(() => {
+                                        const steps = (selectedOrderForTracking.tracking_steps || []) as any[];
+                                        const withDriver = [...steps].reverse().find(s => s.driver_phone);
+                                        if (withDriver) {
+                                            return (
+                                                <p className="text-[11px] font-medium text-brand-green-600 mt-1">
+                                                    Driver{withDriver.driver_name ? ` (${withDriver.driver_name})` : ""}: {withDriver.driver_phone}
+                                                </p>
+                                            );
+                                        }
+                                        const contactPhone = selectedOrderForTracking.customer_phone || selectedOrderForTracking.customer_whatsapp || user?.phone;
+                                        return (
+                                            <p className="text-[11px] font-medium text-brand-green-600 mt-1">
+                                                {contactPhone ? contactPhone : 'Driver contact not yet assigned'}
+                                            </p>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -806,7 +822,12 @@ function OrdersContent() {
 
                             {/* Tracking Steps */}
                             <div className="px-5 py-4 space-y-4 max-h-[40vh] overflow-y-auto">
-                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Tracking</h3>
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Tracking</h3>
+                                    {selectedOrderForTracking.tracking_id && (
+                                        <span className="text-[10px] font-bold text-brand-green-600">{selectedOrderForTracking.carrier || "Carrier"}: {selectedOrderForTracking.tracking_id}</span>
+                                    )}
+                                </div>
                                 <div className="relative">
                                     <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-200" />
                                     <div className="space-y-4">

@@ -309,9 +309,16 @@ export default function EscrowManagement() {
                 <div className="flex items-center gap-3">
                     <Button 
                         onClick={async () => {
-                            const res = await fetch('/api/cron/auto-release');
+                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            const res = await fetch('/api/cron/auto-release', {
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            });
                             const data = await res.json();
-                            alert(data.message || `Processed ${data.processed} orders.`);
+                            if (!res.ok || data.success === false) {
+                                alert(data.error || "Auto-release worker failed to run.");
+                            } else {
+                                alert(data.message || `Processed ${data.processed} order(s).`);
+                            }
                             window.dispatchEvent(new Event("sync-store-update"));
                         }}
                         className="h-10 px-5 rounded-2xl bg-[#1A261D] hover:bg-[#233528] text-white border border-emerald-500/20 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-emerald-500/10 flex items-center gap-2 group"
