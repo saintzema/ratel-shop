@@ -445,6 +445,7 @@ model SystemSetting {
   waVerificationEnabled       Boolean  @default(false)
   whatsappNegotiationBridge   Boolean  @default(true)
   aiProvider                  String   @default("qwen")
+  payoutHitlThreshold         Float    @default(50000)
 }
 
 model Discount {

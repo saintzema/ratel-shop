@@ -54,6 +54,10 @@ export default function AdminSettings() {
     // AI Provider
     const [aiProvider, setAiProvider] = useState<"qwen" | "gemini">("qwen");
 
+    // Payout HITL threshold — auto-payouts at/below this go out instantly; above it
+    // require a WhatsApp approval before the transfer fires (see paystack/webhook).
+    const [payoutHitlThreshold, setPayoutHitlThreshold] = useState("50000");
+
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
     const [kycVerification, setKycVerification] = useState(false);
@@ -151,6 +155,7 @@ export default function AdminSettings() {
                     if (initialData.waVerificationEnabled !== undefined) setWaVerificationEnabled(initialData.waVerificationEnabled);
                     if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
                     if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
+                    if (initialData.payoutHitlThreshold !== undefined) setPayoutHitlThreshold(initialData.payoutHitlThreshold.toString());
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -251,7 +256,8 @@ export default function AdminSettings() {
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider,
+        payoutHitlThreshold: parseFloat(payoutHitlThreshold) || 50000
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -722,6 +728,28 @@ export default function AdminSettings() {
                                         Gemini (Google)
                                         <p className="text-[10px] font-medium mt-0.5 opacity-70">gemini-2.5-flash · Vertex</p>
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* Payout HITL Threshold */}
+                            <div className="py-4 border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <h4 className="text-sm font-bold text-gray-900">Auto-Payout HITL Threshold</h4>
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600">₦ Gate</span>
+                                </div>
+                                <p className="text-xs text-gray-400 mb-3">Payouts at or below this amount are sent instantly. Above it, WhatsApp approval is required before the transfer fires.</p>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-black text-gray-500">₦</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1000}
+                                        value={payoutHitlThreshold}
+                                        onChange={e => setPayoutHitlThreshold(e.target.value)}
+                                        className="w-40 px-4 py-2.5 rounded-2xl border-2 border-gray-100 text-sm font-black text-gray-900 focus:outline-none focus:border-amber-400 transition-colors"
+                                        placeholder="50000"
+                                    />
+                                    <span className="text-xs text-gray-400">Default: ₦50,000</span>
                                 </div>
                             </div>
                         </div>
