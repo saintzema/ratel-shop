@@ -162,33 +162,57 @@ export async function PATCH(request: Request) {
         // If approved/completed, trigger Paystack transfer and mark orders as paid out
         if (status === "completed") {
             const currentPayout = await db.payout.findUnique({ where: { id } });
-            
-            if (currentPayout && process.env.PAYSTACK_SECRET_KEY && currentPayout.accountNumber) {
-                const result = await initiatePaystackTransfer({
-                    payoutId: currentPayout.id,
-                    amount: finalAmount || currentPayout.amount,
-                    bankName: currentPayout.bankName,
-                    accountNumber: currentPayout.accountNumber,
-                    accountName: currentPayout.accountName,
-                    sellerId: currentPayout.sellerId,
-                    isAutoPayout: false
-                });
 
-                if (result.success) {
-                    await notifySellerPayout(currentPayout.sellerId, currentPayout.amount, "completed", currentPayout.id);
-                    await emailSellerPayout(currentPayout.sellerId, currentPayout.amount, "completed");
-                } else {
-                    console.error("Paystack Transfer Failed:", result.message);
-                    // Revert status on failure
-                    await db.payout.update({
-                        where: { id },
-                        data: { status: "failed" }
-                    });
-                    return NextResponse.json({ 
-                        success: false, 
-                        error: `Transfer failed: ${result.message}` 
-                    }, { status: 500 });
-                }
+            // Always re-source bank details from the seller's stored profile — a payout
+            // row created via the old client path may only carry a masked last-4 account
+            // number. Trusting that (or worse, silently skipping the transfer when it's
+            // missing) is exactly how a payout got marked "completed" with no money sent.
+            const sellerRecord = currentPayout
+                ? await db.seller.findUnique({
+                    where: { id: currentPayout.sellerId },
+                    select: { bankName: true, accountNumber: true, accountName: true, businessName: true },
+                })
+                : null;
+
+            const realBankName = sellerRecord?.bankName || currentPayout?.bankName;
+            const realAccountNumber = sellerRecord?.accountNumber || currentPayout?.accountNumber;
+            const realAccountName = sellerRecord?.accountName || sellerRecord?.businessName || currentPayout?.accountName;
+
+            if (!currentPayout || !process.env.PAYSTACK_SECRET_KEY || !realAccountNumber || realAccountNumber.length < 10) {
+                // Do NOT silently mark this "completed" — that's how money gets lost.
+                await db.payout.update({ where: { id }, data: { status: "failed" } });
+                return NextResponse.json({
+                    success: false,
+                    error: !realAccountNumber || realAccountNumber.length < 10
+                        ? "Seller has no valid full account number on file — cannot transfer. Update their bank details first."
+                        : "Paystack not configured on this server.",
+                }, { status: 400 });
+            }
+
+            const result = await initiatePaystackTransfer({
+                payoutId: currentPayout.id,
+                amount: finalAmount || currentPayout.amount,
+                bankName: realBankName!,
+                accountNumber: realAccountNumber,
+                accountName: realAccountName || "Seller",
+                sellerId: currentPayout.sellerId,
+                isAutoPayout: false
+            });
+
+            if (result.success) {
+                await notifySellerPayout(currentPayout.sellerId, currentPayout.amount, "completed", currentPayout.id);
+                await emailSellerPayout(currentPayout.sellerId, currentPayout.amount, "completed");
+            } else {
+                console.error("Paystack Transfer Failed:", result.message);
+                // Revert status on failure
+                await db.payout.update({
+                    where: { id },
+                    data: { status: "failed" }
+                });
+                return NextResponse.json({
+                    success: false,
+                    error: `Transfer failed: ${result.message}`
+                }, { status: 500 });
             }
 
             if (payout.orderIds.length > 0) {
