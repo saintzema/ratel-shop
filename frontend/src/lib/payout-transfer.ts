@@ -180,6 +180,84 @@ export async function verifyPaystackReference(reference: string): Promise<Verify
     }
 }
 
+interface PwTResult {
+    success: boolean;
+    accountNumber?: string;
+    bankName?: string;
+    accountName?: string;
+    expiresAt?: string;
+    reference?: string;
+    message?: string;
+}
+
+/**
+ * Pay-with-Transfer: create a Paystack charge on the bank_transfer channel and
+ * return the temporary account number it allocates (the same ~30-minute account
+ * the Paystack modal shows when a customer picks "Transfer"). Metadata is set to
+ * type "qr_payment" so, when the customer's transfer lands, charge.success flows
+ * through the existing webhook branch — seller/admin dashboards, notifications,
+ * and the auto-payout / WhatsApp-HITL threshold pipeline all behave exactly as
+ * if the customer had scanned a FairPay QR.
+ *
+ * NOTE: API-initiated PwT must be enabled on the Paystack business. If it isn't,
+ * Paystack returns an error and we surface a clear message instead of an account.
+ */
+export async function createPayWithTransferCharge(opts: {
+    sellerId: string;
+    amountNaira: number;
+    label: string;
+    customerEmail: string; // charge requires an email; the seller's works for in-person sales
+}): Promise<PwTResult> {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) return { success: false, message: "Paystack secret key not configured" };
+
+    try {
+        const res = await fetch("https://api.paystack.co/charge", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${secret}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                email: opts.customerEmail,
+                amount: Math.round(opts.amountNaira * 100), // kobo
+                metadata: {
+                    type: "qr_payment",
+                    seller_id: opts.sellerId,
+                    label: opts.label,
+                    channel_hint: "whatsapp_pwt",
+                },
+                bank_transfer: {},
+            }),
+        });
+        const json = await res.json();
+        const d = json?.data || {};
+
+        // Paystack has shipped this payload under slightly different shapes over
+        // time — check the known locations rather than assuming one.
+        const accountNumber = d.account_number || d.bank_transfer?.account_number;
+        const bankName = d.bank?.name || d.bank_transfer?.bank?.name || d.bank_name;
+        const accountName = d.account_name || d.bank_transfer?.account_name;
+        const expiresAt = d.account_expires_at || d.bank_transfer?.account_expires_at;
+
+        if (!json.status || !accountNumber) {
+            console.error("PwT charge failed:", json.message, d);
+            return { success: false, message: json.message || d.gateway_response || "Pay-with-Transfer not available on this Paystack account" };
+        }
+
+        return {
+            success: true,
+            accountNumber,
+            bankName: bankName || "Paystack Titan",
+            accountName: accountName || "FairPrice Checkout",
+            expiresAt,
+            reference: d.reference,
+        };
+    } catch (err: any) {
+        return { success: false, message: err.message };
+    }
+}
+
 /**
  * Create a notification for the seller about a payout event.
  * Uses the Prisma Notification model and broadcasts via SSE.

@@ -1405,6 +1405,7 @@ async function handlePaymentSession(from: string, normalizedFrom: string, text: 
 
         let paymentLink: string;
         let summary: string;
+        let fixedAmount: number | null = null;
         if (reply.toLowerCase() === "open") {
             paymentLink = `${SITE}/store/${seller.storeUrl || seller.id}`;
             summary = `Open amount — customers browse *${seller.businessName}* and pay for what they pick.`;
@@ -1414,6 +1415,7 @@ async function handlePaymentSession(from: string, normalizedFrom: string, text: 
                 await WhatsAppService.sendMessage(from, `Please reply with a valid amount in Naira (e.g. *3000*), *open*, or *cancel*.`);
                 return true;
             }
+            fixedAmount = amount;
             const params = new URLSearchParams({
                 sellerId: seller.id,
                 amount: String(amount),
@@ -1424,7 +1426,13 @@ async function handlePaymentSession(from: string, normalizedFrom: string, text: 
             summary = `*${state.label}* — ₦${amount.toLocaleString()}`;
         }
 
-        await expirePaySessions(from);
+        // Fixed-amount payments can additionally get a one-time bank account
+        // (Pay-with-Transfer) — keep a short session alive so "transfer" works.
+        if (fixedAmount) {
+            await createPaySession(from, { step: "post", sellerId: seller.id, label: state.label, amount: fixedAmount });
+        } else {
+            await expirePaySessions(from);
+        }
 
         // QR image (public QR renderer encoding the same link, like the dashboard QR)
         const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(paymentLink)}&size=500&margin=2&ecLevel=H`;
@@ -1435,11 +1443,66 @@ async function handlePaymentSession(from: string, normalizedFrom: string, text: 
             `✅ *Payment link ready!*\n\n${summary}\n\n` +
             `Forward the QR above or share this link with your customer. ` +
             `Money lands per your payout settings the moment they pay — you'll be notified here and on your dashboard.\n\n` +
+            (fixedAmount ? `🏦 Prefer a bank transfer? Reply *transfer* to get a one-time account number for this exact amount (valid ~30 minutes).\n\n` : "") +
             `Type *payment* anytime to create another.`,
             "Open Payment Link", paymentLink);
 
         await db.whatsAppInteraction.create({
             data: { phoneNumber: from, interaction_type: "wa_pay_link_generated", payload: JSON.stringify({ sellerId: seller.id, label: state.label, link: paymentLink }) },
+        }).catch(() => {});
+        return true;
+    }
+
+    // ── Step 5 (optional): one-time bank transfer account for this payment ──
+    if (state.step === "post") {
+        if (reply.toLowerCase() !== "transfer") {
+            // Not asking for a transfer account — end the session quietly and let
+            // this message flow through normal handling (search, greeting, etc.).
+            await expirePaySessions(from);
+            return false;
+        }
+
+        const seller = await db.seller.findUnique({
+            where: { id: state.sellerId },
+            select: { id: true, businessName: true, ownerEmail: true },
+        });
+        await expirePaySessions(from);
+        if (!seller || !state.amount) {
+            await WhatsAppService.sendMessage(from, `Couldn't create a transfer account for that payment. Type *payment* to start again.`);
+            return true;
+        }
+
+        const { createPayWithTransferCharge } = await import("@/lib/payout-transfer");
+        const pwt = await createPayWithTransferCharge({
+            sellerId: seller.id,
+            amountNaira: state.amount,
+            label: state.label || `Payment to ${seller.businessName}`,
+            customerEmail: seller.ownerEmail || `${seller.id}@fairprice.ng`,
+        });
+
+        if (!pwt.success) {
+            await WhatsAppService.sendMessage(from,
+                `🏦 Transfer accounts aren't enabled on our payment processor yet (${pwt.message || "unavailable"}).\n\n` +
+                `Your QR and payment link above still work perfectly — customers can pick "Transfer" inside the payment page for the same result.`
+            );
+            return true;
+        }
+
+        const expiryNote = pwt.expiresAt
+            ? new Date(pwt.expiresAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })
+            : null;
+        await WhatsAppService.sendMessage(from,
+            `🏦 *One-Time Transfer Account*\n\n` +
+            `${state.label} — *₦${state.amount.toLocaleString()}*\n\n` +
+            `Bank: *${pwt.bankName}*\n` +
+            `Account: *${pwt.accountNumber}*\n` +
+            `Name: ${pwt.accountName}\n` +
+            (expiryNote ? `⏰ Valid until ~${expiryNote}\n` : `⏰ Valid ~30 minutes\n`) +
+            `\nForward this to your customer. It only accepts EXACTLY ₦${state.amount.toLocaleString()} — the moment it lands you'll be notified here and it reflects on your dashboard with your usual payout settings.`
+        );
+
+        await db.whatsAppInteraction.create({
+            data: { phoneNumber: from, interaction_type: "wa_pay_pwt_generated", payload: JSON.stringify({ sellerId: seller.id, label: state.label, amount: state.amount, reference: pwt.reference }) },
         }).catch(() => {});
         return true;
     }
