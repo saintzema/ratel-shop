@@ -715,6 +715,7 @@ class DataSyncServiceService {
                         customer_email: dbOrder.customerEmail || dbOrder.customer_email,
                         seller_name: dbOrder.sellerName || dbOrder.seller_name,
                         payout_status: dbOrder.payoutStatus || dbOrder.payout_status || 'none',
+                        payment_reference: dbOrder.paymentReference || dbOrder.payment_reference || undefined,
                         is_direct_payment: dbOrder.isDirectPayment || dbOrder.is_direct_payment || false,
                         status_note: dbOrder.statusNote || dbOrder.status_note || undefined,
                         tracking_id: dbOrder.trackingId || dbOrder.tracking_id || undefined,

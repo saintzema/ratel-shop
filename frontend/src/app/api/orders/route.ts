@@ -3,6 +3,8 @@ import { after } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { triggerZema360 } from "@/lib/zema-trigger";
+import { getUserFromRequest } from "@/lib/jwt";
+import { verifyPaystackReference } from "@/lib/payout-transfer";
 
 export const runtime = "nodejs";
 
@@ -58,8 +60,8 @@ export async function GET(request: Request) {
                 },
                 chatMessages: true,
                 zivaActive: true,
-                // statusNote added in schema — Prisma client regenerated on Vercel build
-                ...({ statusNote: true, trackingId: true, carrier: true, trackingSteps: true, trackingStatus: true } as any),
+                // statusNote/paymentReference added in schema — Prisma client regenerated on Vercel build
+                ...({ statusNote: true, trackingId: true, carrier: true, trackingSteps: true, trackingStatus: true, paymentReference: true } as any),
             },
             orderBy: {
                 createdAt: 'desc',
@@ -330,6 +332,29 @@ export async function PATCH(request: Request) {
 
         if (updates.status === 'delivered') {
             prismaUpdates.deliveredAt = new Date();
+        }
+
+        // Admin-only, verified reconciliation of a missing/incorrect payment reference —
+        // e.g. an order whose webhook delivery was missed. Requires admin auth AND an
+        // independent Paystack lookup confirming the reference is a real, successful
+        // transaction before it's trusted. This is what a payout approval later checks
+        // before releasing platform funds, so it must never be settable on faith.
+        if (updates.payment_reference !== undefined) {
+            const user = getUserFromRequest(request);
+            if (!user || user.role !== "admin") {
+                return NextResponse.json({ error: "Admin access required to link a payment reference" }, { status: 403 });
+            }
+            const reference = String(updates.payment_reference).trim();
+            if (!reference) {
+                return NextResponse.json({ error: "payment_reference cannot be empty" }, { status: 400 });
+            }
+            const verification = await verifyPaystackReference(reference);
+            if (!verification.verified) {
+                return NextResponse.json({
+                    error: `Could not verify this reference on Paystack: ${verification.message}`,
+                }, { status: 400 });
+            }
+            prismaUpdates.paymentReference = reference;
         }
 
         const order = await db.order.update({

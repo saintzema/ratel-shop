@@ -563,6 +563,39 @@ export default function EscrowManagement() {
                                                                 <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
                                                                     <CheckCircle2 className="h-3 w-3" /> Funds Released
                                                                 </span>
+                                                                {!order.payment_reference && (
+                                                                    <Button
+                                                                        onClick={async (e) => {
+                                                                            e.stopPropagation();
+                                                                            const reference = window.prompt(
+                                                                                `Paste the Paystack transaction reference for order ${order.id} (from your Paystack Transactions tab). It will be verified against Paystack before being saved — nothing is transferred here.`
+                                                                            );
+                                                                            if (!reference) return;
+                                                                            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                                                                            const res = await fetch("/api/orders", {
+                                                                                method: "PATCH",
+                                                                                headers: {
+                                                                                    "Content-Type": "application/json",
+                                                                                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                                                                },
+                                                                                body: JSON.stringify({ id: order.id, payment_reference: reference.trim() }),
+                                                                            });
+                                                                            const data = await res.json();
+                                                                            if (!res.ok) {
+                                                                                alert(data.error || "Could not verify this reference on Paystack.");
+                                                                            } else {
+                                                                                alert("Reference verified and linked. You can now use Ensure Payout / Approve.");
+                                                                                window.dispatchEvent(new Event("sync-store-update"));
+                                                                            }
+                                                                        }}
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-7 px-2 rounded-lg font-bold text-[9px] uppercase tracking-widest text-amber-600 hover:text-amber-700 border-amber-200"
+                                                                        title="No verified Paystack payment linked to this order — payout approval will be blocked until one is"
+                                                                    >
+                                                                        Link Payment
+                                                                    </Button>
+                                                                )}
                                                                 <Button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();

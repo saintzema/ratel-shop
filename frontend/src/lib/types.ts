@@ -147,6 +147,7 @@ export interface Order {
     amount: number;
     quantity?: number;
     payment_method?: string;
+    payment_reference?: string;
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "return_requested" | "return_approved" | "return_rejected" | "returned";
     escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
