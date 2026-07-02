@@ -68,22 +68,35 @@ export async function GET(req: NextRequest) {
         // 3. Fetch username
         const meRes  = await fetch(`https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`);
         const meData = await meRes.json();
+        if (meData.error || !meRes.ok) {
+            console.error("[IG callback] /me fetch failed:", meData.error || meData);
+        }
         const igUsername = meData.username || null;
+        const resolvedUserId = igUserId || meData.id || null;
+
+        // A connection without a resolved IG user id is useless — /api/seller/instagram/posts
+        // requires it and will just report "not connected" on the very next load, which looks
+        // to the seller like the connection silently failed (brief spinner then reverts to the
+        // Connect card). Surface it as an explicit error instead of a misleading success redirect.
+        if (!resolvedUserId) {
+            console.error(`[IG callback] No Instagram user id resolved for seller ${state} — token_user_id="${igUserId}", meData=`, meData);
+            return NextResponse.redirect(`${DASHBOARD_URL}?ig_error=incomplete_profile`);
+        }
 
         // 4. Persist on Seller record
         await db.seller.update({
             where: { id: state },
             data: {
                 instagramAccessToken: accessToken,
-                instagramUserId:      igUserId || meData.id || null,
+                instagramUserId:      resolvedUserId,
                 instagramUsername:    igUsername,
                 instagramTokenExpiry: new Date(Date.now() + expiresIn * 1000),
             } as any,
         });
 
-        console.log(`[IG callback] Connected @${igUsername} to seller ${state}`);
+        console.log(`[IG callback] Connected @${igUsername || resolvedUserId} to seller ${state}`);
         return NextResponse.redirect(
-            `${DASHBOARD_URL}?ig_connected=1&ig_user=${encodeURIComponent(igUsername || "")}`
+            `${DASHBOARD_URL}?ig_connected=1&ig_user=${encodeURIComponent(igUsername || resolvedUserId)}`
         );
     } catch (err: any) {
         console.error("[IG callback] Error:", err.message);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
     Instagram, Loader2, CheckSquare, Square, Package,
     RefreshCcw, Link2, AlertCircle, CheckCircle2, ExternalLink, X
@@ -33,6 +33,8 @@ interface EditProduct {
 
 export function InstagramCatalogImporter() {
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
 
     const [status, setStatus] = useState<"idle" | "loading" | "connected" | "error">("idle");
     const [username, setUsername] = useState<string | null>(null);
@@ -86,6 +88,9 @@ export function InstagramCatalogImporter() {
         if (igError === "no_ig_account") {
             setErrorMsg("No Instagram Business or Creator account found linked to your Facebook page. Make sure your Instagram account is connected to a Facebook Page as a Business/Creator account.");
             setStatus("error");
+        } else if (igError === "incomplete_profile") {
+            setErrorMsg("Instagram connected but we couldn't read your profile — please try connecting again.");
+            setStatus("error");
         } else if (igError) {
             setErrorMsg("Instagram connection failed. Please try again.");
             setStatus("error");
@@ -94,6 +99,15 @@ export function InstagramCatalogImporter() {
             fetchPosts();
         } else {
             fetchPosts();
+        }
+
+        // Strip ig_connected/ig_user/ig_error (and any stray Instagram OAuth "#_=_" hash
+        // artifact) from the URL/history once handled. Leaving them in place meant the
+        // browser Back button re-navigated to this exact redirect URL, which could
+        // re-trigger this effect against a stale state and previously surfaced as an
+        // "Application error" on Back.
+        if ((igConnected || igError || igUser || window.location.hash) && typeof window !== "undefined") {
+            router.replace(pathname, { scroll: false });
         }
     }, []); // eslint-disable-line
 

@@ -54,7 +54,6 @@ export async function GET(req: NextRequest) {
     }
 
     const params = new URLSearchParams({
-        force_reauth:  "true",
         client_id:     IG_APP_ID,
         redirect_uri:  getRedirectUri(req),
         response_type: "code",
