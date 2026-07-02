@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Crown, Zap, TrendingUp, ShieldCheck, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
@@ -87,6 +88,22 @@ const PLANS = [
 ];
 
 export default function BillingPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading plans...</div>}>
+            <BillingContent />
+        </Suspense>
+    );
+}
+
+function BillingContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    // Carried over from the "Upgrade to Custom Link" CTA on the dashboard, which sends
+    // the seller's typed subdomain here as a query param — previously silently dropped
+    // (billing never read it), so a successful payment never actually applied the
+    // custom link the seller asked for.
+    const pendingSubdomain = searchParams.get("subdomain");
+
     const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">("monthly");
     const [processingPlan, setProcessingPlan] = useState<string | null>(null);
     const [currentPlan, setCurrentPlan] = useState<string>("Starter");
@@ -138,11 +155,19 @@ export default function BillingPage() {
                 });
             }
 
-            DataSyncService.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
+            // Apply the store link the seller typed on the dashboard's "Upgrade to Custom
+            // Link" card BEFORE being sent here — previously discarded entirely, so a
+            // successful payment never actually changed the seller's public store link.
+            // (The /store/{slug} path link is fully self-service; a true {slug}.fairprice.ng
+            // DNS subdomain still needs the admin provisioning step notified below.)
+            const sellerUpdate: Record<string, any> = { subscription_plan: paystackPlan as any };
+            if (pendingSubdomain) sellerUpdate.store_url = pendingSubdomain;
+
+            DataSyncService.updateSeller(sellerId, sellerUpdate);
             setCurrentPlan(paystackPlan);
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
-            
+
             // Send Notification
             if (seller) {
                 DataSyncService.addNotification({
@@ -151,7 +176,7 @@ export default function BillingPage() {
                      message: `🚀 Congratulations! Your store has been upgraded to the ${paystackPlan} plan. Enjoy your new premium features!`,
                      link: "/seller/dashboard"
                 });
-                
+
                 // Fire and forget email attempt
                 fetch('/api/send-email', {
                     method: 'POST',
@@ -169,8 +194,8 @@ export default function BillingPage() {
 
                 // Notify Admin for Custom Subdomain Provisioning (Pro/Growth/Scale include subdomain)
                 if (['Pro', 'Growth', 'Scale'].includes(paystackPlan)) {
-                    const requestedSubdomain = (seller.business_name || 'store').toLowerCase().replace(/[^a-z0-9]/g, '');
-                    
+                    const requestedSubdomain = pendingSubdomain || (seller.business_name || 'store').toLowerCase().replace(/[^a-z0-9]/g, '');
+
                     // Admin notification
                     DataSyncService.addNotification({
                         userId: 'admin',
@@ -200,6 +225,11 @@ export default function BillingPage() {
             }
         }
         setShowPaystack(false);
+
+        // Previously left the seller stranded on the billing page with no confirmation
+        // of where to go next. Redirect back to the dashboard where they can see the
+        // updated plan/store link reflected.
+        setTimeout(() => router.push("/seller/dashboard"), 1500);
     };
 
     return (

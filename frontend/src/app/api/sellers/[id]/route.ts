@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { resolveStoreUrl } from "@/lib/seller-utils";
 
 export async function GET(
     req: Request,
@@ -69,8 +70,6 @@ export async function PATCH(
         if (body.logoUrl !== undefined)                        sellerData.logoUrl = body.logoUrl;
         if (body.cover_image_url !== undefined)                sellerData.coverImageUrl = body.cover_image_url;
         if (body.coverImageUrl !== undefined)                  sellerData.coverImageUrl = body.coverImageUrl;
-        if (body.store_url !== undefined)                      sellerData.storeUrl = body.store_url || null;
-        if (body.storeUrl !== undefined)                       sellerData.storeUrl = body.storeUrl || null;
         if (body.location !== undefined)                       sellerData.location = body.location;
         if (body.weekly_orders !== undefined)                  sellerData.weeklyOrders = body.weekly_orders;
         if (body.weeklyOrders !== undefined)                   sellerData.weeklyOrders = body.weeklyOrders;
@@ -97,10 +96,21 @@ export async function PATCH(
         // Admin pages may pass the USER id rather than the seller id — resolve either.
         const target = await db.seller.findFirst({
             where: { OR: [{ id }, { userId: id }] },
-            select: { id: true, userId: true },
+            select: { id: true, userId: true, storeUrl: true, businessName: true },
         });
         if (!target) {
             return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+        }
+
+        // Guarantee storeUrl is never left empty — whether the seller explicitly edited
+        // it or it was simply never set (the "gibberish /store/s_xxx link" bug).
+        const requestedStoreUrl = body.store_url !== undefined ? body.store_url : body.storeUrl;
+        if (requestedStoreUrl !== undefined || !target.storeUrl) {
+            sellerData.storeUrl = await resolveStoreUrl(
+                requestedStoreUrl || target.storeUrl,
+                sellerData.businessName || target.businessName,
+                target.id
+            );
         }
 
         const seller = await db.seller.update({

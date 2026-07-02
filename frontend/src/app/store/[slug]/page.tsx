@@ -282,13 +282,23 @@ export default function StoreProfile() {
                     )}
 
                     {isOwner && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/cover:opacity-100 transition-opacity z-30 cursor-pointer" onClick={() => document.getElementById("cover-upload")?.click()}>
-                            <input type="file" id="cover-upload" accept="image/*" className="hidden" onChange={handleUpdateCover} />
-                            <div className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30 rounded-2xl flex items-center gap-2 px-6 h-12 font-medium">
-                                {isUpdatingCover ? <Upload className="h-5 w-5 animate-bounce" /> : <Camera className="h-5 w-5" />}
-                                {isUpdatingCover ? "Uploading..." : "Click to add Cover (Max 3)"}
+                        <>
+                            {/* Persistent affordance — hover-only reveal doesn't exist on mobile,
+                                so sellers had no way to discover this was clickable. */}
+                            <div
+                                className="absolute top-3 right-3 z-30 flex items-center gap-1.5 bg-black/50 hover:bg-black/60 text-white backdrop-blur-md border border-white/30 rounded-full px-3 h-8 text-[11px] font-bold cursor-pointer transition-colors md:hidden"
+                                onClick={() => document.getElementById("cover-upload")?.click()}
+                            >
+                                <Camera className="h-3.5 w-3.5" /> Add Cover
                             </div>
-                        </div>
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/cover:opacity-100 transition-opacity z-30 cursor-pointer" onClick={() => document.getElementById("cover-upload")?.click()}>
+                                <input type="file" id="cover-upload" accept="image/*" className="hidden" onChange={handleUpdateCover} />
+                                <div className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30 rounded-2xl flex items-center gap-2 px-6 h-12 font-medium">
+                                    {isUpdatingCover ? <Upload className="h-5 w-5 animate-bounce" /> : <Camera className="h-5 w-5" />}
+                                    {isUpdatingCover ? "Uploading..." : "Click to add Cover (Max 3)"}
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
 
@@ -314,9 +324,17 @@ export default function StoreProfile() {
                                         </div>
                                     )}
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1 rounded-full border-2 border-white shadow-lg" title="Verified Seller">
-                                    <ShieldCheck className="h-3 w-3 md:h-5 md:w-5" />
-                                </div>
+                                {isOwner ? (
+                                    // Persistent badge (not hover-only) so mobile sellers — who have no
+                                    // hover state at all — can tell this is clickable to upload a logo.
+                                    <div className="absolute -bottom-1 -right-1 bg-brand-green-600 text-white p-1.5 rounded-full border-2 border-white shadow-lg" title="Click to change your logo">
+                                        <Camera className="h-3 w-3 md:h-4 md:w-4" />
+                                    </div>
+                                ) : (
+                                    <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white p-1 rounded-full border-2 border-white shadow-lg" title="Verified Seller">
+                                        <ShieldCheck className="h-3 w-3 md:h-5 md:w-5" />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Info (Compact on mobile) */}

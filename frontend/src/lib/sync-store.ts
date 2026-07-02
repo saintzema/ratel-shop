@@ -2137,7 +2137,24 @@ class DataSyncServiceService {
     updateSeller(id: string, updates: Partial<Seller>) {
         const sellers = this.getSellers();
         const updatedSeller = sellers.find(s => s.id === id);
-        if (!updatedSeller) return;
+
+        // Previously bailed out entirely here when the seller wasn't yet in the local
+        // cache (e.g. right after onboarding, before addSeller's round-trip finished, or
+        // on a fresh session) — silently dropping the ENTIRE update, including fields
+        // like logo_url/store_url that only get set once. Fail open instead: still send
+        // whatever we have straight to the server, which is authoritative anyway.
+        if (!updatedSeller) {
+            const currentUser = this.getCurrentUser();
+            fetch("/api/sellers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                // POST /api/sellers requires user_id even for what is functionally an
+                // update (it upserts by id) — supply it from the logged-in user since
+                // `updates` itself (e.g. onboarding's sellerUpdates) doesn't carry one.
+                body: JSON.stringify({ id, user_id: currentUser?.id, ...updates }),
+            }).catch(() => {});
+            return;
+        }
 
         // 🛡️ INFINITE LOOP GUARD: Dirty check for trust_score
         // If we're only updating trust_score and it hasn't changed, skip everything.

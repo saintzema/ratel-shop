@@ -783,8 +783,8 @@ export default function SellerDashboard() {
                                         )}
 
                                         {recentInvoices.length === 0 && (
-                                            <Link href="/seller/dashboard/payments" className="flex items-center justify-center gap-2 h-10 rounded-xl border-2 border-dashed border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50/30 text-zinc-400 hover:text-indigo-600 text-[11px] font-bold transition-all">
-                                                <QrCode className="h-3.5 w-3.5" /> Generate your first payment link →
+                                            <Link href="/seller/dashboard/payments" className="flex items-center justify-center gap-2 h-11 rounded-xl border-2 border-dashed border-brand-green-400 hover:border-brand-green-600 bg-brand-green-50/50 hover:bg-brand-green-50 text-gray-900 hover:text-brand-green-700 text-[11px] font-black uppercase tracking-wide transition-all active:scale-[0.98] shadow-sm">
+                                                <QrCode className="h-4 w-4" /> Generate your first payment link →
                                             </Link>
                                         )}
                                     </div>

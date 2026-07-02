@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest } from "@/lib/jwt";
+import { resolveStoreUrl } from "@/lib/seller-utils";
 
 export async function GET(req: Request) {
     try {
@@ -172,8 +173,11 @@ export async function POST(req: Request) {
             safeKycStatus = 'not_submitted';
         }
 
+        const sellerId = body.id || `s_${Date.now()}`;
+        const resolvedStoreUrl = await resolveStoreUrl(body.store_url, body.business_name, sellerId);
+
         const sellerData = {
-            id: body.id || `s_${Date.now()}`,
+            id: sellerId,
             userId: user.id,
             businessName: body.business_name,
             description: body.description || "",
@@ -188,7 +192,7 @@ export async function POST(req: Request) {
             bankName: body.bank_name,
             accountNumber: body.account_number,
             accountName: body.account_name,
-            storeUrl: body.store_url,
+            storeUrl: resolvedStoreUrl,
             location: body.location,
             weeklyOrders: body.weekly_orders,
             currencies: body.currencies || [],
