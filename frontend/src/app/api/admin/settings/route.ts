@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
     globalSearchCaching: true,
     waVerificationEnabled: false,
     payoutHitlThreshold: 50000,
+    zema360PaidPlansOnly: false,
     supportConfig: {
         email: "hello@fairprice.ng",
         whatsapp: "2348162816305",

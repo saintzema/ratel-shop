@@ -58,6 +58,10 @@ export default function AdminSettings() {
     // require a WhatsApp approval before the transfer fires (see paystack/webhook).
     const [payoutHitlThreshold, setPayoutHitlThreshold] = useState("50000");
 
+    // ZEMA 360 — currently free/automatic for every seller. Off by default so nothing
+    // changes until paid-plan-only ZEMA 360 features actually exist to gate.
+    const [zema360PaidPlansOnly, setZema360PaidPlansOnly] = useState(false);
+
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
     const [kycVerification, setKycVerification] = useState(false);
@@ -156,6 +160,7 @@ export default function AdminSettings() {
                     if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
                     if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
                     if (initialData.payoutHitlThreshold !== undefined) setPayoutHitlThreshold(initialData.payoutHitlThreshold.toString());
+                    if (initialData.zema360PaidPlansOnly !== undefined) setZema360PaidPlansOnly(initialData.zema360PaidPlansOnly);
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -257,7 +262,8 @@ export default function AdminSettings() {
 
     const handleSaveSecurity = () => saveSection({
         aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider,
-        payoutHitlThreshold: parseFloat(payoutHitlThreshold) || 50000
+        payoutHitlThreshold: parseFloat(payoutHitlThreshold) || 50000,
+        zema360PaidPlansOnly
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -751,6 +757,18 @@ export default function AdminSettings() {
                                     />
                                     <span className="text-xs text-gray-400">Default: ₦50,000</span>
                                 </div>
+                            </div>
+
+                            {/* ZEMA 360 Plan Gating */}
+                            <div className="flex items-center justify-between py-4 border-t border-gray-100">
+                                <div className="max-w-md">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-sm font-bold text-gray-900">ZEMA 360 — Paid Plans Only</h4>
+                                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-violet-50 text-violet-600">Future Gate</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-0.5">Off = ZEMA 360 order automation runs for every seller (current behavior). On = restricted to sellers on a paid plan (Pro/Growth/Scale) once tiered features exist. Safe to leave off.</p>
+                                </div>
+                                <Switch checked={zema360PaidPlansOnly} onCheckedChange={setZema360PaidPlansOnly} />
                             </div>
                         </div>
 

@@ -19,6 +19,33 @@
  */
 export async function triggerZema360(orderId: string): Promise<void> {
     if (!orderId) return;
+
+    // ── Plan gating (off by default) ──
+    // ZEMA 360 is free/automatic for every seller today. When an admin later enables
+    // zema360PaidPlansOnly, only sellers on a paid plan get the pipeline; Starter-plan
+    // orders just skip it silently (no error, no blocked checkout — the order itself
+    // is unaffected, only the automation).
+    try {
+        const { db } = await import("@/lib/db");
+        const settings = await db.systemSetting.findUnique({ where: { id: "global" }, select: { zema360PaidPlansOnly: true } });
+        if (settings?.zema360PaidPlansOnly) {
+            const order = await db.order.findUnique({
+                where: { id: orderId },
+                select: { seller: { select: { subscriptionPlan: true } } },
+            });
+            const plan = order?.seller?.subscriptionPlan;
+            const isPaidPlan = plan && plan !== "Starter";
+            if (!isPaidPlan) {
+                console.log(`[zema360] skipped for order ${orderId} — seller on Starter plan and zema360PaidPlansOnly is enabled`);
+                return;
+            }
+        }
+    } catch (err: any) {
+        // Never let a settings-lookup failure block the automation — fail open to
+        // current (unrestricted) behavior, same as everything else in this file.
+        console.error(`[zema360] plan-gate check failed for ${orderId} (continuing unrestricted):`, err?.message ?? err);
+    }
+
     const url = process.env.UIPATH_TRIGGER_URL;
     const token = process.env.UIPATH_TOKEN;
 

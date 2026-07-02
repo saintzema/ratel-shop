@@ -20,7 +20,8 @@ const PLANS = [
             "Customer Messaging",
             "Standard Support",
             "Standard Store URL",
-            "1 Staff Account"
+            "1 Staff Account",
+            "ZEMA 360 AI Order Automation"
         ]
     },
     {
@@ -40,7 +41,8 @@ const PLANS = [
             "Discount & Coupon Engine",
             "Instagram DM Integration",
             "Premium QR Logo Branding",
-            "3 Staff Accounts"
+            "3 Staff Accounts",
+            "ZEMA 360 AI Order Automation — Priority Queue"
         ]
     },
     {
@@ -57,7 +59,9 @@ const PLANS = [
             "Advanced Logistics (Fez/Shipbubble)",
             "Bookkeeping Tools",
             "Premium QR Logo Branding",
-            "10 Staff Accounts"
+            "10 Staff Accounts",
+            "ZEMA 360 AI Order Automation — Priority Queue",
+            "ZEMA 360 Order Insights & Reports"
         ]
     },
     {
@@ -74,7 +78,10 @@ const PLANS = [
             "API Access",
             "Wholesale Purchasing Limits",
             "Premium QR Logo Branding",
-            "Unlimited Staff Accounts"
+            "Unlimited Staff Accounts",
+            "ZEMA 360 AI Order Automation — Priority Queue",
+            "ZEMA 360 Order Insights & Reports",
+            "ZEMA 360 Custom Workflow Rules"
         ]
     }
 ];

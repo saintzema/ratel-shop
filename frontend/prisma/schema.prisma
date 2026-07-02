@@ -447,6 +447,11 @@ model SystemSetting {
   whatsappNegotiationBridge   Boolean  @default(true)
   aiProvider                  String   @default("qwen")
   payoutHitlThreshold         Float    @default(50000)
+  // ZEMA 360 is free/automatic for every seller today (default false = no gating).
+  // Flip to true once paid-plan-only ZEMA 360 features exist and should be enforced —
+  // triggerZema360 checks this before restricting anything, so leaving it false never
+  // changes current behavior.
+  zema360PaidPlansOnly        Boolean  @default(false)
 }
 
 model Discount {
