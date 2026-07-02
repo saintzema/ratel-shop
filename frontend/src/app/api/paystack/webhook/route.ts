@@ -1,17 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
-import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, getPayoutHitlThreshold } from "@/lib/payout-transfer";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import crypto from "crypto";
 
-// Auto-payouts at or below this amount go out instantly (no human step — that's the whole
-// point of auto-payout for high-volume/QR sellers like restaurants). Above it, a WhatsApp
-// HITL approval is required before the transfer fires, same governance model as ZEMA 360's
-// marketplace escrow release, just for direct/QR payments. Configurable via env so it can be
-// tuned without a redeploy of business logic.
-const PAYOUT_HITL_THRESHOLD = Number(process.env.PAYOUT_HITL_THRESHOLD_NGN || 50_000);
 const ZEMA_APPROVER_WHATSAPP = process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305";
 
 export const runtime = "nodejs";
@@ -185,6 +179,7 @@ async function handleChargeSuccess(data: any) {
                 // fires — same governance pattern as ZEMA 360's marketplace escrow release.
                 // At/below it: instant transfer, no human in the loop (this is the point of
                 // auto-payout for high-volume QR sellers like restaurants).
+                const PAYOUT_HITL_THRESHOLD = await getPayoutHitlThreshold();
                 if (netAmount > PAYOUT_HITL_THRESHOLD) {
                     console.log(`⏸️ Auto-payout ₦${netAmount} exceeds ₦${PAYOUT_HITL_THRESHOLD} HITL threshold for ${seller.businessName} — requesting WhatsApp approval...`);
 

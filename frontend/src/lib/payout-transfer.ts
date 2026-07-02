@@ -4,11 +4,29 @@ import { broadcast } from "@/lib/realtime-service";
 
 /**
  * Paystack Transfer Engine
- * 
+ *
  * Shared logic for initiating Paystack bank transfers.
  * Used by both Admin manual approval (PATCH /api/payouts) and
  * the automated QR payout flow (webhook handleChargeSuccess).
  */
+
+/**
+ * The admin-editable HITL threshold (Settings > Security > "Auto-Payout HITL
+ * Threshold") — payouts at/below this go instantly, above it require a WhatsApp
+ * approval before any transfer fires. Previously the QR-payment webhook read a
+ * hardcoded env var here instead of this setting, so changing it in the admin UI
+ * silently did nothing. Falls back to the env var, then ₦50,000, if the DB is
+ * unreachable or the row doesn't exist yet.
+ */
+export async function getPayoutHitlThreshold(): Promise<number> {
+    try {
+        const settings = await db.systemSetting.findUnique({ where: { id: "global" }, select: { payoutHitlThreshold: true } });
+        if (settings?.payoutHitlThreshold !== undefined && settings.payoutHitlThreshold !== null) {
+            return settings.payoutHitlThreshold;
+        }
+    } catch { /* fall through to env/default */ }
+    return Number(process.env.PAYOUT_HITL_THRESHOLD_NGN || 50_000);
+}
 
 interface TransferRequest {
     /** The Payout record ID in our database */

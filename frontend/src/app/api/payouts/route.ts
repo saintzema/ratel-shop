@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
-import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference } from "@/lib/payout-transfer";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference, getPayoutHitlThreshold } from "@/lib/payout-transfer";
+import { WhatsAppService } from "@/lib/whatsapp-service";
+import { notifyAdmins } from "@/lib/admin-notify";
+
+const ZEMA_APPROVER_WHATSAPP = process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305";
 
 export const runtime = "nodejs";
 
@@ -128,6 +132,44 @@ export async function POST(request: Request) {
                 where: { id: { in: order_ids } },
                 data: { payoutStatus: "requested" },
             });
+        }
+
+        // High-value payout HITL gate — previously this only existed for the QR/
+        // auto-payout webhook path. A regular order's escrow release (customer clicks
+        // "Confirm Delivery") lands here too, and above-threshold payouts from THIS path
+        // never pinged WhatsApp at all — admin had no signal a large payout was waiting
+        // beyond manually checking /admin/payouts.
+        const hitlThreshold = await getPayoutHitlThreshold();
+        if (amount > hitlThreshold) {
+            const runId = `PAY-${Date.now().toString(36).toUpperCase()}`;
+            await db.zemaApprovalRequest.create({
+                data: {
+                    runId,
+                    orderId: payout.id,
+                    status: "pending",
+                    agentDecision: JSON.stringify({
+                        type: "payout",
+                        payoutId: payout.id,
+                        sellerId: seller_id,
+                        amount,
+                        bankName: resolvedBankName,
+                        accountNumber: resolvedAccountNumber,
+                        accountName: sellerRecord?.accountName || sellerRecord?.businessName || account_name,
+                    }),
+                },
+            });
+
+            await WhatsAppService.sendMessage(ZEMA_APPROVER_WHATSAPP,
+                `🛑 *High-Value Payout — Approval Required*\n\n` +
+                `Seller: *${sellerRecord?.businessName || seller_id}*\n` +
+                `Amount: *₦${amount.toLocaleString()}*\n` +
+                `Bank: ${resolvedBankName} ••${resolvedAccountNumber.slice(-4)}\n\n` +
+                `Reply:\n✅ *approve ${runId}*\n❌ *reject ${runId}*`
+            ).catch(() => {});
+            await notifyAdmins(
+                `🛑 Payout of ₦${amount.toLocaleString()} to ${sellerRecord?.businessName || seller_id} needs WhatsApp approval (${runId}) — exceeds the ₦${hitlThreshold.toLocaleString()} auto-payout threshold.`,
+                { type: "system", link: "/admin/payouts" }
+            ).catch(() => {});
         }
 
         return NextResponse.json({ success: true, payout });
