@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isDynamoConfigured, ensureTable, writeAgentLog, readAgentLogs, AgentLogEntry } from "@/lib/dynamodb";
+import { isDynamoConfigured, ensureTable, writeAgentLog, readAllAgentLogs, AgentLogEntry } from "@/lib/dynamodb";
 
 export const dynamic = "force-dynamic";
 
-// ── GET — read last 30 agent-log events ────────────────────────────────────
-export async function GET() {
+// ── GET — paginated agent-log events (?page=1&pageSize=30) ─────────────────
+// Previously hardcapped at "last 30" with no way to page further back —
+// anything older simply vanished from the live dashboard with no path to it.
+export async function GET(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "30", 10) || 30));
+
     // 1. Try DynamoDB (primary — AWS integration for H0 hackathon)
     if (isDynamoConfigured()) {
         try {
             await ensureTable();
-            const raw = await readAgentLogs(30);
+            const all = await readAllAgentLogs();
+            const total = all.length;
+            const start = (page - 1) * pageSize;
+            const raw = all.slice(start, start + pageSize);
             // Normalise: items written by logZemaEvent already have ZemaEvent fields (type, description…).
             // Items written by the orchestrator POST use AgentLogEntry fields — map them so the
             // dashboard renders both shapes correctly.
@@ -24,7 +33,10 @@ export async function GET() {
                 value: item.value ?? item.payload?.value ?? undefined,
                 ts: item.ts,
             }));
-            return NextResponse.json({ events, configured: true, provider: "dynamodb" });
+            return NextResponse.json({
+                events, configured: true, provider: "dynamodb",
+                page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)),
+            });
         } catch (err) {
             console.error("[zema360/events] DynamoDB read failed:", err);
         }
@@ -35,7 +47,7 @@ export async function GET() {
     const DB_SECRET = process.env.FIREBASE_DATABASE_SECRET;
 
     if (!DB_URL) {
-        return NextResponse.json({ events: [], configured: false });
+        return NextResponse.json({ events: [], configured: false, page, pageSize, total: 0, totalPages: 1 });
     }
 
     try {
@@ -44,20 +56,22 @@ export async function GET() {
 
         if (!res.ok) {
             const errText = await res.text().catch(() => "");
-            return NextResponse.json({ events: [], configured: true, provider: "firebase", error: `Firebase ${res.status}: ${errText.slice(0, 120)}` });
+            return NextResponse.json({ events: [], configured: true, provider: "firebase", error: `Firebase ${res.status}: ${errText.slice(0, 120)}`, page, pageSize, total: 0, totalPages: 1 });
         }
 
         const raw = await res.json();
-        if (!raw) return NextResponse.json({ events: [], configured: true, provider: "firebase" });
+        if (!raw) return NextResponse.json({ events: [], configured: true, provider: "firebase", page, pageSize, total: 0, totalPages: 1 });
 
-        const events = Object.entries(raw)
+        const sorted = Object.entries(raw)
             .map(([id, val]) => ({ id, ...(val as object) }))
-            .sort((a: any, b: any) => b.ts - a.ts)
-            .slice(0, 30);
+            .sort((a: any, b: any) => b.ts - a.ts);
+        const total = sorted.length;
+        const start = (page - 1) * pageSize;
+        const events = sorted.slice(start, start + pageSize);
 
-        return NextResponse.json({ events, configured: true, provider: "firebase" });
+        return NextResponse.json({ events, configured: true, provider: "firebase", page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
     } catch {
-        return NextResponse.json({ events: [], configured: false, error: "Network error" });
+        return NextResponse.json({ events: [], configured: false, error: "Network error", page, pageSize, total: 0, totalPages: 1 });
     }
 }
 

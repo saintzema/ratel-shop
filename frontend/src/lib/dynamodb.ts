@@ -73,18 +73,41 @@ export async function writeAgentLog(entry: AgentLogEntry) {
 }
 
 export async function readAgentLogs(limit = 30): Promise<AgentLogEntry[]> {
+    const all = await readAllAgentLogs();
+    return all.slice(0, limit);
+}
+
+/**
+ * Full-table scan, following DynamoDB's LastEvaluatedKey until exhausted (or
+ * maxItems hit), then sorted by ts desc.
+ *
+ * The old readAgentLogs did a SINGLE Scan page (capped ~200 raw items) and
+ * sorted only that page — Scan does not return items in any guaranteed
+ * order, so once the table grew past one page, "most recent 30" could
+ * silently be a random 30 from wherever the scan happened to land, and
+ * anything not in that page was completely unreachable — which is exactly
+ * why older operations "disappeared" on /zema360/live. This walks the whole
+ * table (bounded by maxItems as a safety cap) so sorting is correct and
+ * every historical event is reachable via pagination.
+ */
+export async function readAllAgentLogs(maxItems = 5000): Promise<AgentLogEntry[]> {
     const client = getClient();
     if (!client) return [];
 
-    // Scan across all agents, sort by ts desc, cap at limit.
-    const res = await client.send(new ScanCommand({
-        TableName: TABLE_NAME,
-        Limit: Math.min(limit * 3, 200), // over-fetch to sort, then slice
-    }));
+    const items: AgentLogEntry[] = [];
+    let ExclusiveStartKey: Record<string, any> | undefined;
 
-    return ((res.Items ?? []) as AgentLogEntry[])
-        .sort((a, b) => b.ts - a.ts)
-        .slice(0, limit);
+    do {
+        const res = await client.send(new ScanCommand({
+            TableName: TABLE_NAME,
+            Limit: 500,
+            ExclusiveStartKey,
+        }));
+        items.push(...((res.Items ?? []) as AgentLogEntry[]));
+        ExclusiveStartKey = res.LastEvaluatedKey as Record<string, any> | undefined;
+    } while (ExclusiveStartKey && items.length < maxItems);
+
+    return items.sort((a, b) => b.ts - a.ts).slice(0, maxItems);
 }
 
 export async function readAgentLogsByAgent(agent: string, limit = 20): Promise<AgentLogEntry[]> {

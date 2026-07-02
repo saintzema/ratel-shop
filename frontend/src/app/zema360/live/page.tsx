@@ -79,9 +79,18 @@ export default function Zema360LivePage() {
     const [, forceRender] = useState(0);
     const seenIds = useRef(new Set<string>());
 
-    const fetchEvents = async () => {
+    // Previously the API only ever returned the latest 30 events with no way to
+    // page further back — older operations were effectively unreachable. Page 1
+    // stays "live" (auto-refreshes); paging back pauses auto-refresh so browsing
+    // history doesn't get yanked out from under you.
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalEvents, setTotalEvents] = useState(0);
+    const PAGE_SIZE = 30;
+
+    const fetchEvents = async (targetPage = page) => {
         try {
-            const res = await fetch("/api/zema360/events", { cache: "no-store" });
+            const res = await fetch(`/api/zema360/events?page=${targetPage}&pageSize=${PAGE_SIZE}`, { cache: "no-store" });
             if (!res.ok) {
                 setConfigured(false);
                 return;
@@ -92,10 +101,18 @@ export default function Zema360LivePage() {
                 setEvents(data.events);
                 data.events.forEach((e: ZemaEvent) => seenIds.current.add(e.id));
             }
+            if (typeof data.totalPages === "number") setTotalPages(data.totalPages);
+            if (typeof data.total === "number") setTotalEvents(data.total);
             setLastRefresh(new Date());
         } catch {
             setConfigured(false);
         }
+    };
+
+    const goToPage = (p: number) => {
+        const clamped = Math.max(1, Math.min(totalPages, p));
+        setPage(clamped);
+        fetchEvents(clamped);
     };
 
     // Trigger a live Gemini query so judges can see an event appear in real time
@@ -115,12 +132,19 @@ export default function Zema360LivePage() {
     };
 
     useEffect(() => {
-        fetchEvents();
-        const interval = setInterval(fetchEvents, 5000);
+        fetchEvents(1);
         // Tick relative timestamps every 15s
         const tick = setInterval(() => forceRender(n => n + 1), 15_000);
-        return () => { clearInterval(interval); clearInterval(tick); };
+        return () => clearInterval(tick);
     }, []);
+
+    // Only auto-refresh while viewing page 1 — refreshing while browsing older
+    // pages would silently shift/replace the history the user is looking at.
+    useEffect(() => {
+        if (page !== 1) return;
+        const interval = setInterval(() => fetchEvents(1), 5000);
+        return () => clearInterval(interval);
+    }, [page]);
 
     // Computed stats
     const now = Date.now();
@@ -308,6 +332,32 @@ export default function Zema360LivePage() {
                                 })}
                             </AnimatePresence>
                         </div>
+
+                        {/* Pagination — without this, anything past the newest 30 events was
+                            permanently unreachable. */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/8">
+                                <span className="text-[11px] text-white/30">
+                                    Page {page} of {totalPages} · {totalEvents} total operations
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => goToPage(page - 1)}
+                                        disabled={page <= 1}
+                                        className="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-white/5 text-white/60 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        ← Newer
+                                    </button>
+                                    <button
+                                        onClick={() => goToPage(page + 1)}
+                                        disabled={page >= totalPages}
+                                        className="px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-white/5 text-white/60 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Older →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* ── Right Sidebar: System Status ── */}
