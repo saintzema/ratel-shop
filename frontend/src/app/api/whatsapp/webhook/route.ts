@@ -663,10 +663,27 @@ export async function POST(req: Request) {
         }
 
         // ─────────────────────────────────────────────────────────────────────
+        // ZEMA 360 — SELLER PAYMENT QR/LINK FLOW
+        // "payment" or /payment starts it; subsequent plain-text replies (email,
+        // OTP, label, amount) are captured by the active wa_pay_session below.
+        // ─────────────────────────────────────────────────────────────────────
+        const lowerText = text.toLowerCase().trim();
+        if (lowerText === "payment" || lowerText === "/payment") {
+            await startPaymentFlow(from, normalizedFrom);
+            return NextResponse.json({ ok: true });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // COMMANDS
         // ─────────────────────────────────────────────────────────────────────
         if (text.startsWith("/")) {
             await handleCommand(from, text, contactName);
+            return NextResponse.json({ ok: true });
+        }
+
+        // Active payment session? (email / OTP / label / amount replies.)
+        // Runs after COMMANDS so /help etc. still work mid-session.
+        if (await handlePaymentSession(from, normalizedFrom, text)) {
             return NextResponse.json({ ok: true });
         }
 
@@ -998,6 +1015,7 @@ async function handleCommand(from: string, text: string, contactName = "") {
             `*/verify [seller]* — Check seller trust score\n` +
             `*/sell* — How to list your products\n` +
             `*/pay* — Go to checkout\n` +
+            `*/payment* — Sellers: create a payment QR/link right here 💳\n` +
             `*/help* — Show this menu\n\n` +
             `─────────────────\n` +
             `🛍️ *Browse:* ${SITE}\n` +
@@ -1165,4 +1183,266 @@ async function startWhatsAppNegotiation(
             }
         }
     } catch { /* seller notification is best-effort */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZEMA 360 — SELLER PAYMENT QR/LINK FLOW
+//
+// A seller messages "payment" (or /payment) and gets, entirely inside WhatsApp,
+// the same payment QR + link the dashboard's FairPay generator produces:
+//
+//   payment → [not linked yet?] seller email → OTP (emailed) → linked forever
+//           → "what's it for?" → amount → QR image + tap-to-pay link
+//
+// Verification is ONE-TIME: on OTP success the sender's WhatsApp number is
+// saved on the Seller record, so every future "payment" skips straight to the
+// label/amount questions. The generated link is the exact /checkout/direct
+// format the dashboard QR uses, so scanning it enters the existing
+// QR → Paystack webhook → auto-payout / WhatsApp-HITL pipeline unchanged.
+//
+// Session state lives in WhatsAppInteraction rows (interaction_type
+// "wa_pay_session"), the same pattern as the photo-listing draft flow.
+// Sessions idle >30 min are ignored; typing "cancel" aborts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PAY_SESSION_TYPE = "wa_pay_session";
+const PAY_SESSION_TTL_MS = 30 * 60 * 1000;
+
+function payPhoneVariants(normalizedFrom: string): string[] {
+    const digits = normalizedFrom.replace(/\D/g, "");
+    const variants = new Set<string>([digits, `+${digits}`]);
+    if (digits.startsWith("234")) variants.add(`0${digits.slice(3)}`);
+    return [...variants];
+}
+
+async function findLinkedSeller(normalizedFrom: string) {
+    const variants = payPhoneVariants(normalizedFrom);
+    // Directly linked seller (set by this flow or by dashboard settings)
+    let seller = await db.seller.findFirst({
+        where: { whatsappNumber: { in: variants } },
+        select: { id: true, businessName: true, storeUrl: true, logoUrl: true },
+    });
+    if (seller) return seller;
+    // Fallback: user record linked to this number who owns a store
+    const waUser = await db.user.findFirst({
+        where: { whatsappNumber: { in: variants } },
+        select: { id: true },
+    });
+    if (waUser) {
+        seller = await db.seller.findFirst({
+            where: { userId: waUser.id },
+            select: { id: true, businessName: true, storeUrl: true, logoUrl: true },
+        });
+    }
+    return seller;
+}
+
+async function expirePaySessions(from: string) {
+    await db.whatsAppInteraction.updateMany({
+        where: { phoneNumber: from, interaction_type: PAY_SESSION_TYPE },
+        data: { interaction_type: `${PAY_SESSION_TYPE}_done` },
+    }).catch(() => {});
+}
+
+async function createPaySession(from: string, payload: Record<string, any>) {
+    await expirePaySessions(from);
+    await db.whatsAppInteraction.create({
+        data: { phoneNumber: from, interaction_type: PAY_SESSION_TYPE, payload: JSON.stringify(payload) },
+    });
+}
+
+async function startPaymentFlow(from: string, normalizedFrom: string) {
+    const seller = await findLinkedSeller(normalizedFrom);
+
+    if (seller) {
+        await createPaySession(from, { step: "label", sellerId: seller.id });
+        await WhatsAppService.sendMessage(from,
+            `💳 *FairPay — New Payment* (${seller.businessName})\n\n` +
+            `What is this payment for?\n` +
+            `_e.g. "Jollof + 1 meat" or "Ankara fabric x2"_\n\n` +
+            `Type *cancel* anytime to stop.`
+        );
+        return;
+    }
+
+    await createPaySession(from, { step: "email" });
+    await WhatsAppService.sendMessage(from,
+        `💳 *FairPay — Seller Verification*\n\n` +
+        `This WhatsApp number isn't linked to a FairPrice seller account yet. ` +
+        `This is a ONE-TIME step — after verifying, just type *payment* and go.\n\n` +
+        `👉 Reply with your *seller account email* to begin.\n\n` +
+        `Not a seller yet? Register free: ${SITE}/seller/register`
+    );
+}
+
+async function handlePaymentSession(from: string, normalizedFrom: string, text: string): Promise<boolean> {
+    const session = await db.whatsAppInteraction.findFirst({
+        where: { phoneNumber: from, interaction_type: PAY_SESSION_TYPE },
+        orderBy: { createdAt: "desc" },
+    });
+    if (!session) return false;
+
+    if (Date.now() - new Date(session.createdAt).getTime() > PAY_SESSION_TTL_MS) {
+        await expirePaySessions(from);
+        return false; // stale — let the message fall through to normal handling
+    }
+
+    const state = JSON.parse(session.payload || "{}");
+    const reply = text.trim();
+
+    if (reply.toLowerCase() === "cancel" || reply.toLowerCase() === "stop") {
+        await expirePaySessions(from);
+        await WhatsAppService.sendMessage(from, `❌ Payment setup cancelled. Type *payment* to start again.`);
+        return true;
+    }
+
+    // ── Step 1: seller email ──────────────────────────────────────────────
+    if (state.step === "email") {
+        const email = reply.toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            await WhatsAppService.sendMessage(from, `That doesn't look like an email address. Please reply with your seller account email, or *cancel*.`);
+            return true;
+        }
+
+        let seller = await db.seller.findFirst({
+            where: { ownerEmail: { equals: email, mode: "insensitive" } },
+            select: { id: true, businessName: true, ownerEmail: true },
+        });
+        if (!seller) {
+            const emailUser = await db.user.findFirst({
+                where: { email: { equals: email, mode: "insensitive" } },
+                select: { id: true },
+            });
+            if (emailUser) {
+                seller = await db.seller.findFirst({
+                    where: { userId: emailUser.id },
+                    select: { id: true, businessName: true, ownerEmail: true },
+                });
+            }
+        }
+        if (!seller) {
+            await WhatsAppService.sendMessage(from,
+                `No seller account found for *${email}*.\n\n` +
+                `Double-check the email, or register free: ${SITE}/seller/register\n\n` +
+                `Reply with another email, or *cancel*.`
+            );
+            return true;
+        }
+
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        await createPaySession(from, { step: "otp", sellerId: seller.id, email, otp, attempts: 0 });
+
+        await fetch(`${SITE}/api/email`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: email,
+                type: "VERIFY_EMAIL",
+                payload: { name: seller.businessName, code: otp },
+            }),
+        }).catch(() => {});
+
+        await WhatsAppService.sendMessage(from,
+            `📧 We've sent a 6-digit code to *${email}*.\n\n` +
+            `Reply with the code to link this WhatsApp number to *${seller.businessName}* — one time only.`
+        );
+        return true;
+    }
+
+    // ── Step 2: OTP ───────────────────────────────────────────────────────
+    if (state.step === "otp") {
+        const code = reply.replace(/\D/g, "");
+        if (code !== state.otp) {
+            const attempts = (state.attempts || 0) + 1;
+            if (attempts >= 5) {
+                await expirePaySessions(from);
+                await WhatsAppService.sendMessage(from, `Too many incorrect codes. Type *payment* to start over.`);
+                return true;
+            }
+            await createPaySession(from, { ...state, attempts });
+            await WhatsAppService.sendMessage(from, `That code doesn't match (${5 - attempts} tries left). Check the email we sent to *${state.email}* and reply with the 6-digit code.`);
+            return true;
+        }
+
+        // Verified — durably link this WhatsApp number to the seller account.
+        const digits = normalizedFrom.replace(/\D/g, "");
+        await db.seller.update({ where: { id: state.sellerId }, data: { whatsappNumber: digits } }).catch(() => {});
+
+        const seller = await db.seller.findUnique({ where: { id: state.sellerId }, select: { businessName: true } });
+        await createPaySession(from, { step: "label", sellerId: state.sellerId });
+        await WhatsAppService.sendMessage(from,
+            `✅ *Verified!* This number is now linked to *${seller?.businessName || "your store"}* — you won't need to do this again.\n\n` +
+            `💳 What is this payment for?\n_e.g. "Jollof + 1 meat"_`
+        );
+        return true;
+    }
+
+    // ── Step 3: label ─────────────────────────────────────────────────────
+    if (state.step === "label") {
+        if (reply.length < 2) {
+            await WhatsAppService.sendMessage(from, `Please describe what the payment is for (e.g. "Jollof + 1 meat"), or *cancel*.`);
+            return true;
+        }
+        await createPaySession(from, { ...state, step: "amount", label: reply });
+        await WhatsAppService.sendMessage(from,
+            `💰 How much is *${reply}*?\n\n` +
+            `Reply with the amount in Naira (e.g. *3000*), or *open* to let the customer browse your store and pay any amount.`
+        );
+        return true;
+    }
+
+    // ── Step 4: amount → generate & send QR + link ────────────────────────
+    if (state.step === "amount") {
+        const seller = await db.seller.findUnique({
+            where: { id: state.sellerId },
+            select: { id: true, businessName: true, storeUrl: true, logoUrl: true },
+        });
+        if (!seller) {
+            await expirePaySessions(from);
+            await WhatsAppService.sendMessage(from, `Something went wrong finding your store. Type *payment* to start again.`);
+            return true;
+        }
+
+        let paymentLink: string;
+        let summary: string;
+        if (reply.toLowerCase() === "open") {
+            paymentLink = `${SITE}/store/${seller.storeUrl || seller.id}`;
+            summary = `Open amount — customers browse *${seller.businessName}* and pay for what they pick.`;
+        } else {
+            const amount = Math.round(parseFloat(reply.replace(/[^0-9.]/g, "")));
+            if (isNaN(amount) || amount < 50) {
+                await WhatsAppService.sendMessage(from, `Please reply with a valid amount in Naira (e.g. *3000*), *open*, or *cancel*.`);
+                return true;
+            }
+            const params = new URLSearchParams({
+                sellerId: seller.id,
+                amount: String(amount),
+                label: state.label || `Payment to ${seller.businessName}`,
+                ...(seller.logoUrl ? { image: seller.logoUrl } : {}),
+            });
+            paymentLink = `${SITE}/checkout/direct?${params.toString()}`;
+            summary = `*${state.label}* — ₦${amount.toLocaleString()}`;
+        }
+
+        await expirePaySessions(from);
+
+        // QR image (public QR renderer encoding the same link, like the dashboard QR)
+        const qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(paymentLink)}&size=500&margin=2&ecLevel=H`;
+        await WhatsAppService.sendImage(from, qrUrl,
+            `💳 FairPay QR — ${state.label || seller.businessName}\nScan to pay securely via FairPrice.`);
+
+        await WhatsAppService.sendCTALink(from,
+            `✅ *Payment link ready!*\n\n${summary}\n\n` +
+            `Forward the QR above or share this link with your customer. ` +
+            `Money lands per your payout settings the moment they pay — you'll be notified here and on your dashboard.\n\n` +
+            `Type *payment* anytime to create another.`,
+            "Open Payment Link", paymentLink);
+
+        await db.whatsAppInteraction.create({
+            data: { phoneNumber: from, interaction_type: "wa_pay_link_generated", payload: JSON.stringify({ sellerId: seller.id, label: state.label, link: paymentLink }) },
+        }).catch(() => {});
+        return true;
+    }
+
+    return false;
 }

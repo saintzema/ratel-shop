@@ -492,6 +492,12 @@ function CheckoutContent() {
     // Identity Reconciliation State
     // Catch both wa- (legacy) and wa_ (current) placeholder emails
     const isWhatsAppPlaceholder = (user?.email?.startsWith("wa-") || user?.email?.startsWith("wa_")) && user?.email?.endsWith("@fairprice.ng");
+    // The synthetic wa_...@fairprice.ng placeholder is truthy, so every
+    // `user?.email || address.email` fallback in this file picked the placeholder over
+    // the real email the buyer typed at checkout — Paystack, the order record, and the
+    // confirmation page all showed/received the fake address. This is the single value
+    // everything downstream should use.
+    const effectiveEmail = (isWhatsAppPlaceholder ? address.email : user?.email) || address.email || user?.email || "";
     const [showIdentityPrompt, setShowIdentityPrompt] = useState(false);
     const [identityReconciled, setIdentityReconciled] = useState(false);
     // Email conflict: null = unchecked, 'none' = safe, 'conflict' = email belongs to another account
@@ -1282,7 +1288,7 @@ function CheckoutContent() {
                     product_id: item.product.id,
                     customer_id: orderUserId,
                     customer_name: fullName || address.firstName || "Customer",
-                    customer_email: user?.email || address.email,
+                    customer_email: effectiveEmail,
                     seller_id: item.product.seller_id,
                     seller_name: item.product.seller_name,
                     amount: isVehicleProduct ? vehicleDeposit : item.price * item.quantity,
@@ -2802,7 +2808,7 @@ function CheckoutContent() {
                 {showPaystack && (
                     <PaystackCheckout
                         amount={total * 100}
-                        email={user?.email || address.email || "guest@example.com"}
+                        email={effectiveEmail || "guest@example.com"}
                         metadata={paystackMetadata}
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
@@ -2885,7 +2891,7 @@ function CheckoutContent() {
                         setShowPushOptIn(true);
                     } else {
                         const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
-                        const customerEmail = user?.email || address.email || '';
+                        const customerEmail = effectiveEmail;
                         router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                     }
                 }}
@@ -3055,7 +3061,7 @@ function CheckoutContent() {
                             onClick={() => {
                                 setShowPushOptIn(false);
                                 const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
-                                const customerEmail = user?.email || address.email || '';
+                                const customerEmail = effectiveEmail;
                                 router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                             }}
                         />
@@ -3089,7 +3095,7 @@ function CheckoutContent() {
                                             } catch { /* ignore */ }
                                             setShowPushOptIn(false);
                                             const deliveryDate = new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10);
-                                            const customerEmail = user?.email || address.email || '';
+                                            const customerEmail = effectiveEmail;
                                             router.push(`/order-confirmation?id=${encodeURIComponent(conciergeOrderId || '')}&email=${encodeURIComponent(customerEmail)}&date=${deliveryDate}`);
                                         }}
                                         className="w-full h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-base"

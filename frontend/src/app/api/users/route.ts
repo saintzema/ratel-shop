@@ -99,15 +99,40 @@ export async function POST(req: Request) {
             } : undefined
         };
 
-        const user = await db.user.upsert({
-            where: { email: body.email },
-            update: updateData,
-            create: createData,
-            include: {
-                addresses: true, // Returns the addresses in the response
-                sellers: true
+        // When an explicit user id is supplied AND that user exists, this is an UPDATE of
+        // that account — possibly changing its email (e.g. a WhatsApp-signup account whose
+        // wa_...@fairprice.ng placeholder is being replaced with the buyer's real email at
+        // first checkout). Upserting by the NEW email here used to create a second,
+        // duplicate user instead, leaving the WA account stuck on its placeholder forever.
+        let user;
+        const targetById = body.id ? await db.user.findUnique({ where: { id: body.id }, select: { id: true } }) : null;
+        if (targetById) {
+            if (body.email) {
+                const emailTaken = await db.user.findUnique({ where: { email: body.email }, select: { id: true } });
+                if (emailTaken && emailTaken.id !== body.id) {
+                    return NextResponse.json(
+                        { error: "Email already belongs to another account", code: "EMAIL_CONFLICT" },
+                        { status: 409 }
+                    );
+                }
             }
-        });
+            const { id: _id, ...updateWithoutId } = updateData;
+            user = await db.user.update({
+                where: { id: body.id },
+                data: updateWithoutId,
+                include: { addresses: true, sellers: true }
+            });
+        } else {
+            user = await db.user.upsert({
+                where: { email: body.email },
+                update: updateData,
+                create: createData,
+                include: {
+                    addresses: true, // Returns the addresses in the response
+                    sellers: true
+                }
+            });
+        }
 
         // Broadcast update for real-time sync
         broadcast({ type: "user_updated", id: user.id });

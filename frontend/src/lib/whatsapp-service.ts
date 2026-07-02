@@ -62,6 +62,49 @@ export class WhatsAppService {
     }
 
     /**
+     * Sends an image message by public URL (WhatsApp Cloud API image-by-link).
+     * Used e.g. to deliver a generated payment QR straight into the seller's chat.
+     */
+    static async sendImage(to: string, imageUrl: string, caption?: string) {
+        if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+            console.warn("WhatsApp credentials missing. Image message suppressed:", imageUrl);
+            return null;
+        }
+        const cleanTo = to.replace(/\D/g, "");
+        try {
+            const response = await fetch(
+                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        recipient_type: "individual",
+                        to: cleanTo,
+                        type: "image",
+                        image: { link: imageUrl, ...(caption ? { caption } : {}) },
+                    }),
+                }
+            );
+            const data = await response.json();
+            await db.whatsAppInteraction.create({
+                data: {
+                    phoneNumber: cleanTo,
+                    interaction_type: "outbound_image",
+                    payload: JSON.stringify({ imageUrl, caption, status: data.error ? "error" : "sent", response: data, timestamp: new Date().toISOString() }),
+                },
+            }).catch(() => {});
+            return data;
+        } catch (error) {
+            console.error("WhatsApp Image Send Error:", error);
+            return null;
+        }
+    }
+
+    /**
      * Sends an interactive CTA-URL message — the button opens inside WhatsApp's
      * built-in browser instead of launching an external app.
      */
