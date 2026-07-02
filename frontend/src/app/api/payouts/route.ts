@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
-import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference } from "@/lib/payout-transfer";
 
 export const runtime = "nodejs";
 
@@ -193,6 +193,36 @@ export async function PATCH(request: Request) {
                     error: !realAccountNumber || realAccountNumber.length < 10
                         ? "Seller has no valid full account number on file — cannot transfer. Update their bank details first."
                         : "Paystack not configured on this server.",
+                }, { status: 400 });
+            }
+
+            // Confirm real money actually funded this payout before sending platform funds
+            // out for it. Escrow can be "released" for orders that were never actually paid
+            // through Paystack (COD, WhatsApp, demo/seed data) — approving those would
+            // transfer real money out of the platform's balance for revenue it never collected.
+            let paymentReference = currentPayout.paymentReference;
+            if (!paymentReference && currentPayout.orderIds.length > 0) {
+                const linkedOrder = await db.order.findFirst({
+                    where: { id: { in: currentPayout.orderIds }, paymentReference: { not: null } },
+                    select: { paymentReference: true },
+                });
+                paymentReference = linkedOrder?.paymentReference || null;
+            }
+
+            if (!paymentReference) {
+                await db.payout.update({ where: { id }, data: { status: "pending" } });
+                return NextResponse.json({
+                    success: false,
+                    error: "No Paystack payment reference found for this payout's order(s) — cannot auto-verify it was actually paid through Paystack (may be COD/WhatsApp/manual/demo). Confirm manually before overriding.",
+                }, { status: 400 });
+            }
+
+            const verification = await verifyPaystackReference(paymentReference);
+            if (!verification.verified) {
+                await db.payout.update({ where: { id }, data: { status: "pending" } });
+                return NextResponse.json({
+                    success: false,
+                    error: `Could not verify the linked Paystack transaction (${paymentReference}): ${verification.message}. Refusing to transfer until this is confirmed.`,
                 }, { status: 400 });
             }
 

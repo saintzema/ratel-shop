@@ -97,6 +97,9 @@ async function handleChargeSuccess(data: any) {
                     data: {
                         status: "processing",
                         escrowStatus: "held",
+                        // So the payout approval flow can later verify a real Paystack
+                        // charge actually funded this order before transferring money out.
+                        paymentReference: reference,
                     }
                 }).catch(err => console.error(`❌ Failed to update order ${id}:`, err));
                 

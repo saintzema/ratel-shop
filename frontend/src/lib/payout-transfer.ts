@@ -129,6 +129,39 @@ export async function initiatePaystackTransfer(req: TransferRequest): Promise<Tr
     }
 }
 
+interface VerifyResult {
+    verified: boolean;
+    amountNaira?: number;
+    message?: string;
+}
+
+/**
+ * Confirm a Paystack charge reference is a real, successful transaction before
+ * a payout is allowed to transfer money out for it. Without this, approving a
+ * payout for an order that was never actually paid through Paystack (COD,
+ * WhatsApp, demo data, a different processor) would send real platform funds
+ * to a seller for revenue the platform never actually collected.
+ */
+export async function verifyPaystackReference(reference: string): Promise<VerifyResult> {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) return { verified: false, message: "Paystack secret key not configured" };
+
+    try {
+        const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+            headers: { Authorization: `Bearer ${secret}` },
+        });
+        const data = await res.json();
+
+        if (!data.status || data.data?.status !== "success") {
+            return { verified: false, message: data.data?.gateway_response || data.message || "Transaction not found or not successful" };
+        }
+
+        return { verified: true, amountNaira: (data.data.amount || 0) / 100 };
+    } catch (err: any) {
+        return { verified: false, message: err.message };
+    }
+}
+
 /**
  * Create a notification for the seller about a payout event.
  * Uses the Prisma Notification model and broadcasts via SSE.

@@ -219,6 +219,7 @@ model Order {
   escrowStatus      EscrowStatus   @default(held)
   shippingAddress   String
   paymentMethod     String         @default("paystack")
+  paymentReference  String?        // Paystack charge reference — links to the actual collected transaction (null for COD/WhatsApp/unpaid orders)
   isDirectPayment   Boolean        @default(false) @map("is_direct_payment")
   trackingStatus    TrackingStatus @default(pending)
   trackingId        String?        @unique
