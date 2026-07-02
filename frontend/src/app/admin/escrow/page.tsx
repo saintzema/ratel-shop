@@ -559,9 +559,28 @@ export default function EscrowManagement() {
                                                             </Button>
                                                         )}
                                                         {order.escrow_status === "released" && (
-                                                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                                                                <CheckCircle2 className="h-3 w-3" /> Funds Released
-                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                                                    <CheckCircle2 className="h-3 w-3" /> Funds Released
+                                                                </span>
+                                                                <Button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        // Safe to re-run: releaseEscrow() only creates a payout if one
+                                                                        // doesn't already exist for this order (alreadyInPayout check).
+                                                                        // Backfills payout rows for orders released before the payout
+                                                                        // auto-creation bug was fixed.
+                                                                        DataSyncService.releaseEscrow(order.id);
+                                                                        alert(`Ensured a payout request exists for order ${order.id}. Check /admin/payouts.`);
+                                                                    }}
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 px-2 rounded-lg font-bold text-[9px] uppercase tracking-widest text-gray-500 hover:text-emerald-700"
+                                                                    title="If this order has no matching payout in /admin/payouts, click to (re)create it"
+                                                                >
+                                                                    Ensure Payout
+                                                                </Button>
+                                                            </div>
                                                         )}
                                                         {order.escrow_status === "disputed" && (
                                                             <div className="flex items-center gap-2">

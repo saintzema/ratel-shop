@@ -5317,13 +5317,16 @@ class DataSyncServiceService {
 
     requestPayout(sellerId: string, orderIds: string[], amount: number, method: string, bank: string, account_last4: string) {
         const payouts = this.getPayouts();
+        // Local seller cache never carries bankName/accountNumber (privacy — /api/sellers
+        // omits them for every role), so `seller` here is display-only. Don't bail if it's
+        // missing — the server (/api/payouts POST) looks up the seller's real bank details
+        // from the DB directly and is the authoritative source.
         const seller = this.getSellers().find(s => s.id === sellerId);
-        if (!seller) return;
 
         const newPayout = {
             id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             seller_id: sellerId,
-            seller_name: seller.business_name,
+            seller_name: seller?.business_name || sellerId,
             amount,
             status: "processing",
             order_ids: orderIds,
@@ -5342,32 +5345,36 @@ class DataSyncServiceService {
         );
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
-        // Background Sync to Postgres
-        resilientFetch("/api/payouts", { 
-            method: "POST", 
+        // Background Sync to Postgres — the server resolves the seller's real bank_name/
+        // account_number/account_name from the DB itself, so what's sent here is only a
+        // display fallback, never trusted for the actual transfer.
+        resilientFetch("/api/payouts", {
+            method: "POST",
             body: {
                 seller_id: sellerId,
                 amount,
                 bank_name: bank,
-                account_number: account_last4, // Fallback to last4 if full number isn't passed here
-                account_name: seller.business_name,
+                account_number: account_last4,
+                account_name: seller?.business_name || sellerId,
                 order_ids: orderIds
-            }, 
-            type: "general" 
+            },
+            type: "general"
         });
+
+        const sellerLabel = seller?.business_name || sellerId;
 
         // Add a notification to the admin dashboard
         this.addNotification({
             userId: "admin",
             type: "system",
-            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')}`,
+            message: `New Payout Request: ${sellerLabel} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')}`,
             link: "/admin/payouts"
         });
 
         // Simulate sending an email to the admin
         fetch('/api/email', {
             method: 'POST',
-            body: JSON.stringify({ to: ADMIN_EMAILS, type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
+            body: JSON.stringify({ to: ADMIN_EMAILS, type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: sellerLabel, amount, orderIds } })
         }).catch(err => console.warn("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
@@ -5604,12 +5611,19 @@ class DataSyncServiceService {
         this.recalculateSellerBalances(order.seller_id);
 
         // --- Auto-Generate Payout Request for Admin Visibility ---
+        // NOTE: /api/sellers never returns bankName/accountNumber (privacy — those
+        // fields aren't in its select clause for ANY role), so this client-side seller
+        // object will NEVER have account_number/bank_name populated. Gating payout
+        // creation on those fields being truthy here silently skipped it for every
+        // release on the platform. The server (requestPayout's POST -> /api/payouts)
+        // is the authoritative source for the seller's real bank details, so always
+        // attempt creation and let the server resolve/validate them.
         const seller = this.getSellers().find(s => s.id === order.seller_id);
-        if (seller && (seller.account_number || seller.bank_name)) {
+        {
             // Check if a payout already exists for this order to avoid duplicates
             const existingPayouts = this.getPayouts();
             const alreadyInPayout = existingPayouts.some(p => p.order_ids && p.order_ids.includes(orderId));
-            
+
             if (!alreadyInPayout) {
                 console.log(`🎁 DataSyncService: Auto-creating payout request for released order ${orderId}`);
                 this.requestPayout(
@@ -5617,8 +5631,8 @@ class DataSyncServiceService {
                     [orderId],
                     order.amount,
                     "Bank Transfer",
-                    seller.bank_name || "Saved Bank",
-                    seller.account_number?.slice(-4) || "0000"
+                    seller?.bank_name || "Saved Bank",
+                    seller?.account_number?.slice(-4) || "0000"
                 );
             }
         }

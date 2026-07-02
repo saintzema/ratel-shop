@@ -72,7 +72,11 @@ export async function POST(request: Request) {
             order_ids,
         } = body;
 
-        if (!seller_id || !amount || !bank_name || !account_number) {
+        // bank_name/account_number are NOT required from the client — the client's local
+        // seller cache never carries them (privacy — /api/sellers omits those fields for
+        // every role), so requiring them here rejected every auto-generated payout before
+        // it could ever reach the DB lookup below.
+        if (!seller_id || !amount) {
             return NextResponse.json(
                 { success: false, error: "Missing required fields" },
                 { status: 400 }
@@ -83,16 +87,9 @@ export async function POST(request: Request) {
         const seller = await db.seller.findFirst({
             where: { id: seller_id, userId: user.userId }
         });
-        
+
         if (!seller && user.role !== "admin") {
             return NextResponse.json({ success: false, error: "Forbidden: Not your store" }, { status: 403 });
-        }
-
-        if (!seller_id || !amount || !bank_name || !account_number) {
-            return NextResponse.json(
-                { success: false, error: "Missing required fields" },
-                { status: 400 }
-            );
         }
 
         // Source the real bank details from the seller's stored profile — the client may only
@@ -103,12 +100,22 @@ export async function POST(request: Request) {
             select: { bankName: true, accountNumber: true, accountName: true, businessName: true },
         });
 
+        const resolvedAccountNumber = sellerRecord?.accountNumber || account_number;
+        const resolvedBankName = sellerRecord?.bankName || bank_name;
+
+        if (!resolvedAccountNumber || !resolvedBankName) {
+            return NextResponse.json(
+                { success: false, error: "Seller has no bank details on file — add them in Seller Settings before requesting a payout." },
+                { status: 400 }
+            );
+        }
+
         const payout = await db.payout.create({
             data: {
                 sellerId: seller_id,
                 amount,
-                bankName: sellerRecord?.bankName || bank_name,
-                accountNumber: sellerRecord?.accountNumber || account_number,
+                bankName: resolvedBankName,
+                accountNumber: resolvedAccountNumber,
                 accountName: sellerRecord?.accountName || sellerRecord?.businessName || account_name || "N/A",
                 orderIds: order_ids || [],
                 status: "processing",
