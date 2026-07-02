@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Home, AlertCircle } from "lucide-react";
-import Link from "next/link";
 
 /**
  * Root Error Boundary - Apple-level Resilience
@@ -39,21 +38,30 @@ export default function Error({
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Button 
-                        onClick={() => reset()}
+                    <Button
+                        onClick={() => {
+                            // reset() alone can leave whatever broke the render still broken
+                            // (same bad state, same crash) — and if enough of the app is
+                            // wedged that Next's own router can't recover, a plain client
+                            // navigation won't either. Try the React reset first, then fall
+                            // back to a hard reload of the same URL, which always works
+                            // since it's a full browser navigation, not dependent on any
+                            // in-page JS state.
+                            reset();
+                            setTimeout(() => window.location.reload(), 150);
+                        }}
                         className="bg-black text-white hover:bg-gray-900 rounded-xl px-6 py-6 h-auto font-bold flex items-center gap-2"
                     >
                         <RefreshCw className="h-4 w-4" /> Try Again
                     </Button>
-                    
-                    <Link href="/">
-                        <Button 
-                            variant="outline"
-                            className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-6 h-auto font-bold flex items-center gap-2 w-full"
-                        >
-                            <Home className="h-4 w-4" /> Go Home
-                        </Button>
-                    </Link>
+
+                    <Button
+                        variant="outline"
+                        onClick={() => { window.location.href = "/"; }}
+                        className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-6 h-auto font-bold flex items-center gap-2 w-full sm:w-auto"
+                    >
+                        <Home className="h-4 w-4" /> Go Home
+                    </Button>
                 </div>
             </div>
             

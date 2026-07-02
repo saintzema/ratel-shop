@@ -109,11 +109,7 @@ export default function OrderDetailsPage() {
     };
 
     const handleDownloadInvoice = () => {
-        const invoiceEl = document.getElementById("invoice-print-area");
-        if (!invoiceEl) { window.print(); return; }
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) return;
-        printWindow.document.write(`
+        const html = `
             <html>
             <head>
                 <title>Invoice - ${order.id}</title>
@@ -129,6 +125,8 @@ export default function OrderDetailsPage() {
                     .product img { width: 60px; height: 60px; object-fit: contain; border: 1px solid #eee; border-radius: 8px; padding: 4px; }
                     .badge { display: inline-block; background: #f0fdf4; color: #16a34a; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
                     .footer { text-align: center; margin-top: 40px; color: #aaa; font-size: 11px; border-top: 1px solid #eee; padding-top: 16px; }
+                    .print-btn { display: inline-block; margin-top: 24px; padding: 12px 24px; background: #16a34a; color: #fff; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
+                    @media print { .print-btn { display: none; } }
                 </style>
             </head>
             <body>
@@ -158,16 +156,34 @@ export default function OrderDetailsPage() {
                     <div class="section-title">Escrow Status</div>
                     <span class="badge">${order.escrow_status === "released" ? "Released" : order.escrow_status === "held" ? "In Holding" : order.escrow_status}</span>
                 </div>
+                <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
                 <div class="footer">
                     <p>FairPrice · Nigeria's Trusted Marketplace · fairprice.ng</p>
                     <p>This is an auto-generated invoice.</p>
                 </div>
             </body>
             </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+        `;
+
+        // Previously: window.open() + document.write() + auto print()+close() after a
+        // fixed 500ms timeout. On mobile browsers that popup frequently never fully
+        // rendered before being force-closed, which looked exactly like "briefly shows
+        // then closes, back to the order page." A Blob URL opened in a real new tab is
+        // reliable across desktop and mobile, and nothing auto-closes it — the user
+        // decides when they're done (print button, or their own back/close).
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank");
+        if (!win) {
+            // Popup blocked — fall back to a direct download of the HTML invoice.
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `invoice-${order.id}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
     };
 
     const handleBuyerResolve = () => {
@@ -180,7 +196,18 @@ export default function OrderDetailsPage() {
     };
 
     const handleSubmitReview = () => {
-        if (reviewRating === 0) return;
+        if (reviewRating === 0 || !order.product) return;
+        // Previously: purely cosmetic — flipped local UI state with no actual
+        // persistence anywhere, so the review never existed outside this render.
+        DataSyncService.addReview({
+            product_id: order.product.id,
+            user_id: user?.id || order.customer_id || "guest",
+            user_name: user?.name || order.customer_name || "Guest User",
+            rating: reviewRating,
+            title: `${reviewRating}-Star Rating`,
+            body: reviewText,
+            verified_purchase: true,
+        });
         setReviewSubmitted(true);
         setStatusMsg("⭐ Thank you for your review!");
         setTimeout(() => setStatusMsg(null), 3000);
@@ -208,7 +235,7 @@ export default function OrderDetailsPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             <Navbar />
 
-            <main id="invoice-print-area" className="flex-1 container mx-auto px-4 py-8 pt-24 max-w-4xl">
+            <main id="invoice-print-area" className="flex-1 container mx-auto px-4 py-8 pt-24 pb-28 md:pb-8 max-w-4xl">
                 <Link href="/account/orders" className="inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-black mb-6">
                     <ChevronLeft className="h-4 w-4" /> Back to Orders
                 </Link>
@@ -292,11 +319,14 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <h2 className="font-bold text-lg mb-4 text-gray-900">Items in this order</h2>
                             <div className="flex gap-4">
-                                <Link href={getProductUrl(order.product)} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                {/* getProductUrl(order.product) silently resolves to "/" (homepage) when the
+                                    nested product relation didn't hydrate — fall back to product_id so the
+                                    link still works even without the full product object. */}
+                                <Link href={getProductUrl(order.product || (order as any).product_id)} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
                                     <img src={order.product?.image_url || "/assets/images/placeholder.png"} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                 </Link>
                                 <div>
-                                    <Link href={getProductUrl(order.product)} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
+                                    <Link href={getProductUrl(order.product || (order as any).product_id)} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>
                                     <p className="text-sm text-gray-500 mt-1">Quantity: {(order as any).quantity || 1}</p>

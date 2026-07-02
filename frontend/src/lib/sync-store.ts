@@ -6265,6 +6265,24 @@ class DataSyncServiceService {
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+
+        // Was previously local-only — the review never reached the DB, so anywhere that
+        // fetches reviews from /api/reviews (the actual source of truth for the PDP's
+        // review list) never saw it, even though it "succeeded" from the shopper's POV.
+        fetch("/api/reviews", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                user_id: review.user_id,
+                user_name: review.user_name,
+                product_id: review.product_id,
+                rating: review.rating,
+                title: review.title,
+                body: review.body,
+                verified_purchase: review.verified_purchase,
+            }),
+        }).catch(() => { /* stays visible locally even if the server write fails */ });
+
         return newReview;
     }
 
