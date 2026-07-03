@@ -116,7 +116,11 @@ model Seller {
   updatedAt      DateTime             @updatedAt
   whatsappEnabled Boolean             @default(false)
   whatsappNumber String?
-  autoPayoutEnabled Boolean            @default(false)
+  // Default true — sellers who go to the trouble of generating a payment QR
+  // clearly want to get paid without extra friction. The HITL threshold
+  // (getPayoutHitlThreshold) is the actual safety gate for high-value
+  // payouts, not this flag; a seller/admin can still explicitly disable it.
+  autoPayoutEnabled Boolean            @default(true)
   whatsappDirectDM  Boolean            @default(false)
   instagramAccessToken  String?
   instagramUserId       String?
