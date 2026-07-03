@@ -202,6 +202,10 @@ export async function POST(req: Request) {
             ownerEmail: body.owner_email || user.email,
             subscriptionPlan: body.subscription_plan || body.subscriptionPlan || "Starter",
             planExpiryDate: body.plan_expiry_date || body.planExpiryDate ? new Date(body.plan_expiry_date || body.planExpiryDate) : null,
+            idDocumentUrl: body.id_document_url,
+            cacDocumentUrl: body.cac_document_url,
+            cacRcNumber: body.cac_rc_number,
+            businessRegistered: body.business_registered ?? false,
         };
 
         // Enforce Subscription Limits for NEW sellers

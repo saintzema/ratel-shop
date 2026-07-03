@@ -82,6 +82,10 @@ export async function PATCH(
         if (body.whatsappNumber !== undefined)                 sellerData.whatsappNumber = body.whatsappNumber;
         if (body.whatsapp_enabled !== undefined)               sellerData.whatsappEnabled = body.whatsapp_enabled;
         if (body.whatsappEnabled !== undefined)                sellerData.whatsappEnabled = body.whatsappEnabled;
+        if (body.id_document_url !== undefined)                sellerData.idDocumentUrl = body.id_document_url;
+        if (body.cac_document_url !== undefined)               sellerData.cacDocumentUrl = body.cac_document_url;
+        if (body.cac_rc_number !== undefined)                  sellerData.cacRcNumber = body.cac_rc_number;
+        if (body.business_registered !== undefined)            sellerData.businessRegistered = body.business_registered;
 
         // User-linked fields (name, email)
         const userUpdate: Record<string, any> = {};

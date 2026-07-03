@@ -122,6 +122,10 @@ model Seller {
   instagramUserId       String?
   instagramUsername     String?
   instagramTokenExpiry  DateTime?
+  idDocumentUrl     String?           // NIN/Passport/Driver's License scan — onboarding never actually uploaded this before
+  cacDocumentUrl    String?           // CAC certificate for registered businesses — same gap
+  cacRcNumber       String?
+  businessRegistered Boolean          @default(false)
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")

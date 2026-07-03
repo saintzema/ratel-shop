@@ -55,28 +55,32 @@ export async function POST(req: Request): Promise<Response> {
     try {
         const formData = await req.formData();
         const file = formData.get("file") as File;
+        // Optional caller-specified folder (e.g. "kyc", "cac") — defaults to the
+        // original image/video behavior when omitted so existing callers are unaffected.
+        const requestedFolder = (formData.get("folder") as string | null)?.replace(/[^a-z0-9-]/gi, "");
 
         if (!file) {
             return NextResponse.json({ error: "No file provided" }, { status: 400 });
         }
 
         const isVideo = file.type.startsWith("video/");
-        const maxBytes = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
+        const isPdf = file.type === "application/pdf";
+        const maxBytes = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
 
         if (file.size > maxBytes) {
-            const label = isVideo ? "100MB" : "5MB";
+            const label = isVideo ? "100MB" : "10MB";
             return NextResponse.json({ error: `File too large (max ${label})` }, { status: 400 });
         }
 
         if (process.env.BLOB_READ_WRITE_TOKEN) {
-            const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
-            const folder = isVideo ? "product-videos" : "products";
+            const ext = file.name.split(".").pop() || (isVideo ? "mp4" : isPdf ? "pdf" : "jpg");
+            const folder = requestedFolder || (isVideo ? "product-videos" : "products");
             const filename = `${folder}/${user.userId || "unknown"}/${Date.now()}.${ext}`;
             const blob = await put(filename, file, { access: "public" });
             return NextResponse.json({ success: true, url: blob.url, name: file.name });
         }
 
-        // Fallback: base64 (only practical for small images — videos should always use Blob)
+        // Fallback: base64 (only practical for small files — videos should always use Blob)
         if (isVideo) {
             return NextResponse.json({ error: "Video upload requires BLOB_READ_WRITE_TOKEN" }, { status: 500 });
         }

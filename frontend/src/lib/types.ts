@@ -67,6 +67,7 @@ export interface Seller {
     business_registered?: boolean;
     cac_document_url?: string;
     cac_rc_number?: string;
+    id_document_url?: string;
     weekly_orders?: string;
     currencies?: string[];
     staff_count?: string;

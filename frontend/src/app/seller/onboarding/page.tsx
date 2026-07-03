@@ -19,6 +19,39 @@ export default function KYCOnboarding() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = useState<string | null>(null);
+    // Real uploaded URLs — previously fileName/cacFileName only ever held the local
+    // filename string, and submission built a fake "/mock/kyc/..." path from it that
+    // pointed to nothing. Nothing was ever actually uploaded to Blob storage, which is
+    // why admin verification always showed "No KYC Submitted" regardless of what a
+    // seller picked during onboarding.
+    const [idDocumentUrl, setIdDocumentUrl] = useState<string | null>(null);
+    const [cacDocumentUrl, setCacDocumentUrl] = useState<string | null>(null);
+    const [uploadingId, setUploadingId] = useState(false);
+    const [uploadingCac, setUploadingCac] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
+    const uploadKycFile = async (file: File, folder: "kyc" | "cac"): Promise<string | null> => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("folder", folder);
+        try {
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: fd,
+            });
+            const data = await res.json();
+            if (!res.ok || !data.url) {
+                setUploadError(data.error || "Upload failed. Please try again.");
+                return null;
+            }
+            return data.url;
+        } catch {
+            setUploadError("Upload failed — check your connection and try again.");
+            return null;
+        }
+    };
     const [businessName, setBusinessName] = useState("");
     const [storeUrl, setStoreUrl] = useState("");
     // Tracks whether the seller manually edited the Store URL. Until they do, we
@@ -143,10 +176,16 @@ export default function KYCOnboarding() {
     };
     const prevStep = () => { setValidationErrors([]); setStep(step - 1); };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFileName(e.target.files[0].name);
-        }
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setFileName(file.name);
+        setUploadError(null);
+        setUploadingId(true);
+        const url = await uploadKycFile(file, "kyc");
+        setUploadingId(false);
+        if (url) setIdDocumentUrl(url);
+        else setFileName(null); // upload failed — don't let submission proceed with a fake reference
     };
 
     const handleSubmit = async () => {
@@ -171,7 +210,8 @@ export default function KYCOnboarding() {
             phone_numbers: phoneNumbers.split(",").map(p => p.trim()).filter(Boolean),
             business_registered: isRegistered,
             cac_rc_number: isRegistered ? cacNumber : undefined,
-            cac_document_url: isRegistered && cacFileName ? `/mock/cac/${cacFileName}` : undefined,
+            cac_document_url: isRegistered ? (cacDocumentUrl || undefined) : undefined,
+            id_document_url: idDocumentUrl || undefined,
             weekly_orders: weeklyOrders,
             currencies: currencies,
             staff_count: staffCount,
@@ -203,16 +243,32 @@ export default function KYCOnboarding() {
             DataSyncService.loginSeller(sellerId);
         }
 
-        // Create KYC submission so admin sees it in dashboard
-        DataSyncService.addKYCSubmission({
-            id: `kyc_${sellerId}`,
-            seller_id: sellerId,
-            seller_name: businessName || "New Seller",
-            document_type: idType || "NIN",
-            document_url: fileName ? `/mock/kyc/${fileName}` : undefined,
-            submitted_at: new Date().toISOString(),
-            status: "pending",
-        });
+        // Create KYC submission so admin sees it in dashboard.
+        // Previously local-only (DataSyncService.addKYCSubmission never reaches the
+        // server) AND built a fake "/mock/kyc/..." document URL — combined, admin
+        // verification could never see a submission OR a real document, regardless
+        // of what the seller actually uploaded. Now POSTs the real Blob URL to the
+        // DB directly, same pattern as the review-submission fix.
+        const ID_TYPE_MAP: Record<string, string> = {
+            "NIN Slip": "nin",
+            "Intl. Passport": "passport",
+            "Driver License": "drivers_license",
+        };
+        if (idDocumentUrl) {
+            try {
+                await fetch("/api/kyc", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        seller_id: sellerId,
+                        seller_name: businessName || "New Seller",
+                        id_type: ID_TYPE_MAP[idType] || "nin",
+                        id_number: "N/A",
+                        document_url: idDocumentUrl,
+                    }),
+                });
+            } catch { /* non-fatal — seller can re-submit from settings if this fails */ }
+        }
 
         DataSyncService.addNotification({
             userId: sellerId,
@@ -562,7 +618,11 @@ export default function KYCOnboarding() {
                                                     <div className="space-y-2">
                                                         <label className="text-sm font-medium">Upload CAC Certificate *</label>
                                                         <div className="border border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                                            {cacFileName ? (
+                                                            {uploadingCac ? (
+                                                                <div className="flex items-center justify-center gap-2 text-gray-500">
+                                                                    <span className="text-sm font-medium">Uploading…</span>
+                                                                </div>
+                                                            ) : cacFileName ? (
                                                                 <div className="flex items-center justify-center gap-2 text-brand-green-600">
                                                                     <Check className="h-4 w-4" />
                                                                     <span className="text-sm font-medium">{cacFileName}</span>
@@ -571,10 +631,26 @@ export default function KYCOnboarding() {
                                                                 <label className="cursor-pointer">
                                                                     <span className="text-brand-green-600 text-sm font-bold hover:underline">Click to upload</span>
                                                                     <span className="text-gray-500 text-sm"> or drag and drop</span>
-                                                                    <input type="file" className="hidden" onChange={(e) => e.target.files && setCacFileName(e.target.files[0].name)} accept="image/*,.pdf" />
+                                                                    <input
+                                                                        type="file"
+                                                                        className="hidden"
+                                                                        accept="image/*,.pdf"
+                                                                        onChange={async (e) => {
+                                                                            const file = e.target.files?.[0];
+                                                                            if (!file) return;
+                                                                            setCacFileName(file.name);
+                                                                            setUploadError(null);
+                                                                            setUploadingCac(true);
+                                                                            const url = await uploadKycFile(file, "cac");
+                                                                            setUploadingCac(false);
+                                                                            if (url) setCacDocumentUrl(url);
+                                                                            else setCacFileName(null);
+                                                                        }}
+                                                                    />
                                                                 </label>
                                                             )}
                                                         </div>
+                                                        {uploadError && <p className="text-xs text-rose-600 mt-1">{uploadError}</p>}
                                                     </div>
                                                 </motion.div>
                                             )}
@@ -684,13 +760,17 @@ export default function KYCOnboarding() {
                                             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition"
                                             onClick={() => fileInputRef.current?.click()}
                                         >
-                                            {fileName ? (
+                                            {uploadingId ? (
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-500">Uploading…</span>
+                                                </div>
+                                            ) : fileName ? (
                                                 <div className="flex flex-col items-center justify-center gap-2">
                                                     <div className="h-16 w-16 bg-brand-green-50 rounded-xl flex items-center justify-center mb-1">
                                                         <Check className="h-8 w-8 text-brand-green-600" />
                                                     </div>
                                                     <span className="text-sm font-medium text-gray-900">{fileName}</span>
-                                                    <button onClick={(e) => { e.stopPropagation(); setFileName(null); }} className="text-xs text-rose-500 hover:underline">Remove</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setFileName(null); setIdDocumentUrl(null); }} className="text-xs text-rose-500 hover:underline">Remove</button>
                                                 </div>
                                             ) : (
                                                 <>
@@ -698,7 +778,7 @@ export default function KYCOnboarding() {
                                                     <p className="text-sm text-gray-600">
                                                         Click to upload your ID document
                                                     </p>
-                                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (Max 5MB)</p>
+                                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (Max 10MB)</p>
                                                 </>
                                             )}
                                             <input
@@ -709,6 +789,7 @@ export default function KYCOnboarding() {
                                                 onChange={handleFileChange}
                                             />
                                         </div>
+                                        {uploadError && <p className="text-xs text-rose-600 mt-1">{uploadError}</p>}
                                     </div>
                                 </motion.div>
                             )}
