@@ -1000,23 +1000,48 @@ function CheckoutContent() {
     // that block a normal cart checkout shouldn't block these.
     const isDirectPaymentOnly = checkoutItems.length > 0 && checkoutItems.every(item => (item.product as any).is_direct_payment);
 
+    // QR customers are impatient — skip straight to the payment step the instant
+    // the scanned item lands in the cart, instead of making them click through
+    // "Review Items" and "Shipping" steps that don't apply to an in-person payment.
+    useEffect(() => {
+        if (isDirectPaymentOnly && isCartLoaded && checkoutStep < 3) {
+            setCheckoutStep(3);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDirectPaymentOnly, isCartLoaded]);
+
     const handlePlaceOrder = () => {
         const email = (user && !isWhatsAppPlaceholder) ? user.email : address.email;
-        if (!address.firstName.trim() || !email.trim()) {
-            setAddressError((user && !isWhatsAppPlaceholder) ? "Please enter your first name." : "Please enter your real name and email address.");
-            scrollToShippingAddress();
-            return;
-        }
-        if (!address.phone.trim()) {
-            setAddressError("Please enter your phone number.");
-            scrollToShippingAddress();
-            return;
-        }
-        const cleanPhone = address.phone.replace(/\D/g, '');
-        if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-            setAddressError("Please enter a valid 10-11 digit phone number.");
-            scrollToShippingAddress();
-            return;
+
+        // QR/direct payments are instant in-person transactions — a customer standing
+        // at a till scanning a QR shouldn't have to type a name/email/phone before
+        // paying. Fill in sensible defaults instead of blocking them.
+        if (isDirectPaymentOnly) {
+            const filled = {
+                ...address,
+                firstName: address.firstName.trim() || "Guest",
+                email: email.trim() || `guest_${Date.now()}@fairprice.ng`,
+                phone: address.phone.trim() || "00000000000",
+            };
+            Object.assign(address, filled); // synchronous read for the rest of this function
+            setAddress(filled); // keep UI/state in sync for any re-render before navigation
+        } else {
+            if (!address.firstName.trim() || !email.trim()) {
+                setAddressError((user && !isWhatsAppPlaceholder) ? "Please enter your first name." : "Please enter your real name and email address.");
+                scrollToShippingAddress();
+                return;
+            }
+            if (!address.phone.trim()) {
+                setAddressError("Please enter your phone number.");
+                scrollToShippingAddress();
+                return;
+            }
+            const cleanPhone = address.phone.replace(/\D/g, '');
+            if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+                setAddressError("Please enter a valid 10-11 digit phone number.");
+                scrollToShippingAddress();
+                return;
+            }
         }
         if (!isDirectPaymentOnly && deliveryMethod === "doorstep") {
             if (!address.street.trim()) {

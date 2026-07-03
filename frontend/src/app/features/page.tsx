@@ -152,7 +152,7 @@ export default function FeaturesPage() {
                                 Join thousands of buyers and verified sellers on Nigeria&apos;s fairest marketplace.
                             </p>
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                                <a href="/shop" className="w-full sm:w-auto px-10 py-4 bg-white text-indigo-900 rounded-2xl font-black hover:scale-105 transition-transform active:scale-95">
+                                <a href="/" className="w-full sm:w-auto px-10 py-4 bg-white text-indigo-900 rounded-2xl font-black hover:scale-105 transition-transform active:scale-95">
                                     Browse Marketplace
                                 </a>
                                 <a href="/seller/onboarding" className="w-full sm:w-auto px-10 py-4 bg-indigo-500 text-white rounded-2xl font-black hover:bg-indigo-400 transition-all active:scale-95">

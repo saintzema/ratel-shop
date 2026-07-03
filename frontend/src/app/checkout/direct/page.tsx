@@ -31,12 +31,13 @@ function DirectCheckoutContent() {
     const [errorMsg, setErrorMsg] = useState("");
 
     useEffect(() => {
+        const run = async () => {
         const productId = searchParams.get("productId") || "";
         const name = searchParams.get("name") || "";
         const memo = searchParams.get("memo") || "";
         const ref = searchParams.get("ref") || "";
         const amount = Number(searchParams.get("amount")) || 0;
-        const image = searchParams.get("image") || "";
+        let image = searchParams.get("image") || "";
         const category = searchParams.get("category") || "general";
         const sellerId = searchParams.get("sellerId") || searchParams.get("seller_id") || "";
         const label = searchParams.get("label") || searchParams.get("description") || memo || ref || "";
@@ -61,15 +62,29 @@ function DirectCheckoutContent() {
 
             // Strategy 3: Handle Direct Payment (No specific product, just amount + seller)
             if (!product && (sellerId || label)) {
-                const sellers = DataSyncService.getSellers();
-                const seller = sellers.find(s => s.id === sellerId);
+                // Local cache lookup only works if THIS device has already browsed this
+                // seller before — for a customer scanning someone else's QR for the first
+                // time, this is always empty. Fall back to a live fetch so the seller's
+                // real logo shows instead of silently defaulting to a placeholder.
+                let seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                if (!seller && sellerId && !image) {
+                    try {
+                        const res = await fetch(`/api/sellers/${encodeURIComponent(sellerId)}`);
+                        if (res.ok) {
+                            const fresh = await res.json();
+                            if (fresh?.id) seller = fresh;
+                        }
+                    } catch { /* best effort — falls through to brand fallback below */ }
+                }
 
                 // Always generate a fresh ID so repeat scans (after cart removal) each
                 // create a new distinct cart item.
                 const uniqueId = `qr-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-                // Use the seller logo (passed via `image` param) or a QR icon fallback
-                const productImage = image || seller?.logo_url || "/assets/images/placeholder.png";
+                // Priority: image param (dashboard/WhatsApp QR already embeds the seller's
+                // logo when one exists) -> freshly-fetched seller logo -> FairPrice brand
+                // mark (much friendlier than a gray placeholder box for a payment "product").
+                const productImage = image || (seller as any)?.logo_url || (seller as any)?.logoUrl || "/logo.png";
 
                 const reconstructed: Product = {
                     id: uniqueId,
@@ -107,8 +122,8 @@ function DirectCheckoutContent() {
                     original_price: amount > 0 ? Math.round(amount * 1.15) : 0,
                     category: (category || "electronics") as ProductCategory,
                     description: `Product added via QR scan. Secured by FairPrice Escrow protection.`,
-                    image_url: image || "/assets/images/placeholder.png",
-                    images: [image || "/assets/images/placeholder.png"],
+                    image_url: image || "/logo.png",
+                    images: [image || "/logo.png"],
                     stock: 100,
                     seller_id: "global-partners",
                     seller_name: "Global Stores",
@@ -153,16 +168,20 @@ function DirectCheckoutContent() {
             // Hard navigation so the Next.js router cache is cleared.
             // Without this, scanning the same QR a second time serves the stale
             // cached component and the useEffect never re-fires — the item never
-            // gets re-added after being removed from cart.
+            // gets re-added after being removed from cart. addToCart already writes
+            // to localStorage synchronously, so this only needs to clear one paint —
+            // shortened from 1200ms since QR-scanning customers are impatient.
             setTimeout(() => {
                 window.location.href = "/checkout";
-            }, 1200);
+            }, 300);
 
         } catch (err) {
             console.error("[DirectCheckout] Error:", err);
             setStatus("error");
             setErrorMsg("Something went wrong. Please try scanning again.");
         }
+        };
+        run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

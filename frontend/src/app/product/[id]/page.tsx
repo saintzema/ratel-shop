@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 import { db } from '@/lib/db';
 
 export const revalidate = 3600;
@@ -19,7 +19,7 @@ export default async function ProductRedirect({ params }: Props) {
         const dbProduct = await db.product.findUnique({ where: { id: decodedId }, select: { name: true, slug: true } as any }) as any;
         if (dbProduct) {
             productName = dbProduct.name;
-            return redirect(getProductUrl(decodedId, productName, dbProduct.slug || undefined));
+            return permanentRedirect(getProductUrl(decodedId, productName, dbProduct.slug || undefined));
         } else {
             const seedMatch = SEED_PRODUCTS.find(p => p.id === decodedId);
             if (seedMatch) {
@@ -40,6 +40,9 @@ export default async function ProductRedirect({ params }: Props) {
         }
     }
 
-    // 301 Permanent Redirect to the new SEO-friendly slug URL
-    redirect(getProductUrl(decodedId, productName));
+    // 308 Permanent Redirect to the new SEO-friendly slug URL — was previously
+    // using redirect() (a 307 temporary redirect), which tells Google not to
+    // consolidate the two URLs, keeping both alive as duplicate/near-duplicate
+    // pages instead of collapsing to the canonical slugged URL.
+    permanentRedirect(getProductUrl(decodedId, productName));
 }
