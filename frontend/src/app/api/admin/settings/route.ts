@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
     aiMonitoring: true,
     kycVerification: true,
     escrowRelease: 7,
-    strictSeller: true,
+    strictSeller: false,
     categoryMargins: {},
     stateShipping: {},
     codEnabled: true,

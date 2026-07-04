@@ -190,8 +190,21 @@ export default function KYCOnboarding() {
 
     const handleSubmit = async () => {
         setIsLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Every new seller previously started "pending" and their products were
+        // force-set isActive:false server-side until an admin manually approved
+        // them — invisible to buyers with no self-serve path around it. Respect
+        // the admin's "Strict Seller Onboarding" setting instead of hardcoding
+        // manual review: off (the new default) means sellers and their products
+        // go live the moment onboarding finishes.
+        let requiresManualReview = false;
+        try {
+            const settingsRes = await fetch("/api/admin/settings");
+            if (settingsRes.ok) {
+                const settings = await settingsRes.json();
+                requiresManualReview = !!settings.strictSeller;
+            }
+        } catch { /* default to auto-active if settings are unreachable */ }
 
         const currentSeller = DataSyncService.getCurrentSeller();
         // Force the seller ID to match the user's custom store URL input for aesthetic links, falling back to user ID or random
@@ -216,10 +229,10 @@ export default function KYCOnboarding() {
             currencies: currencies,
             staff_count: staffCount,
             physical_stores: physicalStores,
-            verified: false,
+            verified: !requiresManualReview,
             rating: 0,
             trust_score: 50,
-            status: "pending",
+            status: requiresManualReview ? "pending" : "active",
             kyc_status: "pending",
             bank_name: bankName || undefined,
             account_number: accountNumber || undefined,
@@ -740,18 +753,26 @@ export default function KYCOnboarding() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">Document Type</label>
+                                        <label className="text-sm font-medium">Document Type <span className="text-gray-400 font-normal">(choose one)</span></label>
                                         <div className="grid grid-cols-3 gap-3">
                                             {["NIN Slip", "Intl. Passport", "Driver License"].map(doc => (
                                                 <div
                                                     key={doc}
                                                     onClick={() => setIdType(doc)}
-                                                    className={`border rounded-lg p-3 text-center cursor-pointer transition ${idType === doc ? "bg-brand-green-50 border-brand-green-600 text-brand-green-700 font-medium" : "hover:border-brand-green-600 hover:bg-green-50"}`}
+                                                    className={`relative border-2 rounded-lg p-3 text-center cursor-pointer transition-all ${idType === doc ? "bg-brand-green-50 border-brand-green-600 text-brand-green-700 font-bold shadow-sm" : "border-gray-200 hover:border-brand-green-400 hover:bg-green-50"}`}
                                                 >
+                                                    {idType === doc && (
+                                                        <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-brand-green-600 text-white flex items-center justify-center">
+                                                            <Check className="h-3 w-3" />
+                                                        </span>
+                                                    )}
                                                     {doc}
                                                 </div>
                                             ))}
                                         </div>
+                                        {!idType && (
+                                            <p className="text-[11px] text-amber-600">Tap ONE of the three above — you only need to upload one document below, not all three.</p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-2">

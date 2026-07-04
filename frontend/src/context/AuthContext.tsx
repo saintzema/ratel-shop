@@ -337,7 +337,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // HOT migration: reconcile guest data with new identity immediately
         await migrateGuestData(userData);
-        
+
+        // Safety net — some login() callers already fetch and store a token
+        // themselves before calling this, but not all of them did (the same gap
+        // that left registered sellers with no working Bearer auth). Issuing an
+        // extra token here when one already exists is harmless; the alternative
+        // is a user silently stuck without one.
+        if (userData.email && !localStorage.getItem("fp_token")) {
+            try {
+                const tokenRes = await fetch("/api/auth/issue-token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: userData.email }),
+                });
+                if (tokenRes.ok) {
+                    const { token } = await tokenRes.json();
+                    if (token) localStorage.setItem("fp_token", token);
+                }
+            } catch { /* non-critical */ }
+        }
+
         window.dispatchEvent(new Event("fp-auth-update"));
     };
 
@@ -348,6 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentEmail = user?.email;
 
         localStorage.removeItem("fp_user");
+        localStorage.removeItem("fp_token");
         localStorage.removeItem("fp-cart-guest");
         if (currentEmail) {
             localStorage.removeItem(`fp-cart-${currentEmail}`);
@@ -406,12 +426,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // HOT migration for new account creation
         await migrateGuestData(userData);
 
-        // Persist to Postgres
-        fetch("/api/users", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(userData),
-        }).catch(err => console.error("Failed to persist user:", err));
+        // Persist to Postgres — this was previously fire-and-forget with no token
+        // ever issued afterward, which is exactly why every path through register()
+        // (seller signup included) left the user with a profile in localStorage but
+        // no fp_token, so any Bearer-authenticated call (product photo upload, KYC
+        // upload, etc.) failed with 401 Unauthorized from the moment they registered
+        // until they happened to log in again through a path that issues a token.
+        try {
+            const res = await fetch("/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(userData),
+            });
+            if (res.ok && userData.email) {
+                const tokenRes = await fetch("/api/auth/issue-token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: userData.email }),
+                });
+                if (tokenRes.ok) {
+                    const { token } = await tokenRes.json();
+                    if (token) localStorage.setItem("fp_token", token);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to persist user or issue token:", err);
+        }
 
         window.dispatchEvent(new Event("fp-auth-update"));
     };

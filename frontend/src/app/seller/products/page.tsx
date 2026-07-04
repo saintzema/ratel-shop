@@ -354,21 +354,23 @@ function SellerProductsContent() {
             
             {/* Apple-Style Responsive Header */}
             <div className="flex flex-col gap-6 mb-10">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="hidden sm:flex items-center gap-2 mb-1.5">
                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
                                 Inventory Systems
                             </Badge>
                             <span className="text-[11px] font-bold text-gray-400">/ Catalog Control</span>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">Products</h1>
-                            <span className="bg-gray-100 text-gray-500 text-sm font-black px-3 py-1 rounded-full">{filtered.length} items</span>
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">Products</h1>
+                            <span className="bg-gray-100 text-gray-500 text-xs sm:text-sm font-black px-2.5 sm:px-3 py-1 rounded-full">{filtered.length} items</span>
                         </div>
                     </div>
-                    <Link href="/seller/products/new">
-                        <Button className="bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-2xl px-6 h-12 shadow-xl transition-all hover:scale-105 active:scale-95 text-[10px] hidden sm:flex">
+                    {/* Previously "hidden sm:flex" — invisible on every phone in portrait,
+                        which is why rotating to landscape was the only way to see it. */}
+                    <Link href="/seller/products/new" className="w-full sm:w-auto">
+                        <Button className="w-full sm:w-auto bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-2xl px-6 h-12 shadow-xl transition-all active:scale-95 text-[10px] flex items-center justify-center">
                             <Plus className="h-4 w-4 mr-2" /> Add Item
                         </Button>
                     </Link>
