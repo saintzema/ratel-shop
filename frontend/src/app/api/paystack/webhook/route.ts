@@ -137,12 +137,33 @@ async function handleChargeSuccess(data: any) {
                 return;
             }
 
-            // 2. Calculate commission and net amount
-            const commissionRate = seller.commissionRate ?? 2.5;
-            const commissionAmount = Math.round(amountNaira * (commissionRate / 100) * 100) / 100;
-            const netAmount = Math.round((amountNaira - commissionAmount) * 100) / 100;
+            // 2. Determine the seller's payout amount.
+            // New checkout-routed QR payments send seller_amount: the EXACT figure the
+            // seller entered when generating the QR. The customer paid seller_amount +
+            // platform fee, so the seller gets their number to the naira and the fee
+            // difference stays in the platform balance — no percentage games.
+            // Legacy QRs without seller_amount keep the old commission-on-gross model.
+            const sellerAmount = Number(metadata?.seller_amount) || 0;
+            let netAmount: number;
+            if (sellerAmount > 0 && sellerAmount <= amountNaira) {
+                netAmount = sellerAmount;
+                console.log(`📊 QR Settlement (exact): Customer paid ₦${amountNaira} | Seller receives ₦${netAmount} | Platform fee ₦${(amountNaira - netAmount).toFixed(2)}`);
+            } else {
+                const commissionRate = seller.commissionRate ?? 2.5;
+                const commissionAmount = Math.round(amountNaira * (commissionRate / 100) * 100) / 100;
+                netAmount = Math.round((amountNaira - commissionAmount) * 100) / 100;
+                console.log(`📊 QR Settlement (legacy): Gross ₦${amountNaira} | Commission ${commissionRate}% (₦${commissionAmount}) | Net ₦${netAmount}`);
+            }
 
-            console.log(`📊 QR Settlement: Gross ₦${amountNaira} | Commission ${commissionRate}% (₦${commissionAmount}) | Net ₦${netAmount}`);
+            // Checkout-routed QR payments also carry order ids — stamp them so the
+            // customer's order history shows the payment as real and verifiable.
+            const qrOrderIds: string[] = (metadata?.order_ids ? String(metadata.order_ids).split(",") : []).map((s: string) => s.trim()).filter(Boolean);
+            for (const oid of qrOrderIds) {
+                await db.order.update({
+                    where: { id: oid },
+                    data: { status: "processing", escrowStatus: "released", payoutStatus: "requested", paymentReference: reference },
+                }).catch(() => { /* order row may not exist yet — non-fatal */ });
+            }
 
             // 3. Create Payout record (always — for audit trail)
             const payout = await db.payout.create({
@@ -152,7 +173,7 @@ async function handleChargeSuccess(data: any) {
                     bankName: seller.bankName || "Unknown",
                     accountNumber: seller.accountNumber || "",
                     accountName: seller.accountName || seller.businessName,
-                    orderIds: [], // QR payments don't have order IDs
+                    orderIds: qrOrderIds,
                     paymentReference: reference,
                     isAutoPayout: seller.autoPayoutEnabled,
                     status: seller.autoPayoutEnabled ? "processing" : "pending",

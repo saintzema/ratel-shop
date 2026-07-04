@@ -566,6 +566,10 @@ function CheckoutContent() {
     const [isSettingPassword, setIsSettingPassword] = useState(false);
     const [passwordError, setPasswordError] = useState("");
     const [guestEmailHasAccount, setGuestEmailHasAccount] = useState(false);
+    // Real contact details the guest can attach to replace a synthetic
+    // guest_<ts>@fairprice.ng identity (QR/direct payments auto-generate one).
+    const [guestRealEmail, setGuestRealEmail] = useState("");
+    const [guestWhatsapp, setGuestWhatsapp] = useState("");
 
     const [baseDoorFee, setBaseDoorFee] = useState(4000);
     const [basePickupFee, setBasePickupFee] = useState(2500);
@@ -1106,13 +1110,32 @@ function CheckoutContent() {
                 const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
                 // Collect unique seller IDs so the webhook can route escrow settlements
                 const uniqueSellerIds = [...new Set(checkoutItems.map(item => item.product.seller_id))];
-                setPaystackMetadata({
-                    type: "order",
-                    order_ids: orderIds.join(','),
-                    seller_ids: uniqueSellerIds.join(','),
-                    customer_id: user?.id || user?.email || address.email,
-                    total_amount: total
-                });
+                if (isDirectPaymentOnly) {
+                    // QR/direct payments are in-person transactions — there's no delivery
+                    // to wait on, so they must NOT enter the order-escrow flow (where funds
+                    // sat "held" forever with nobody to confirm delivery). Route them
+                    // through the webhook's qr_payment branch, which settles instantly:
+                    // the seller receives EXACTLY the amount they set on their QR
+                    // (seller_amount = subtotal), and the platform fee (the difference
+                    // between what the customer paid and seller_amount) stays with us.
+                    setPaystackMetadata({
+                        type: "qr_payment",
+                        seller_id: uniqueSellerIds[0],
+                        seller_amount: subtotal,
+                        label: checkoutItems[0]?.product?.name || "QR Payment",
+                        order_ids: orderIds.join(','),
+                        customer_id: user?.id || user?.email || address.email,
+                        total_amount: total
+                    });
+                } else {
+                    setPaystackMetadata({
+                        type: "order",
+                        order_ids: orderIds.join(','),
+                        seller_ids: uniqueSellerIds.join(','),
+                        customer_id: user?.id || user?.email || address.email,
+                        total_amount: total
+                    });
+                }
                 setShowPaystack(true);
             }
         };
@@ -2951,11 +2974,16 @@ function CheckoutContent() {
                                     : "Your order was placed successfully! Create a password to track this order and shop faster next time."}
                             </p>
 
-                            {/* Show the email that was used */}
-                            <div className="flex items-center justify-center gap-2 mb-6 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
-                                <span className="text-xs text-gray-500 font-medium">Order placed as</span>
-                                <span className="text-sm font-bold text-gray-900 truncate max-w-[200px]">{address?.email}</span>
-                            </div>
+                            {/* Show the email that was used — synthetic guest emails get a
+                                friendlier framing since they're not a real address */}
+                            {(address?.email?.startsWith("guest_") && address?.email?.endsWith("@fairprice.ng")) ? (
+                                <p className="text-xs text-gray-400 mb-6">Your order is saved under a temporary guest ID — add your real email or WhatsApp below to keep it.</p>
+                            ) : (
+                                <div className="flex items-center justify-center gap-2 mb-6 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
+                                    <span className="text-xs text-gray-500 font-medium">Order placed as</span>
+                                    <span className="text-sm font-bold text-gray-900 truncate max-w-[200px]">{address?.email}</span>
+                                </div>
+                            )}
 
                             {guestEmailHasAccount ? (
                                 /* Existing account: direct to login */
@@ -2984,19 +3012,38 @@ function CheckoutContent() {
                                             setPasswordError("Password must be at least 6 characters.");
                                             return;
                                         }
+                                        const isSyntheticGuest = address.email?.startsWith("guest_") && address.email?.endsWith("@fairprice.ng");
+                                        if (isSyntheticGuest && !guestRealEmail.trim() && !guestWhatsapp.trim()) {
+                                            setPasswordError("Add your real email or WhatsApp number so you can log back in.");
+                                            return;
+                                        }
                                         setIsSettingPassword(true);
                                         try {
-                                            const token = typeof window !== 'undefined' ? localStorage.getItem('fp_token') : null;
-                                            const res = await fetch("/api/auth/set-password", {
+                                            // Guests have no JWT, so the old set-password call always
+                                            // 401'd ("Authentication required"). claim-guest proves
+                                            // ownership via the checkout-session guest email, swaps in
+                                            // the real contact details, sets the password, and returns
+                                            // a token in one shot.
+                                            const res = await fetch("/api/auth/claim-guest", {
                                                 method: "POST",
-                                                headers: {
-                                                    "Content-Type": "application/json",
-                                                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
-                                                },
-                                                body: JSON.stringify({ password: guestPassword })
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({
+                                                    guestEmail: address.email,
+                                                    realEmail: guestRealEmail.trim() || undefined,
+                                                    whatsapp: guestWhatsapp.trim() || undefined,
+                                                    name: address.firstName && address.firstName !== "Guest" ? `${address.firstName} ${address.lastName || ""}`.trim() : undefined,
+                                                    password: guestPassword,
+                                                })
                                             });
                                             const data = await res.json();
+                                            if (data.code === "ALREADY_SECURED" || data.code === "EMAIL_CONFLICT") {
+                                                setGuestEmailHasAccount(true);
+                                                setIsSettingPassword(false);
+                                                return;
+                                            }
                                             if (res.ok && data.success) {
+                                                if (data.token) localStorage.setItem("fp_token", data.token);
+                                                if (data.user) await login(data.user);
                                                 // Track guest account secured
                                                 if (typeof window !== "undefined" && window.pendo) {
                                                     window.pendo.track("guest_account_secured", {
@@ -3025,6 +3072,30 @@ function CheckoutContent() {
                                         <div className="mb-4 text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
                                             {passwordError}
                                         </div>
+                                    )}
+                                    {(address?.email?.startsWith("guest_") && address?.email?.endsWith("@fairprice.ng")) && (
+                                        <>
+                                            <div className="mb-3 text-left">
+                                                <Input
+                                                    type="email"
+                                                    placeholder="Your email address"
+                                                    value={guestRealEmail}
+                                                    onChange={(e) => setGuestRealEmail(e.target.value)}
+                                                    className="h-12 text-base font-medium rounded-xl border-gray-200 bg-gray-50 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500"
+                                                    disabled={isSettingPassword}
+                                                />
+                                            </div>
+                                            <div className="mb-4 text-left">
+                                                <Input
+                                                    type="tel"
+                                                    placeholder="WhatsApp number (optional)"
+                                                    value={guestWhatsapp}
+                                                    onChange={(e) => setGuestWhatsapp(e.target.value)}
+                                                    className="h-12 text-base font-medium rounded-xl border-gray-200 bg-gray-50 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500"
+                                                    disabled={isSettingPassword}
+                                                />
+                                            </div>
+                                        </>
                                     )}
                                     <div className="mb-4 relative">
                                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />

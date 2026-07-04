@@ -5,7 +5,8 @@
  * meaningful revenue on high-value (car, machinery) transactions.
  *
  * Tiers:
- *   Under ₦10,000      → ₦150 flat
+ *   Under ₦5,000       → ₦100 flat  (kept low so small informal purchases aren't dissuaded)
+ *   ₦5k – ₦10k        → ₦150 flat
  *   ₦10k – ₦50k       → 1.5%  (max ₦750)
  *   ₦50k – ₦200k      → 1%    (max ₦2,000)
  *   ₦200k – ₦1M       → 0.8%  (max ₦4,000)
@@ -23,7 +24,9 @@ export function calculateTieredEscrowFee(subtotal: number): number {
 
     let fee: number;
 
-    if (subtotal < 10_000) {
+    if (subtotal < 5_000) {
+        fee = 100;
+    } else if (subtotal < 10_000) {
         fee = 150;
     } else if (subtotal < 50_000) {
         fee = Math.min(subtotal * 0.015, 750);
@@ -43,7 +46,8 @@ export function calculateTieredEscrowFee(subtotal: number): number {
 
 export const ESCROW_FEE_MAX_CAP = 15_000;
 export const ESCROW_TIERS = [
-    { label: "Under ₦10k",    percentage: "₦150 flat" },
+    { label: "Under ₦5k",     percentage: "₦100 flat" },
+    { label: "₦5k – ₦10k",   percentage: "₦150 flat" },
     { label: "₦10k – ₦50k",  percentage: "1.5% (max ₦750)" },
     { label: "₦50k – ₦200k", percentage: "1% (max ₦2,000)" },
     { label: "₦200k – ₦1M",  percentage: "0.8% (max ₦4,000)" },
