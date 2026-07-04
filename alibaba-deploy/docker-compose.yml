@@ -1,0 +1,9 @@
+services:
+  zema360-qwen-proof:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - PORT=8080
