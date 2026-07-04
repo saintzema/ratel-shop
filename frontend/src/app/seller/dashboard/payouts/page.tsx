@@ -27,7 +27,8 @@ export default function PayoutsPage() {
     useEffect(() => {
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
-        const loadData = () => {
+
+        const loadLocal = () => {
             setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
             const s = DataSyncService.getCurrentSeller();
             setSeller(s);
@@ -37,9 +38,52 @@ export default function PayoutsPage() {
             const allPayouts = DataSyncService.getPayouts();
             setPayouts(allPayouts.filter(p => p.seller_id === sellerId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         };
-        loadData();
-        window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+
+        // AUTHORITATIVE: this page previously only ever read localStorage — a payout
+        // created server-side (e.g. by the Paystack webhook on a different device, or
+        // before this browser's cache existed) was completely invisible here even
+        // though it's real in the database. Fetch the DB truth and merge it in.
+        const loadFromDB = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const res = await fetch(`/api/payouts?sellerId=${encodeURIComponent(sellerId)}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                const dbPayouts: any[] = data?.payouts || [];
+                if (!Array.isArray(dbPayouts)) return;
+
+                const mapped = dbPayouts.map((p: any) => ({
+                    id: p.id,
+                    seller_id: p.sellerId,
+                    amount: p.amount,
+                    gross_amount: p.grossAmount,
+                    platform_fee: p.platformFee,
+                    label: p.label,
+                    status: p.status === "completed" ? "completed" : p.status === "failed" ? "failed" : "processing",
+                    method: "Bank Transfer",
+                    bank_name: p.bankName,
+                    account_last4: (p.accountNumber || "").slice(-4),
+                    payment_reference: p.paymentReference,
+                    created_at: p.createdAt,
+                }));
+                const dbIds = new Set(mapped.map((m) => m.id));
+                setPayouts((prev) => {
+                    const localOnly = prev.filter((p) => !dbIds.has(p.id));
+                    return [...mapped, ...localOnly].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                });
+            } catch { /* keep local */ }
+        };
+
+        loadLocal();
+        loadFromDB();
+        window.addEventListener("storage", loadLocal);
+        window.addEventListener("sync-store-update", loadLocal);
+        return () => {
+            window.removeEventListener("storage", loadLocal);
+            window.removeEventListener("sync-store-update", loadLocal);
+        };
     }, []);
 
     const escrowAmount = orders.filter(o => o.escrow_status === "held" || o.escrow_status === "disputed").reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -62,6 +106,47 @@ export default function PayoutsPage() {
     const maskedAccount = seller?.account_number
         ? "**** **** " + seller.account_number.slice(-4)
         : "Not set";
+
+    // Previously a fake `alert("Simulation: ...")` — no actual file. Builds a real,
+    // printable/savable receipt with the same gross/fee/net breakdown admin sees.
+    const downloadReceipt = (payout: any) => {
+        const html = `<html><head><title>Payout Receipt ${payout.id}</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;padding:40px;color:#1a1a1a;}
+h1{font-size:22px;margin-bottom:4px;}
+.sub{color:#888;font-size:12px;margin-bottom:24px;}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
+.row.total{border-top:2px solid #333;border-bottom:none;font-weight:bold;font-size:17px;padding-top:12px;}
+.section-title{font-weight:bold;font-size:12px;margin:20px 0 8px;text-transform:uppercase;letter-spacing:1px;color:#666;}
+.badge{display:inline-block;background:#f0fdf4;color:#16a34a;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:bold;}
+</style></head><body>
+<h1>Payout Receipt</h1>
+<p class="sub">${seller?.business_name || "Seller"} &middot; ${new Date(payout.created_at).toLocaleString()}</p>
+<div class="section-title">Payment breakdown</div>
+${payout.label ? `<div class="row"><span>For</span><span>${payout.label}</span></div>` : ""}
+${payout.gross_amount ? `<div class="row"><span>Customer paid</span><span>${formatPrice(payout.gross_amount)}</span></div>` : ""}
+${payout.platform_fee ? `<div class="row"><span>Platform fee</span><span>-${formatPrice(payout.platform_fee)}</span></div>` : ""}
+<div class="row total"><span>You received</span><span>${formatPrice(payout.amount)}</span></div>
+<div class="section-title">Payout details</div>
+<div class="row"><span>Status</span><span><span class="badge">${payout.status === "completed" ? "Completed" : "Processing"}</span></span></div>
+<div class="row"><span>Bank</span><span>${payout.bank_name || "-"} ••••${payout.account_last4 || ""}</span></div>
+${payout.payment_reference ? `<div class="row"><span>Reference</span><span>${payout.payment_reference}</span></div>` : ""}
+<div class="row"><span>Payout ID</span><span>${payout.id}</span></div>
+<p style="text-align:center;margin-top:40px;color:#aaa;font-size:11px;">FairPrice &middot; Nigeria's Trusted Marketplace &middot; fairprice.ng</p>
+</body></html>`;
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank");
+        if (!win) {
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `payout-receipt-${payout.id}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    };
 
     return (
         <div className="space-y-6 max-w-4xl">
@@ -226,21 +311,25 @@ export default function PayoutsPage() {
                                 </div>
                                 <div>
                                     <p className="font-bold text-sm text-gray-900">{formatPrice(payout.amount)}</p>
+                                    {payout.label && <p className="text-[11px] text-gray-500 font-medium">{payout.label}</p>}
                                     <p className="text-[11px] text-gray-400 font-medium">
                                         {new Date(payout.created_at).toLocaleDateString()} • {payout.method} ••••{payout.account_last4}
                                     </p>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 font-mono">Ref: {payout.id}</p>
+                                    {payout.gross_amount && payout.platform_fee ? (
+                                        <p className="text-[10px] text-gray-400 mt-0.5">
+                                            Customer paid {formatPrice(payout.gross_amount)} · fee {formatPrice(payout.platform_fee)}
+                                        </p>
+                                    ) : null}
+                                    <p className="text-[10px] text-gray-400 mt-0.5 font-mono">Ref: {payout.payment_reference || payout.id}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
                                 <Badge variant="outline" className={`text-[10px] font-bold ${payout.status === "completed" ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "border-amber-200 text-amber-700 bg-amber-50"}`}>
                                     {payout.status === "completed" ? "Completed" : "Processing"}
                                 </Badge>
-                                {payout.status === "completed" && (
-                                    <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => alert("Simulation: Downloading PDF Receipt for " + payout.id)}>
-                                        <Download className="h-3 w-3 mr-1.5" /> Receipt
-                                    </Button>
-                                )}
+                                <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => downloadReceipt(payout)}>
+                                    <Download className="h-3 w-3 mr-1.5" /> Receipt
+                                </Button>
                             </div>
                         </div>
                     ))}

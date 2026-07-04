@@ -165,11 +165,17 @@ async function handleChargeSuccess(data: any) {
                 }).catch(() => { /* order row may not exist yet — non-fatal */ });
             }
 
-            // 3. Create Payout record (always — for audit trail)
+            // 3. Create Payout record (always — for audit trail). Stores the full
+            // breakdown (gross paid, platform fee, label) so the seller's statement
+            // shows exactly what admin sees, not just a bare net figure.
+            const platformFee = Math.round((amountNaira - netAmount) * 100) / 100;
             const payout = await db.payout.create({
                 data: {
                     sellerId: seller.id,
                     amount: netAmount,
+                    grossAmount: amountNaira,
+                    platformFee,
+                    label,
                     bankName: seller.bankName || "Unknown",
                     accountNumber: seller.accountNumber || "",
                     accountName: seller.accountName || seller.businessName,
@@ -192,6 +198,42 @@ async function handleChargeSuccess(data: any) {
                 `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
                 { type: "order", link: "/admin/payouts" }
             );
+
+            // 4b. Tell the SELLER a payment landed — previously they only ever heard
+            // about the *payout* (money moving to their bank), never the sale itself.
+            // Give them the exact same breakdown admin sees: what the customer paid,
+            // the platform fee, and their exact take.
+            if (seller.userId) {
+                await db.notification.create({
+                    data: {
+                        userId: seller.userId,
+                        type: "order",
+                        message: `💵 Payment received for "${label}": customer paid ₦${amountNaira.toLocaleString()}, platform fee ₦${platformFee.toLocaleString()}, you receive ₦${netAmount.toLocaleString()}. Ref: ${reference}`,
+                        link: "/seller/dashboard/payouts",
+                        read: false,
+                    },
+                }).catch(() => {});
+                broadcast({ type: "notification", userId: seller.userId });
+            }
+            const sellerNotifyEmail = seller.ownerEmail;
+            if (sellerNotifyEmail) {
+                const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+                fetch(`${site}/api/email`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: sellerNotifyEmail,
+                        type: "SYSTEM_ALERT",
+                        payload: {
+                            subject: `Payment received: ₦${netAmount.toLocaleString()} for "${label}"`,
+                            title: "Payment received",
+                            message: `A customer paid ₦${amountNaira.toLocaleString()} for "${label}". After the platform fee of ₦${platformFee.toLocaleString()}, you receive ₦${netAmount.toLocaleString()}.`,
+                            data: { reference, gross: amountNaira, fee: platformFee, net: netAmount, label },
+                            dashboardUrl: `${site}/seller/dashboard/payouts`,
+                        },
+                    }),
+                }).catch(() => {});
+            }
 
             // 5. Auto-payout flow (if enabled AND bank details are verified)
             if (seller.autoPayoutEnabled && seller.bankName && seller.accountNumber) {

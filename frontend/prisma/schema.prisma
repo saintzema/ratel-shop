@@ -262,6 +262,9 @@ model Payout {
   id               String   @id @default(cuid())
   sellerId         String
   amount           Float
+  grossAmount      Float?   // What the customer actually paid, before the platform fee — lets sellers/admin see the full breakdown, not just their net take
+  platformFee      Float?   // grossAmount - amount, for the same statement/receipt breakdown
+  label            String?  // What the payment was for (QR label / order description), for statements
   status           String   @default("pending")
   bankName         String
   accountNumber    String
