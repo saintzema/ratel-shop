@@ -350,7 +350,7 @@ export default function PayoutRequestsDirectory() {
 
             {/* Payout Approval Modal */}
             <Dialog open={!!selectedPayout} onOpenChange={(open) => !open && setSelectedPayout(null)}>
-                <DialogContent className="sm:max-w-md bg-white rounded-3xl p-6">
+                <DialogContent className="sm:max-w-md bg-white rounded-3xl p-6 overflow-hidden">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-black">Approve Payout</DialogTitle>
                         <DialogDescription className="text-gray-500 text-sm font-medium mt-1">
