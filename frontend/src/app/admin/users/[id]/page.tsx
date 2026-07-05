@@ -112,6 +112,7 @@ export default function AdminUserDetailPage() {
                             state: sellerRec.state,
                             street_address: sellerRec.streetAddress,
                             phone_number: sellerRec.whatsappNumber,
+                            phone: sellerRec.whatsappNumber,
                             whatsapp_number: sellerRec.whatsappNumber,
                             weekly_orders: sellerRec.weeklyOrders,
                             staff_count: sellerRec.staffCount,

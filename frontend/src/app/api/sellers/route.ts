@@ -206,6 +206,11 @@ export async function POST(req: Request) {
             cacDocumentUrl: body.cac_document_url,
             cacRcNumber: body.cac_rc_number,
             businessRegistered: body.business_registered ?? false,
+            // Onboarding's "Business Phone Number(s)" field was never mapped here at
+            // all — typed into the form, sent in the payload, silently dropped. The
+            // schema only has a single whatsappNumber column, so the first number
+            // entered is what's kept (matches what onboarding itself treats as primary).
+            whatsappNumber: body.phone_number || body.whatsapp_number || undefined,
         };
 
         // Enforce Subscription Limits for NEW sellers
