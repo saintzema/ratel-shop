@@ -201,6 +201,12 @@ export default function PayoutRequestsDirectory() {
             </div>
 
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+                {/* overflow-hidden on the rounded outer card was clipping the table on
+                    mobile instead of letting it scroll — the Actions/Approve column just
+                    got cut off-screen with no way to reach it. This inner wrapper scrolls
+                    horizontally on narrow viewports while the outer div keeps the rounded
+                    corners. */}
+                <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-gray-50/50">
@@ -258,7 +264,7 @@ export default function PayoutRequestsDirectory() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">
-                                    {p.status === "processing" ? (
+                                    {(p.status === "processing" || p.status === "pending") ? (
                                         <div className="flex items-center justify-end gap-2 transition-opacity">
                                             <Button
                                                 size="sm"
@@ -268,19 +274,21 @@ export default function PayoutRequestsDirectory() {
                                                     setOverrideAmount(p.amount.toString());
                                                 }}
                                             >
-                                                <CheckCircle2 className="mr-1 h-3 w-3" /> Mark Paid
+                                                <CheckCircle2 className="mr-1 h-3 w-3" /> {p.status === "pending" ? "Approve" : "Mark Paid"}
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                                            <MoreVertical className="h-4 w-4 text-gray-400" />
-                                        </Button>
+                                        // completed / failed payouts have nothing left to action —
+                                        // this used to render for "pending" too, as a dead icon with
+                                        // no onClick at all, which is why nothing ever happened here.
+                                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">No actions</span>
                                     )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                </div>
 
                 {filtered.length === 0 && (
                     <div className="py-20 text-center">
