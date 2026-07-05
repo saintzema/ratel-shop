@@ -412,7 +412,17 @@ class DataSyncServiceService {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s hard timeout for 6k+ products
                 try {
-                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    // Every sync call here used to go out with no Authorization header at
+                    // all. Endpoints that verify the caller's role server-side (orders,
+                    // payouts, disputes, KYC) had no way to see this was an admin request —
+                    // they either 401'd or silently fell back to the narrowest safe scope,
+                    // which then overwrote good locally-cached data with a near-empty result.
+                    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                    const response = await fetch(url, {
+                        ...options,
+                        headers: { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                        signal: controller.signal,
+                    });
                     clearTimeout(timeoutId);
                     return response;
                 } catch (err: any) {

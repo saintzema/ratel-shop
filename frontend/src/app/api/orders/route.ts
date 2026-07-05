@@ -16,7 +16,14 @@ export async function GET(request: Request) {
         const customerId = searchParams.get("customerId");
         const customerEmail = searchParams.get("customerEmail");
         const sellerId = searchParams.get("sellerId");
-        const fetchAll = searchParams.get("all") === "true";
+        // all=true was honored purely from the client-supplied query param with zero
+        // server-side check — any caller could request every order on the platform.
+        // It also meant an admin session that briefly failed a client-side role check
+        // (e.g. stale cached user object) silently fell back to a customerId-scoped
+        // query returning nothing, instead of the admin's full view.
+        const requestedAll = searchParams.get("all") === "true";
+        const verifiedUser = getUserFromRequest(request);
+        const fetchAll = requestedAll && verifiedUser?.role === "admin";
 
         const whereClause: any = {};
         if (!fetchAll) {

@@ -6,6 +6,7 @@ import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 import { User } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
 import { visibleInterval } from "@/lib/client-poll";
+import { effectiveRole } from "@/lib/constants";
 
 interface AuthContextType {
     user: User | null;
@@ -73,11 +74,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (needsSync) {
+                // Allowlisted admin emails must resolve to "admin" here regardless of
+                // what the NextAuth session or a stale cached fp_user claims — this
+                // client-cached role is what syncWithDB uses to decide whether to pull
+                // the full admin-scoped dataset or a customer-scoped one. A wrong value
+                // here silently narrowed every admin sync to "MY orders" (near-empty)
+                // and overwrote whatever real data was already cached locally.
+                const resolvedRole = effectiveRole(session.user.email, (session.user as any)?.role || existingRole);
                 const oauthUser: User = {
                     id: (session.user as any)?.id || `user_${session.user.email}`,
                     email: session.user.email!,
                     name: session.user.name || "User",
-                    role: (session.user as any)?.role || existingRole,
+                    role: resolvedRole as any,
                     avatar_url: session.user.image || undefined,
                     created_at: new Date().toISOString()
                 };
@@ -340,10 +348,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Safety net — some login() callers already fetch and store a token
         // themselves before calling this, but not all of them did (the same gap
-        // that left registered sellers with no working Bearer auth). Issuing an
-        // extra token here when one already exists is harmless; the alternative
-        // is a user silently stuck without one.
-        if (userData.email && !localStorage.getItem("fp_token")) {
+        // that left registered sellers with no working Bearer auth). Always
+        // re-issuing here (not just when fp_token is absent) also means a stale
+        // token signed with a stale/wrong role can never survive a fresh login —
+        // this always resolves the CURRENT role server-side via effectiveRole.
+        if (userData.email) {
             try {
                 const tokenRes = await fetch("/api/auth/issue-token", {
                     method: "POST",
