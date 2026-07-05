@@ -8,7 +8,7 @@ import { Check, ChevronRight, Upload, Building, User, CreditCard, Box, Camera } 
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
-import { Seller } from "@/lib/types";
+import { Seller, CATEGORIES } from "@/lib/types";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { InstallBanner } from "@/components/ui/InstallBanner";
 
@@ -53,6 +53,7 @@ export default function KYCOnboarding() {
         }
     };
     const [businessName, setBusinessName] = useState("");
+    const [businessCategory, setBusinessCategory] = useState("");
     const [storeUrl, setStoreUrl] = useState("");
     // Tracks whether the seller manually edited the Store URL. Until they do, we
     // auto-prefill it from the Business Name (slugified) so they don't have to type it.
@@ -147,6 +148,7 @@ export default function KYCOnboarding() {
             if (!sellerRole) errors.push("Please select your role");
         } else if (currentStep === 2) {
             if (!businessName.trim()) errors.push("Business Name is required");
+            if (!businessCategory) errors.push("Business Category is required");
             if (!storeUrl.trim()) errors.push("Store URL is required");
             if (!streetAddress.trim()) errors.push("Street Address is required");
             if (!stateRegion) errors.push("State is required");
@@ -213,7 +215,7 @@ export default function KYCOnboarding() {
         const sellerUpdates: Partial<Seller> = {
             business_name: businessName || (user ? `${user.name}'s Shop` : "New Seller"),
             description: "A new seller on FairPrice",
-            category: "electronics",
+            category: businessCategory || "electronics",
             store_url: storeUrl,
             street_address: streetAddress,
             city: city,
@@ -529,6 +531,22 @@ export default function KYCOnboarding() {
                                             className="border border-gray-300"
                                             required
                                         />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Business Category *</label>
+                                        <select
+                                            value={businessCategory}
+                                            onChange={(e) => setBusinessCategory(e.target.value)}
+                                            className="w-full border border-gray-300 rounded-md h-10 px-3 text-sm"
+                                            required
+                                        >
+                                            <option value="">Select what you mostly sell</option>
+                                            {CATEGORIES.filter(c => !c.adminOnly && c.value !== "all").map(c => (
+                                                <option key={c.value} value={c.value}>{c.label}</option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[11px] text-gray-500">This decides which store category and filters your products appear under.</p>
                                     </div>
 
                                     <div className="space-y-2">

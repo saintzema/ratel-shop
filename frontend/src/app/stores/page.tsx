@@ -21,6 +21,22 @@ export default function AllStoresPage() {
   useEffect(() => {
     const allSellers = DataSyncService.getSellers();
     setSellers(allSellers.filter((s) => s.status === "active"));
+
+    // Local cache only ever contains sellers this browser has happened to touch —
+    // fresh devices/admins saw an empty page despite every seller being active in the DB.
+    fetch("/api/sellers")
+      .then((res) => res.json())
+      .then((dbSellers: any[]) => {
+        if (!Array.isArray(dbSellers)) return;
+        setSellers((prev) => {
+          const byId = new Map(prev.map((s) => [s.id, s]));
+          for (const s of dbSellers) {
+            if (s.status === "active") byId.set(s.id, { ...byId.get(s.id), ...s });
+          }
+          return Array.from(byId.values());
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const filteredSellers = useMemo(() => {
