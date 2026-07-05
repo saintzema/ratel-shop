@@ -63,6 +63,7 @@ export default function SellerDashboard() {
     const [qrAmount, setQrAmount] = useState("");
     const [copiedPayLink, setCopiedPayLink] = useState(false);
     const [sellerAlerts, setSellerAlerts] = useState<any[]>([]);
+    const [payouts, setPayouts] = useState<any[]>([]);
     const [alertsExpanded, setAlertsExpanded] = useState(false);
     const hasAttemptedCreation = useRef(false);
 
@@ -113,7 +114,6 @@ export default function SellerDashboard() {
                 setOffListingInvoices(allInvoices.filter(inv => inv.seller_id === seller.id));
 
                 // Load important seller alerts (orders, negotiations, refunds, payouts, etc.)
-                // Reuses the same aggregated feed as the notification bell.
                 try {
                     const notifs = DataSyncService.getNotifications(seller.id) || [];
                     const important = notifs
@@ -121,6 +121,34 @@ export default function SellerDashboard() {
                         .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
                     setSellerAlerts(important);
                 } catch { /* non-critical */ }
+
+                // Local storage cache misses anything created server-side (new orders,
+                // payment-received) on a device that hasn't personally seen it before —
+                // merge in the real DB feed so alerts don't silently lag behind reality.
+                if (seller.owner_email) {
+                    fetch(`/api/notifications?user_email=${encodeURIComponent(seller.owner_email)}`)
+                        .then(r => r.json())
+                        .then((dbNotifs: any[]) => {
+                            if (!Array.isArray(dbNotifs)) return;
+                            setSellerAlerts(prev => {
+                                const byId = new Map(prev.map((n: any) => [n.id, n]));
+                                for (const n of dbNotifs) {
+                                    if (n.type !== "system") byId.set(n.id, n);
+                                }
+                                return Array.from(byId.values()).sort(
+                                    (a: any, b: any) => new Date(b.timestamp || b.createdAt).getTime() - new Date(a.timestamp || a.createdAt).getTime()
+                                );
+                            });
+                        })
+                        .catch(() => {});
+                }
+
+                // Real payout records (QR settlements bypass per-order payout_status
+                // entirely, so they never showed up here before).
+                fetch(`/api/payouts?sellerId=${seller.id}`)
+                    .then(r => r.json())
+                    .then((data: any) => { if (Array.isArray(data?.payouts)) setPayouts(data.payouts); })
+                    .catch(() => {});
 
                 // Onboarding Verification Notification Logic
                 if (seller.verified) {
@@ -1024,6 +1052,13 @@ export default function SellerDashboard() {
                             {formatPrice(availableBalance)}
                             <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
                         </div>
+                        <button
+                            onClick={handleCashout}
+                            disabled={availableBalance <= 0 || cashoutSuccess}
+                            className="mt-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed rounded-full px-4 py-1.5 transition-colors"
+                        >
+                            {cashoutSuccess ? "Requested ✓" : "Request Payout"}
+                        </button>
                     </div>
                 </div>
 
@@ -1044,21 +1079,21 @@ export default function SellerDashboard() {
                         description="Verified for payout"
                         active={releasedAmount > 0}
                     />
-                    <PayoutStep 
-                        label="Processing" 
-                        amount={0} 
-                        status="pending" 
+                    <PayoutStep
+                        label="Processing"
+                        amount={payouts.filter(p => p.status === "pending" || p.status === "processing").reduce((s, p) => s + (p.amount || 0), 0)}
+                        status="pending"
                         icon={<TrendingUp className="h-4 w-4" />}
-                        description="Bank transfer in dev"
-                        active={false}
+                        description="Awaiting bank transfer"
+                        active={payouts.some(p => p.status === "pending" || p.status === "processing")}
                     />
-                    <PayoutStep 
-                        label="Paid Out" 
-                        amount={orders.filter(o => o.payout_status === "paid").reduce((s, o) => s + o.amount, 0)} 
-                        status="completed" 
+                    <PayoutStep
+                        label="Paid Out"
+                        amount={payouts.filter(p => p.status === "completed").reduce((s, p) => s + (p.amount || 0), 0)}
+                        status="completed"
                         icon={<CheckCircle className="h-4 w-4" />}
                         description="Settled to account"
-                        active={false}
+                        active={payouts.some(p => p.status === "completed")}
                     />
                     
                     {/* Progress Connecting Line (Desktop) */}

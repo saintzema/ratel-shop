@@ -108,6 +108,7 @@ function BillingContent() {
     const [processingPlan, setProcessingPlan] = useState<string | null>(null);
     const [currentPlan, setCurrentPlan] = useState<string>("Starter");
     const [showPaystack, setShowPaystack] = useState(false);
+    const [isVerifyingUpgrade, setIsVerifyingUpgrade] = useState(false);
     const [paystackAmount, setPaystackAmount] = useState(0);
     const [paystackPlan, setPaystackPlan] = useState("");
 
@@ -139,7 +140,32 @@ function BillingContent() {
         setShowPaystack(true);
     };
 
-    const handlePaystackSuccess = (reference: string) => {
+    const handlePaystackSuccess = async (reference: string) => {
+        // Paystack's popup callback fires purely on the CLIENT side and proves
+        // nothing by itself — a bad connection right after payment (then a refresh)
+        // previously left the seller "upgraded" locally with no real charge behind
+        // it. Verify server-side against Paystack before crediting anything.
+        setShowPaystack(false);
+        setIsVerifyingUpgrade(true);
+        try {
+            const verifyRes = await fetch("/api/paystack/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reference, expectedAmount: paystackAmount }),
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyData.ok) {
+                setIsVerifyingUpgrade(false);
+                alert("We couldn't confirm this payment with Paystack yet. If you were charged, it will be applied automatically once confirmed — no need to pay again. Contact support if it doesn't update within a few minutes.");
+                return;
+            }
+        } catch {
+            setIsVerifyingUpgrade(false);
+            alert("Couldn't verify the payment due to a connection issue. If you were charged, it will still be applied once confirmed. Please check back shortly before retrying.");
+            return;
+        }
+        setIsVerifyingUpgrade(false);
+
         const sellerId = DataSyncService.getCurrentSellerId();
         const seller = DataSyncService.getCurrentSeller();
         if (sellerId) {
@@ -358,6 +384,16 @@ function BillingContent() {
                     </div>
                 </div>
             </div>
+
+            {isVerifyingUpgrade && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center">
+                    <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-3 max-w-sm text-center">
+                        <div className="h-8 w-8 border-3 border-brand-green-600 border-t-transparent rounded-full animate-spin" />
+                        <p className="font-semibold text-gray-900">Confirming your payment with Paystack…</p>
+                        <p className="text-sm text-gray-500">Don't close this — this only takes a moment.</p>
+                    </div>
+                </div>
+            )}
 
             {showPaystack && (
                 <PaystackCheckout

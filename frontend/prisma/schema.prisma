@@ -99,6 +99,10 @@ model Seller {
   status         SellerStatus         @default(pending)
   subscriptionPlan String              @default("Starter")
   planExpiryDate  DateTime?
+  // What to fall back to when planExpiryDate passes without renewal. Null means
+  // the default (Starter/free). Lets us override per-seller, e.g. a seller who
+  // gets a temporary discounted-plan arrangement drops to that plan, not Starter.
+  planDowngradeTo String?
   commissionRate  Float                @default(2.5)
   tier            String               @default("Standard")
   kycStatus      KYCStatus            @default(not_submitted)

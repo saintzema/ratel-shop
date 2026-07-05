@@ -335,6 +335,7 @@ export async function POST(req: Request) {
             financingAvailable: body.financing_available || false,
             externalUrl: body.external_url,
             slug: body.slug,
+            isDirectPayment: body.is_direct_payment || false,
         } as any;
 
         // Build a SAFE update object that won't wipe heavy content fields if they're missing

@@ -353,6 +353,8 @@ function CheckoutContent() {
         }));
     }
 
+    const isDirectPaymentOnly = checkoutItems.length > 0 && checkoutItems.every(item => (item.product as any).is_direct_payment);
+
     const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
     const [showAddressPicker, setShowAddressPicker] = useState(false);
@@ -374,7 +376,7 @@ function CheckoutContent() {
     const [guestId] = useState(() => "guest_" + Math.random().toString(36).substring(2, 11));
 
     useEffect(() => {
-        if (checkoutStep === 3) {
+        if (checkoutStep === 3 && !isDirectPaymentOnly) {
             setTimeout(() => {
                 paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 150);
@@ -998,11 +1000,6 @@ function CheckoutContent() {
             shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 100);
     };
-
-    // QR / direct-payment carts are in-person transactions (e.g. paying for a meal at
-    // a restaurant) — there's nothing to ship, so the address/pickup-station fields
-    // that block a normal cart checkout shouldn't block these.
-    const isDirectPaymentOnly = checkoutItems.length > 0 && checkoutItems.every(item => (item.product as any).is_direct_payment);
 
     // QR customers are impatient — skip straight to the payment step the instant
     // the scanned item lands in the cart, instead of making them click through
@@ -1801,7 +1798,7 @@ function CheckoutContent() {
                                     </div>
                                 )}
                                 {/* Saved Address Card List - ALWAYS RENDER AT TOP */}
-                                {!isDirectPaymentOnly && savedAddresses.length > 0 && (
+                                {savedAddresses.length > 0 && (
                                     <div className="mb-8">
                                         <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                                             <Sparkles className="h-3 w-3 text-brand-orange" />
@@ -2261,7 +2258,17 @@ function CheckoutContent() {
                                             <p className="text-sm text-red-500 font-semibold bg-red-50 p-3 rounded-lg flex items-center gap-2"><X className="h-4 w-4 shrink-0" /> {addressError}</p>
                                         )}
                                         <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                                            {(address.street.trim() || savedAddresses.length > 0) && (
+                                            {isDirectPaymentOnly && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => { setAddressError(""); setIsEditingAddress(false); setCheckoutStep(3); }}
+                                                    className="rounded-xl border-gray-300 text-gray-700 font-semibold"
+                                                >
+                                                    Skip — I don't need this
+                                                </Button>
+                                            )}
+                                            {!isDirectPaymentOnly && (address.street.trim() || savedAddresses.length > 0) && (
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -2375,6 +2382,17 @@ function CheckoutContent() {
                                     </div>
                                 )}
                             </div>
+                        ) : isDirectPaymentOnly && !address.street.trim() && !pickupDetails.station ? (
+                            <button
+                                onClick={() => { setIsEditingAddress(true); setCheckoutStep(2); }}
+                                className="w-full px-6 py-4 flex items-center gap-3 bg-gray-50/50 hover:bg-gray-100 transition-colors text-left"
+                            >
+                                <Plus className="h-5 w-5 text-gray-400" />
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900">Add delivery details (optional)</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Only if you want this shipped instead of picking it up in person</p>
+                                </div>
+                            </button>
                         ) : (
                             <div className="px-6 py-4 flex items-center gap-4 bg-gray-50/50">
                                 {deliveryMethod === "pickup" ? <MapPin className="h-5 w-5 text-gray-400" /> : <Truck className="h-5 w-5 text-gray-400" />}

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, getPayoutHitlThreshold } from "@/lib/payout-transfer";
 import { notifyAdmins } from "@/lib/admin-notify";
+import { ADMIN_EMAILS } from "@/lib/constants";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import crypto from "crypto";
 
@@ -276,6 +277,28 @@ async function handleChargeSuccess(data: any) {
                         `🛑 Payout of ₦${netAmount.toLocaleString()} to ${seller.businessName} needs WhatsApp approval (${runId}) — exceeds the ₦${PAYOUT_HITL_THRESHOLD.toLocaleString()} auto-payout threshold.`,
                         { type: "system", link: "/admin/payouts" }
                     );
+                    // In-app notification alone is easy to miss — email every admin too,
+                    // with a direct link into the page where they click Approve.
+                    {
+                        const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+                        for (const adminEmail of ADMIN_EMAILS) {
+                            fetch(`${site}/api/email`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    to: adminEmail,
+                                    type: "SYSTEM_ALERT",
+                                    payload: {
+                                        subject: `[ACTION REQUIRED] Payout approval — ₦${netAmount.toLocaleString()} to ${seller.businessName}`,
+                                        title: "High-value payout needs approval",
+                                        message: `${seller.businessName} has a payout of ₦${netAmount.toLocaleString()} awaiting approval — it exceeds the ₦${PAYOUT_HITL_THRESHOLD.toLocaleString()} auto-payout threshold. Reference: ${reference}.`,
+                                        data: { runId, sellerId: seller.id, amount: netAmount, paymentReference: reference },
+                                        dashboardUrl: `${site}/admin/payouts`,
+                                    },
+                                }),
+                            }).catch(() => {});
+                        }
+                    }
                     await notifySellerPayout(seller.id, netAmount, "processing", payout.id);
                     return; // handleChargeSuccess is void — the caller (POST) sends its own response
                 }
@@ -338,13 +361,14 @@ async function handleChargeSuccess(data: any) {
             const userId = metadata?.user_id;
             const targetRole = metadata?.role || "customer";
             const plan = metadata?.plan || "Pro";
-            const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+            const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
             if (userId) {
                 if (targetRole === "customer") {
+                    const expiry = new Date(Date.now() + ONE_MONTH_MS);
                     await db.user.update({
                         where: { id: userId },
-                        data: { 
+                        data: {
                             role: "customer",
                             // @ts-ignore - Field added in pending schema migration
                             isPremium: true,
@@ -353,6 +377,13 @@ async function handleChargeSuccess(data: any) {
                         }
                     });
                 } else if (targetRole === "seller") {
+                    // First-ever paid subscription gets 2 extra free months tacked on —
+                    // a seller currently on "Starter" (never paid before) is the signal.
+                    const existingSellers = await db.seller.findMany({ where: { userId }, select: { subscriptionPlan: true } });
+                    const isFirstPaidUpgrade = existingSellers.every(s => s.subscriptionPlan === "Starter");
+                    const months = isFirstPaidUpgrade ? 3 : 1;
+                    const expiry = new Date(Date.now() + months * ONE_MONTH_MS);
+
                     // Update the user role first
                     await db.user.update({
                         where: { id: userId },
@@ -361,7 +392,7 @@ async function handleChargeSuccess(data: any) {
                     // Then update all sellers for this user to the new plan
                     await db.seller.updateMany({
                         where: { userId: userId },
-                        data: { 
+                        data: {
                             // @ts-ignore
                             subscriptionPlan: plan as any,
                             // @ts-ignore
@@ -370,7 +401,7 @@ async function handleChargeSuccess(data: any) {
                         }
                     });
                 }
-                
+
                 broadcast({ type: "user_updated", id: userId });
                 console.log(`⭐ User ${userId} upgraded/renewed as ${targetRole} (${plan}).`);
             }

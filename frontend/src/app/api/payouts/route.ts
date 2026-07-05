@@ -4,6 +4,7 @@ import { getUserFromRequest } from "@/lib/jwt";
 import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference, getPayoutHitlThreshold } from "@/lib/payout-transfer";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { notifyAdmins } from "@/lib/admin-notify";
+import { ADMIN_EMAILS } from "@/lib/constants";
 
 const ZEMA_APPROVER_WHATSAPP = process.env.ZEMA_APPROVER_WHATSAPP || "+2348162816305";
 
@@ -170,6 +171,26 @@ export async function POST(request: Request) {
                 `🛑 Payout of ₦${amount.toLocaleString()} to ${sellerRecord?.businessName || seller_id} needs WhatsApp approval (${runId}) — exceeds the ₦${hitlThreshold.toLocaleString()} auto-payout threshold.`,
                 { type: "system", link: "/admin/payouts" }
             ).catch(() => {});
+            {
+                const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+                for (const adminEmail of ADMIN_EMAILS) {
+                    fetch(`${site}/api/email`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: adminEmail,
+                            type: "SYSTEM_ALERT",
+                            payload: {
+                                subject: `[ACTION REQUIRED] Payout approval — ₦${amount.toLocaleString()} to ${sellerRecord?.businessName || seller_id}`,
+                                title: "High-value payout needs approval",
+                                message: `${sellerRecord?.businessName || seller_id} has a payout of ₦${amount.toLocaleString()} awaiting approval — it exceeds the ₦${hitlThreshold.toLocaleString()} auto-payout threshold.`,
+                                data: { runId, sellerId: seller_id, amount },
+                                dashboardUrl: `${site}/admin/payouts`,
+                            },
+                        }),
+                    }).catch(() => {});
+                }
+            }
         }
 
         return NextResponse.json({ success: true, payout });

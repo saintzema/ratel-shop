@@ -250,10 +250,16 @@ export async function POST(request: Request) {
             const productName = (newOrder as any).product?.name || "a product";
             const amount = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(body.amount || 0);
 
+            // Notification.userId must be a real User.id — /api/notifications joins on
+            // it to resolve the seller's email. seller_id is the Seller record's own id
+            // (a different value), so notifications keyed on it were silently orphaned
+            // and never showed up in the seller's alerts/bell.
+            const notifySeller = await db.seller.findUnique({ where: { id: body.seller_id }, select: { userId: true } });
+
             // Bell notification
             db.notification.create({
                 data: {
-                    userId: body.seller_id,
+                    userId: notifySeller?.userId || body.seller_id,
                     type: "order",
                     message: `New Order! 🎉 ${userName} ordered ${productName} for ${amount}. Check your dashboard to confirm.`,
                     link: `/seller/orders`,

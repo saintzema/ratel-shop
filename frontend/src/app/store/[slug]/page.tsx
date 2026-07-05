@@ -532,9 +532,12 @@ export default function StoreProfile() {
                                                                         e.stopPropagation();
                                                                         addToCart(product);
                                                                     }}
-                                                                    className="h-7 w-7 md:h-9 md:w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 hover:bg-brand-green-600 hover:text-white transition-all"
+                                                                    className="w-7 h-7 md:w-9 md:h-9 rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center transition-all hover:bg-emerald-700 hover:scale-110 active:scale-95 relative"
                                                                 >
-                                                                    <ShoppingCart className="h-3.5 w-3.5 md:h-4 w-4" />
+                                                                    <ShoppingCart className="h-3.5 w-3.5 md:h-4 w-4 text-white" strokeWidth={2.5} />
+                                                                    <div className="absolute -top-0.5 -left-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                                                        <span className="font-black text-emerald-600 text-[9px] leading-none">+</span>
+                                                                    </div>
                                                                 </button>
                                                             </div>
                                                             <button

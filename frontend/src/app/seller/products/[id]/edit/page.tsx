@@ -62,7 +62,8 @@ function EditProductContent() {
         financing_down_payment: "",
         financing_deposit_pct: 10,
         isDepositByPct: true,
-        variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
+        variants: [] as { name: string; price: string; image_url: string; original_price: string }[],
+        require_delivery_details: true,
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -158,7 +159,8 @@ function EditProductContent() {
                             price: v.price > 0 ? v.price.toLocaleString() : "",
                             original_price: v.original_price ? v.original_price.toLocaleString() : "",
                             image_url: v.image_url || ""
-                        })) : []
+                        })) : [],
+                        require_delivery_details: !(found as any).is_direct_payment,
                     }));
                 }
             }
@@ -498,7 +500,8 @@ function EditProductContent() {
                 original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
                 image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                 is_default: false
-            }))
+            })),
+            is_direct_payment: !formData.require_delivery_details,
         };
 
         // 1. Update localStorage for immediate UI feedback
@@ -886,6 +889,18 @@ function EditProductContent() {
                             placeholder="Describe your product in detail..."
                         />
                     </div>
+                    <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={formData.require_delivery_details}
+                            onChange={(e) => setFormData({ ...formData, require_delivery_details: e.target.checked })}
+                            className="mt-0.5 h-4 w-4 accent-brand-green-600"
+                        />
+                        <span>
+                            <span className="block text-sm font-medium text-gray-700">Require delivery details at checkout</span>
+                            <span className="block text-xs text-gray-500 mt-0.5">Turn off for in-person items (food, drinks) — checkout skips straight to payment, with delivery details folded away as optional in case the customer still wants it shipped.</span>
+                        </span>
+                    </label>
                 </div>
             </motion.section>
 

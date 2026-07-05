@@ -38,7 +38,11 @@ function NewProductContent() {
         financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
         contact_info: { show: false, phone: "", whatsapp: "" },
-        variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
+        variants: [] as { name: string; price: string; image_url: string; original_price: string }[],
+        // Defaults to requiring delivery details (normal shipping checkout). Turning
+        // this off is for in-person/consumable items (food, drinks) where a customer
+        // just needs to pay — same fast checkout QR/payment links already use.
+        require_delivery_details: true,
     });
 
     const [savedNumbers, setSavedNumbers] = useState<string[]>([]);
@@ -491,7 +495,8 @@ function NewProductContent() {
                     original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
                     image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                     is_default: false
-                }))
+                })),
+                is_direct_payment: !formData.require_delivery_details,
             };
 
             // Save new numbers to seller profile for next time
@@ -802,6 +807,18 @@ function NewProductContent() {
                                     onChange={(e) => handleChange("description", e.target.value)}
                                 />
                             </div>
+                            <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.require_delivery_details}
+                                    onChange={(e) => handleChange("require_delivery_details", e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 accent-brand-green-600"
+                                />
+                                <span>
+                                    <span className="block text-sm font-medium text-gray-700">Require delivery details at checkout</span>
+                                    <span className="block text-xs text-gray-500 mt-0.5">Turn off for in-person items (food, drinks) — checkout skips straight to payment, with delivery details folded away as optional in case the customer still wants it shipped.</span>
+                                </span>
+                            </label>
                         </div>
                     </motion.section>
 

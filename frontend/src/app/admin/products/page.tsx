@@ -92,6 +92,7 @@ export default function CatalogControl() {
     const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
     const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
+    const [editRequireDelivery, setEditRequireDelivery] = useState(true);
     const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
     const [editSlug, setEditSlug] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
@@ -462,6 +463,7 @@ export default function CatalogControl() {
                 images: finalImages,
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
+                is_direct_payment: !editRequireDelivery,
                 financing_config: editFinancingConfig,
                 slug: editSlug,
                 variants: editVariants
@@ -1153,6 +1155,7 @@ export default function CatalogControl() {
                                                             setEditVariants(p.variants || []);
                                                             setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
                                                             setEditFinancingAvailable(p.financing_available ?? false);
+                                            setEditRequireDelivery(!(p.is_direct_payment ?? false));
                                                             setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
                                                             setEditSlug(p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
                                                         }}
@@ -1759,6 +1762,26 @@ export default function CatalogControl() {
                                         </div>
                                     )}
                                 </div>
+
+                                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                                    <div>
+                                        <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Require Delivery Details</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Off = fast in-person checkout (food, drinks)</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setEditRequireDelivery(!editRequireDelivery)}
+                                        className={cn(
+                                            "w-12 h-6 rounded-full transition-all relative",
+                                            editRequireDelivery ? "bg-emerald-500" : "bg-gray-200"
+                                        )}
+                                    >
+                                        <div className={cn(
+                                            "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                                            editRequireDelivery ? "right-1" : "left-1"
+                                        )} />
+                                    </button>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">URL Slug <span className="text-gray-300 normal-case">— SEO clean URL</span></label>
                                     <Input
