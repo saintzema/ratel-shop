@@ -222,24 +222,33 @@ export default function SellerDashboard() {
     };
 
     const handleCashout = async () => {
-        // Check if seller has payout info set up
-        const payoutInfo = localStorage.getItem(`fp_payout_${currentSeller?.id}`);
-        if (!payoutInfo) {
+        // Bank details set up via onboarding/settings live on the seller's DB record,
+        // not a per-device localStorage key — checking that key falsely told sellers
+        // "you haven't set up payout details" on any device that hadn't personally
+        // written it, even with real bank details already on file.
+        let bankName = currentSeller?.bank_name || "N/A";
+        let accountNumber = currentSeller?.account_number || "N/A";
+        let accountName = currentSeller?.account_name || "N/A";
+
+        if (bankName === "N/A" || accountNumber === "N/A") {
+            const payoutInfo = localStorage.getItem(`fp_payout_${currentSeller?.id}`);
+            try {
+                const parsed = payoutInfo ? JSON.parse(payoutInfo) : null;
+                if (parsed) {
+                    bankName = parsed.bank_name || bankName;
+                    accountNumber = parsed.account_number || accountNumber;
+                    accountName = parsed.account_name || accountName;
+                }
+            } catch {}
+        }
+
+        if (bankName === "N/A" || accountNumber === "N/A") {
             const go = window.confirm("You haven't set up your payout details yet. Would you like to add your bank details now?");
             if (go) {
                 router.push("/seller/settings/payouts#bank-details");
             }
             return;
         }
-
-        // Parse bank details for the payout request
-        let bankName = "N/A", accountNumber = "N/A", accountName = "N/A";
-        try {
-            const parsed = JSON.parse(payoutInfo);
-            bankName = parsed.bank_name || "N/A";
-            accountNumber = parsed.account_number || "N/A";
-            accountName = parsed.account_name || "N/A";
-        } catch {}
 
         // Collect eligible order IDs for this payout
         const EARNINGS_ELIGIBLE = ["released", "buyer_confirmed", "auto_release_eligible"];
