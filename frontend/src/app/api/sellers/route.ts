@@ -207,10 +207,14 @@ export async function POST(req: Request) {
             cacRcNumber: body.cac_rc_number,
             businessRegistered: body.business_registered ?? false,
             // Onboarding's "Business Phone Number(s)" field was never mapped here at
-            // all — typed into the form, sent in the payload, silently dropped. The
-            // schema only has a single whatsappNumber column, so the first number
-            // entered is what's kept (matches what onboarding itself treats as primary).
-            whatsappNumber: body.phone_number || body.whatsapp_number || undefined,
+            // all — typed into the form, sent in the payload, silently dropped, for
+            // every seller that ever signed up.
+            phoneNumber: body.phone_number || undefined,
+            // WhatsApp number is deliberately separate from the regular phone number —
+            // it's what gates WhatsApp-only features (QR generation via chat, product
+            // upload via chat, etc). A seller who only has a non-WhatsApp phone number
+            // should still be able to use the platform without being force-enrolled.
+            ...(body.whatsapp_number ? { whatsappNumber: body.whatsapp_number, whatsappEnabled: true } : {}),
         };
 
         // Enforce Subscription Limits for NEW sellers

@@ -54,6 +54,8 @@ export default function KYCOnboarding() {
     };
     const [businessName, setBusinessName] = useState("");
     const [businessCategory, setBusinessCategory] = useState("");
+    const [whatsappNumber, setWhatsappNumber] = useState("");
+    const [waSameAsPhone, setWaSameAsPhone] = useState(true);
     const [storeUrl, setStoreUrl] = useState("");
     // Tracks whether the seller manually edited the Store URL. Until they do, we
     // auto-prefill it from the Business Name (slugified) so they don't have to type it.
@@ -223,6 +225,7 @@ export default function KYCOnboarding() {
             location: `${city}, ${stateRegion}`,
             phone_number: phoneNumbers.split(",")[0].trim(),
             phone_numbers: phoneNumbers.split(",").map(p => p.trim()).filter(Boolean),
+            whatsapp_number: (waSameAsPhone ? phoneNumbers.split(",")[0].trim() : whatsappNumber) || undefined,
             business_registered: isRegistered,
             cac_rc_number: isRegistered ? cacNumber : undefined,
             cac_document_url: isRegistered ? (cacDocumentUrl || undefined) : undefined,
@@ -559,6 +562,31 @@ export default function KYCOnboarding() {
                                             required
                                         />
                                         <p className="text-[11px] text-gray-500">Separate multiple numbers with commas.</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">WhatsApp Number</label>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <input
+                                                type="checkbox"
+                                                id="wa-same-as-phone"
+                                                checked={waSameAsPhone}
+                                                onChange={(e) => {
+                                                    setWaSameAsPhone(e.target.checked);
+                                                    if (e.target.checked) setWhatsappNumber(phoneNumbers.split(",")[0].trim());
+                                                }}
+                                                className="h-4 w-4"
+                                            />
+                                            <label htmlFor="wa-same-as-phone" className="text-xs text-gray-600">Same as my business phone number</label>
+                                        </div>
+                                        <Input
+                                            placeholder="E.g. +2348012345678"
+                                            value={waSameAsPhone ? phoneNumbers.split(",")[0].trim() : whatsappNumber}
+                                            onChange={(e) => setWhatsappNumber(e.target.value)}
+                                            disabled={waSameAsPhone}
+                                            className="border border-gray-300 disabled:bg-gray-50 disabled:text-gray-500"
+                                        />
+                                        <p className="text-[11px] text-gray-500">Unlocks WhatsApp features — QR/payment link generation, product upload, and order chat straight from WhatsApp.</p>
                                     </div>
 
                                     <div className="space-y-2">

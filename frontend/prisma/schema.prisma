@@ -120,6 +120,11 @@ model Seller {
   updatedAt      DateTime             @updatedAt
   whatsappEnabled Boolean             @default(false)
   whatsappNumber String?
+  // The regular business contact number(s) from onboarding — distinct from
+  // whatsappNumber, which specifically gates WhatsApp-only features (QR
+  // generation, product upload via chat, etc). Conflating the two meant a
+  // seller who only gave a landline/non-WhatsApp number could never use them.
+  phoneNumber    String?
   // Default true — sellers who go to the trouble of generating a payment QR
   // clearly want to get paid without extra friction. The HITL threshold
   // (getPayoutHitlThreshold) is the actual safety gate for high-value
