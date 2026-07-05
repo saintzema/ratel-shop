@@ -22,6 +22,7 @@ export default function PayoutRequestsDirectory() {
     // Override State
     const [selectedPayout, setSelectedPayout] = useState<any>(null);
     const [overrideAmount, setOverrideAmount] = useState<string>("");
+    const [manualNote, setManualNote] = useState<string>("");
     const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
@@ -150,6 +151,44 @@ export default function PayoutRequestsDirectory() {
             setIsProcessing(false);
             setSelectedPayout(null);
             setOverrideAmount("");
+            setManualNote("");
+        }
+    };
+
+    const handleManualSettle = async () => {
+        if (!selectedPayout) return;
+        if (!window.confirm(`Confirm: you have ALREADY sent ₦${(parseFloat(overrideAmount) || selectedPayout.amount).toLocaleString()} to ${selectedPayout.seller_name} outside Paystack, and want to record this payout as settled. This does NOT move any money — it only updates the record.`)) return;
+
+        setIsProcessing(true);
+        try {
+            const finalAmount = parseFloat(overrideAmount) || selectedPayout.amount;
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const res = await fetch("/api/payouts", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({
+                    id: selectedPayout.id,
+                    status: "completed",
+                    finalAmount,
+                    manualSettle: true,
+                    manualNote,
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                DataSyncService.updatePayoutStatus(selectedPayout.id, "completed", finalAmount);
+                window.dispatchEvent(new Event("storage"));
+            } else {
+                alert(`Error recording manual settlement: ${data.error}`);
+            }
+        } catch (e) {
+            console.error("Manual settle error", e);
+            alert("Network error recording manual settlement");
+        } finally {
+            setIsProcessing(false);
+            setSelectedPayout(null);
+            setOverrideAmount("");
+            setManualNote("");
         }
     };
 
@@ -344,24 +383,44 @@ export default function PayoutRequestsDirectory() {
                                     />
                                 </div>
                             </div>
+
+                            <div className="border-t border-gray-100 pt-4 space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                    Already paid the seller outside Paystack? (e.g. their charge landed in an account that can't transfer out)
+                                </label>
+                                <Input
+                                    placeholder="Optional note — how/when you sent it"
+                                    className="h-10 bg-white border-gray-200 rounded-xl text-sm"
+                                    value={manualNote}
+                                    onChange={(e) => setManualNote(e.target.value)}
+                                />
+                            </div>
                         </div>
                     )}
 
-                    <DialogFooter className="flex gap-2 sm:justify-between mt-4">
-                        <Button 
-                            variant="ghost" 
+                    <DialogFooter className="flex flex-col gap-2 mt-4">
+                        <Button
+                            className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-xs"
+                            onClick={handleApprovePayout}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Processing..." : "Confirm & Transfer via Paystack"}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="w-full rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50 font-bold uppercase tracking-wider text-xs"
+                            onClick={handleManualSettle}
+                            disabled={isProcessing}
+                        >
+                            Mark as Manually Paid (Skip Paystack)
+                        </Button>
+                        <Button
+                            variant="ghost"
                             className="rounded-xl font-bold uppercase tracking-wider text-xs"
                             onClick={() => setSelectedPayout(null)}
                             disabled={isProcessing}
                         >
                             Cancel
-                        </Button>
-                        <Button 
-                            className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-xs"
-                            onClick={handleApprovePayout}
-                            disabled={isProcessing}
-                        >
-                            {isProcessing ? "Processing..." : "Confirm & Transfer"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

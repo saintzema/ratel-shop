@@ -215,7 +215,7 @@ export async function PATCH(request: Request) {
         }
 
         const body = await request.json();
-        const { id, status, finalAmount } = body;
+        const { id, status, finalAmount, manualSettle, manualNote } = body;
 
         if (!id || !status) {
             return NextResponse.json(
@@ -224,9 +224,31 @@ export async function PATCH(request: Request) {
             );
         }
 
+        // Manual settlement: admin paid the seller directly outside Paystack (e.g. the
+        // charge landed in a Paystack business account that can't transfer out — a real
+        // account/verification issue, not something a Transfer retry can fix) and is
+        // recording it as settled without touching the Transfer API at all. This is a
+        // deliberate, explicit admin action — never inferred automatically.
+        if (status === "completed" && manualSettle) {
+            const existing = await db.payout.findUnique({ where: { id }, select: { label: true } });
+            const payout = await db.payout.update({
+                where: { id },
+                data: {
+                    status: "completed",
+                    ...(finalAmount !== undefined && { amount: finalAmount }),
+                    label: `${existing?.label || ""} [Manually settled by ${user.email} on ${new Date().toISOString()}${manualNote ? `: ${manualNote}` : ""}]`.trim(),
+                },
+            });
+            await notifyAdmins(
+                `ℹ️ Payout ${id} was marked manually settled by ${user.email} (not via Paystack Transfer).`,
+                { type: "system", link: "/admin/payouts" }
+            ).catch(() => {});
+            return NextResponse.json({ success: true, payout, manualSettle: true });
+        }
+
         const payout = await db.payout.update({
             where: { id },
-            data: { 
+            data: {
                 status,
                 ...(finalAmount !== undefined && { amount: finalAmount })
             },
