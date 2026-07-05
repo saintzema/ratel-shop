@@ -140,9 +140,14 @@ function DirectCheckoutContent() {
                 product = reconstructed;
             }
 
-            // Ensure product is in local sync for PDP fallbacks if user clicks it
+            // persist:false meant this ephemeral QR/direct-payment product was cached
+            // in THIS browser only, never sent to the server. Order has a hard,
+            // non-nullable foreign key to Product, so every order for a QR/direct
+            // payment silently failed to create server-side (FK violation, swallowed
+            // by the fire-and-forget sync) — the order never existed anywhere except
+            // Paystack's own transaction log. persist:true actually saves it.
             try {
-                DataSyncService.addRawProduct(product, false);
+                DataSyncService.addRawProduct(product, true);
             } catch { /* best effort */ }
 
             // When `amount` differs from the product's listed price (e.g. WhatsApp negotiation),
