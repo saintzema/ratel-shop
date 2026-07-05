@@ -47,6 +47,27 @@ const PLANS = [
         ]
     },
     {
+        name: "Plus",
+        price: "₦9,990",
+        duration: "per month",
+        description: "For sellers outgrowing Pro but not ready for full CRM tools.",
+        icon: <ShieldCheck className="h-6 w-6 text-purple-600" />,
+        color: "purple",
+        features: [
+            "Up to 1,500 Products",
+            "Advanced Analytics & PDF Reports",
+            "Connect Custom Domain",
+            "FairPrice Subdomain (.fairprice.ng)",
+            "Priority Support",
+            "Discount & Coupon Engine",
+            "Instagram DM Integration",
+            "Premium QR Logo Branding",
+            "5 Staff Accounts",
+            "ZEMA 360 AI Order Automation — Priority Queue",
+            "ZEMA 360 Order Insights & Reports"
+        ]
+    },
+    {
         name: "Growth",
         price: "₦14,990",
         duration: "per month",
@@ -219,7 +240,7 @@ function BillingContent() {
                 }).catch(() => {});
 
                 // Notify Admin for Custom Subdomain Provisioning (Pro/Growth/Scale include subdomain)
-                if (['Pro', 'Growth', 'Scale'].includes(paystackPlan)) {
+                if (['Pro', 'Plus', 'Growth', 'Scale'].includes(paystackPlan)) {
                     const requestedSubdomain = pendingSubdomain || (seller.business_name || 'store').toLowerCase().replace(/[^a-z0-9]/g, '');
 
                     // Admin notification
@@ -306,7 +327,7 @@ function BillingContent() {
                             <div className="p-8 pb-6 border-b border-gray-100">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-xl font-bold tracking-tight text-gray-900">{plan.name}</h3>
-                                    <div className={`p-2 rounded-xl ${plan.color === 'brand-green' ? 'bg-brand-green-50' : plan.color === 'blue' ? 'bg-blue-50' : plan.color === 'amber' ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                                    <div className={`p-2 rounded-xl ${plan.color === 'brand-green' ? 'bg-brand-green-50' : plan.color === 'blue' ? 'bg-blue-50' : plan.color === 'amber' ? 'bg-amber-50' : plan.color === 'purple' ? 'bg-purple-50' : 'bg-gray-50'}`}>
                                         {plan.icon}
                                     </div>
                                 </div>

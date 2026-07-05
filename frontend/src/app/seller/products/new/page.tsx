@@ -57,7 +57,7 @@ function NewProductContent() {
 
         try {
             const seller = DataSyncService.getCurrentSeller();
-            if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+            if (seller && ['Pro', 'Plus', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
                 setIsPremium(true);
             }
             const user = DataSyncService.getCurrentUser();

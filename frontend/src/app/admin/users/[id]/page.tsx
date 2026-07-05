@@ -119,6 +119,8 @@ export default function AdminUserDetailPage() {
                             cac_number: sellerRec.cacNumber,
                             cac_document_url: sellerRec.cacDocumentUrl,
                             id_document_url: sellerRec.idDocumentUrl,
+                            subscription_plan: sellerRec.subscriptionPlan,
+                            plan_expiry_date: sellerRec.planExpiryDate,
                             created_at: u.createdAt || sellerRec.createdAt,
                             avatarUrl: u.avatarUrl,
                         });
