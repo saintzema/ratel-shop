@@ -15,7 +15,10 @@ export async function GET(request: Request) {
     try {
         const user = getUserFromRequest(request);
         if (!user) {
-            return NextResponse.json({ success: true, payouts: [] });
+            // Previously returned success:true with an empty list here — an expired/
+            // missing token looked EXACTLY like "genuinely no payouts exist," so admins
+            // saw a blank page with zero signal that they'd need to log back in.
+            return NextResponse.json({ success: false, error: "Unauthorized", payouts: [] }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);

@@ -13,6 +13,7 @@ export default function PayoutRequestsDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
     const [view, setView] = useState<"all" | "processing" | "completed">("all");
     const [payouts, setPayouts] = useState<any[]>([]);
+    const [authError, setAuthError] = useState(false);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -36,7 +37,14 @@ export default function PayoutRequestsDirectory() {
                 const res = await fetch("/api/payouts", {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
+                if (res.status === 401) {
+                    // A missing/expired token used to look identical to "no payouts
+                    // exist" — this page silently showed empty either way.
+                    setAuthError(true);
+                    return;
+                }
                 if (!res.ok) return;
+                setAuthError(false);
                 const data = await res.json();
                 const dbPayouts: any[] = data?.payouts || [];
                 if (!Array.isArray(dbPayouts)) return;
@@ -140,6 +148,11 @@ export default function PayoutRequestsDirectory() {
 
     return (
         <div className="space-y-8">
+            {authError && (
+                <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold">
+                    Your admin session has expired, so this page can't load payouts from the database. Log out and back in, then refresh.
+                </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">Payout Requests</h2>
