@@ -483,6 +483,7 @@ function CheckoutContent() {
 
     // Paystack Metadata (for webhook tracking)
     const [paystackMetadata, setPaystackMetadata] = useState<any>(null);
+    const [paystackSplit, setPaystackSplit] = useState<{ subaccount: string; transactionCharge: number; bearer: "account" | "subaccount" } | null>(null);
 
     // Collapsible Address State
     const [isAddressExpanded, setIsAddressExpanded] = useState(true);
@@ -1011,7 +1012,7 @@ function CheckoutContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isDirectPaymentOnly, isCartLoaded]);
 
-    const handlePlaceOrder = () => {
+    const handlePlaceOrder = async () => {
         const email = (user && !isWhatsAppPlaceholder) ? user.email : address.email;
 
         // QR/direct payments are instant in-person transactions — a customer standing
@@ -1124,6 +1125,26 @@ function CheckoutContent() {
                         customer_id: user?.id || user?.email || address.email,
                         total_amount: total
                     });
+
+                    // If this seller has a Paystack Subaccount on file, route the split at
+                    // the moment of payment instead of relying on the webhook's Transfer
+                    // call — Paystack settles the seller's cut to their bank automatically,
+                    // no third-party-transfer permission needed at all.
+                    try {
+                        const subRes = await fetch(`/api/sellers/${uniqueSellerIds[0]}/subaccount`);
+                        const subData = await subRes.json();
+                        if (subData?.subaccountCode) {
+                            setPaystackSplit({
+                                subaccount: subData.subaccountCode,
+                                transactionCharge: Math.round((total - subtotal) * 100), // platform fee, in kobo
+                                bearer: "account",
+                            });
+                        } else {
+                            setPaystackSplit(null);
+                        }
+                    } catch {
+                        setPaystackSplit(null);
+                    }
                 } else {
                     setPaystackMetadata({
                         type: "order",
@@ -2879,6 +2900,9 @@ function CheckoutContent() {
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
                         autoStart={true}
+                        subaccount={paystackSplit?.subaccount}
+                        transactionCharge={paystackSplit?.transactionCharge}
+                        bearer={paystackSplit?.bearer}
                     />
                 )}
             </AnimatePresence>

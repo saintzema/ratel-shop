@@ -105,6 +105,12 @@ model Seller {
   planDowngradeTo String?
   commissionRate  Float                @default(2.5)
   tier            String               @default("Standard")
+  // Paystack Subaccount code (ACCT_xxx). Once set, QR/direct-payment charges
+  // route the seller's exact cut here via Paystack's own split at the moment
+  // of payment — settles to their bank automatically (T+1), no Transfer API
+  // call needed, sidestepping the third-party-transfer business tier gate
+  // entirely.
+  paystackSubaccountCode String?
   kycStatus      KYCStatus            @default(not_submitted)
   bankName       String?
   accountNumber  String?

@@ -169,6 +169,14 @@ async function handleChargeSuccess(data: any) {
             // 3. Create Payout record (always — for audit trail). Stores the full
             // breakdown (gross paid, platform fee, label) so the seller's statement
             // shows exactly what admin sees, not just a bare net figure.
+            //
+            // If this charge carried a Paystack Subaccount split (data.subaccount is
+            // present), Paystack already routed the seller's exact cut to their own
+            // subaccount at the moment of payment — it settles to their bank on its
+            // own schedule (T+1 by default). No Transfer API call is needed or wanted
+            // here; marking it "processing"/"pending" would just invite an admin to
+            // approve a transfer that would double-pay the seller.
+            const wasSplitBySubaccount = !!data?.subaccount?.subaccount_code;
             const platformFee = Math.round((amountNaira - netAmount) * 100) / 100;
             const payout = await db.payout.create({
                 data: {
@@ -176,18 +184,18 @@ async function handleChargeSuccess(data: any) {
                     amount: netAmount,
                     grossAmount: amountNaira,
                     platformFee,
-                    label,
+                    label: wasSplitBySubaccount ? `${label} (auto-settled via Paystack subaccount split)` : label,
                     bankName: seller.bankName || "Unknown",
                     accountNumber: seller.accountNumber || "",
                     accountName: seller.accountName || seller.businessName,
                     orderIds: qrOrderIds,
                     paymentReference: reference,
                     isAutoPayout: seller.autoPayoutEnabled,
-                    status: seller.autoPayoutEnabled ? "processing" : "pending",
+                    status: wasSplitBySubaccount ? "completed" : (seller.autoPayoutEnabled ? "processing" : "pending"),
                 }
             });
 
-            console.log(`📝 Payout record created: ${payout.id} (auto: ${seller.autoPayoutEnabled})`);
+            console.log(`📝 Payout record created: ${payout.id} (auto: ${seller.autoPayoutEnabled}, subaccountSplit: ${wasSplitBySubaccount})`);
 
             // Broadcast to admin dashboard
             broadcast({ type: "payout_created", payoutId: payout.id, sellerId: seller.id });
@@ -196,7 +204,9 @@ async function handleChargeSuccess(data: any) {
             //    no userId → orphaned row, invisible to everyone. notifyAdmins fans it out to
             //    every admin user so it actually shows in the admin bell.)
             await notifyAdmins(
-                `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
+                wasSplitBySubaccount
+                    ? `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Settled automatically via Paystack subaccount split (₦${netAmount.toLocaleString()} to their bank) — no action needed.`
+                    : `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
                 { type: "order", link: "/admin/payouts" }
             );
 
@@ -236,8 +246,11 @@ async function handleChargeSuccess(data: any) {
                 }).catch(() => {});
             }
 
-            // 5. Auto-payout flow (if enabled AND bank details are verified)
-            if (seller.autoPayoutEnabled && seller.bankName && seller.accountNumber) {
+            // 5. Auto-payout flow (if enabled AND bank details are verified). Skipped
+            // entirely when Paystack already split-settled this at charge time — that
+            // money is already on its way to the seller's bank; a Transfer here would
+            // pay them twice.
+            if (!wasSplitBySubaccount && seller.autoPayoutEnabled && seller.bankName && seller.accountNumber) {
 
                 // Above the threshold: require a WhatsApp HITL approval before the transfer
                 // fires — same governance pattern as ZEMA 360's marketplace escrow release.

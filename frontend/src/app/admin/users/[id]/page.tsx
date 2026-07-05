@@ -32,7 +32,8 @@ import {
     Hash,
     Eye,
     Gavel,
-    AlertTriangle
+    AlertTriangle,
+    Wallet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ export default function AdminUserDetailPage() {
 
     const [loading, setLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isProvisioningPayout, setIsProvisioningPayout] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<any>({});
     const [userEntity, setUserEntity] = useState<any>(null);
@@ -106,6 +108,7 @@ export default function AdminUserDetailPage() {
                             bank_name: sellerRec.bankName,
                             account_number: sellerRec.accountNumber,
                             account_name: sellerRec.accountName,
+                            paystack_subaccount_code: sellerRec.paystackSubaccountCode,
                             store_url: sellerRec.storeUrl,
                             location: sellerRec.location,
                             city: sellerRec.city,
@@ -283,6 +286,45 @@ export default function AdminUserDetailPage() {
                         <Button onClick={() => router.push(`/store/${userEntity.store_url || userEntity.business_name?.toLowerCase().replace(/\s+/g, '-') || id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                             <Store className="h-4 w-4 mr-2" /> View Store
                         </Button>
+                    )}
+
+                    {/* Provision instant payout: creates a Paystack Subaccount so QR/direct
+                        payments settle straight to this seller's bank automatically going
+                        forward, no manual Transfer approval needed. */}
+                    {isSeller && !userEntity.paystack_subaccount_code && (
+                        <Button
+                            onClick={async () => {
+                                setIsProvisioningPayout(true);
+                                try {
+                                    const token = localStorage.getItem("fp_token");
+                                    const res = await fetch(`/api/sellers/${userEntity.id}/subaccount`, {
+                                        method: "POST",
+                                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                        setUserEntity((prev: any) => ({ ...prev, paystack_subaccount_code: data.subaccountCode }));
+                                    } else {
+                                        alert(`Couldn't provision instant payout: ${data.error}`);
+                                    }
+                                } catch {
+                                    alert("Network error provisioning instant payout");
+                                } finally {
+                                    setIsProvisioningPayout(false);
+                                }
+                            }}
+                            disabled={isProvisioningPayout || !userEntity.bank_name || !userEntity.account_number}
+                            variant="outline"
+                            className="h-11 px-5 rounded-2xl border-emerald-200 bg-white/80 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm disabled:opacity-40"
+                            title={!userEntity.bank_name ? "Seller needs bank details on file first" : undefined}
+                        >
+                            <Wallet className="h-4 w-4 mr-2" /> {isProvisioningPayout ? "Provisioning…" : "Enable Instant Payout"}
+                        </Button>
+                    )}
+                    {isSeller && userEntity.paystack_subaccount_code && (
+                        <span className="h-11 px-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                            <Wallet className="h-4 w-4" /> Instant Payout Enabled
+                        </span>
                     )}
 
                     {/* Edit Details */}

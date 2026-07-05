@@ -21,6 +21,12 @@ interface PaystackCheckoutProps {
     onClose: () => void;
     metadata?: Record<string, unknown>;
     autoStart?: boolean;
+    // Paystack Subaccount split — when set, the seller's exact cut routes to
+    // their own subaccount at the moment of payment and Paystack settles it
+    // to their bank automatically (no Transfer API call on our end).
+    subaccount?: string;
+    transactionCharge?: number; // platform's cut, in kobo — overrides the subaccount's default percentage_charge for this transaction
+    bearer?: "account" | "subaccount"; // who eats Paystack's own processing fee
 }
 
 // Helper to check if we are in live mode based on the key prefix
@@ -62,7 +68,7 @@ function loadPaystackScript(): Promise<void> {
     });
 }
 
-export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, autoStart = false }: PaystackCheckoutProps) {
+export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, autoStart = false, subaccount, transactionCharge, bearer }: PaystackCheckoutProps) {
     const [step, setStep] = useState<"loading" | "summary" | "processing" | "success" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState("");
     const [dynamicKey, setDynamicKey] = useState<string | null>(null);
@@ -155,6 +161,11 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 amount,
                 currency: "NGN",
                 ref: `FP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                ...(subaccount ? {
+                    subaccount,
+                    transaction_charge: transactionCharge,
+                    bearer: bearer || "account",
+                } : {}),
                 metadata: {
                     ...metadata,
                     custom_fields: [
