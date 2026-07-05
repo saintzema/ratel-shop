@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     TrendingUp,
@@ -34,6 +34,17 @@ export default function AdminDashboard() {
     const [broadcastMessage, setBroadcastMessage] = useState("");
     const [complaints, setComplaints] = useState<any[]>([]);
     const [kycs, setKycs] = useState<any[]>([]);
+    // A stale in-flight seller sync could resolve after an approve/reject click and
+    // silently revert the seller back to "pending" in local cache — loadData() would
+    // then bring the row right back with fresh Approve/Reject buttons, inviting a
+    // second click on what looked like a totally new item. Track in-flight actions so
+    // we can both disable the buttons and keep the row hidden regardless of what a
+    // late-arriving sync does to the underlying seller record.
+    const [processingKycIds, setProcessingKycIds] = useState<Set<string>>(new Set());
+    // loadData() is registered on "storage"/"sync-store-update" listeners in a
+    // useEffect with an empty dependency array, so it only ever sees the state from
+    // the initial render — a ref is what actually stays current for it to read.
+    const processingKycIdsRef = useRef<Set<string>>(new Set());
     const [openDisputeCount, setOpenDisputeCount] = useState(0);
     const [recentReviews, setRecentReviews] = useState<any[]>([]);
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -84,7 +95,10 @@ export default function AdminDashboard() {
                 submitted_at: s.created_at || new Date().toISOString(),
                 created_at: s.created_at || new Date().toISOString()
             }));
-        setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
+        setKycs(prev => {
+            const combined = dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5);
+            return combined.filter(k => !processingKycIdsRef.current.has(k.id));
+        });
 
         const actualDisputes = DataSyncService.getDisputes().filter((d: any) => !String(d.order_id).includes("FP-DEMO"));
         setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
@@ -93,11 +107,17 @@ export default function AdminDashboard() {
     };
 
     const handleKycAction = (kycId: string, sellerId: string, status: "approved" | "rejected") => {
+        if (processingKycIdsRef.current.has(kycId)) return; // already in flight — ignore a second click
+
+        processingKycIdsRef.current.add(kycId);
+        setProcessingKycIds(new Set(processingKycIdsRef.current));
+        setKycs(prev => prev.filter(k => k.id !== kycId)); // optimistic removal, survives a stale sync
+
         // 1. If it's a real KYC submission (starts with kyc_), update it
         if (!kycId.startsWith("kyc_auto_")) {
             DataSyncService.updateKYCStatus(kycId, status);
         }
-        
+
         // 2. Always update the underlying seller
         // SellerStatus enum: pending | active | frozen | banned
         const realStatus = status === "approved" ? "active" : "frozen";
@@ -106,8 +126,8 @@ export default function AdminDashboard() {
             verified: status === "approved",
             status: realStatus as any
         });
-        
-        loadData(); // refresh UI
+
+        loadData(); // refresh the rest of the dashboard's stats/lists
     };
 
     useEffect(() => {

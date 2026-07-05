@@ -264,7 +264,7 @@ export default function PayoutRequestsDirectory() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">
-                                    {(p.status === "processing" || p.status === "pending") ? (
+                                    {(p.status === "processing" || p.status === "pending" || p.status === "failed") ? (
                                         <div className="flex items-center justify-end gap-2 transition-opacity">
                                             <Button
                                                 size="sm"
@@ -274,13 +274,11 @@ export default function PayoutRequestsDirectory() {
                                                     setOverrideAmount(p.amount.toString());
                                                 }}
                                             >
-                                                <CheckCircle2 className="mr-1 h-3 w-3" /> {p.status === "pending" ? "Approve" : "Mark Paid"}
+                                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                {p.status === "pending" ? "Approve" : p.status === "failed" ? "Retry" : "Mark Paid"}
                                             </Button>
                                         </div>
                                     ) : (
-                                        // completed / failed payouts have nothing left to action —
-                                        // this used to render for "pending" too, as a dead icon with
-                                        // no onClick at all, which is why nothing ever happened here.
                                         <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">No actions</span>
                                     )}
                                 </td>
