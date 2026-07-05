@@ -54,13 +54,20 @@ export default function PayoutRequestsDirectory() {
                     const seller = sellers.find((s: any) => s.id === p.sellerId);
                     return {
                         id: p.id,
-                        seller_id: p.sellerId,
-                        seller_name: seller?.business_name || p.sellerName || p.sellerId,
+                        seller_id: p.sellerId || "",
+                        seller_name: seller?.business_name || p.sellerName || p.sellerId || "Unknown seller",
                         amount: p.amount,
                         status: p.status,
+                        // The table renders p.bank / p.account_last4 / p.method (the shape used by
+                        // the local demo-data payouts) — this DB mapping only ever produced
+                        // bank_name/account_number/account_name, so every DB-backed payout's
+                        // destination column rendered blank.
+                        bank: p.bankName,
                         bank_name: p.bankName,
                         account_number: p.accountNumber,
+                        account_last4: (p.accountNumber || "").slice(-4),
                         account_name: p.accountName,
+                        method: "bank_transfer",
                         order_ids: p.orderIds || [],
                         created_at: (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString()),
                     };
@@ -87,7 +94,7 @@ export default function PayoutRequestsDirectory() {
     }, []);
 
     const filtered = payouts.filter(p => {
-        const matchesSearch = p.seller_name.toLowerCase().includes(searchTerm.toLowerCase()) || p.id.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = (p.seller_name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.id || "").toLowerCase().includes(searchTerm.toLowerCase());
         const matchesView = view === "all" || p.status === view;
         return matchesSearch && matchesView;
     });
@@ -224,7 +231,7 @@ export default function PayoutRequestsDirectory() {
                                 <td className="px-8 py-6">
                                     <div className="flex flex-col">
                                         <span className="font-bold text-gray-900 text-sm">{p.seller_name}</span>
-                                        <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">ID: {p.seller_id.toUpperCase()}</span>
+                                        <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">ID: {(p.seller_id || "").toUpperCase()}</span>
                                     </div>
                                 </td>
                                 <td className="px-8 py-6">
