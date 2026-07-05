@@ -6688,8 +6688,12 @@ class DataSyncServiceService {
                 } catch {
                     console.warn("⚠️ Storage still full after selective pruning. Nuking all re-fetchable data...");
                     // Nuclear option: wipe everything except user identity + cart. All other data is
-                    // re-fetchable from the DB. Preserving fp_user prevents session loss.
-                    const preserve = new Set(['fp_user', 'fp_guest_id', 'fp_guest_name', 'fairprice_data_version']);
+                    // re-fetchable from the DB. Preserving fp_user prevents session loss — but fp_token
+                    // was missing from this list, so every quota-triggered wipe (which happens routinely
+                    // once the seller/product cache grows past a few MB) silently deleted the admin's
+                    // auth token while keeping fp_user, leaving the UI greeting "Superadmin" while every
+                    // single Bearer-authenticated call 401'd with no way to tell the user why.
+                    const preserve = new Set(['fp_user', 'fp_token', 'fp_guest_id', 'fp_guest_name', 'fairprice_data_version']);
                     const toRemove: string[] = [];
                     for (let i = 0; i < localStorage.length; i++) {
                         const k = localStorage.key(i);
