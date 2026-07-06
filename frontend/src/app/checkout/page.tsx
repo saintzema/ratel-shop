@@ -1069,7 +1069,7 @@ function CheckoutContent() {
         }
         setAddressError("");
 
-        const continueWithOrder = () => {
+        const continueWithOrder = async () => {
             // Auto-save this address for next time
             if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
                 saveCurrentAddress();
