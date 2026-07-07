@@ -6,11 +6,11 @@
  * FIREWORKS_API_KEY is configured, with Gemini/Qwen kept as automatic fallbacks so nothing
  * breaks if Fireworks is unavailable.
  *
- * Reverted from Gemma back to Llama 3.1 70B: both Gemma 3 27B and Gemma 2 9B showed only
- * a "Dedicated" (self-managed GPU deployment) option on our Fireworks account, not
- * serverless — meaning direct chat-completions calls to them fail outright without first
- * standing up a paid dedicated deployment. Llama 3.1 70B is a standard serverless model,
- * confirmed reliably callable with just an API key.
+ * Every model tried — Llama 3.1 70B/8B, Gemma 3 27B, Gemma 2 9B, even Fireworks' own
+ * documented quickstart example (llama4-maverick-instruct-basic) — returns identical
+ * "Model not found, inaccessible, and/or not deployed" on this account. That rules out
+ * model choice entirely; this is an account-level serverless access restriction on
+ * Fireworks' side (pending activation), not something fixable from our code.
  *
  * Configure in Vercel:
  *   FIREWORKS_API_KEY   — from the AMD AI Developer Program / Fireworks dashboard
