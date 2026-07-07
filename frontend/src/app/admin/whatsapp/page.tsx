@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatPrice } from "@/lib/utils";
+import { visibleInterval } from "@/lib/client-poll";
 
 interface Interaction {
     id: string;
@@ -74,7 +75,9 @@ export default function AdminWhatsAppLogs() {
     const fetchInteractions = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch("/api/admin/whatsapp/interactions");
+            // Was missing the Authorization header entirely — every single poll 401'd,
+            // forever, burning a function invocation every 10s for no data.
+            const res = await fetch("/api/admin/whatsapp/interactions", { headers: authHeaders() });
             if (res.ok) {
                 const data = await res.json();
                 setInteractions(data);
@@ -89,8 +92,9 @@ export default function AdminWhatsAppLogs() {
 
     useEffect(() => {
         fetchInteractions();
-        const interval = setInterval(fetchInteractions, 10000); // Polling every 10s for "real-time" feel
-        return () => clearInterval(interval);
+        // visibleInterval pauses while the tab is hidden/backgrounded instead of
+        // polling forever regardless of whether anyone's looking at the page.
+        return visibleInterval(fetchInteractions, 10000);
     }, []);
 
     const filteredInteractions = interactions.filter(i => 
