@@ -376,7 +376,13 @@ function CheckoutContent() {
     const [guestId] = useState(() => "guest_" + Math.random().toString(36).substring(2, 11));
 
     useEffect(() => {
-        if (checkoutStep === 3 && !isDirectPaymentOnly) {
+        // isDirectPaymentOnly depends on checkoutItems, which starts empty before cart/QR
+        // data finishes hydrating from localStorage. If checkoutStep was already 3 at that
+        // point (persisted state, or the QR fast-path effect), this ran with
+        // isDirectPaymentOnly still evaluating false — scrolling to payment on a page the
+        // customer just landed on, before they'd even seen what they were paying for.
+        // Waiting on isCartLoaded closes that race.
+        if (checkoutStep === 3 && !isDirectPaymentOnly && isCartLoaded) {
             setTimeout(() => {
                 paymentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 150);
@@ -385,7 +391,7 @@ function CheckoutContent() {
                 shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 150);
         }
-    }, [checkoutStep, isEditingAddress]);
+    }, [checkoutStep, isEditingAddress, isDirectPaymentOnly, isCartLoaded]);
     const [createAccount, setCreateAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showPaystack, setShowPaystack] = useState(false);

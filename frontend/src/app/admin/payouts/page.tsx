@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Search, Filter, MoreVertical, CheckCircle2, XCircle, Clock, Wallet, ArrowUpRight } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
@@ -274,10 +275,10 @@ export default function PayoutRequestsDirectory() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <div className="flex flex-col">
-                                        <span className="font-bold text-gray-900 text-sm">{p.seller_name}</span>
+                                    <Link href={`/admin/users/${p.seller_id}`} className="flex flex-col hover:underline group">
+                                        <span className="font-bold text-gray-900 text-sm group-hover:text-indigo-600">{p.seller_name}</span>
                                         <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">ID: {(p.seller_id || "").toUpperCase()}</span>
-                                    </div>
+                                    </Link>
                                 </td>
                                 <td className="px-8 py-6">
                                     <div className="flex flex-col">

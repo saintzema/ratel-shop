@@ -32,9 +32,13 @@ export async function GET(
  * at the moment of payment — Paystack settles it to their bank automatically,
  * no Transfer API call ever fires for that seller again.
  *
- * percentage_charge is set to 100 (main account keeps nothing by default);
- * the actual per-transaction split is overridden via transaction_charge at
- * checkout time, since our platform fee is tiered/variable, not a fixed %.
+ * percentage_charge is Paystack's "percentage the MAIN account receives" —
+ * NOT the subaccount's cut. Set to 0 so the safe default favors the seller
+ * (they get 100% unless we explicitly carve out our fee via transaction_charge
+ * at checkout time, since our platform fee is tiered/variable, not a fixed %).
+ * Setting this to 100 (an earlier version of this file did) would mean any
+ * charge that somehow skips the transaction_charge override sends the seller
+ * NOTHING and the platform gets it all — the wrong direction to fail safe in.
  */
 export async function POST(
     request: Request,
@@ -79,7 +83,7 @@ export async function POST(
                 business_name: seller.accountName || seller.businessName,
                 settlement_bank: bankCode,
                 account_number: seller.accountNumber,
-                percentage_charge: 100, // overridden per-transaction via transaction_charge
+                percentage_charge: 0, // seller keeps 100% by default; our fee is carved out via transaction_charge per-transaction
                 primary_contact_email: seller.ownerEmail || undefined,
                 settlement_schedule: "AUTO", // T+1
             }),
