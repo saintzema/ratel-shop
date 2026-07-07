@@ -73,6 +73,17 @@ export async function POST(req: Request) {
         - Description must be at least 150 words.
         `;
 
+        // TEMP DIAGNOSTIC — remove after confirming why Fireworks isn't being called.
+        // Deliberately exposes no credential material, only presence/length, since this
+        // is a public unauthenticated endpoint.
+        if (productName === "__DIAGNOSTIC__") {
+            const key = process.env.FIREWORKS_API_KEY || "";
+            return NextResponse.json({
+                fireworksEnabled: isFireworksEnabled(),
+                keyLength: key.length,
+            });
+        }
+
         // ── Fireworks AI (AMD GPUs) — PRIMARY provider ───────────────────────────
         // Generates the product listing on AMD-hosted inference when configured. Falls
         // through to Gemini on any failure so seller/admin auto-fill never breaks.
