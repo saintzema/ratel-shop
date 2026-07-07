@@ -910,26 +910,51 @@ export function ZivaChat() {
                     ? userOrders.filter(o => o.id.includes(trackId) || o.tracking_id?.includes(trackId))
                     : userOrders.slice(0, 3); // Show latest 3 if no ID given
 
-                setTimeout(() => {
-                    setMessages(prev => [
-                        ...prev.filter(m => m.id !== typingId),
-                        {
-                            id: `track_${Date.now()}`,
-                            role: "assistant",
-                            content: foundOrders.length > 0
-                                ? `📦 **Order${foundOrders.length > 1 ? 's' : ''} Found!**\n\n${foundOrders.map(o =>
-                                    `• **${o.id.slice(0, 16)}...** — Status: **${o.status.toUpperCase()}** | Amount: **₦${o.amount.toLocaleString()}** | Date: ${new Date(o.created_at).toLocaleDateString()}\n  Escrow: ${o.escrow_status} | Shipping: ${o.shipping_address?.slice(0, 50) || 'N/A'}`
-                                ).join('\n\n')}\n\n👇 Click below to view full order details.`
-                                : trackId
-                                    ? `😕 I couldn't find any orders matching **${trackId}**. Please double-check your tracking or order ID and try again.`
-                                    : "📋 You don't have any orders yet. Start shopping and your orders will appear here!",
-                            quickActions: foundOrders.length > 0
-                                ? [{ label: "📦 View All Orders", query: "__NAV__/account/orders", icon: "" }, { label: "💬 Need Help?", query: "I need help with my order", icon: "" }]
-                                : [{ label: "🛒 Start Shopping", query: "__NAV__/", icon: "" }]
-                        }
-                    ]);
-                    setIsProcessing(false);
-                }, 1000);
+                // The lookup above is the source of truth and never changes — only the
+                // phrasing gets AI-generated (grounded strictly in foundOrders), so a rigid
+                // template can't be mistaken for the whole assistant being "canned." Any
+                // failure falls straight back to the original template — order tracking
+                // itself never breaks or blocks on this.
+                const fallbackTemplate = foundOrders.length > 0
+                    ? `📦 **Order${foundOrders.length > 1 ? 's' : ''} Found!**\n\n${foundOrders.map(o =>
+                        `• **${o.id.slice(0, 16)}...** — Status: **${o.status.toUpperCase()}** | Amount: **₦${o.amount.toLocaleString()}** | Date: ${new Date(o.created_at).toLocaleDateString()}\n  Escrow: ${o.escrow_status} | Shipping: ${o.shipping_address?.slice(0, 50) || 'N/A'}`
+                    ).join('\n\n')}\n\n👇 Click below to view full order details.`
+                    : trackId
+                        ? `😕 I couldn't find any orders matching **${trackId}**. Please double-check your tracking or order ID and try again.`
+                        : "📋 You don't have any orders yet. Start shopping and your orders will appear here!";
+
+                let replyContent = fallbackTemplate;
+                if (foundOrders.length > 0) {
+                    try {
+                        const aiRes = await fetch("/api/ziva-order-reply", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                userInput: resolvedText,
+                                orders: foundOrders.map(o => ({
+                                    id: o.id, status: o.status, amount: o.amount,
+                                    created_at: o.created_at, escrow_status: o.escrow_status,
+                                    shipping_address: o.shipping_address?.slice(0, 80),
+                                })),
+                            }),
+                        });
+                        const aiData = await aiRes.json();
+                        if (aiData?.message) replyContent = aiData.message;
+                    } catch { /* keep fallbackTemplate */ }
+                }
+
+                setMessages(prev => [
+                    ...prev.filter(m => m.id !== typingId),
+                    {
+                        id: `track_${Date.now()}`,
+                        role: "assistant",
+                        content: replyContent,
+                        quickActions: foundOrders.length > 0
+                            ? [{ label: "📦 View All Orders", query: "__NAV__/account/orders", icon: "" }, { label: "💬 Need Help?", query: "I need help with my order", icon: "" }]
+                            : [{ label: "🛒 Start Shopping", query: "__NAV__/", icon: "" }]
+                    }
+                ]);
+                setIsProcessing(false);
                 return;
             }
 

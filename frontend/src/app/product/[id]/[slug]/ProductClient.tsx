@@ -189,12 +189,18 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
         };
     }, []);
 
-    // Use DataSyncService for live product data (includes seller-added products)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // ID-based unique product list to prevent duplicate cards
-    const rawProducts = DataSyncService.getProducts(); 
-    const allProducts = Array.from(new Map(rawProducts.map(p => [p.id, p])).values());
-    const allSellers = DataSyncService.getSellers();
+    // Use DataSyncService for live product data (includes seller-added products).
+    // getProducts()/getSellers() re-parse the entire catalog from localStorage — calling
+    // them directly in the component body (not memoized) meant every single re-render of
+    // this page (typing, opening a modal, hovering a thumbnail — anything) re-parsed the
+    // whole catalog synchronously on the main thread. storeVersion only changes when the
+    // catalog actually updates, so that's the right dependency to gate recomputation on.
+    const allProducts = useMemo(() => {
+        const rawProducts = DataSyncService.getProducts();
+        // ID-based unique product list to prevent duplicate cards
+        return Array.from(new Map(rawProducts.map(p => [p.id, p])).values());
+    }, [storeVersion]);
+    const allSellers = useMemo(() => DataSyncService.getSellers(), [storeVersion]);
 
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
     const decodedId = id ? decodeURIComponent(id) : id;

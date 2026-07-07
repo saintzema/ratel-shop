@@ -55,9 +55,9 @@ export async function POST(req: Request) {
         You are an expert e-commerce copywriter for FairPrice Nigeria — Africa's most trusted marketplace.
         Product Name: "${productName}"
         Category: "${category || 'General'}"
-        
+
         Task: Create a premium, Amazon/Temu-quality product listing with rich, detailed content.
-        
+
         Output MUST be valid JSON matching this exact structure:
         {
             "description": "A compelling, 3-4 paragraph product description. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
@@ -67,10 +67,12 @@ export async function POST(req: Request) {
             "tags": ["tag1", "tag2", "tag3"],
             "colors": ["Color 1", "Color 2"]
         }
-        
+
         CRITICAL RULES:
         - Output ONLY raw, valid JSON. NO markdown.
         - Description must be at least 150 words.
+        - Open the description with a natural sentence about the product itself (e.g. "This [product] comes with...", "Built for...", "Designed to..."). Never open with a bare restated product name as a sentence fragment (e.g. avoid "A bright yellow electric tricycle. Features include...").
+        - specs must contain AT LEAST 5 key-value pairs inferred from the product name/category — e.g. for a vehicle: Motor/Engine Type, Seating Capacity, Charging/Fuel Type, Max Speed, Dimensions, Weight Capacity. For electronics: Brand, Model, Power Source, Connectivity, Dimensions. Never return fewer than 5 specs, and never leave a spec's value as a placeholder like "..." — infer a real, plausible value from the product name and category, or omit that key entirely if there's truly nothing sensible to infer.
         `;
 
         // ── Fireworks AI (AMD GPUs) — PRIMARY provider ───────────────────────────
