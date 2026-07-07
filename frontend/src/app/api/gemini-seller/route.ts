@@ -80,7 +80,7 @@ export async function POST(req: Request) {
         // through to Gemini on any failure so seller/admin auto-fill never breaks.
         if (isFireworksEnabled()) {
             const fw = await fireworksJSON<any>({
-                system: "You are an expert Nigerian e-commerce copywriter. Output ONLY one valid JSON object, no markdown.",
+                system: "You are an expert Nigerian e-commerce copywriter. Output ONLY one valid JSON object, no markdown, no reasoning, no explanation before or after — your entire response must be the raw JSON object starting with { and ending with }.",
                 prompt,
                 temperature: 0.7,
                 maxTokens: 1600,

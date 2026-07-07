@@ -63,6 +63,11 @@ export async function fireworksChat(opts: FireworksChatOpts): Promise<string | n
             max_tokens: opts.maxTokens ?? 2048,
         };
         if (opts.jsonMode) body.response_format = { type: "json_object" };
+        // Qwen 3.7 Plus (and other reasoning models) default to writing out a "Thinking
+        // Process:" chain-of-thought before the actual answer — for JSON mode this ate the
+        // entire token budget before ever emitting the JSON, so fireworksJSON's caller
+        // silently fell back to Gemini every time. reasoning_effort: "none" stops that.
+        if (opts.jsonMode) body.reasoning_effort = "none";
 
         const res = await fetch(FIREWORKS_URL, {
             method: "POST",
