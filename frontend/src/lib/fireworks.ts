@@ -6,13 +6,18 @@
  * FIREWORKS_API_KEY is configured, with Gemini/Qwen kept as automatic fallbacks so nothing
  * breaks if Fireworks is unavailable.
  *
+ * Model defaults to Gemma 3 27B Instruct (Google DeepMind, open-weight, served on AMD via
+ * Fireworks) rather than Llama — same AMD-hosted inference path, but this specific choice
+ * qualifies FairPrice for the hackathon's separate Gemma partner prize pool in addition to
+ * the main track.
+ *
  * Configure in Vercel:
  *   FIREWORKS_API_KEY   — from the AMD AI Developer Program / Fireworks dashboard
- *   FIREWORKS_MODEL     — optional; defaults to Llama 3.1 70B Instruct
+ *   FIREWORKS_MODEL     — optional; defaults to Gemma 3 27B Instruct
  */
 
 const FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
-const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/llama-v3p1-70b-instruct";
+const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/gemma-3-27b-it";
 
 /** True when a Fireworks key is present, so callers can prefer AMD inference. */
 export function isFireworksEnabled(): boolean {
