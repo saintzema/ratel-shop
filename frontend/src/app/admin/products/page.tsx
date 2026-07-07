@@ -1158,6 +1158,25 @@ export default function CatalogControl() {
                                             setEditRequireDelivery(!(p.is_direct_payment ?? false));
                                                             setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
                                                             setEditSlug(p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
+
+                                                            // The admin list is sourced from the local cache, which strips heavy
+                                                            // fields (description, full images array) for performance — the row
+                                                            // clicked here can be missing gallery images or description even
+                                                            // though the PDP (which does a full fetch) shows them correctly.
+                                                            // Re-fetch the full record and backfill anything richer than what
+                                                            // the list row had.
+                                                            fetch(`/api/products/${encodeURIComponent(p.id)}`)
+                                                                .then(r => r.ok ? r.json() : null)
+                                                                .then((full: any) => {
+                                                                    if (!full) return;
+                                                                    if (full.description && full.description !== p.description) setEditDescription(full.description);
+                                                                    if (full.images?.length > (p.images?.length || 0)) setEditImages(full.images);
+                                                                    if (full.specs && Object.keys(full.specs).length > Object.keys(p.specs || {}).length) {
+                                                                        setEditSpecs(Object.entries(full.specs).map(([key, value]) => ({ key, value: String(value) })));
+                                                                    }
+                                                                    if (full.tags?.length > (p.tags?.length || 0)) setEditTags(full.tags);
+                                                                })
+                                                                .catch(() => { /* keep list-cached values */ });
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
