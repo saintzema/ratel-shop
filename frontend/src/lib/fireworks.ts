@@ -6,19 +6,19 @@
  * FIREWORKS_API_KEY is configured, with Gemini/Qwen kept as automatic fallbacks so nothing
  * breaks if Fireworks is unavailable.
  *
- * Every model tried — Llama 3.1 70B/8B, Gemma 3 27B, Gemma 2 9B, even Fireworks' own
- * documented quickstart example (llama4-maverick-instruct-basic) — returns identical
- * "Model not found, inaccessible, and/or not deployed" on this account. That rules out
- * model choice entirely; this is an account-level serverless access restriction on
- * Fireworks' side (pending activation), not something fixable from our code.
+ * Llama 3.1 70B/8B, Gemma 3 27B, Gemma 2 9B, Llama 4 Maverick, and DeepSeek V3.1 all
+ * returned "Model not found, inaccessible, and/or not deployed" on this account — not an
+ * account-wide block after all, just those specific models weren't in this account's
+ * enabled serverless set. GLM 5.2 (confirmed working in both the Fireworks Playground and
+ * a direct curl call) is, so that's the default now.
  *
  * Configure in Vercel:
  *   FIREWORKS_API_KEY   — from the AMD AI Developer Program / Fireworks dashboard
- *   FIREWORKS_MODEL     — optional; defaults to Llama 3.1 70B Instruct
+ *   FIREWORKS_MODEL     — optional; defaults to GLM 5.2
  */
 
 const FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
-const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/llama-v3p1-70b-instruct";
+const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/glm-5p2";
 
 /** True when a Fireworks key is present, so callers can prefer AMD inference. */
 export function isFireworksEnabled(): boolean {
