@@ -416,7 +416,19 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
-            <div className="sticky top-[96px] md:top-[100px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
+            {/* top offset must track --pwa-banner-h (set by PwaManager when the install
+                banner shows) — a static px value here left the pills bar pinned too high
+                whenever the banner pushed the fixed header down, slicing off its top edge. */}
+            <div
+                id="category-pills-sticky-bar"
+                className="sticky z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1"
+                style={{ top: "calc(var(--pwa-banner-h, 0px) + 96px)" }}
+            >
+              <style jsx>{`
+                @media (min-width: 768px) {
+                  #category-pills-sticky-bar { top: calc(var(--pwa-banner-h, 0px) + 100px) !important; }
+                }
+              `}</style>
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {TEMU_CATEGORIES.map((cat) => {
                   const isActive = activeTab === cat;
