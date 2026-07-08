@@ -27,7 +27,13 @@ export async function GET(req: Request) {
                     is: {
                         status: "active"
                     }
-                }
+                },
+                // QR/direct-payment products are ephemeral checkout artifacts, not real
+                // catalog listings — they were showing up in homepage/search/store-page
+                // browsing for random customers who never scanned the QR. Both admin
+                // Catalog Control and the seller's own Products page use ?all=true, so
+                // this exclusion only affects genuinely public-facing fetches.
+                isDirectPayment: false,
             };
 
         if (sellerIdFilter) {

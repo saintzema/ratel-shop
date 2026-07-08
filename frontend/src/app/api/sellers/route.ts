@@ -181,8 +181,12 @@ export async function POST(req: Request) {
             userId: user.id,
             businessName: body.business_name,
             description: body.description || "",
-            logoUrl: body.logo_url,
-            coverImageUrl: body.cover_image_url,
+            // Only overwrite logo/cover when the caller actually sent a new one —
+            // a stale client re-submitting a seller object from before an upload
+            // synced into its local cache (empty/blank logo_url) must not blank
+            // out a real, previously-uploaded image.
+            ...(body.logo_url ? { logoUrl: body.logo_url } : {}),
+            ...(body.cover_image_url ? { coverImageUrl: body.cover_image_url } : {}),
             category: body.category || "other",
             verified: body.verified || false,
             rating: body.rating || 0,
