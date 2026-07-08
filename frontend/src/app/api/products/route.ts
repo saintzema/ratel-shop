@@ -34,6 +34,11 @@ export async function GET(req: Request) {
                 // Catalog Control and the seller's own Products page use ?all=true, so
                 // this exclusion only affects genuinely public-facing fetches.
                 isDirectPayment: false,
+                // Belt-and-braces: the seller edit page can silently flip isDirectPayment
+                // back to false if it loaded a stale local-cache copy of the product that
+                // predates that field (see the update-path fix below), so also exclude by
+                // the qr-pay- id convention every direct-payment product is created with.
+                id: { not: { startsWith: "qr-pay-" } },
             };
 
         if (sellerIdFilter) {
@@ -351,6 +356,11 @@ export async function POST(req: Request) {
         if (!body.description && body.description !== "") delete safeUpdate.description;
         if (!body.highlights?.length && !body._fromEditPage) delete safeUpdate.highlights;
         if (!body.images?.length && !body._fromEditPage) delete safeUpdate.images;
+        // A product's is_direct_payment status is set once at creation and must never
+        // be flipped false by a later edit — the seller edit page derives it from a
+        // locally-cached copy of the product that can predate this field, which was
+        // silently un-flagging real QR products and leaking them into the marketplace.
+        if (!body.is_direct_payment) delete safeUpdate.isDirectPayment;
         // Never overwrite a real image with a placeholder or an encyclopaedia image.
         // Wikimedia/Wikipedia article thumbnails are never valid product images.
         const isBadImageUrl = (u?: string) =>
