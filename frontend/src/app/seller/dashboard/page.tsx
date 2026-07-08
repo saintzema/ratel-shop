@@ -242,6 +242,26 @@ export default function SellerDashboard() {
             } catch {}
         }
 
+        // Both fallbacks above only ever read PER-DEVICE local storage — a seller who
+        // entered bank details during onboarding on a different device/browser (or after
+        // a cache clear) would see neither, and get falsely told to set them up again
+        // even though the DB has them. Ask the DB directly before giving up.
+        if ((bankName === "N/A" || accountNumber === "N/A") && currentSeller?.id) {
+            try {
+                const authHeaders = () => {
+                    const token = localStorage.getItem("fp_token");
+                    return token ? { Authorization: `Bearer ${token}` } : {};
+                };
+                const res = await fetch(`/api/sellers/${currentSeller.id}`, { headers: authHeaders() });
+                if (res.ok) {
+                    const dbSeller = await res.json();
+                    bankName = dbSeller.bankName || dbSeller.bank_name || bankName;
+                    accountNumber = dbSeller.accountNumber || dbSeller.account_number || accountNumber;
+                    accountName = dbSeller.accountName || dbSeller.account_name || accountName;
+                }
+            } catch { /* fall through to the setup prompt below */ }
+        }
+
         if (bankName === "N/A" || accountNumber === "N/A") {
             const go = window.confirm("You haven't set up your payout details yet. Would you like to add your bank details now?");
             if (go) {

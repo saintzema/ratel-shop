@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { resolveStoreUrl } from "@/lib/seller-utils";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export async function GET(
     req: Request,
@@ -25,20 +26,51 @@ export async function GET(
             return NextResponse.json({ error: "Seller not found" }, { status: 404 });
         }
 
-        // Map to format expected by frontend
-        const result = {
-            ...seller,
-            ...seller.user,
-            id: seller.id, // Ensure seller ID is used
+        // This endpoint is called from PUBLIC pages (product PDP, QR checkout landing)
+        // to fetch a seller's display info (logo, name) — it must never leak the
+        // seller's bank account, hashed password, orders (other buyers' data), or
+        // owner contact info to an unauthenticated visitor. Only the admin or the
+        // seller's own owner gets the full record.
+        const requester = getUserFromRequest(req);
+        const isAuthorized = !!requester && (requester.role === "admin" || requester.userId === seller.userId);
+
+        const publicResult = {
+            id: seller.id,
             role: "seller",
             created_at: seller.createdAt.toISOString(),
             business_name: seller.businessName,
+            description: seller.description,
+            logo_url: seller.logoUrl,
+            logoUrl: seller.logoUrl,
+            cover_image_url: seller.coverImageUrl,
+            category: seller.category,
+            verified: seller.verified,
+            rating: seller.rating,
+            trust_score: seller.trustScore,
             status: seller.status,
+            store_url: seller.storeUrl,
+            location: seller.location,
+            owner_name: seller.ownerName,
+            subscription_plan: seller.subscriptionPlan,
+        };
+
+        if (!isAuthorized) {
+            return NextResponse.json(publicResult);
+        }
+
+        const result = {
+            ...seller,
+            ...seller.user,
+            ...publicResult,
+            user_id: seller.userId,
+            kyc_status: seller.kycStatus,
+            plan_expiry_date: seller.planExpiryDate ? seller.planExpiryDate.toISOString() : null,
             orders: seller.orders.map((o: any) => ({
                 ...o,
                 created_at: o.createdAt.toISOString(),
             }))
         };
+        delete (result as any).password;
 
         return NextResponse.json(result);
     } catch (error) {
