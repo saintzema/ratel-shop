@@ -42,11 +42,15 @@ export async function POST(req: Request) {
         if (!fromNames.length || !toName) {
             return NextResponse.json({ error: "fromNames (non-empty array) and toName are required" }, { status: 400 });
         }
-        // Never merge a category into itself (a subcategory demotion IS allowed
-        // to share the same top-level name, e.g. merging "Cars" fromNames into
-        // toName "Vehicles" with toSubcategoryName "Cars" — that's a different
-        // top-level, so the self-merge guard below only fires on true no-ops).
-        const losingNames = fromNames.filter((n) => n.toLowerCase() !== toName.toLowerCase());
+        // Only skip a fromName if it's the EXACT same string as toName — a
+        // case-sensitive comparison. A lowercase check here was wrong: it
+        // treated "electronics" -> "Electronics" as a no-op merge (both
+        // lowercase to "electronics") and silently skipped it, when fixing
+        // exactly that casing mismatch was the whole point of the "Fix Safe
+        // Duplicates" tool. The DB update below still needs to run whenever
+        // the stored casing differs from the canonical name, even if the two
+        // strings are case-insensitively "the same".
+        const losingNames = fromNames.filter((n) => n !== toName);
         if (!losingNames.length) {
             return NextResponse.json({ error: "No distinct categories to merge — fromNames all match toName" }, { status: 400 });
         }
