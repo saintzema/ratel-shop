@@ -31,7 +31,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { QRCodeCanvas } from "qrcode.react";
-import { getProxiedImageUrl } from "@/lib/utils";
+import { getProxiedImageUrl, cn } from "@/lib/utils";
 
 // ─── Social share helpers ────────────────────────────────────────────────────
 function buildWaShareUrl(url: string, bizName: string) {
@@ -393,6 +393,30 @@ export default function QRPaymentsPage() {
     const [copiedStore, setCopiedStore]     = useState(false);
     const [history, setHistory]             = useState<any[]>(DataSyncService.getOffListingInvoices());
     const [selectedInv, setSelectedInv]     = useState<any>(null);
+
+    // Usage & payout tracking — `history` above is a per-device generation log only
+    // (fp_off_listing_invoices), with no real scan/payment data. This pulls the
+    // authoritative Order-backed stats for every QR code this seller has ever
+    // generated, so it lives in its own table here instead of bleeding into the
+    // regular Products list.
+    const [qrUsage, setQrUsage] = useState<any[]>([]);
+    const [qrUsageLoading, setQrUsageLoading] = useState(true);
+    useEffect(() => {
+        const loadUsage = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const res = await fetch("/api/admin/qr-payments", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) setQrUsage(data);
+                }
+            } catch { /* best-effort */ }
+            finally { setQrUsageLoading(false); }
+        };
+        loadUsage();
+    }, []);
 
     const isPremium  = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
     const logoToUse  = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/logo.svg";
@@ -908,6 +932,55 @@ export default function QRPaymentsPage() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* QR Usage & Payout Tracking */}
+                        <div className="rounded-[28px] bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm overflow-hidden">
+                            <div className="p-6 pb-4">
+                                <p className="font-black text-gray-900 text-sm">QR Usage & Payout Tracking</p>
+                                <p className="text-xs font-medium text-gray-500 mt-1">Real scan/payment stats for every QR code you've generated — pulled straight from your orders.</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-t border-gray-100 bg-gray-50/50">
+                                            <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Label</th>
+                                            <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Amount</th>
+                                            <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Times Used</th>
+                                            <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Paid</th>
+                                            <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Payout Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {qrUsageLoading ? (
+                                            <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400 font-semibold">Loading...</td></tr>
+                                        ) : qrUsage.length === 0 ? (
+                                            <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-400 font-semibold">No QR codes scanned yet.</td></tr>
+                                        ) : qrUsage.map((r) => (
+                                            <tr key={r.id} className="border-t border-gray-50">
+                                                <td className="px-6 py-3 font-bold text-gray-900 max-w-[200px] truncate">{r.name}</td>
+                                                <td className="px-6 py-3 font-semibold text-gray-700">₦{Number(r.price).toLocaleString()}</td>
+                                                <td className="px-6 py-3 font-semibold text-gray-700">{r.times_used}</td>
+                                                <td className="px-6 py-3 font-semibold text-gray-700">{r.successful_payments}</td>
+                                                <td className="px-6 py-3">
+                                                    <span className={cn(
+                                                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                                        r.payout_status === "paid_out" ? "bg-emerald-100 text-emerald-700"
+                                                            : r.payout_status === "pending_payout" ? "bg-amber-100 text-amber-700"
+                                                            : r.payout_status === "awaiting_delivery_confirmation" ? "bg-blue-100 text-blue-700"
+                                                            : "bg-gray-100 text-gray-500"
+                                                    )}>
+                                                        {r.payout_status === "paid_out" ? "Paid Out"
+                                                            : r.payout_status === "pending_payout" ? "Pending Payout"
+                                                            : r.payout_status === "awaiting_delivery_confirmation" ? "Awaiting Confirmation"
+                                                            : "No Orders Yet"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>

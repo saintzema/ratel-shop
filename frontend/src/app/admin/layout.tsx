@@ -23,6 +23,7 @@ import {
     Wallet as LucideWallet,
     Gift,
     MessageCircle,
+    QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -58,6 +59,7 @@ export default function AdminLayout({
         { label: "Concierge Ops", href: "/admin/inbox", icon: MessageSquare },
         { label: "User Directory", href: "/admin/users", icon: Users },
         { label: "Catalog Control", href: "/admin/products", icon: Package },
+        { label: "QR Payments", href: "/admin/qr-payments", icon: QrCode },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
         { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
