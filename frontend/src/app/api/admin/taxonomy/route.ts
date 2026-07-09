@@ -12,7 +12,32 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({ success: true, categories });
+    // product_count was never computed here — the Taxonomy Engine's "Total
+    // Products" stat and every per-row badge just summed `undefined`, showing
+    // NaN (then 0 once that got defensively guarded client-side). Product rows
+    // store category/subcategory as free-text (no FK to MarketplaceCategory),
+    // so counts are computed by case-insensitive grouping instead of a join.
+    const [categoryCounts, subcategoryCounts] = await Promise.all([
+      prisma.product.groupBy({ by: ["category"], _count: { _all: true } }),
+      prisma.product.groupBy({ by: ["category", "subcategory"], _count: { _all: true } }),
+    ]);
+    const catCountMap = new Map(categoryCounts.map((c) => [(c.category || "").toLowerCase(), c._count._all]));
+    const subCountMap = new Map(
+      subcategoryCounts
+        .filter((s) => s.subcategory)
+        .map((s) => [`${(s.category || "").toLowerCase()}::${(s.subcategory || "").toLowerCase()}`, s._count._all])
+    );
+
+    const withCounts = categories.map((cat: any) => ({
+      ...cat,
+      product_count: catCountMap.get(cat.name.toLowerCase()) || 0,
+      subcategories: (cat.subcategories || []).map((sub: any) => ({
+        ...sub,
+        product_count: subCountMap.get(`${cat.name.toLowerCase()}::${sub.name.toLowerCase()}`) || 0,
+      })),
+    }));
+
+    return NextResponse.json({ success: true, categories: withCounts });
   } catch (error) {
     console.error("Failed to fetch taxonomy:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch taxonomy" }, { status: 500 });
