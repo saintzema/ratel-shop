@@ -77,9 +77,14 @@ function DirectCheckoutContent() {
                     } catch { /* best effort — falls through to brand fallback below */ }
                 }
 
-                // Always generate a fresh ID so repeat scans (after cart removal) each
-                // create a new distinct cart item.
-                const uniqueId = `qr-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                // Deterministic per-QR id (seller + amount + label) — NOT time-random.
+                // addToCart() below already increments quantity when the id matches an
+                // existing cart line, so scanning the SAME QR twice now bumps qty instead
+                // of adding a duplicate line, while a genuinely different QR (different
+                // seller/amount/label) still gets its own distinct id/line. If the item
+                // was removed from cart, this same id just re-adds it fresh at qty 1.
+                const qrIdentity = `${sellerId || "global"}-${amount}-${(label || name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+                const uniqueId = `qr-pay-${qrIdentity}`.slice(0, 80).replace(/-+$/, "");
 
                 // Priority: image param (dashboard/WhatsApp QR already embeds the seller's
                 // logo when one exists) -> freshly-fetched seller logo -> FairPrice brand
