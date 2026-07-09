@@ -69,6 +69,7 @@ export const viewport = {
 };
 
 import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
+import { RouteProgressBar } from "@/components/ui/RouteProgressBar";
 
 export default function RootLayout({
   children,
@@ -215,6 +216,9 @@ export default function RootLayout({
         </div>
         
         <GlobalErrorBoundary>
+          <Suspense fallback={null}>
+            <RouteProgressBar />
+          </Suspense>
           <SplashDismiss />
           <KeyboardAware />
           <SwipeToBack />
