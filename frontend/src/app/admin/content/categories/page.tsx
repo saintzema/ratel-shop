@@ -52,6 +52,83 @@ export default function CategoryManagement() {
     const [addingChildTo, setAddingChildTo] = useState<string | null>(null);
     const [newChildName, setNewChildName] = useState("");
     const [statusMsg, setStatusMsg] = useState<string | null>(null);
+    const [isMerging, setIsMerging] = useState(false);
+
+    // Unambiguous casing/wording variants of the same real category — safe to
+    // merge automatically. Built from a live audit of actual Product.category
+    // values in production (43 distinct raw strings across 294 products,
+    // collapsing to these canonical names). Deliberately excludes anything
+    // where the real-world meaning is genuinely ambiguous (e.g. Cars vs the
+    // broader Vehicles, Health vs Medical & Health, Tablets vs Phones &
+    // Tablets) — those need a human call, not an automatic merge.
+    const SAFE_MERGES: { toName: string; fromNames: string[] }[] = [
+        { toName: "Electronics", fromNames: ["electronics"] },
+        { toName: "Phones", fromNames: ["phones", "Phones & Tablets", "phones & tablets"] },
+        { toName: "Fashion", fromNames: ["fashion"] },
+        { toName: "Home", fromNames: ["home", "Home & Kitchen"] },
+        { toName: "Health", fromNames: ["health"] },
+        { toName: "General", fromNames: ["general"] },
+        { toName: "Cars", fromNames: ["cars"] },
+        { toName: "Computers", fromNames: ["computers", "Computers & Tech", "computers & tech"] },
+        { toName: "Beauty", fromNames: ["beauty"] },
+        { toName: "Vehicles", fromNames: ["vehicles"] },
+        { toName: "Energy & Solar", fromNames: ["solar", "energy & solar", "energy"] },
+        { toName: "Baby Products", fromNames: ["baby", "Babies"] },
+        { toName: "Gaming", fromNames: ["gaming"] },
+        { toName: "Industrial & Tools", fromNames: ["Industrial Tools"] },
+        { toName: "Sports & Gym", fromNames: ["Sports"] },
+    ];
+
+    const getAuthHeaders = (): Record<string, string> => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return token ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` } : { "Content-Type": "application/json" };
+    };
+
+    const runSafeMerges = async () => {
+        const preview = SAFE_MERGES.map(m => `${m.fromNames.join(" / ")}  →  ${m.toName}`).join("\n");
+        if (!confirm(
+            `This will merge these near-duplicate categories into one canonical name each, and move every product currently using the old name to the new one. This is a real, permanent database change.\n\n${preview}\n\nProceed?`
+        )) return;
+
+        setIsMerging(true);
+        let totalProducts = 0;
+        let totalRemoved = 0;
+        const errors: string[] = [];
+
+        for (const m of SAFE_MERGES) {
+            try {
+                const res = await fetch("/api/admin/taxonomy/merge", {
+                    method: "POST",
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ fromNames: m.fromNames, toName: m.toName }),
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    totalProducts += data.productsUpdated || 0;
+                    totalRemoved += data.categoriesRemoved || 0;
+                } else if (data.error && !data.error.includes("No distinct categories")) {
+                    errors.push(`${m.toName}: ${data.error}`);
+                }
+            } catch {
+                errors.push(`${m.toName}: network error`);
+            }
+        }
+
+        setIsMerging(false);
+        // Reload the real taxonomy from the DB so the list reflects the merge immediately.
+        try {
+            const res = await fetch("/api/admin/taxonomy");
+            if (res.ok) {
+                const data = await res.json();
+                const mapped = (data.categories || []).map((cat: any) => ({ ...cat, children: cat.subcategories || [] }));
+                updateAndSave(mapped);
+            }
+        } catch { /* local list just won't refresh immediately */ }
+
+        flash(errors.length
+            ? `Merged ${totalProducts} products, removed ${totalRemoved} duplicate categories. ${errors.length} issue(s): ${errors.join("; ")}`
+            : `Done — ${totalProducts} products reassigned, ${totalRemoved} duplicate categories removed.`);
+    };
 
     const flash = (msg: string) => {
         setStatusMsg(msg);
@@ -262,12 +339,22 @@ export default function CategoryManagement() {
                     >
                         Restore Defaults
                     </Button>
-                    <Button 
+                    <Button
                         variant="outline"
                         onClick={purgeDuplicates}
                         className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                        title="Local-only cosmetic cleanup — does not touch the database or any product"
                     >
                         Purge Duplicates
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={runSafeMerges}
+                        disabled={isMerging}
+                        className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                        title="Merges known casing/wording duplicates for real in the database, reassigning every affected product"
+                    >
+                        {isMerging ? "Merging..." : "Fix Safe Duplicates"}
                     </Button>
                     <Button 
                         onClick={() => setShowAddForm(true)}
@@ -290,7 +377,7 @@ export default function CategoryManagement() {
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Products</p>
-                    <p className="text-2xl font-black text-gray-900 mt-1">{categories.reduce((sum, c) => sum + c.product_count, 0)}</p>
+                    <p className="text-2xl font-black text-gray-900 mt-1">{categories.reduce((sum, c) => sum + (c.product_count || 0), 0)}</p>
                 </div>
             </div>
 
