@@ -202,11 +202,22 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     }, [storeVersion]);
     const allSellers = useMemo(() => DataSyncService.getSellers(), [storeVersion]);
 
+    // Hydration-safe views of the above: DataSyncService.getProducts()/getSellers()
+    // read localStorage directly and already return [] on the server (window is
+    // undefined there). But on the very first CLIENT render — the hydration pass,
+    // before the `mounted` effect below has run — window IS defined, so these would
+    // return real cached data immediately, diverging from what the server rendered
+    // and producing a hydration mismatch (different product/seller/price/image, or
+    // different similar-product lists). Treat them as empty until we're past that
+    // first paint so the initial client render is textually identical to the SSR HTML.
+    const safeAllProducts = mounted ? allProducts : [];
+    const safeAllSellers = mounted ? allSellers : [];
+
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
     const decodedId = id ? decodeURIComponent(id) : id;
-    
+
     // 1. Initial lookup from all sources
-    const cachedProduct = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
+    const cachedProduct = safeAllProducts.find((p) => p.id === decodedId) || safeAllProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
 
     // 2. Resolution priority (server-authoritative first):
     //    fetchedProduct (fresh /api fetch) > initialProduct (server-rendered, identical
@@ -310,8 +321,9 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
         const namePart = decodedId.replace(/^global[-_]/, '').replace(/[-_]/g, ' ');
         const nameTokens = namePart.toLowerCase().split(' ').filter(Boolean);
 
-        // Try to find a matching product already stored in DataSyncService by name similarity
-        const allStored = DataSyncService.getProducts();
+        // Try to find a matching product already stored in DataSyncService by name similarity.
+        // Gated by `mounted` for the same hydration-safety reason as safeAllProducts above.
+        const allStored = mounted ? DataSyncService.getProducts() : [];
         const matchByName = allStored.find(p => {
             const pName = p.name.toLowerCase();
             // Match if all significant tokens from the ID appear in the product name
@@ -429,8 +441,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 return { "Type": guessedType, "Material": "Premium Quality", "Condition": "Brand New", "Shipping": "Express Delivery (2-5 Business Days)", "Returns": "30-Day Return Policy", "Payment": "Secure Escrow Protection" };
             };
 
-            // Check search cache for this product (has real price from global search)
-            const cachedProducts = DataSyncService.getAllCachedProducts();
+            // Check search cache for this product (has real price from global search).
+            // Gated by `mounted` — same hydration-safety reason as safeAllProducts above.
+            const cachedProducts = mounted ? DataSyncService.getAllCachedProducts() : [];
             const cachedMatch = cachedProducts.find((p: any) => p.id === decodedId) ||
                 cachedProducts.find((p: any) => {
                     const pName = p.name?.toLowerCase() || '';
@@ -443,7 +456,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             } else {
                 // Check sessionStorage for search results (backup source of truth)
                 let sessionMatch: any = null;
-                if (typeof window !== 'undefined') {
+                if (mounted && typeof window !== 'undefined') {
                     try {
                         const sessionResults = JSON.parse(sessionStorage.getItem('fp_nav_search_results') || '[]');
                         sessionMatch = sessionResults.find((p: any) => p.id === decodedId) ||
@@ -496,7 +509,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         }
     }
 
-    let seller = allSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
+    let seller = safeAllSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
     const resolvedLogoUrl = seller?.logo_url && !seller.logo_url.includes('placeholder')
         ? seller.logo_url
         : fetchedSellerLogoUrl || null;
@@ -599,7 +612,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         const prodBrand = (product.specs?.Brand || product.specs?.Make || "").toLowerCase();
         const prodModel = (product.specs?.Model || product.specs?.["Model Name"] || "").toLowerCase();
 
-        return allProducts
+        return safeAllProducts
             .filter((p) => p.category === product?.category && p.id !== product?.id)
             .sort((a, b) => {
                 if (isProdVehicle) {
@@ -621,14 +634,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 }
                 return b.sold_count - a.sold_count;
             });
-    }, [product, allProducts]);
+    }, [product, safeAllProducts]);
 
     const alsoBoughtProducts = useMemo(() => {
         if (!product) return [];
-        return allProducts
+        return safeAllProducts
             .filter((p) => p.id !== product?.id && !similarProducts.some(s => s.id === p.id))
             .sort((a, b) => b.sold_count - a.sold_count);
-    }, [product, allProducts, similarProducts]);
+    }, [product, safeAllProducts, similarProducts]);
 
     // Fetch Real Reviews from DataSyncService
     const realReviews = DataSyncService.getReviews(product?.id);
@@ -1232,11 +1245,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         return years > 0 ? years : 1;
     }, [seller]);
 
-    // Wait for client-side hydration before rendering
-    if (!mounted) return null;
-
-    // While fetching from DB, show spinner instead of "not found"
-    if ((!product || !seller) && isFetchingFull) {
+    // While fetching from DB, or before the client has mounted and picked up any
+    // localStorage-only product/seller (a freshly seller-added product that hasn't
+    // synced to the DB yet), show a spinner instead of "not found" — avoids a
+    // not-found → real-content flash for that case once `mounted` flips.
+    if ((!product || !seller) && (isFetchingFull || !mounted)) {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
@@ -2370,7 +2383,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                         <div className="mt-12 mb-8 space-y-12">
                             <RecommendedProducts
-                                products={similarProducts.length > 0 ? similarProducts : allProducts.filter(p => p.id !== product?.id).slice(0, 4)}
+                                products={similarProducts.length > 0 ? similarProducts : safeAllProducts.filter(p => p.id !== product?.id).slice(0, 4)}
                                 title="Similar Items in this Category"
                                 subtitle="Compare with related products"
                                 icon={<Zap className="h-5 w-5 text-ratel-orange" />}
