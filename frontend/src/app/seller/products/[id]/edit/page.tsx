@@ -173,6 +173,13 @@ function EditProductContent() {
 
     const handleAIGenerate = async () => {
         if (!formData.name) return;
+        // AutoFill's own setFormData below never marked the form dirty, unlike every
+        // manual field edit — so a background sync-store-update firing mid-request (a
+        // few hundred ms to a couple seconds while Gemini responds) would run loadData()
+        // and overwrite the whole form, including image_url, back to the stale cached
+        // product. That's what made the product image unpredictably "revert" after
+        // AutoFill, unlike admin's version which has no such re-population effect.
+        markDirty();
         setIsGenerating(true);
         setErrorMsg(null);
         try {
@@ -374,6 +381,7 @@ function EditProductContent() {
             alert("Please enter a product name first.");
             return;
         }
+        markDirty(); // same stale-sync-overwrite risk as handleAIGenerate above
         setIsCalculatingBestPrice(true);
         setErrorMsg(null);
         try {
