@@ -19,9 +19,12 @@ export const dynamic = "force-dynamic";
  * This does the full, safe merge in one transaction:
  *   1. Reassign every Product.category (case-insensitive) from each losing
  *      name to the canonical name.
- *   2. Delete the losing MarketplaceCategory rows (subcategories cascade).
+ *   2. Optionally also set Product.subcategory (when this merge is really a
+ *      demotion — e.g. "Cars" was its own top-level, now it's a subcategory
+ *      of "Vehicles" — ensuring that subcategory row exists first).
+ *   3. Delete the losing MarketplaceCategory rows (subcategories cascade).
  *
- * Expects: { fromNames: string[], toName: string }
+ * Expects: { fromNames: string[], toName: string, toSubcategoryName?: string }
  * Returns: { success: true, productsUpdated: number, categoriesRemoved: number }
  */
 export async function POST(req: Request) {
@@ -34,11 +37,15 @@ export async function POST(req: Request) {
         const body = await req.json();
         const fromNames: string[] = (body.fromNames || []).filter((n: any) => typeof n === "string" && n.trim());
         const toName: string = (body.toName || "").trim();
+        const toSubcategoryName: string = (body.toSubcategoryName || "").trim();
 
         if (!fromNames.length || !toName) {
             return NextResponse.json({ error: "fromNames (non-empty array) and toName are required" }, { status: 400 });
         }
-        // Never merge a category into itself
+        // Never merge a category into itself (a subcategory demotion IS allowed
+        // to share the same top-level name, e.g. merging "Cars" fromNames into
+        // toName "Vehicles" with toSubcategoryName "Cars" — that's a different
+        // top-level, so the self-merge guard below only fires on true no-ops).
         const losingNames = fromNames.filter((n) => n.toLowerCase() !== toName.toLowerCase());
         if (!losingNames.length) {
             return NextResponse.json({ error: "No distinct categories to merge — fromNames all match toName" }, { status: 400 });
@@ -58,12 +65,28 @@ export async function POST(req: Request) {
                 });
             }
 
+            // 1b. If this is a demotion into a subcategory, ensure that
+            // subcategory exists under the canonical category.
+            if (toSubcategoryName) {
+                const subSlug = toSubcategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+                const existingSub = await (tx as any).marketplaceSubcategory.findFirst({
+                    where: { categoryId: canonical.id, name: { equals: toSubcategoryName, mode: "insensitive" } },
+                });
+                if (!existingSub) {
+                    await (tx as any).marketplaceSubcategory.create({
+                        data: { name: toSubcategoryName, slug: subSlug, categoryId: canonical.id },
+                    });
+                }
+            }
+
             // 2. Reassign every product using any of the losing names.
             const productsUpdated = await tx.product.updateMany({
                 where: {
                     OR: losingNames.map((n) => ({ category: { equals: n, mode: "insensitive" as const } })),
                 },
-                data: { category: canonical.name },
+                data: toSubcategoryName
+                    ? { category: canonical.name, subcategory: toSubcategoryName }
+                    : { category: canonical.name },
             });
 
             // 3. Delete the losing taxonomy rows (subcategories cascade via the

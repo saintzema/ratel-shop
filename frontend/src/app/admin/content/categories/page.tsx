@@ -79,28 +79,80 @@ export default function CategoryManagement() {
         { toName: "Sports & Gym", fromNames: ["Sports"] },
     ];
 
+    // Structural calls, modeled on how Amazon/eBay/Temu actually organize these —
+    // fewer top-level departments, with the more specific labels preserved as
+    // subcategories (still fully searchable/filterable, just nested):
+    //   - Vehicles: eBay Motors puts Cars, Other Vehicles, and Auto Parts &
+    //     Accessories all under one Motors umbrella rather than as siblings.
+    //   - Health/Beauty: Amazon keeps these as separate departments (unlike
+    //     Temu's combined "Beauty & Health"); the one stray "beauty & health"
+    //     product here is a Nivea lotion, so it goes to Beauty, not Health.
+    //   - Phones & Tablets: Amazon/Temu bundle phones, tablets, and
+    //     smartwatches under one mobile-devices department.
+    //   - Industrial & Tools: Amazon's "Industrial & Scientific" is one broad
+    //     department with Machinery/Construction/Safety as subcategories, not
+    //     three separate top-level ones each with near-zero real listings.
+    //   - Home absorbs Office & Furniture, loose "furniture", and "garden &
+    //     outdoor" the same way Amazon nests Furniture and Patio/Lawn/Garden
+    //     under its Home department.
+    // Verified against the specific products behind the stray/lowercase
+    // strings (a lawn mower, a football, a respirator, a lotion) rather than
+    // guessed from the label alone.
+    const STRUCTURE_MERGES: { toName: string; fromNames: string[]; toSubcategoryName?: string }[] = [
+        { toName: "Vehicles", fromNames: ["Cars"], toSubcategoryName: "Cars" },
+        { toName: "Vehicles", fromNames: ["Other Vehicles"], toSubcategoryName: "Other Vehicles" },
+        { toName: "Vehicles", fromNames: ["Auto Parts"], toSubcategoryName: "Auto Parts" },
+        { toName: "Health", fromNames: ["Medical & Health", "Health Products"] },
+        { toName: "Beauty", fromNames: ["beauty & health"] },
+        { toName: "Phones & Tablets", fromNames: ["Phones"] },
+        { toName: "Phones & Tablets", fromNames: ["Tablets"], toSubcategoryName: "Tablets" },
+        { toName: "Phones & Tablets", fromNames: ["Smartwatches"], toSubcategoryName: "Smartwatches" },
+        { toName: "Industrial & Tools", fromNames: ["Machinery"], toSubcategoryName: "Machinery" },
+        { toName: "Industrial & Tools", fromNames: ["Construction"], toSubcategoryName: "Construction" },
+        { toName: "Industrial & Tools", fromNames: ["safety_equipment"], toSubcategoryName: "Safety Equipment" },
+        { toName: "Home", fromNames: ["Office & Furniture"], toSubcategoryName: "Office & Furniture" },
+        { toName: "Home", fromNames: ["furniture"], toSubcategoryName: "Furniture" },
+        { toName: "Home", fromNames: ["garden & outdoor"], toSubcategoryName: "Garden & Outdoor" },
+        { toName: "Sports & Gym", fromNames: ["fitness"], toSubcategoryName: "Sports Equipment" },
+        { toName: "Grocery", fromNames: ["food"] },
+    ];
+
     const getAuthHeaders = (): Record<string, string> => {
         const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         return token ? { "Content-Type": "application/json", Authorization: `Bearer ${token}` } : { "Content-Type": "application/json" };
     };
 
-    const runSafeMerges = async () => {
-        const preview = SAFE_MERGES.map(m => `${m.fromNames.join(" / ")}  →  ${m.toName}`).join("\n");
-        if (!confirm(
-            `This will merge these near-duplicate categories into one canonical name each, and move every product currently using the old name to the new one. This is a real, permanent database change.\n\n${preview}\n\nProceed?`
-        )) return;
+    const reloadTaxonomy = async () => {
+        try {
+            const res = await fetch("/api/admin/taxonomy");
+            if (res.ok) {
+                const data = await res.json();
+                const mapped = (data.categories || []).map((cat: any) => ({ ...cat, children: cat.subcategories || [] }));
+                updateAndSave(mapped);
+            }
+        } catch { /* local list just won't refresh immediately */ }
+    };
+
+    const runMergeBatch = async (
+        batch: { toName: string; fromNames: string[]; toSubcategoryName?: string }[],
+        confirmIntro: string
+    ) => {
+        const preview = batch.map(m =>
+            `${m.fromNames.join(" / ")}  →  ${m.toName}${m.toSubcategoryName ? ` > ${m.toSubcategoryName}` : ""}`
+        ).join("\n");
+        if (!confirm(`${confirmIntro}\n\n${preview}\n\nProceed?`)) return;
 
         setIsMerging(true);
         let totalProducts = 0;
         let totalRemoved = 0;
         const errors: string[] = [];
 
-        for (const m of SAFE_MERGES) {
+        for (const m of batch) {
             try {
                 const res = await fetch("/api/admin/taxonomy/merge", {
                     method: "POST",
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ fromNames: m.fromNames, toName: m.toName }),
+                    body: JSON.stringify({ fromNames: m.fromNames, toName: m.toName, toSubcategoryName: m.toSubcategoryName }),
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
@@ -115,20 +167,22 @@ export default function CategoryManagement() {
         }
 
         setIsMerging(false);
-        // Reload the real taxonomy from the DB so the list reflects the merge immediately.
-        try {
-            const res = await fetch("/api/admin/taxonomy");
-            if (res.ok) {
-                const data = await res.json();
-                const mapped = (data.categories || []).map((cat: any) => ({ ...cat, children: cat.subcategories || [] }));
-                updateAndSave(mapped);
-            }
-        } catch { /* local list just won't refresh immediately */ }
+        await reloadTaxonomy();
 
         flash(errors.length
             ? `Merged ${totalProducts} products, removed ${totalRemoved} duplicate categories. ${errors.length} issue(s): ${errors.join("; ")}`
             : `Done — ${totalProducts} products reassigned, ${totalRemoved} duplicate categories removed.`);
     };
+
+    const runSafeMerges = () => runMergeBatch(
+        SAFE_MERGES,
+        "This will merge these near-duplicate categories into one canonical name each, and move every product currently using the old name to the new one. This is a real, permanent database change."
+    );
+
+    const runStructureMerges = () => runMergeBatch(
+        STRUCTURE_MERGES,
+        "This restructures categories to match how Amazon/eBay/Temu organize theirs — some become subcategories of a broader department instead of standalone top-level entries. Every affected product is reassigned accordingly. This is a real, permanent database change."
+    );
 
     const flash = (msg: string) => {
         setStatusMsg(msg);
@@ -356,7 +410,16 @@ export default function CategoryManagement() {
                     >
                         {isMerging ? "Merging..." : "Fix Safe Duplicates"}
                     </Button>
-                    <Button 
+                    <Button
+                        variant="outline"
+                        onClick={runStructureMerges}
+                        disabled={isMerging}
+                        className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                        title="Restructures categories to match Amazon/eBay/Temu conventions — some become subcategories of a broader department"
+                    >
+                        {isMerging ? "Merging..." : "Apply Recommended Structure"}
+                    </Button>
+                    <Button
                         onClick={() => setShowAddForm(true)}
                         className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 px-6 font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20"
                     >
