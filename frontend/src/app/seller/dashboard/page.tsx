@@ -396,6 +396,28 @@ export default function SellerDashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6 max-w-6xl pb-20"
         >
+            {/* First alert: no WhatsApp on file yet — QR payments, WhatsApp product
+                uploads, and negotiation alerts all require it. Deep-links straight to
+                the activation control in Settings instead of just telling the seller
+                to go find it themselves. */}
+            {!((safeSeller as any).whatsapp_enabled && (safeSeller as any).whatsapp_number) && (
+                <Link
+                    href="/seller/settings#whatsapp-activate"
+                    className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-3xl p-4 shadow-sm hover:bg-amber-100/70 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                            <MessageSquare className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-black text-amber-900">Activate Ziva WhatsApp to unlock QR payments</p>
+                            <p className="text-xs font-semibold text-amber-700 mt-0.5">Upload products, generate QR codes, and get instant order alerts — all tied to your own number.</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
+                </Link>
+            )}
+
             {/* Enhanced Banner: Tier Level Progress */}
             {safeSeller.verified && (
                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-3 md:p-4 flex items-center justify-between shadow-sm">

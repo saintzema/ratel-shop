@@ -44,6 +44,14 @@ export default function SellerSettingsPage() {
     const coverInputRef = useRef<HTMLInputElement>(null);
 
     const [waCountryCode, setWaCountryCode] = useState("+234");
+    // Ziva WhatsApp activation: idle (not yet activated/editing) -> otp_sent (waiting
+    // for the code, only reached when admin's WhatsApp OTP Verification setting is on)
+    // -> active (saved & enabled). Kept separate from the big form's isEditing/handleSubmit
+    // so activating doesn't require opening the whole settings form for edit.
+    const [waActivationStep, setWaActivationStep] = useState<"idle" | "otp_sent" | "active">("idle");
+    const [waOtpCode, setWaOtpCode] = useState("");
+    const [waActivating, setWaActivating] = useState(false);
+    const [waOtpError, setWaOtpError] = useState("");
     const [formData, setFormData] = useState({
         business_name: "",
         description: "",
@@ -88,6 +96,7 @@ export default function SellerSettingsPage() {
             whatsapp_enabled: waEnabled,
             whatsapp_number: waNumber,
         });
+        setWaActivationStep(waEnabled && waNumber ? "active" : "idle");
         setLoading(false);
     }, [router]);
 
@@ -155,6 +164,84 @@ export default function SellerSettingsPage() {
             alert(err.message || "Failed to save settings. Please try again.");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const fullWaNumber = () => formData.whatsapp_number
+        ? `${waCountryCode.replace('+', '')}${formData.whatsapp_number.replace(/^0/, '')}`
+        : "";
+
+    const saveWhatsAppFields = async (enabled: boolean) => {
+        if (!seller) return;
+        const e164Number = fullWaNumber();
+        await fetch(`/api/sellers/${seller.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+            body: JSON.stringify({ whatsapp_enabled: enabled, whatsapp_number: e164Number }),
+        });
+        DataSyncService.updateSeller(seller.id, { whatsapp_enabled: enabled, whatsapp_number: e164Number } as any);
+        setFormData(prev => ({ ...prev, whatsapp_enabled: enabled }));
+    };
+
+    // Sends an OTP to the entered WhatsApp number — unless admin's "WhatsApp OTP
+    // Verification" setting is off, in which case /send-otp itself returns
+    // {bypassed:true} and we just save immediately, same as before this feature existed.
+    const handleActivateWhatsApp = async () => {
+        if (!formData.whatsapp_number || formData.whatsapp_number.length < 7) {
+            setWaOtpError("Enter a valid WhatsApp number first.");
+            return;
+        }
+        setWaOtpError("");
+        setWaActivating(true);
+        try {
+            const res = await fetch("/api/auth/whatsapp/send-otp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phoneNumber: fullWaNumber(), purpose: "seller_verification" }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to send verification code.");
+
+            if (data.bypassed) {
+                await saveWhatsAppFields(true);
+                setWaActivationStep("active");
+                setSuccess(true);
+                setTimeout(() => setSuccess(false), 3000);
+            } else {
+                setWaActivationStep("otp_sent");
+            }
+        } catch (err: any) {
+            setWaOtpError(err.message || "Failed to send verification code. Please try again.");
+        } finally {
+            setWaActivating(false);
+        }
+    };
+
+    const handleVerifyWhatsAppOtp = async () => {
+        if (!waOtpCode || waOtpCode.length < 4) {
+            setWaOtpError("Enter the code you received on WhatsApp.");
+            return;
+        }
+        setWaOtpError("");
+        setWaActivating(true);
+        try {
+            const res = await fetch("/api/auth/whatsapp/verify-otp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phoneNumber: fullWaNumber(), code: waOtpCode }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!data.success) throw new Error(data.error || "Invalid code. Please try again.");
+
+            await saveWhatsAppFields(true);
+            setWaActivationStep("active");
+            setWaOtpCode("");
+            setSuccess(true);
+            setTimeout(() => setSuccess(false), 3000);
+        } catch (err: any) {
+            setWaOtpError(err.message || "Verification failed. Please try again.");
+        } finally {
+            setWaActivating(false);
         }
     };
 
@@ -578,7 +665,7 @@ export default function SellerSettingsPage() {
                 </div >
 
                 {/* WhatsApp Negotiation Bridge Section */}
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-[32px] border border-emerald-100 p-6 sm:p-10 shadow-sm relative overflow-hidden group">
+                <div id="whatsapp-activate" className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-[32px] border border-emerald-100 p-6 sm:p-10 shadow-sm relative overflow-hidden group">
                     <div className="absolute -right-8 -top-8 bg-emerald-100/50 h-32 w-32 rounded-full blur-3xl group-hover:bg-emerald-200/50 transition-colors" />
                     <div className="flex items-center justify-between mb-8 relative z-10">
                         <div className="flex items-center gap-3 text-emerald-800">
@@ -590,42 +677,94 @@ export default function SellerSettingsPage() {
                                 <p className="text-[9px] font-black text-emerald-600 mt-0.5 uppercase tracking-tighter">Real-time Negotiation Hub</p>
                             </div>
                         </div>
-                        <Switch 
-                            disabled={!isEditing}
-                            checked={formData.whatsapp_enabled} 
-                            onCheckedChange={(val) => setFormData({ ...formData, whatsapp_enabled: val })} 
-                        />
+                        {waActivationStep === "active" && (
+                            <button
+                                type="button"
+                                onClick={() => { setWaActivationStep("idle"); saveWhatsAppFields(false); }}
+                                className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-white px-3 py-1.5 rounded-full shadow-sm hover:bg-emerald-50"
+                            >
+                                Deactivate
+                            </button>
+                        )}
                     </div>
-                    
+
                     <div className="space-y-6 relative z-10">
                         <p className="text-sm text-emerald-900/70 font-semibold leading-relaxed max-w-2xl">
-                            Enable real-time negotiations on WhatsApp. When a customer suggests a price, you'll be notified instantly. You can counter-offer or accept deals directly from WhatsApp.
+                            Enable real-time negotiations on WhatsApp. When a customer suggests a price, you'll be notified instantly — and QR payments/product uploads via WhatsApp chat will be tied to this number.
                         </p>
-                        
-                        {formData.whatsapp_enabled && (
-                            <div className="space-y-4 max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-emerald-900/50 flex items-center gap-1.5">Business WhatsApp Number</label>
-                                <div className="flex gap-2">
-                                    <div className={!isEditing ? "opacity-50 pointer-events-none" : ""}>
-                                        <CountryCodeSelect
-                                            value={waCountryCode}
-                                            onChange={setWaCountryCode}
-                                        />
-                                    </div>
-                                    <Input
-                                        disabled={!isEditing}
-                                        value={formData.whatsapp_number}
-                                        onChange={e => setFormData({ ...formData, whatsapp_number: e.target.value.replace(/\D/g, '') })}
-                                        placeholder="8012345678"
-                                        className="h-14 flex-1 bg-white border-emerald-200 rounded-2xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 font-black shadow-inner disabled:opacity-80"
+
+                        <div className="space-y-4 max-w-sm animate-in fade-in slide-in-from-left-4 duration-500">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-900/50 flex items-center gap-1.5">Business WhatsApp Number</label>
+                            <div className="flex gap-2">
+                                <div className={waActivationStep === "active" ? "opacity-50 pointer-events-none" : ""}>
+                                    <CountryCodeSelect
+                                        value={waCountryCode}
+                                        onChange={setWaCountryCode}
                                     />
                                 </div>
-                                <div className="flex items-center gap-2 bg-white/50 p-3 rounded-xl border border-emerald-100/50">
-                                    <ShieldAlert className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                    <p className="text-[10px] text-emerald-700 font-bold leading-tight">Ziva AI will route all customer offers and checkout alerts to this number.</p>
-                                </div>
+                                <Input
+                                    disabled={waActivationStep === "active" || waActivating}
+                                    value={formData.whatsapp_number}
+                                    onChange={e => { setFormData({ ...formData, whatsapp_number: e.target.value.replace(/\D/g, '') }); setWaOtpError(""); }}
+                                    placeholder="8012345678"
+                                    className="h-14 flex-1 bg-white border-emerald-200 rounded-2xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 font-black shadow-inner disabled:opacity-80"
+                                />
                             </div>
-                        )}
+
+                            {waActivationStep === "idle" && (
+                                <Button
+                                    type="button"
+                                    onClick={handleActivateWhatsApp}
+                                    disabled={waActivating}
+                                    className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase tracking-widest text-[10px]"
+                                >
+                                    {waActivating ? "Activating..." : "Activate Ziva WhatsApp"}
+                                </Button>
+                            )}
+
+                            {waActivationStep === "otp_sent" && (
+                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center gap-2 bg-white/70 p-3 rounded-xl border border-emerald-100/50">
+                                        <ShieldAlert className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                        <p className="text-[10px] text-emerald-700 font-bold leading-tight">
+                                            We sent a code to your WhatsApp. Wrong number?{" "}
+                                            <button type="button" onClick={() => { setWaActivationStep("idle"); setWaOtpCode(""); setWaOtpError(""); }} className="underline">
+                                                Edit it
+                                            </button> and activate again.
+                                        </p>
+                                    </div>
+                                    <Input
+                                        value={waOtpCode}
+                                        onChange={e => setWaOtpCode(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="Enter 6-digit code"
+                                        className="h-14 bg-white border-emerald-200 rounded-2xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 font-black shadow-inner text-center tracking-widest"
+                                        maxLength={6}
+                                    />
+                                    <Button
+                                        type="button"
+                                        onClick={handleVerifyWhatsAppOtp}
+                                        disabled={waActivating}
+                                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black uppercase tracking-widest text-[10px]"
+                                    >
+                                        {waActivating ? "Verifying..." : "Verify & Activate"}
+                                    </Button>
+                                    <button type="button" onClick={handleActivateWhatsApp} disabled={waActivating} className="text-[10px] font-bold text-emerald-600 underline">
+                                        Resend code
+                                    </button>
+                                </div>
+                            )}
+
+                            {waActivationStep === "active" && (
+                                <div className="flex items-center gap-2 bg-white/70 p-3 rounded-xl border border-emerald-200">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                    <p className="text-[10px] text-emerald-700 font-black uppercase tracking-widest">Verified & Active</p>
+                                </div>
+                            )}
+
+                            {waOtpError && (
+                                <p className="text-[10px] font-bold text-rose-600">{waOtpError}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
