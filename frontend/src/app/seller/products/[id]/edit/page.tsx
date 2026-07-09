@@ -385,9 +385,18 @@ function EditProductContent() {
             
             if (res.ok) {
                 const best = await res.json();
-                const fairPrice = best.approxPrice;
-                const otherPrice = Math.round(fairPrice * 1.15);
-                
+                // mode: 'analyze' returns recommendedPrice/marketAverage, not approxPrice
+                // (that field only exists in the bulk-search mode) — reading approxPrice
+                // here always got undefined, so fairPrice.toLocaleString() below threw on
+                // every single click.
+                const fairPrice = best.recommendedPrice;
+                if (!fairPrice) {
+                    setErrorMsg("Best Price returned no data. Try a more specific product name.");
+                    setIsPriceDiscoveryOpen(true);
+                    return;
+                }
+                const otherPrice = best.marketAverage || Math.round(fairPrice * 1.15);
+
                 setFormData(prev => ({
                     ...prev,
                     price: fairPrice.toLocaleString(),
