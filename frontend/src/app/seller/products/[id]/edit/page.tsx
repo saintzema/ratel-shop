@@ -600,145 +600,7 @@ function EditProductContent() {
                 </motion.div>
             )}
 
-            {/* ─── Section 1: Product Image ─── */}
-            <motion.section
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
-            >
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Product Image</h2>
-                <p className="text-sm text-gray-500 mb-6">Upload a main image or paste a URL. Supported formats: PNG, JPG, WebP.</p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
-                    <ProductImageSlot 
-                        url={formData.image_url} 
-                        onUrlChange={(url) => { markDirty(); setFormData(prev => ({ ...prev, image_url: url })); }}
-                        onFileSelect={handleMainImageUpload}
-                        label="Main Image"
-                    />
-                    <div className="pt-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-4 text-[10px] font-black uppercase tracking-wider border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl gap-1.5 w-full mb-4"
-                            onClick={async () => {
-                                if (!formData.name) return;
-                                setIsFetchingImage(true);
-                                setErrorMsg(null);
-                                try {
-                                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}&category=${encodeURIComponent(formData.category || '')}`);
-                                    if (res.ok) {
-                                        const data = await res.json();
-                                        if (data.imageUrl) {
-                                            setFormData(prev => ({ ...prev, image_url: data.imageUrl }));
-                                            if (data.imageUrls && Array.isArray(data.imageUrls)) {
-                                                setFormData(prev => ({ ...prev, images: data.imageUrls.slice(0, 8) }));
-                                            }
-                                            return;
-                                        }
-                                    }
-                                    const geminiRes = await fetch('/api/gemini-price', {
-                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
-                                    });
-                                    if (geminiRes.ok) {
-                                        const geminiData = await geminiRes.json();
-                                        if (geminiData.image_url?.startsWith('http')) {
-                                            setFormData(prev => ({ ...prev, image_url: geminiData.image_url }));
-                                            return;
-                                        }
-                                    }
-                                    setErrorMsg('Could not find an image. Try a more specific product name or upload manually.');
-                                } catch {
-                                    setErrorMsg('Image search failed. Check your internet connection.');
-                                } finally { setIsFetchingImage(false); }
-                            }}
-                            disabled={isFetchingImage || !formData.name}
-                        >
-                            {isFetchingImage ? (<><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>) : (<><Globe className="h-3 w-3" /> Get Image from Web</>)}
-                        </Button>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Photo Guidelines</p>
-                        <ul className="text-[11px] text-gray-500 space-y-2">
-                            <li className="flex gap-2"><span>•</span> White background preferred for SEO</li>
-                            <li className="flex gap-2"><span>•</span> Show the product from the front</li>
-                            <li className="flex gap-2"><span>•</span> High resolution leads to 2x more sales</li>
-                        </ul>
-                    </div>
-                </div>
-            </motion.section>
-
-            {/* ─── Section 2: Visual Gallery Images ─── */}
-            <motion.section
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
-            >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
-                        <p className="text-sm text-gray-500 mt-1">Upload photos or videos, or paste direct links. Add a still image + a product video — shoppers see the image and the video plays on hover.</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {formData.images.map((url, i) => (
-                        <div key={i} className="relative group">
-                            <ProductImageSlot
-                                url={url}
-                                onUrlChange={(newUrl) => {
-                                    markDirty();
-                                    const next = [...formData.images];
-                                    next[i] = newUrl;
-                                    setFormData(prev => ({ ...prev, images: next }));
-                                }}
-                                onFileSelect={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                        markDirty();
-                                        uploadMedia(file, (url) => {
-                                            setFormData(prev => {
-                                                const next = [...prev.images];
-                                                next[i] = url;
-                                                return { ...prev, images: next };
-                                            });
-                                        });
-                                    }
-                                }}
-                                className="mb-0"
-                            />
-                            {formData.images.length > 1 && (
-                                <button
-                                    onClick={() => {
-                                        markDirty();
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            images: prev.images.filter((_, idx) => idx !== i)
-                                        }));
-                                    }}
-                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                >
-                                    <X className="h-2.5 w-2.5" />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                    {formData.images.length < 8 && (
-                        <button
-                            onClick={() => {
-                                markDirty();
-                                setFormData(prev => ({ ...prev, images: [...prev.images, ""] }));
-                            }}
-                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
-                        >
-                            <Plus className="h-4 w-4" />
-                        </button>
-                    )}
-                </div>
-            </motion.section>
-
-            {/* ─── Section 3: Product Details ─── */}
+            {/* ─── Section 1: Product Details ─── */}
             <motion.section
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -912,6 +774,144 @@ function EditProductContent() {
                     </label>
                 </div>
             </motion.section>
+            {/* ─── Section 2: Product Image ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
+            >
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Product Image</h2>
+                <p className="text-sm text-gray-500 mb-6">Upload a main image or paste a URL. Supported formats: PNG, JPG, WebP.</p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
+                    <ProductImageSlot 
+                        url={formData.image_url} 
+                        onUrlChange={(url) => { markDirty(); setFormData(prev => ({ ...prev, image_url: url })); }}
+                        onFileSelect={handleMainImageUpload}
+                        label="Main Image"
+                    />
+                    <div className="pt-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-4 text-[10px] font-black uppercase tracking-wider border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl gap-1.5 w-full mb-4"
+                            onClick={async () => {
+                                if (!formData.name) return;
+                                setIsFetchingImage(true);
+                                setErrorMsg(null);
+                                try {
+                                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}&category=${encodeURIComponent(formData.category || '')}`);
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        if (data.imageUrl) {
+                                            setFormData(prev => ({ ...prev, image_url: data.imageUrl }));
+                                            if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                                                setFormData(prev => ({ ...prev, images: data.imageUrls.slice(0, 8) }));
+                                            }
+                                            return;
+                                        }
+                                    }
+                                    const geminiRes = await fetch('/api/gemini-price', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
+                                    });
+                                    if (geminiRes.ok) {
+                                        const geminiData = await geminiRes.json();
+                                        if (geminiData.image_url?.startsWith('http')) {
+                                            setFormData(prev => ({ ...prev, image_url: geminiData.image_url }));
+                                            return;
+                                        }
+                                    }
+                                    setErrorMsg('Could not find an image. Try a more specific product name or upload manually.');
+                                } catch {
+                                    setErrorMsg('Image search failed. Check your internet connection.');
+                                } finally { setIsFetchingImage(false); }
+                            }}
+                            disabled={isFetchingImage || !formData.name}
+                        >
+                            {isFetchingImage ? (<><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>) : (<><Globe className="h-3 w-3" /> Get Image from Web</>)}
+                        </Button>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Photo Guidelines</p>
+                        <ul className="text-[11px] text-gray-500 space-y-2">
+                            <li className="flex gap-2"><span>•</span> White background preferred for SEO</li>
+                            <li className="flex gap-2"><span>•</span> Show the product from the front</li>
+                            <li className="flex gap-2"><span>•</span> High resolution leads to 2x more sales</li>
+                        </ul>
+                    </div>
+                </div>
+            </motion.section>
+
+            {/* ─── Section 3: Visual Gallery Images ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
+            >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
+                        <p className="text-sm text-gray-500 mt-1">Upload photos or videos, or paste direct links. Add a still image + a product video — shoppers see the image and the video plays on hover.</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {formData.images.map((url, i) => (
+                        <div key={i} className="relative group">
+                            <ProductImageSlot
+                                url={url}
+                                onUrlChange={(newUrl) => {
+                                    markDirty();
+                                    const next = [...formData.images];
+                                    next[i] = newUrl;
+                                    setFormData(prev => ({ ...prev, images: next }));
+                                }}
+                                onFileSelect={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        markDirty();
+                                        uploadMedia(file, (url) => {
+                                            setFormData(prev => {
+                                                const next = [...prev.images];
+                                                next[i] = url;
+                                                return { ...prev, images: next };
+                                            });
+                                        });
+                                    }
+                                }}
+                                className="mb-0"
+                            />
+                            {formData.images.length > 1 && (
+                                <button
+                                    onClick={() => {
+                                        markDirty();
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            images: prev.images.filter((_, idx) => idx !== i)
+                                        }));
+                                    }}
+                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    {formData.images.length < 8 && (
+                        <button
+                            onClick={() => {
+                                markDirty();
+                                setFormData(prev => ({ ...prev, images: [...prev.images, ""] }));
+                            }}
+                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+            </motion.section>
+
 
             {/* ─── Section 4: Specifications ─── */}
             <motion.section

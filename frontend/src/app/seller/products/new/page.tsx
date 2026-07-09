@@ -582,11 +582,125 @@ function NewProductContent() {
                 {/* ─── Left Column: Form ─── */}
                 <div className="lg:col-span-2 space-y-6">
 
-                    {/* Section 1: Product Image */}
+                    {/* Section 1: Core Details — Name/AutoFill live in the header above, so
+                        this must render first (both mobile and desktop) or a seller has to
+                        scroll past two image sections just to type the name AutoFill needs. */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.05 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <h2 className="text-lg font-semibold text-gray-900 mb-6">Product Details</h2>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Product Name</label>
+                                    <Input
+                                        placeholder="e.g. iPhone 15 Pro Max"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.name}
+                                        onChange={(e) => handleChange("name", e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Category</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                        value={formData.category}
+                                        onChange={(e) => handleChange("category", e.target.value)}
+                                    >
+                                        <option value="">Select Category</option>
+                                        {/* Admin-only tabs (Trending, Best-Selling, Price Drop) are curated by admins — hide from sellers */}
+                                        {taxonomy.filter(cat => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(cat.name.toLowerCase())).map(cat => (
+                                            <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                        ))}
+                                        {/* Fallback for hardcoded categories not in DB (exclude admin-only) */}
+                                        {CATEGORIES.filter(c => !c.adminOnly && !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
+                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                        ))}
+                                        {/* Auto-select newly created custom category if it's in state but not in list yet */}
+                                        {formData.category && !taxonomy.some(c => c.name.toLowerCase() === formData.category) && !CATEGORIES.some(c => c.value === formData.category) && (
+                                            <option value={formData.category}>{formData.category.charAt(0).toUpperCase() + formData.category.slice(1)}</option>
+                                        )}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Subcategory</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                        value={formData.subcategory}
+                                        onChange={(e) => handleChange("subcategory", e.target.value)}
+                                    >
+                                        <option value="">Select Subcategory</option>
+                                        {taxonomy.find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.children.map((sub: any) => (
+                                            <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                        ))}
+                                        {/* Fallback */}
+                                        {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
+                                            <option key={sub} value={sub}>{sub}</option>
+                                        ))}
+                                    </select>
+                                    {formData.subcategory === "other_custom" && (
+                                        <Input
+                                            placeholder="Enter custom subcategory..."
+                                            className="rounded-xl mt-3 h-11 bg-white border-blue-200"
+                                            onBlur={(e) => handleChange("subcategory", e.target.value)}
+                                        />
+                                    )}
+                                </div>
+                                <div className="space-y-2 col-span-1 md:col-span-2">
+                                    <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
+                                    <TagsInput
+                                        tags={formData.tags}
+                                        onChange={(tags) => handleChange("tags", tags)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
+                                    <Input
+                                        placeholder="e.g. Space Black, Silver, Gold"
+                                        list="color-suggestions"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.colors}
+                                        onChange={(e) => handleChange("colors", e.target.value)}
+                                    />
+                                    <datalist id="color-suggestions">
+                                        {DataSyncService.getUniqueColors().map(color => (
+                                            <option key={color} value={color} />
+                                        ))}
+                                    </datalist>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Description</label>
+                                <textarea
+                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-normal transition-all leading-relaxed min-h-[140px]"
+                                    placeholder={isGenerating ? "AI is generating description..." : "Describe the key features and benefits..."}
+                                    value={formData.description}
+                                    onChange={(e) => handleChange("description", e.target.value)}
+                                />
+                            </div>
+                            <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.require_delivery_details}
+                                    onChange={(e) => handleChange("require_delivery_details", e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 accent-brand-green-600"
+                                />
+                                <span>
+                                    <span className="block text-sm font-medium text-gray-700">Require delivery details at checkout</span>
+                                    <span className="block text-xs text-gray-500 mt-0.5">Turn off for in-person items (food, drinks) — checkout skips straight to payment, with delivery details folded away as optional in case the customer still wants it shipped.</span>
+                                </span>
+                            </label>
+                        </div>
+                    </motion.section>
+
+                    {/* Section 2: Product Image */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
                         className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
                     >
                         <h2 className="text-lg font-semibold text-gray-900 mb-1">Product Image</h2>
@@ -648,7 +762,7 @@ function NewProductContent() {
                         </div>
                     </motion.section>
 
-                    {/* Section 2: Visual Gallery Images */}
+                    {/* Section 3: Visual Gallery Images */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -709,119 +823,6 @@ function NewProductContent() {
                             )}
                         </div>
                     </motion.section>
-
-                    {/* Section 3: Core Details */}
-                    <motion.section
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.15 }}
-                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
-                    >
-                        <h2 className="text-lg font-semibold text-gray-900 mb-6">Product Details</h2>
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Product Name</label>
-                                    <Input
-                                        placeholder="e.g. iPhone 15 Pro Max"
-                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                        value={formData.name}
-                                        onChange={(e) => handleChange("name", e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Category</label>
-                                    <select
-                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
-                                        value={formData.category}
-                                        onChange={(e) => handleChange("category", e.target.value)}
-                                    >
-                                        <option value="">Select Category</option>
-                                        {/* Admin-only tabs (Trending, Best-Selling, Price Drop) are curated by admins — hide from sellers */}
-                                        {taxonomy.filter(cat => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(cat.name.toLowerCase())).map(cat => (
-                                            <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
-                                        ))}
-                                        {/* Fallback for hardcoded categories not in DB (exclude admin-only) */}
-                                        {CATEGORIES.filter(c => !c.adminOnly && !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
-                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                        ))}
-                                        {/* Auto-select newly created custom category if it's in state but not in list yet */}
-                                        {formData.category && !taxonomy.some(c => c.name.toLowerCase() === formData.category) && !CATEGORIES.some(c => c.value === formData.category) && (
-                                            <option value={formData.category}>{formData.category.charAt(0).toUpperCase() + formData.category.slice(1)}</option>
-                                        )}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Subcategory</label>
-                                    <select 
-                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
-                                        value={formData.subcategory}
-                                        onChange={(e) => handleChange("subcategory", e.target.value)}
-                                    >
-                                        <option value="">Select Subcategory</option>
-                                        {taxonomy.find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.children.map((sub: any) => (
-                                            <option key={sub.id} value={sub.name}>{sub.name}</option>
-                                        ))}
-                                        {/* Fallback */}
-                                        {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
-                                            <option key={sub} value={sub}>{sub}</option>
-                                        ))}
-                                    </select>
-                                    {formData.subcategory === "other_custom" && (
-                                        <Input
-                                            placeholder="Enter custom subcategory..."
-                                            className="rounded-xl mt-3 h-11 bg-white border-blue-200"
-                                            onBlur={(e) => handleChange("subcategory", e.target.value)}
-                                        />
-                                    )}
-                                </div>
-                                <div className="space-y-2 col-span-1 md:col-span-2">
-                                    <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
-                                    <TagsInput 
-                                        tags={formData.tags}
-                                        onChange={(tags) => handleChange("tags", tags)}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
-                                    <Input
-                                        placeholder="e.g. Space Black, Silver, Gold"
-                                        list="color-suggestions"
-                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                        value={formData.colors}
-                                        onChange={(e) => handleChange("colors", e.target.value)}
-                                    />
-                                    <datalist id="color-suggestions">
-                                        {DataSyncService.getUniqueColors().map(color => (
-                                            <option key={color} value={color} />
-                                        ))}
-                                    </datalist>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Description</label>
-                                <textarea
-                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-normal transition-all leading-relaxed min-h-[140px]"
-                                    placeholder={isGenerating ? "AI is generating description..." : "Describe the key features and benefits..."}
-                                    value={formData.description}
-                                    onChange={(e) => handleChange("description", e.target.value)}
-                                />
-                            </div>
-                            <label className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.require_delivery_details}
-                                    onChange={(e) => handleChange("require_delivery_details", e.target.checked)}
-                                    className="mt-0.5 h-4 w-4 accent-brand-green-600"
-                                />
-                                <span>
-                                    <span className="block text-sm font-medium text-gray-700">Require delivery details at checkout</span>
-                                    <span className="block text-xs text-gray-500 mt-0.5">Turn off for in-person items (food, drinks) — checkout skips straight to payment, with delivery details folded away as optional in case the customer still wants it shipped.</span>
-                                </span>
-                            </label>
-                        </div>
-                    </motion.section>
-
                     {/* Section 4: Specifications */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
