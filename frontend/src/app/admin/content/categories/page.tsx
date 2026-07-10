@@ -61,14 +61,20 @@ export default function CategoryManagement() {
     // where the real-world meaning is genuinely ambiguous (e.g. Cars vs the
     // broader Vehicles, Health vs Medical & Health, Tablets vs Phones &
     // Tablets) — those need a human call, not an automatic merge.
+    // NOTE: "Phones" and "Cars" used to be canonical top-level targets here,
+    // but "Apply Recommended Structure" (STRUCTURE_MERGES below) later renamed
+    // "Phones" -> "Phones & Tablets" and demoted "Cars" into a Vehicles
+    // subcategory. Leaving the old entries pointed at "Phones"/"Cars" would
+    // silently re-create/repopulate those as top-level categories again and
+    // fight the restructure every time this batch is re-run — updated to
+    // target the current canonical names instead.
     const SAFE_MERGES: { toName: string; fromNames: string[] }[] = [
         { toName: "Electronics", fromNames: ["electronics"] },
-        { toName: "Phones", fromNames: ["phones", "Phones & Tablets", "phones & tablets"] },
+        { toName: "Phones & Tablets", fromNames: ["phones", "Phones", "phones & tablets"] },
         { toName: "Fashion", fromNames: ["fashion"] },
         { toName: "Home", fromNames: ["home", "Home & Kitchen"] },
         { toName: "Health", fromNames: ["health"] },
         { toName: "General", fromNames: ["general"] },
-        { toName: "Cars", fromNames: ["cars"] },
         { toName: "Computers", fromNames: ["computers", "Computers & Tech", "computers & tech"] },
         { toName: "Beauty", fromNames: ["beauty"] },
         { toName: "Vehicles", fromNames: ["vehicles"] },
@@ -183,6 +189,33 @@ export default function CategoryManagement() {
         STRUCTURE_MERGES,
         "This restructures categories to match how Amazon/eBay/Temu organize theirs — some become subcategories of a broader department instead of standalone top-level entries. Every affected product is reassigned accordingly. This is a real, permanent database change."
     );
+
+    // One-time repair for a bug in the merge tool's delete step that cascade-
+    // deleted 10 top-level categories and their subcategories on a re-run of
+    // Fix Safe Duplicates. Product data was never affected — this just
+    // recreates the taxonomy tree entries and fixes the one product-level
+    // side effect (Phones getting reverted from Phones & Tablets).
+    const runRestoreMissing = async () => {
+        if (!confirm("Recreate the categories/subcategories wiped out by the merge-tool bug (Beauty, Computers, Electronics, Energy & Solar, Fashion, Gaming, Health, Home, Phones & Tablets, Vehicles) and fix the Phones->Phones & Tablets product revert?")) return;
+        setIsMerging(true);
+        try {
+            const res = await fetch("/api/admin/taxonomy/restore-missing", {
+                method: "POST",
+                headers: getAuthHeaders(),
+            });
+            const data = await res.json();
+            setIsMerging(false);
+            if (res.ok && data.success) {
+                await reloadTaxonomy();
+                flash(`Restored ${data.categoriesCreated.length} categories, ${data.subcategoriesCreated.length} subcategories. Fixed ${data.phonesProductsFixed} Phones products.`);
+            } else {
+                flash(`Error: ${data.error || "Restore failed"}`);
+            }
+        } catch {
+            setIsMerging(false);
+            flash("Network error during restore.");
+        }
+    };
 
     const flash = (msg: string) => {
         setStatusMsg(msg);
@@ -418,6 +451,15 @@ export default function CategoryManagement() {
                         title="Restructures categories to match Amazon/eBay/Temu conventions — some become subcategories of a broader department"
                     >
                         {isMerging ? "Merging..." : "Apply Recommended Structure"}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={runRestoreMissing}
+                        disabled={isMerging}
+                        className="rounded-xl border-red-300 text-red-700 hover:bg-red-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                        title="One-time repair for the merge-tool bug that cascade-deleted 10 categories on re-run — safe to click once, idempotent"
+                    >
+                        {isMerging ? "Restoring..." : "Restore Missing Categories"}
                     </Button>
                     <Button
                         onClick={() => setShowAddForm(true)}

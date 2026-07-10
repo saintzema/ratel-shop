@@ -94,9 +94,17 @@ export async function POST(req: Request) {
             });
 
             // 3. Delete the losing taxonomy rows (subcategories cascade via the
-            //    schema's onDelete: Cascade).
+            //    schema's onDelete: Cascade). CRITICAL: this lookup uses
+            //    case-insensitive matching against losingNames, which — when a
+            //    losingName is case-insensitively identical to toName (e.g.
+            //    fromNames: ["electronics"], toName: "Electronics") — would
+            //    also match the canonical row itself (the same one just used
+            //    as the update target two steps up), deleting the very
+            //    category we just consolidated everything into and cascading
+            //    away all of its subcategories. Explicitly exclude canonical.id.
             const losing = await (tx as any).marketplaceCategory.findMany({
                 where: {
+                    id: { not: canonical.id },
                     OR: losingNames.map((n) => ({ name: { equals: n, mode: "insensitive" as const } })),
                 },
                 select: { id: true },
