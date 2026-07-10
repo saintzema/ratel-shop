@@ -22,14 +22,26 @@ export function RouteProgressBar() {
     const searchParams = useSearchParams();
     const growTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const safetyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         const start = () => {
             if (growTimeout.current) clearTimeout(growTimeout.current);
             if (hideTimeout.current) clearTimeout(hideTimeout.current);
+            if (safetyTimeout.current) clearTimeout(safetyTimeout.current);
             setVisible(true);
             setWidth(20);
             growTimeout.current = setTimeout(() => setWidth(65), 150);
+            // Not every pushState/replaceState call is a real navigation that
+            // changes pathname/searchParams — plenty of code calls replaceState
+            // for scroll restoration, filter state, or same-URL canonicalization,
+            // none of which ever fire the "finish" effect below. Without this,
+            // the bar was getting stuck at 65% forever on exactly those calls.
+            // Force-hide after a few seconds no matter what.
+            safetyTimeout.current = setTimeout(() => {
+                setVisible(false);
+                setWidth(0);
+            }, 4000);
         };
 
         const origPush = window.history.pushState.bind(window.history);
@@ -53,6 +65,7 @@ export function RouteProgressBar() {
     useEffect(() => {
         if (!visible) return;
         if (growTimeout.current) clearTimeout(growTimeout.current);
+        if (safetyTimeout.current) clearTimeout(safetyTimeout.current);
         setWidth(100);
         hideTimeout.current = setTimeout(() => {
             setVisible(false);
