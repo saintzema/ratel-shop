@@ -27,7 +27,7 @@ interface Category {
     expanded?: boolean;
 }
 
-import { DataSyncService, INITIAL_CATEGORIES } from "@/lib/sync-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export default function CategoryManagement() {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -139,109 +139,65 @@ export default function CategoryManagement() {
         } catch { /* local list just won't refresh immediately */ }
     };
 
-    const runMergeBatch = async (
-        batch: { toName: string; fromNames: string[]; toSubcategoryName?: string }[],
-        confirmIntro: string
-    ) => {
-        const preview = batch.map(m =>
-            `${m.fromNames.join(" / ")}  →  ${m.toName}${m.toSubcategoryName ? ` > ${m.toSubcategoryName}` : ""}`
-        ).join("\n");
-        if (!confirm(`${confirmIntro}\n\n${preview}\n\nProceed?`)) return;
+    // Everything the Taxonomy Engine can fix, folded into one button instead
+    // of seven: safe casing/wording merges, the Amazon/eBay/Temu-style
+    // restructure, and a purely additive subcategory backfill (only fills in
+    // Product.subcategory where it's empty — never moves or deletes anything,
+    // so it's safe to run as often as needed as new products come in without
+    // subcategory set). Runs in sequence, one confirmation, one result.
+    const runCleanUpTaxonomy = async () => {
+        if (!confirm(
+            "Run the full taxonomy cleanup: merge casing/wording duplicates, restructure to Amazon/eBay/Temu-style categories, and backfill subcategories for products that don't have one yet. Safe to run repeatedly. Proceed?"
+        )) return;
 
         setIsMerging(true);
         let totalProducts = 0;
         let totalRemoved = 0;
+        let totalBackfilled = 0;
         const errors: string[] = [];
 
-        for (const m of batch) {
-            try {
-                const res = await fetch("/api/admin/taxonomy/merge", {
-                    method: "POST",
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ fromNames: m.fromNames, toName: m.toName, toSubcategoryName: m.toSubcategoryName }),
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    totalProducts += data.productsUpdated || 0;
-                    totalRemoved += data.categoriesRemoved || 0;
-                } else if (data.error && !data.error.includes("No distinct categories")) {
-                    errors.push(`${m.toName}: ${data.error}`);
+        for (const batch of [SAFE_MERGES, STRUCTURE_MERGES]) {
+            for (const m of batch) {
+                try {
+                    const res = await fetch("/api/admin/taxonomy/merge", {
+                        method: "POST",
+                        headers: getAuthHeaders(),
+                        body: JSON.stringify({ fromNames: m.fromNames, toName: m.toName, toSubcategoryName: (m as any).toSubcategoryName }),
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        totalProducts += data.productsUpdated || 0;
+                        totalRemoved += data.categoriesRemoved || 0;
+                    } else if (data.error && !data.error.includes("No distinct categories")) {
+                        errors.push(`${m.toName}: ${data.error}`);
+                    }
+                } catch {
+                    errors.push(`${m.toName}: network error`);
                 }
-            } catch {
-                errors.push(`${m.toName}: network error`);
             }
+        }
+
+        try {
+            const res = await fetch("/api/admin/taxonomy/backfill-subcategories", {
+                method: "POST",
+                headers: getAuthHeaders(),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                totalBackfilled = data.totalUpdated || 0;
+            } else if (data.error) {
+                errors.push(`Backfill: ${data.error}`);
+            }
+        } catch {
+            errors.push("Backfill: network error");
         }
 
         setIsMerging(false);
         await reloadTaxonomy();
 
         flash(errors.length
-            ? `Merged ${totalProducts} products, removed ${totalRemoved} duplicate categories. ${errors.length} issue(s): ${errors.join("; ")}`
-            : `Done — ${totalProducts} products reassigned, ${totalRemoved} duplicate categories removed.`);
-    };
-
-    const runSafeMerges = () => runMergeBatch(
-        SAFE_MERGES,
-        "This will merge these near-duplicate categories into one canonical name each, and move every product currently using the old name to the new one. This is a real, permanent database change."
-    );
-
-    const runStructureMerges = () => runMergeBatch(
-        STRUCTURE_MERGES,
-        "This restructures categories to match how Amazon/eBay/Temu organize theirs — some become subcategories of a broader department instead of standalone top-level entries. Every affected product is reassigned accordingly. This is a real, permanent database change."
-    );
-
-    // One-time repair for a bug in the merge tool's delete step that cascade-
-    // deleted 10 top-level categories and their subcategories on a re-run of
-    // Fix Safe Duplicates. Product data was never affected — this just
-    // recreates the taxonomy tree entries and fixes the one product-level
-    // side effect (Phones getting reverted from Phones & Tablets).
-    const runRestoreMissing = async () => {
-        if (!confirm("Recreate the categories/subcategories wiped out by the merge-tool bug (Beauty, Computers, Electronics, Energy & Solar, Fashion, Gaming, Health, Home, Phones & Tablets, Vehicles) and fix the Phones->Phones & Tablets product revert?")) return;
-        setIsMerging(true);
-        try {
-            const res = await fetch("/api/admin/taxonomy/restore-missing", {
-                method: "POST",
-                headers: getAuthHeaders(),
-            });
-            const data = await res.json();
-            setIsMerging(false);
-            if (res.ok && data.success) {
-                await reloadTaxonomy();
-                flash(`Restored ${data.categoriesCreated.length} categories, ${data.subcategoriesCreated.length} subcategories. Fixed ${data.phonesProductsFixed} Phones products.`);
-            } else {
-                flash(`Error: ${data.error || "Restore failed"}`);
-            }
-        } catch {
-            setIsMerging(false);
-            flash("Network error during restore.");
-        }
-    };
-
-    // Promotes Food from a generic Grocery subcategory to its own department
-    // with real subcategories (Meat & Poultry, Sides & Snacks, etc.), matching
-    // Jumia/Amazon's grocery structure. Moves every existing Grocery product
-    // into the right Food subcategory and retires the now-empty Grocery
-    // top-level in one click.
-    const runBuildFood = async () => {
-        if (!confirm("Promote Food to its own top-level category with 12 subcategories (Meat & Poultry, Sides & Snacks, Prepared Meals & Combos, etc.), move every current Grocery product into the right one, and retire the empty Grocery category?")) return;
-        setIsMerging(true);
-        try {
-            const res = await fetch("/api/admin/taxonomy/build-food", {
-                method: "POST",
-                headers: getAuthHeaders(),
-            });
-            const data = await res.json();
-            setIsMerging(false);
-            if (res.ok && data.success) {
-                await reloadTaxonomy();
-                flash(`Food category built — ${data.subcategoriesCreated.length} subcategories created, ${data.productsMoved} products moved${data.groceryRemoved ? ", Grocery retired" : ""}.`);
-            } else {
-                flash(`Error: ${data.error || "Build failed"}`);
-            }
-        } catch {
-            setIsMerging(false);
-            flash("Network error during build.");
-        }
+            ? `${totalProducts} products reassigned, ${totalRemoved} duplicates removed, ${totalBackfilled} subcategories backfilled. ${errors.length} issue(s): ${errors.join("; ")}`
+            : `Done — ${totalProducts} products reassigned, ${totalRemoved} duplicates removed, ${totalBackfilled} subcategories backfilled.`);
     };
 
     const flash = (msg: string) => {
@@ -405,29 +361,6 @@ export default function CategoryManagement() {
         }
     };
 
-    const purgeDuplicates = () => {
-        if (!confirm("Automatically remove duplicate category names?")) return;
-        
-        const seen = new Set();
-        const next = categories.filter(c => {
-            const key = c.name.toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        }).map(c => ({
-            ...c,
-            children: c.children.filter((ch, i, arr) => arr.findIndex(x => x.name.toLowerCase() === ch.name.toLowerCase()) === i)
-        }));
-
-        updateAndSave(next);
-        flash("Duplicates purged locally. Deletions from DB must be manual.");
-    };
-
-    const restoreDefaults = () => {
-        if (!confirm("Restore default taxonomy? This will overwrite current categories with the system defaults (including Fans, Generators, etc.).")) return;
-        updateAndSave(INITIAL_CATEGORIES);
-        flash("Taxonomy restored to defaults.");
-    };
 
     return (
         <div className="p-8 max-w-7xl mx-auto min-h-screen bg-gray-50/30">
@@ -446,56 +379,14 @@ export default function CategoryManagement() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <Button 
-                        variant="outline"
-                        onClick={restoreDefaults}
-                        className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                    >
-                        Restore Defaults
-                    </Button>
                     <Button
                         variant="outline"
-                        onClick={purgeDuplicates}
-                        className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                        title="Local-only cosmetic cleanup — does not touch the database or any product"
-                    >
-                        Purge Duplicates
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={runSafeMerges}
+                        onClick={runCleanUpTaxonomy}
                         disabled={isMerging}
                         className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                        title="Merges known casing/wording duplicates for real in the database, reassigning every affected product"
+                        title="Merges casing/wording duplicates, restructures to Amazon/eBay/Temu-style categories, and backfills missing subcategories — safe to run repeatedly"
                     >
-                        {isMerging ? "Merging..." : "Fix Safe Duplicates"}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={runStructureMerges}
-                        disabled={isMerging}
-                        className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                        title="Restructures categories to match Amazon/eBay/Temu conventions — some become subcategories of a broader department"
-                    >
-                        {isMerging ? "Merging..." : "Apply Recommended Structure"}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={runRestoreMissing}
-                        disabled={isMerging}
-                        className="rounded-xl border-red-300 text-red-700 hover:bg-red-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                        title="One-time repair for the merge-tool bug that cascade-deleted 10 categories on re-run — safe to click once, idempotent"
-                    >
-                        {isMerging ? "Restoring..." : "Restore Missing Categories"}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={runBuildFood}
-                        disabled={isMerging}
-                        className="rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
-                        title="Promotes Food to its own department with real subcategories (Meat & Poultry, Sides & Snacks, etc.) and retires the empty Grocery category"
-                    >
-                        {isMerging ? "Building..." : "Build Food Category"}
+                        {isMerging ? "Cleaning Up..." : "Clean Up Taxonomy"}
                     </Button>
                     <Button
                         onClick={() => setShowAddForm(true)}
