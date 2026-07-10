@@ -21,7 +21,6 @@ import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import { CategoryPanel } from "@/components/ui/CategoryPanel";
 import {
-  TEMU_CATEGORIES,
   CATEGORY_CARDS_ROW_1,
   CategoryCard,
   DEFAULT_AD_SLOTS
@@ -76,6 +75,19 @@ function HomeContent() {
 
   // Tab State for swipeable categories
   const [activeTab, setActiveTab] = useState("All");
+  // Category pills used to be a hardcoded, disconnected list (TEMU_CATEGORIES)
+  // with labels like "EVs"/"Streaming Kits"/"Toy"/"Pets" that never had any
+  // real inventory, matched against products via a fragile hardcoded keyword
+  // table — so most pills either silently matched the wrong thing or matched
+  // nothing at all, and a brand-new real category never appeared here no
+  // matter how many products used it. Pulling the live taxonomy directly
+  // means new seller categories show up automatically, with zero further
+  // code changes, and every pill is guaranteed to have real products behind it.
+  const [liveCategoryNames, setLiveCategoryNames] = useState<string[]>([]);
+  const pills = useMemo(
+    () => ["All", "Trending", "Price Drop", "Best-Selling", ...liveCategoryNames],
+    [liveCategoryNames]
+  );
 
   const handleTabChange = (cat: string) => {
     setActiveTab(cat);
@@ -91,12 +103,12 @@ function HomeContent() {
 
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
     const swipeThreshold = 50;
-    const currentIndex = TEMU_CATEGORIES.indexOf(activeTab);
-    
-    if (info.offset.x < -swipeThreshold && currentIndex < TEMU_CATEGORIES.length - 1) {
-        handleTabChange(TEMU_CATEGORIES[currentIndex + 1]);
+    const currentIndex = pills.indexOf(activeTab);
+
+    if (info.offset.x < -swipeThreshold && currentIndex < pills.length - 1) {
+        handleTabChange(pills[currentIndex + 1]);
     } else if (info.offset.x > swipeThreshold && currentIndex > 0) {
-        handleTabChange(TEMU_CATEGORIES[currentIndex - 1]);
+        handleTabChange(pills[currentIndex - 1]);
     }
   };
 
@@ -154,10 +166,26 @@ function HomeContent() {
         console.error("Failed to load hero config", e);
       }
     };
+    const loadLiveCategories = async () => {
+      try {
+        const res = await fetch("/api/admin/taxonomy");
+        if (res.ok) {
+          const data = await res.json();
+          const names = (data.categories || [])
+            .filter((c: any) => (c.product_count || 0) > 0)
+            .sort((a: any, b: any) => (b.product_count || 0) - (a.product_count || 0))
+            .map((c: any) => c.name);
+          setLiveCategoryNames(names);
+        }
+      } catch (e) {
+        console.error("Failed to load live categories", e);
+      }
+    };
 
     refresh(); // Initial load on client (reads localStorage)
     loadGrids();
     loadHeroConfig();
+    loadLiveCategories();
     setMounted(true);
 
     // If localStorage store is empty (first visit after seed-blob removal), fetch from DB immediately
@@ -430,7 +458,7 @@ function HomeContent() {
                 }
               `}</style>
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
-                {TEMU_CATEGORIES.map((cat) => {
+                {pills.map((cat) => {
                   const isActive = activeTab === cat;
                   return (
                     <Button
