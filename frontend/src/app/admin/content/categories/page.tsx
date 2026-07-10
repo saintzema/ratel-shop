@@ -217,6 +217,33 @@ export default function CategoryManagement() {
         }
     };
 
+    // Promotes Food from a generic Grocery subcategory to its own department
+    // with real subcategories (Meat & Poultry, Sides & Snacks, etc.), matching
+    // Jumia/Amazon's grocery structure. Moves every existing Grocery product
+    // into the right Food subcategory and retires the now-empty Grocery
+    // top-level in one click.
+    const runBuildFood = async () => {
+        if (!confirm("Promote Food to its own top-level category with 12 subcategories (Meat & Poultry, Sides & Snacks, Prepared Meals & Combos, etc.), move every current Grocery product into the right one, and retire the empty Grocery category?")) return;
+        setIsMerging(true);
+        try {
+            const res = await fetch("/api/admin/taxonomy/build-food", {
+                method: "POST",
+                headers: getAuthHeaders(),
+            });
+            const data = await res.json();
+            setIsMerging(false);
+            if (res.ok && data.success) {
+                await reloadTaxonomy();
+                flash(`Food category built — ${data.subcategoriesCreated.length} subcategories created, ${data.productsMoved} products moved${data.groceryRemoved ? ", Grocery retired" : ""}.`);
+            } else {
+                flash(`Error: ${data.error || "Build failed"}`);
+            }
+        } catch {
+            setIsMerging(false);
+            flash("Network error during build.");
+        }
+    };
+
     const flash = (msg: string) => {
         setStatusMsg(msg);
         setTimeout(() => setStatusMsg(null), 2500);
@@ -460,6 +487,15 @@ export default function CategoryManagement() {
                         title="One-time repair for the merge-tool bug that cascade-deleted 10 categories on re-run — safe to click once, idempotent"
                     >
                         {isMerging ? "Restoring..." : "Restore Missing Categories"}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={runBuildFood}
+                        disabled={isMerging}
+                        className="rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                        title="Promotes Food to its own department with real subcategories (Meat & Poultry, Sides & Snacks, etc.) and retires the empty Grocery category"
+                    >
+                        {isMerging ? "Building..." : "Build Food Category"}
                     </Button>
                     <Button
                         onClick={() => setShowAddForm(true)}
