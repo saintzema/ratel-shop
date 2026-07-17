@@ -753,7 +753,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         const lower = img.toLowerCase().trim();
         if (!lower || lower === 'n/a' || lower.includes('no photo') || lower.includes('no image')) return false;
         return true;
-    }).map(img => getProxiedImageUrl(img));
+    // image_url is set equal to images[0] at creation by several write paths (ZEMA 360
+    // WhatsApp listings, global-search imports), so without this dedupe the same photo
+    // always occupies both gallery slot 1 and 2, pushing every real additional photo one
+    // slot later than intended.
+    }).filter((img, i, arr) => arr.indexOf(img) === i)
+      .map(img => getProxiedImageUrl(img));
     const deliveryDates = useMemo(() => {
         const stateName = location.includes(",") ? location.split(",")[1].trim() : location;
         const baseDays = NIGERIAN_STATES.find(s => s.state === stateName)?.delivery_days || 3;

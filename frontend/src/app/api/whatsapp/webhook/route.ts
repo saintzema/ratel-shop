@@ -33,6 +33,59 @@ async function regenerateListingFromName(
     }
 }
 
+// Looks up ZEMA's AI fair-price estimate using the exact same engine NavSearch uses for
+// global-search price suggestions, so sellers get a consistent number platform-wide.
+async function getFairPriceSuggestion(productName: string): Promise<number | null> {
+    try {
+        const res = await fetch(`${SITE}/api/gemini-price`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName, region: "Nigeria", mode: "analyze" }),
+            signal: AbortSignal.timeout(20_000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const price = Number(data?.recommendedPrice);
+        return Number.isFinite(price) && price > 100 ? price : null;
+    } catch {
+        return null;
+    }
+}
+
+// Parses a seller's price reply — handles plain numbers ("45000"), comma thousands-
+// separators ("45,000"), and K/M shorthand ("150K", "2.5M"). Returns null (rather than a
+// wrong number) for anything that reads like a sentence rather than a bare price, since a
+// name-correction message that slips past the NAME regex (too long, missing whitespace,
+// stray punctuation) must never get silently digit-mangled into a garbage price — it should
+// fail loudly ("that doesn't look like a price") instead.
+function parsePriceReply(raw: string): number | null {
+    const text = (raw || "").trim();
+    if (!text) return null;
+
+    // Reject sentence-like input outright: more than 2 "words", or any letters besides a
+    // single trailing K/M suffix, means this isn't a bare price reply.
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length > 2) return null;
+    const strippedOfSuffix = text.replace(/[km]$/i, "");
+    if (/[a-zA-Z]/.test(strippedOfSuffix)) return null;
+
+    const kmMatch = text.replace(/,/g, "").match(/^(\d+(?:\.\d+)?)\s*([km])$/i);
+    if (kmMatch) {
+        const base = parseFloat(kmMatch[1]);
+        const multiplier = kmMatch[2].toLowerCase() === "k" ? 1_000 : 1_000_000;
+        return Number.isFinite(base) ? base * multiplier : null;
+    }
+
+    // Plain number, commas stripped as thousands separators. A bare "." is treated as a
+    // genuine decimal (e.g. "45000.50"), never as a thousands separator — Naira prices
+    // typed with 3-zero decimal groups like "45.000" are rare enough that guessing wrong
+    // here would be worse than just asking the seller to retype without the period.
+    const cleaned = text.replace(/,/g, "");
+    if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
+    const price = parseFloat(cleaned);
+    return Number.isFinite(price) ? price : null;
+}
+
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const mode = searchParams.get("hub.mode");
@@ -192,12 +245,29 @@ export async function POST(req: Request) {
                         data:  { interaction_type: "zema_listing_draft_expired" },
                     }).catch(() => {});
 
+                    // Qwen-VL's image scan only ever returns title/category/condition/price/
+                    // description/tags — it never produces specs or highlights, and its
+                    // description reads more like an image caption than a real product
+                    // listing. Previously that gap only closed if the seller sent a NAME
+                    // correction. Run the SAME enrichment the admin/seller "AI Auto-Fill"
+                    // button uses right here, so every listing gets full specs/highlights/
+                    // description quality from the very first scan — not just corrections.
+                    const enriched = await regenerateListingFromName(listing.title, listing.category);
+                    const enrichedListing = enriched ? {
+                        ...listing,
+                        description: enriched.description || listing.description,
+                        tags: (enriched.tags && enriched.tags.length ? enriched.tags : listing.tags) || [],
+                        ...(enriched.specs ? { specs: enriched.specs } : {}),
+                        ...(enriched.highlights ? { highlights: enriched.highlights } : {}),
+                        ...(enriched.subcategory ? { subcategory: enriched.subcategory } : {}),
+                    } : listing;
+
                     await db.whatsAppInteraction.create({ data: {
                         phoneNumber: from,
                         interaction_type: "zema_listing_draft",
                         payload: JSON.stringify({
                             status: "awaiting_price",
-                            listing,
+                            listing: enrichedListing,
                             imageUrl: dataUrl,
                             mediaId: message.image.id,
                         }),
@@ -208,12 +278,12 @@ export async function POST(req: Request) {
 
                     await WhatsAppService.sendMessage(from,
                         `✅ *ZEMA 360 — Product Analysed*\n\n` +
-                        `📦 *${listing.title}*\n` +
-                        `📂 ${listing.category}  |  🏷️ ${listing.condition}${priceHint}\n\n` +
-                        `📝 ${listing.description}\n\n` +
-                        `🔖 Tags: ${(listing.tags || []).join(", ")}\n` +
+                        `📦 *${enrichedListing.title}*\n` +
+                        `📂 ${enrichedListing.category}  |  🏷️ ${enrichedListing.condition}${priceHint}\n\n` +
+                        `📝 ${enrichedListing.description}\n\n` +
+                        `🔖 Tags: ${(enrichedListing.tags || []).join(", ")}\n` +
                         `🎯 Confidence: ${Math.round((listing.confidence || 0) * 100)}%\n\n` +
-                        `*Reply with your asking price* (numbers only, e.g. *45000*) to continue.\n\n` +
+                        `*Reply with your asking price* (numbers only, e.g. *45000*, or *150K*/*2.5M*) — or reply *SUGGEST* for an AI fair-price estimate.\n\n` +
                         `❌ Wrong product? Reply *NAME* then the correct name (e.g. *NAME Toyota Venza 2021*) and I'll regenerate the details for you.`
                     );
                 } else {
@@ -249,7 +319,12 @@ export async function POST(req: Request) {
             // reply "NAME <correct product name>" and we regenerate a marketplace-grade
             // description / specs / tags from that name using the same AI Auto-Fill engine
             // the admin & seller product forms use, then return them to where they were.
-            const nameCmd = (text || "").trim().match(/^(?:name|rename|edit|correct|fix)\s+(.{2,80})$/i);
+            // Cap raised from 80 to 150 — long, punctuation-heavy product names (common
+            // for imported/electronics listings) were exceeding the old cap and silently
+            // falling through to price parsing instead. parsePriceReply's sentence-guard
+            // now also independently blocks any sentence-like text from being misread as
+            // a price, so this length cap failing is no longer a silent-corruption path.
+            const nameCmd = (text || "").trim().match(/^(?:name|rename|edit|correct|fix)[\s:,-]+(.{2,150})$/i);
             if (nameCmd) {
                 const newName = nameCmd[1].trim().replace(/\s+/g, " ");
                 const l = draft.listing as Record<string, any>;
@@ -291,24 +366,40 @@ export async function POST(req: Request) {
             }
 
             if (draft.status === "awaiting_price") {
-                const price = parseFloat(text.replace(/[^0-9.]/g, ""));
-                if (!isNaN(price) && price > 100) {
+                const l0 = draft.listing as { title: string; category: string; condition: string; description: string };
+                const isSuggestCmd = /^suggest(\s+fair\s*price)?$/i.test(text.trim());
+
+                let price: number | null = null;
+                let suggestedNote = "";
+                if (isSuggestCmd) {
+                    price = await getFairPriceSuggestion(l0.title);
+                    if (price === null) {
+                        await WhatsAppService.sendMessage(from,
+                            "⚠️ ZEMA couldn't get a fair-price estimate right now. Please reply with your own asking price instead.");
+                        return NextResponse.json({ ok: true });
+                    }
+                    suggestedNote = "🤖 _AI-suggested fair price — reply YES to accept, or CANCEL to start over with your own price._\n";
+                } else {
+                    price = parsePriceReply(text);
+                }
+
+                if (price !== null && price > 100) {
                     await db.whatsAppInteraction.update({
                         where: { id: activeDraftRow.id },
                         data: { payload: JSON.stringify({ ...draft, status: "awaiting_confirm", price }) },
                     });
-                    const l = draft.listing as { title: string; category: string; condition: string; description: string };
                     await WhatsAppService.sendMessage(from,
                         `📋 *Confirm your listing*\n\n` +
-                        `📦 *${l.title}*\n` +
+                        `📦 *${l0.title}*\n` +
                         `💰 Price: ₦${price.toLocaleString()}\n` +
-                        `📂 ${l.category}  |  🏷️ ${l.condition}\n` +
-                        `📝 ${l.description}\n\n` +
+                        `📂 ${l0.category}  |  🏷️ ${l0.condition}\n` +
+                        `📝 ${l0.description}\n\n` +
+                        suggestedNote +
                         `Reply *YES* to publish live on FairPrice.ng, or *CANCEL* to start over.`
                     );
                 } else {
                     await WhatsAppService.sendMessage(from,
-                        "⚠️ That doesn't look like a valid price. Reply with just the number (e.g. *45000*).");
+                        "⚠️ That doesn't look like a valid price. Reply with just the number (e.g. *45000*, *150K*, or *2.5M*), or *SUGGEST* for an AI fair-price estimate.");
                 }
                 return NextResponse.json({ ok: true });
             }
@@ -363,6 +454,7 @@ export async function POST(req: Request) {
                         const l = draft.listing as {
                             title: string; category: string; condition: string;
                             description: string; tags: string[];
+                            specs?: Record<string, unknown>; highlights?: string[]; subcategory?: string;
                         };
                         const conditionMap: Record<string, "brand_new" | "used" | "refurbished"> = {
                             new: "brand_new", fairly_used: "refurbished", used: "used",
@@ -378,10 +470,16 @@ export async function POST(req: Request) {
                             description: l.description,
                             price:       draft.price!,
                             category:    l.category.split("|")[0].trim(),
-                            subcategory: l.category.includes("|") ? l.category.split("|")[1].trim() : undefined,
+                            subcategory: l.subcategory || (l.category.includes("|") ? l.category.split("|")[1].trim() : undefined),
                             imageUrl:    draft.imageUrl,
+                            // Single-element on purpose — imageUrl duplicating into images[0] here
+                            // is fine at write-time (it's a legitimate 1-photo listing so far);
+                            // the PDP gallery is what must dedupe imageUrl against images[0], since
+                            // a later "ADD" photo appends here rather than replacing this array.
                             images:      [draft.imageUrl],
                             tags:        l.tags || [],
+                            specs:       (l.specs as any) || undefined,
+                            highlights:  l.highlights || [],
                             condition,
                             slug,
                             stock:       1,
