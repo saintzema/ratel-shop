@@ -12,7 +12,7 @@ import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, Reorder } from "framer-motion";
 import {
     ChevronLeft,
     Save,
@@ -79,6 +79,29 @@ function EditProductContent() {
 
     // Mark form as dirty whenever the user makes any change
     const markDirty = useCallback(() => { isFormDirtyRef.current = true; }, []);
+
+    // Stable per-slot drag keys for the gallery reorder UI — see new/page.tsx for the same
+    // pattern and rationale (formData.images is a plain string[] with possible duplicate/
+    // empty entries, which framer-motion's Reorder needs a unique `value` per item to avoid).
+    const imageKeyCounter = useRef(0);
+    const [imageKeys, setImageKeys] = useState<string[]>(() => formData.images.map(() => `img-${imageKeyCounter.current++}`));
+    useEffect(() => {
+        setImageKeys(prev => {
+            if (prev.length === formData.images.length) return prev;
+            if (prev.length < formData.images.length) {
+                const added = Array.from({ length: formData.images.length - prev.length }, () => `img-${imageKeyCounter.current++}`);
+                return [...prev, ...added];
+            }
+            return prev.slice(0, formData.images.length);
+        });
+    }, [formData.images.length]);
+
+    const handleReorderImageKeys = (newKeys: string[]) => {
+        markDirty();
+        const reordered = newKeys.map(k => formData.images[imageKeys.indexOf(k)]);
+        setImageKeys(newKeys);
+        setFormData(prev => ({ ...prev, images: reordered }));
+    };
 
     // Hydrate heavy fields (description, highlights, specs, images) from DB API
     // The sync-store strips these fields for performance; this corrects that for the edit page.
@@ -864,9 +887,23 @@ function EditProductContent() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Reorder.Group
+                    as="div"
+                    axis="x"
+                    values={imageKeys}
+                    onReorder={handleReorderImageKeys}
+                    className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                >
                     {formData.images.map((url, i) => (
-                        <div key={i} className="relative group">
+                        <Reorder.Item
+                            as="div"
+                            key={imageKeys[i]}
+                            value={imageKeys[i]}
+                            className="relative group cursor-grab active:cursor-grabbing"
+                        >
+                            {i === 0 && (
+                                <span className="absolute -top-1 -left-1 z-10 bg-brand-green-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">Main</span>
+                            )}
                             <ProductImageSlot
                                 url={url}
                                 onUrlChange={(newUrl) => {
@@ -894,6 +931,7 @@ function EditProductContent() {
                                 <button
                                     onClick={() => {
                                         markDirty();
+                                        setImageKeys(prev => prev.filter((_, idx) => idx !== i));
                                         setFormData(prev => ({
                                             ...prev,
                                             images: prev.images.filter((_, idx) => idx !== i)
@@ -904,7 +942,7 @@ function EditProductContent() {
                                     <X className="h-2.5 w-2.5" />
                                 </button>
                             )}
-                        </div>
+                        </Reorder.Item>
                     ))}
                     {formData.images.length < 8 && (
                         <button
@@ -917,7 +955,7 @@ function EditProductContent() {
                             <Plus className="h-4 w-4" />
                         </button>
                     )}
-                </div>
+                </Reorder.Group>
             </motion.section>
 
 

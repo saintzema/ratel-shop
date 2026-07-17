@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Reorder } from "framer-motion";
 import {
     Search,
     Filter,
@@ -88,6 +89,26 @@ export default function CatalogControl() {
     const [editImage, setEditImage] = useState("");
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState<string[]>([]);
+    // Stable per-slot drag keys for the gallery reorder UI — same pattern as the seller
+    // new/edit product pages: editImages is a plain string[] (URLs can repeat, e.g. multiple
+    // empty "" slots), which framer-motion's Reorder needs a unique `value` per item to track.
+    const editImageKeyCounter = useRef(0);
+    const [editImageKeys, setEditImageKeys] = useState<string[]>([]);
+    useEffect(() => {
+        setEditImageKeys(prev => {
+            if (prev.length === editImages.length) return prev;
+            if (prev.length < editImages.length) {
+                const added = Array.from({ length: editImages.length - prev.length }, () => `eimg-${editImageKeyCounter.current++}`);
+                return [...prev, ...added];
+            }
+            return prev.slice(0, editImages.length);
+        });
+    }, [editImages.length]);
+    const handleReorderEditImageKeys = (newKeys: string[]) => {
+        const reordered = newKeys.map(k => editImages[editImageKeys.indexOf(k)]);
+        setEditImageKeys(newKeys);
+        setEditImages(reordered);
+    };
     const [editTags, setEditTags] = useState<string[]>([]);
     const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
@@ -1443,10 +1464,24 @@ export default function CatalogControl() {
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Gallery Images (Up to 8)</label>
-                                <div className="grid grid-cols-4 gap-3">
+                                <Reorder.Group
+                                    as="div"
+                                    axis="x"
+                                    values={editImageKeys}
+                                    onReorder={handleReorderEditImageKeys}
+                                    className="grid grid-cols-4 gap-3"
+                                >
                                     {editImages.map((url, i) => (
-                                        <div key={i} className="relative group">
-                                            <ProductImageSlot 
+                                        <Reorder.Item
+                                            as="div"
+                                            key={editImageKeys[i]}
+                                            value={editImageKeys[i]}
+                                            className="relative group cursor-grab active:cursor-grabbing"
+                                        >
+                                            {i === 0 && (
+                                                <span className="absolute -top-1 -left-1 z-10 bg-brand-green-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">Main</span>
+                                            )}
+                                            <ProductImageSlot
                                                 url={url}
                                                 onUrlChange={(newUrl) => {
                                                     const next = [...editImages];
@@ -1463,24 +1498,27 @@ export default function CatalogControl() {
                                                 className="mb-0"
                                             />
                                             {editImages.length > 1 && (
-                                                <button 
-                                                    onClick={() => setEditImages(editImages.filter((_, idx) => idx !== i))}
+                                                <button
+                                                    onClick={() => {
+                                                        setEditImageKeys(prev => prev.filter((_, idx) => idx !== i));
+                                                        setEditImages(editImages.filter((_, idx) => idx !== i));
+                                                    }}
                                                     className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
                                                 >
                                                     <X className="h-2.5 w-2.5" />
                                                 </button>
                                             )}
-                                        </div>
+                                        </Reorder.Item>
                                     ))}
                                     {editImages.length < 8 && (
-                                        <button 
+                                        <button
                                             onClick={() => setEditImages([...editImages, ""])}
                                             className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
                                         >
                                             <Plus className="h-4 w-4" />
                                         </button>
                                     )}
-                                </div>
+                                </Reorder.Group>
                             </div>
 
                             <div className="space-y-4">
