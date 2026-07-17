@@ -26,7 +26,17 @@ export async function GET(req: Request) {
             // 1. Match by storeUrl field directly
             let found = await db.seller.findFirst({ where: { storeUrl: slugLower, status: "active" }, select: selFields });
 
-            // 2. Fallback: match all active sellers by slugified business name
+            // 2. Fallback: raw seller.id — used as the canonical identifier all over the
+            // codebase (product.seller_id, checkout, the WhatsApp ZEMA webhook's
+            // "global-partners" catch-all seller) wherever a link is built directly from
+            // an id rather than the human-friendly storeUrl. Without this, any such link
+            // 404s here even though the seller genuinely exists — e.g. "global-partners"
+            // (the id) vs "global-stores" (its real storeUrl) are different strings.
+            if (!found) {
+                found = await db.seller.findFirst({ where: { id: slugParam, status: "active" }, select: selFields });
+            }
+
+            // 3. Fallback: match all active sellers by slugified business name
             if (!found) {
                 const all = await db.seller.findMany({ where: { status: "active" }, select: selFields });
                 found = all.find(s => s.businessName.toLowerCase().replace(/\s+/g, '-') === slugLower) || null;
