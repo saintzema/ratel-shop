@@ -90,8 +90,30 @@ export default function UserDirectory() {
                 const dsOrders = DataSyncService.getOrders();
                 const dsUsers = DataSyncService.getAllUsers ? DataSyncService.getAllUsers() : [];
 
-                // Merge sellers: DataSyncService is authoritative for recent registrations  
+                // Approve/Suspend/etc. on this page call DataSyncService.updateSeller(), which
+                // writes locally and dispatches sync-store-update BEFORE its own POST to the
+                // server resolves (by design, for instant feedback elsewhere). This effect
+                // listens for that same event and re-fetches /api/sellers?all=true — a real
+                // network round trip that regularly wins the race against the still-in-flight
+                // POST, reading back the OLD status and reverting the button's optimistic
+                // update a few seconds later. DataSyncService.syncWithDB() already guards
+                // against exactly this via fp_pending_seller_edits; this hand-rolled fetch
+                // didn't check it. Do the same: prefer the local (optimistic) copy for any
+                // seller with an edit still in flight.
+                let pendingSellerIds: string[] = [];
+                try { pendingSellerIds = JSON.parse(localStorage.getItem("fp_pending_seller_edits") || "[]"); } catch { /* ignore */ }
+                const pendingSet = new Set(pendingSellerIds);
+
+                // Merge sellers: DataSyncService is authoritative for recent registrations
+                // and for anything with a pending local edit.
                 const sellerIdSet = new Set(sellers.map((s: any) => s.id));
+                sellers = sellers.map((s: any) => {
+                    if (pendingSet.has(s.id)) {
+                        const local = dsSellers.find((d: any) => d.id === s.id);
+                        if (local) return local;
+                    }
+                    return s;
+                });
                 for (const ds of dsSellers) {
                     if (!sellerIdSet.has(ds.id)) {
                         sellers.push(ds);

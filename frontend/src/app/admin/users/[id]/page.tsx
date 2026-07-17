@@ -391,6 +391,32 @@ export default function AdminUserDetailPage() {
                         </Button>
                     )}
 
+                    {/* Approve KYC — independent of account status/"Activate Account" above.
+                        A seller can already be status:"active" (auto-activated when the admin's
+                        "Strict Seller Onboarding" setting is off) while kyc_status is still
+                        pending/not_submitted — with only "Activate Account" available (which is
+                        hidden once status is active), there was no way to approve KYC on its own
+                        short of editing the database directly. */}
+                    {userEntity.role === "seller" && userEntity.kyc_status !== "approved" && (
+                        <Button onClick={async () => {
+                            if (confirm("Approve this seller's KYC?")) {
+                                setIsUpdating(true);
+                                DataSyncService.updateSeller(userEntity.id, { verified: true, kyc_status: "approved" });
+                                try {
+                                    await fetch(`/api/sellers/${userEntity.id}`, {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ verified: true, kyc_status: "approved" }),
+                                    });
+                                } catch { }
+                                setUserEntity((prev: any) => ({ ...prev, verified: true, kyc_status: "approved" }));
+                                setIsUpdating(false);
+                            }
+                        }} className="h-11 px-5 rounded-2xl bg-teal-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-teal-700 shadow-lg shadow-teal-500/20 transition-all hover:scale-105">
+                            <ShieldCheck className="h-4 w-4 mr-2" /> Approve KYC
+                        </Button>
+                    )}
+
                     {/* Reactivate — for frozen/suspended/banned users */}
                     {(userEntity.status === "frozen" || userEntity.status === "suspended" || userEntity.status === "banned") && (
                         <Button onClick={async () => {
