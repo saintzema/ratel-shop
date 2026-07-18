@@ -67,7 +67,13 @@ function DirectCheckoutContent() {
                 // time, this is always empty. Fall back to a live fetch so the seller's
                 // real logo shows instead of silently defaulting to a placeholder.
                 let seller = DataSyncService.getSellers().find(s => s.id === sellerId);
-                if (!seller && sellerId && !image) {
+                // Previously skipped this fetch whenever `image` was present, on the
+                // assumption the only thing it's needed for is the logo — but it's also
+                // the only source of the seller's real business_name. Every WhatsApp-
+                // generated payment QR always embeds an image param, so that skip meant
+                // those QR payments NEVER got the real store name, always showing the
+                // generic "Verified Seller" fallback below despite a real sellerId.
+                if (!seller && sellerId) {
                     try {
                         const res = await fetch(`/api/sellers/${encodeURIComponent(sellerId)}`);
                         if (res.ok) {
