@@ -176,6 +176,31 @@ export async function POST(req: Request) {
                 return NextResponse.json({ ok: true });
             }
 
+            // Case 0 — batch photos: a seller shooting one item from multiple angles used
+            // to have every photo after the first restart analysis from scratch (silently
+            // discarding the previous draft) or, once a listing was published, get asked
+            // ADD/NEW on every single photo. If there's already an un-priced draft for this
+            // phone, treat this image as "another photo of the same item" — append it and
+            // keep waiting for a price, instead of re-analysing or prompting anything.
+            const openDraft = await db.whatsAppInteraction.findFirst({
+                where: { phoneNumber: from, interaction_type: "zema_listing_draft" },
+                orderBy: { createdAt: "desc" },
+            });
+            if (openDraft?.payload) {
+                const d = JSON.parse(openDraft.payload) as { status: string; photos?: string[]; imageUrl: string; listing?: { title?: string } };
+                if (d.status === "awaiting_price") {
+                    const photos = [...(d.photos || [d.imageUrl]), dataUrl];
+                    await db.whatsAppInteraction.update({
+                        where: { id: openDraft.id },
+                        data: { payload: JSON.stringify({ ...d, photos }) },
+                    });
+                    await WhatsAppService.sendMessage(from,
+                        `📸 Photo added (${photos.length} total for *${d.listing?.title || "this listing"}*).\n\n` +
+                        `Send more, or *reply with your asking price* to finish.`);
+                    return NextResponse.json({ ok: true });
+                }
+            }
+
             // Case A — seller is in "add image" choice flow
             const addChoice = await db.whatsAppInteraction.findFirst({
                 where: { phoneNumber: from, interaction_type: "zema_add_image_choice" },
@@ -310,7 +335,7 @@ export async function POST(req: Request) {
         if (activeDraftRow?.payload) {
             const draft = JSON.parse(activeDraftRow.payload) as {
                 status: string; listing: Record<string, unknown>;
-                imageUrl: string; price?: number;
+                imageUrl: string; price?: number; photos?: string[];
             };
 
             // ── Universal name correction ────────────────────────────────────
@@ -471,12 +496,11 @@ export async function POST(req: Request) {
                             price:       draft.price!,
                             category:    l.category.split("|")[0].trim(),
                             subcategory: l.subcategory || (l.category.includes("|") ? l.category.split("|")[1].trim() : undefined),
-                            imageUrl:    draft.imageUrl,
-                            // Single-element on purpose — imageUrl duplicating into images[0] here
-                            // is fine at write-time (it's a legitimate 1-photo listing so far);
-                            // the PDP gallery is what must dedupe imageUrl against images[0], since
-                            // a later "ADD" photo appends here rather than replacing this array.
-                            images:      [draft.imageUrl],
+                            // `photos` holds every image the seller sent before setting a
+                            // price (batch upload) — falls back to the single first photo
+                            // for the normal one-photo listing.
+                            imageUrl:    (draft.photos && draft.photos[0]) || draft.imageUrl,
+                            images:      (draft.photos && draft.photos.length) ? draft.photos : [draft.imageUrl],
                             tags:        l.tags || [],
                             specs:       (l.specs as any) || undefined,
                             highlights:  l.highlights || [],
