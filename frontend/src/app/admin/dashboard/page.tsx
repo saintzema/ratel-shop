@@ -65,6 +65,25 @@ export default function AdminDashboard() {
             })
             .catch(() => {});
 
+        // Escrow Balance / Processed Revenue / Total Orders were computed purely from
+        // DataSyncService.getOrders() (local cache) — showing real ₦0 / 0 on any admin
+        // session whose local order cache hadn't synced yet, even with real orders in the
+        // DB (a fresh login, a cleared cache, or just orders syncing slower than sellers on
+        // this page). Same fix as the seller-count refresh above: pull the real numbers
+        // from the DB and overwrite the local-cache-derived defaults once they arrive.
+        fetch("/api/orders?all=true")
+            .then(r => r.ok ? r.json() : null)
+            .then((data: any) => {
+                const orders = Array.isArray(data) ? data : (data?.orders || []);
+                if (Array.isArray(orders) && orders.length > 0) {
+                    const isHeld = (s: string) => !s || s === "held" || s === "seller_confirmed" || s === "buyer_confirmed";
+                    const escrowBalance = orders.filter((o: any) => isHeld(o.escrowStatus || o.escrow_status)).reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+                    const processedRevenue = orders.filter((o: any) => (o.escrowStatus || o.escrow_status) === "released").reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+                    setStats((prev: any) => prev ? { ...prev, escrow_balance: escrowBalance, processed_revenue: processedRevenue, total_orders: orders.length } : prev);
+                }
+            })
+            .catch(() => {});
+
         // Governance: merge complaints + disputed/cancelled orders
         const rawComplaints = DataSyncService.getComplaints().filter((c: any) => !String(c.id).includes("FP-DEMO-ORD"));
         const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
