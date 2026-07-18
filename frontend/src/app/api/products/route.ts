@@ -176,10 +176,19 @@ export async function GET(req: Request) {
             nextCursor
         }, {
             headers: {
-                // Admin/sync requests bypass cache; public catalog gets 30s CDN cache
+                // Admin/sync requests bypass cache; a single seller's own store page
+                // (sellerId filter) gets a much shorter cache — sellers routinely check
+                // their store page right after listing a product (e.g. via WhatsApp) to
+                // confirm it went up, and a 30s CDN cache + 5min stale-while-revalidate
+                // made that check show stale data for minutes. The general public catalog
+                // feed still benefits from the longer cache since it's high-traffic and
+                // freshness-to-the-second doesn't matter there the way it does right after
+                // a seller's own upload.
                 "Cache-Control": includeInactive
                     ? "no-store"
-                    : "public, s-maxage=30, stale-while-revalidate=300"
+                    : sellerIdFilter
+                        ? "public, s-maxage=3, stale-while-revalidate=10"
+                        : "public, s-maxage=30, stale-while-revalidate=300"
             }
         });
     } catch (error: any) {

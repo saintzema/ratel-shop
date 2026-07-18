@@ -59,6 +59,11 @@ export default function StoreProfile() {
     const [isEditingLocation, setIsEditingLocation] = useState(false);
     const [locationInput, setLocationInput] = useState("");
     const reviewsPerPage = 5;
+    // Store pages only ever fetched the first 50 products with no way to see the rest —
+    // the API already supports cursor pagination (used by admin/search), this page just
+    // never wired up a "Load More" for it.
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     useEffect(() => {
         const slug = params.slug as string;
@@ -93,6 +98,7 @@ export default function StoreProfile() {
                         const dbProducts = Array.isArray(payload) ? payload : (payload.products ?? []);
                         if (dbProducts.length > 0) {
                             setProducts(dbProducts);
+                            setNextCursor(Array.isArray(payload) ? null : (payload.nextCursor || null));
                             setLoading(false);
                             return;
                         }
@@ -106,10 +112,31 @@ export default function StoreProfile() {
             setLoading(false);
         };
 
+        // Previously re-ran this ENTIRE seller+product fetch on every "storage" event —
+        // fired constantly by unrelated background syncs anywhere in the app, each time
+        // restarting with the (often stale/incomplete) local cache before falling back to
+        // the DB — which is exactly why the correct logo would render once from the initial
+        // DB-backed fetch, then get replaced moments later once a background sync elsewhere
+        // triggered a re-run. The listener cleanup was also broken (a new closure each time,
+        // so removeEventListener never matched the one actually added). One fetch on mount
+        // is enough — this page doesn't need to react to unrelated localStorage writes.
         loadStore();
-        window.addEventListener("storage", () => loadStore());
-        return () => window.removeEventListener("storage", () => loadStore());
     }, [params.slug]);
+
+    const loadMoreProducts = async () => {
+        if (!seller || !nextCursor || loadingMore) return;
+        setLoadingMore(true);
+        try {
+            const res = await fetch(`/api/products?sellerId=${encodeURIComponent(seller.id)}&cursor=${encodeURIComponent(nextCursor)}`);
+            if (res.ok) {
+                const payload = await res.json();
+                const more = Array.isArray(payload) ? payload : (payload.products ?? []);
+                setProducts(prev => [...prev, ...more]);
+                setNextCursor(Array.isArray(payload) ? null : (payload.nextCursor || null));
+            }
+        } catch { /* best-effort — leave the button clickable to retry */ }
+        setLoadingMore(false);
+    };
 
     const isOwner = user && seller && user.id === seller.user_id;
 
@@ -556,6 +583,18 @@ export default function StoreProfile() {
                                                 </div>
                                             </Link>
                                         ))}
+                                    </div>
+                                )}
+                                {nextCursor && (
+                                    <div className="flex justify-center mt-8">
+                                        <Button
+                                            onClick={loadMoreProducts}
+                                            disabled={loadingMore}
+                                            variant="outline"
+                                            className="rounded-full h-12 px-8 font-bold text-sm border-gray-200 hover:bg-gray-50"
+                                        >
+                                            {loadingMore ? "Loading..." : "Load More Products"}
+                                        </Button>
                                     </div>
                                 )}
                             </>
