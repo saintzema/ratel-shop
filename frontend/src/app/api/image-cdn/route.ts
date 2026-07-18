@@ -72,20 +72,30 @@ export async function GET(req: Request) {
             referer = `${parsed.protocol}//${parsed.host}/`;
         } catch { /* malformed URL — use full URL as Referer */ }
 
-        const upstream = await fetch(imageUrl, {
-            headers: {
-                // Use a generic browser UA instead of the branded FairPrice/1.0 string —
-                // many CDNs/WordPress sites return 403 for custom UA strings.
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": referer,
-                "Sec-Fetch-Dest": "image",
-                "Sec-Fetch-Mode": "no-cors",
-                "Sec-Fetch-Site": "cross-site",
-            },
+        const baseHeaders = {
+            // Use a generic browser UA instead of the branded FairPrice/1.0 string —
+            // many CDNs/WordPress sites return 403 for custom UA strings.
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Fetch-Dest": "image",
+            "Sec-Fetch-Mode": "no-cors",
+            "Sec-Fetch-Site": "cross-site",
+        };
+
+        let upstream = await fetch(imageUrl, {
+            headers: { ...baseHeaders, "Referer": referer },
             signal: controller.signal,
         });
+
+        // Some CDNs (e.g. s21i.faiusr.com, seen on Chinese wholesale/dropship sourced
+        // listings) reject a self-referencing Referer derived from their own domain —
+        // the exact header meant to help OTHER sites pass hotlink checks breaks these
+        // ones. A real browser loading the URL directly (no Referer) succeeds, so retry
+        // once with no Referer at all before giving up on this image.
+        if (!upstream.ok) {
+            upstream = await fetch(imageUrl, { headers: baseHeaders, signal: controller.signal });
+        }
         clearTimeout(timeoutId);
 
         if (!upstream.ok) {
