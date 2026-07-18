@@ -2,11 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || session.user.role !== "admin") {
+        // Admin login uses this app's own JWT (fp_token), not NextAuth OAuth —
+        // getServerSession alone always returned null here, 401'ing every poll
+        // and making the page render as permanently empty.
+        const jwtAdmin = getUserFromRequest(req);
+        const isJwtAdmin = jwtAdmin?.role === "admin";
+        const session = isJwtAdmin ? null : await getServerSession(authOptions);
+        if (!isJwtAdmin && (!session || (session as any).user?.role !== "admin")) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 

@@ -3,11 +3,18 @@ import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/jwt";
+
+async function isAdminRequest(req: Request): Promise<boolean> {
+    const jwtAdmin = getUserFromRequest(req);
+    if (jwtAdmin?.role === "admin") return true;
+    const session = await getServerSession(authOptions);
+    return (session as any)?.user?.role === "admin";
+}
 
 export async function GET(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || session.user.role !== "admin") {
+        if (!(await isAdminRequest(req))) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -40,8 +47,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || session.user.role !== "admin") {
+        if (!(await isAdminRequest(req))) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
