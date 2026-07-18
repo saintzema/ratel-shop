@@ -323,7 +323,13 @@ export class WhatsAppService {
 
             const data = await response.json();
             if (data.error) {
-                console.error("WhatsApp Template Error:", data.error);
+                // Meta's Cloud API still returns HTTP 200 with a body-level `error`
+                // for most failures (unapproved/missing template, expired token,
+                // recipient not opted in, etc.) — returning `data` here made every
+                // one of those failures look identical to a real send to the caller,
+                // which only checked truthiness. Return null so callers can tell.
+                console.error("WhatsApp Template Error:", JSON.stringify(data.error));
+                return null;
             }
             return data;
         } catch (error) {

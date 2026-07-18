@@ -65,10 +65,14 @@ export async function POST(req: Request) {
         const sendResult = await WhatsAppService.sendVerificationTemplate(cleanPhone, code);
 
         if (!sendResult) {
-            // WhatsApp credentials missing — send was suppressed
-            // Still return success so the flow continues (client will show the code input)
-            // In production, the admin should configure the WhatsApp Business API
-            console.warn(`WhatsApp OTP for ${cleanPhone}: ${code} (send suppressed — missing credentials)`);
+            // Either credentials are missing, or Meta's API rejected the send
+            // (unapproved template, expired token, recipient not opted in, etc.)
+            // — both used to be swallowed into a silent "success", leaving the
+            // user waiting forever for a code that was never actually sent.
+            console.warn(`WhatsApp OTP for ${cleanPhone}: ${code} (send failed — see WhatsAppService error log above)`);
+            return NextResponse.json({
+                error: "Could not send the verification code to that WhatsApp number. Double-check the number is correct and can receive WhatsApp messages, then try again."
+            }, { status: 502 });
         }
 
         return NextResponse.json({ success: true });
