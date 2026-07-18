@@ -191,6 +191,15 @@ export function DynamicPillNotification() {
             const currentSellerId = DataSyncService.getCurrentSellerId();
 
             if (currentUser && neg.customer_id === currentUser.id) {
+                // This real-time broadcast path had NO dedup guard at all — unlike the
+                // polling path above (checkGlobalNotifications), which checks getDealAckSet()
+                // before showing a pill. SSE/broadcast events routinely redeliver the same
+                // negotiation update on reconnect or page navigation, so without this check
+                // an already-acknowledged "offer accepted" pill would keep reappearing
+                // indefinitely — exactly the stuck-notification bug reported.
+                const notifyKey = `buyer_${neg.id}_${neg.status}_${neg.counter_status}`;
+                if (getDealAckSet().has(notifyKey)) return;
+                ackDeal(notifyKey);
                 const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 triggerBuyerNotification(neg, product);
             }
