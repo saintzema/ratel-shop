@@ -1464,19 +1464,25 @@ export default function CatalogControl() {
 
                             <div className="space-y-3">
                                 <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Gallery Images (Up to 8)</label>
+                                {/* Single scrollable row, not a wrapping grid — framer-motion's
+                                    Reorder only compares position along one axis, so a wrapping
+                                    grid breaks drag-across-rows (an item dragged from row 1 into
+                                    row 2's territory doesn't reliably reorder). A single row
+                                    makes axis="x" comparisons always correct, same reason
+                                    Instagram/Shopify use a horizontal strip for this exact UI. */}
                                 <Reorder.Group
                                     as="div"
                                     axis="x"
                                     values={editImageKeys}
                                     onReorder={handleReorderEditImageKeys}
-                                    className="grid grid-cols-4 gap-3"
+                                    className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
                                 >
                                     {editImages.map((url, i) => (
                                         <Reorder.Item
                                             as="div"
                                             key={editImageKeys[i]}
                                             value={editImageKeys[i]}
-                                            className="relative group cursor-grab active:cursor-grabbing"
+                                            className="relative shrink-0 w-24 sm:w-28 cursor-grab active:cursor-grabbing"
                                         >
                                             {i === 0 && (
                                                 <span className="absolute -top-1 -left-1 z-10 bg-brand-green-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">Main</span>
@@ -1503,9 +1509,9 @@ export default function CatalogControl() {
                                                         setEditImageKeys(prev => prev.filter((_, idx) => idx !== i));
                                                         setEditImages(editImages.filter((_, idx) => idx !== i));
                                                     }}
-                                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                    className="absolute -top-1 -right-1 h-6 w-6 bg-white border border-gray-200 text-gray-500 hover:text-rose-500 rounded-full shadow-md flex items-center justify-center z-10"
                                                 >
-                                                    <X className="h-2.5 w-2.5" />
+                                                    <X className="h-3 w-3" />
                                                 </button>
                                             )}
                                         </Reorder.Item>
@@ -1513,7 +1519,7 @@ export default function CatalogControl() {
                                     {editImages.length < 8 && (
                                         <button
                                             onClick={() => setEditImages([...editImages, ""])}
-                                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                                            className="aspect-square shrink-0 w-24 sm:w-28 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
                                         >
                                             <Plus className="h-4 w-4" />
                                         </button>
