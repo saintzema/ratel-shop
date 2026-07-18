@@ -384,7 +384,11 @@ export function DynamicPillNotification() {
     };
 
     const handlePillClick = () => {
-        if (!expanded) {
+        // A plain informational alert with a known destination should navigate on
+        // the first tap — forcing an expand-then-tap-again step made it look like
+        // the first click did nothing. Negotiation pills still expand first since
+        // they offer a real choice (Accept vs Renegotiate) worth surfacing before acting.
+        if (!expanded && (isNegotiation || !customNotification?.route)) {
             setExpanded(true);
             try { (window as any).nativeBridge?.hapticFeedback?.("medium"); } catch {}
             return;
