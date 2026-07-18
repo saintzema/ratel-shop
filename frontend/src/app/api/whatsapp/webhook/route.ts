@@ -83,7 +83,14 @@ function parsePriceReply(raw: string): number | null {
     const cleaned = text.replace(/,/g, "");
     if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
     const price = parseFloat(cleaned);
-    return Number.isFinite(price) ? price : null;
+    if (!Number.isFinite(price)) return null;
+    // Sanity cap — a stray phone number (e.g. a contact card, or "call me on
+    // 2348162816305") is a bare 11-13 digit string with no letters or spaces, so it
+    // passes every check above and gets parsed as a literal ₦2.3 trillion price/offer.
+    // No real FairPrice listing needs a ₦1B+ price; reject anything past that instead.
+    const MAX_REASONABLE_PRICE = 1_000_000_000;
+    if (price > MAX_REASONABLE_PRICE) return null;
+    return price;
 }
 
 export async function GET(req: Request) {
@@ -880,8 +887,12 @@ export async function POST(req: Request) {
                 await WhatsAppService.sendMessage(from, `Negotiation for *${negotiation.product.name}* closed.`);
                 return NextResponse.json({ ok: true });
             }
-            const price = parseFloat(text.replace(/[^0-9.,]/g, "").replace(/,/g, ""));
-            if (!isNaN(price) && price > 100) {
+            // Was a raw parseFloat with no sentence/length guard — any inbound text that
+            // happened to be a bare number (e.g. a customer's phone number, sent by
+            // itself for delivery contact) got parsed as a literal counter-offer price,
+            // once producing a ₦2.3 trillion "offer" from a stray WhatsApp number.
+            const price = parsePriceReply(text);
+            if (price !== null && price > 100) {
                 await db.negotiationRequest.update({ where: { id: negotiation.id }, data: { proposedPrice: price, status: "pending" } });
                 // Notify seller about the updated offer
                 const negSeller = await db.seller.findUnique({
@@ -1214,8 +1225,9 @@ async function handleSellerDirectReply(from: string, text: string, session: any)
                 `😔 The seller declined your offer for *${negotiation.product.name}*. Try searching for other deals:\n🔗 ${SITE}`);
         }
     } else if (upperText.startsWith("COUNTER")) {
-        const counterPrice = parseFloat(text.replace(/[^0-9]/g, ""));
-        if (!isNaN(counterPrice) && counterPrice > 0) {
+        const counterArg = text.replace(/^counter/i, "").trim();
+        const counterPrice = parsePriceReply(counterArg);
+        if (counterPrice !== null && counterPrice > 0) {
             await db.negotiationRequest.update({ where: { id: negotiationId }, data: { counterPrice, status: "countered" } });
             await WhatsAppService.sendMessage(from, `📤 Counter-offer of *₦${counterPrice.toLocaleString()}* sent to the customer.`);
             if (session.customerPhone) {
