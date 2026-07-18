@@ -37,8 +37,15 @@ export async function GET(request: Request) {
             } else if (customerEmail) {
                 whereClause.customerId = customerEmail;
             }
-            
+
             if (sellerId) whereClause.sellerId = sellerId;
+
+            // Without fetchAll, at least one scoping filter is required — an
+            // empty whereClause here matches every order in the table, which
+            // is exactly the unscoped "all" query this gate exists to block.
+            if (!customerId && !customerEmail && !sellerId) {
+                return NextResponse.json({ success: true, orders: [] });
+            }
         }
 
         const orders = await db.order.findMany({
