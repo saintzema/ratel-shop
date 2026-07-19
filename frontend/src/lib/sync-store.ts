@@ -3353,6 +3353,14 @@ class DataSyncServiceService {
 
     markOrderReadAsAdmin(orderId: string) {
         const orders = this.getOrders();
+        const target = orders.find(o => o.id === orderId);
+        // Was unconditional — writing + dispatching on every call regardless of whether
+        // anything changed. The admin inbox page calls this on every load(), and load()
+        // itself is the listener for both events dispatched below, so selecting an order
+        // (which happens automatically via ?order= in the URL) spiraled into an infinite
+        // write-dispatch-reload loop that pegged the tab until it crashed. Skip entirely
+        // once the order is already marked read.
+        if (!target || target.unread_admin === false) return;
         const updated = orders.map(o => o.id === orderId ? { ...o, unread_admin: false } : o);
         this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
