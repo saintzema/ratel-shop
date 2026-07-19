@@ -593,31 +593,6 @@ export default function AdminDashboard() {
                     >
                         Broadcast Update
                     </Button>
-                    {/* TEMPORARY — one-off cleanup for negotiations poisoned by the pre-fix
-                        WhatsApp price parser (a stray phone number parsed as a literal
-                        price). Remove this button + /api/admin/negotiations/repair-bad-prices
-                        once run. */}
-                    <Button
-                        variant="outline"
-                        onClick={async () => {
-                            if (!confirm("Reset & reject any negotiation with a price over ₦1B (corrupted by the phone-number parsing bug)?")) return;
-                            try {
-                                const token = localStorage.getItem('fp_token');
-                                const res = await fetch('/api/admin/negotiations/repair-bad-prices', {
-                                    method: 'POST',
-                                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                                });
-                                const data = await res.json();
-                                if (!res.ok) throw new Error(data.error || 'Repair failed');
-                                alert(`Repaired ${data.repaired} negotiation(s): ${data.results.map((r: any) => r.productName).join(', ') || 'none found'}`);
-                            } catch (e: any) {
-                                alert(e.message || 'Repair failed');
-                            }
-                        }}
-                        className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all"
-                    >
-                        Fix Bad Negotiation Prices
-                    </Button>
                 </div>
             </div>
 
