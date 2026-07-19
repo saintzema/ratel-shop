@@ -4062,7 +4062,24 @@ class DataSyncServiceService {
         const orders = this.getOrders();
         const idx = orders.findIndex(o => o.id === order.id);
         if (idx >= 0) {
-            orders[idx] = { ...orders[idx], ...order };
+            const existing = orders[idx];
+            // Chat history is append-only locally. addOrderMessage() writes a new message to
+            // localStorage synchronously, then persists it to the DB via a fire-and-forget
+            // fetch with no retry/confirmation — if that call hasn't landed yet (e.g. the tab
+            // was killed right after sending, or this resync just won a race), the DB's chat
+            // array is temporarily shorter than what's already cached. Blindly overwriting on
+            // every resync meant that message got silently erased the moment the page reloaded.
+            // Never let an incoming array with fewer messages regress what's already cached.
+            const incomingChat = order.chat_messages;
+            const existingChat = existing.chat_messages;
+            const mergedChat = (incomingChat && existingChat && incomingChat.length < existingChat.length)
+                ? existingChat
+                : incomingChat;
+            orders[idx] = {
+                ...existing,
+                ...order,
+                ...(mergedChat !== undefined ? { chat_messages: mergedChat } : {}),
+            };
         } else {
             orders.unshift(order as Order);
         }
