@@ -2008,16 +2008,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     ) : (
                                         <>
                                             <Button
+                                                id="pdp-buy-now"
                                                 className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
                                                 onClick={handleBuyNow}
                                             >
-                                                {hasFinancing(product) 
-                                                    ? `Pay Full Price - ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}` 
+                                                {hasFinancing(product)
+                                                    ? `Pay Full Price - ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}`
                                                     : `Pay ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}`
                                                 }
                                             </Button>
 
                                             <Button
+                                                id="pdp-add-to-cart"
                                                 variant="outline"
                                                 className={`w-full rounded-full font-black py-6 text-base shadow-sm transition-all duration-300 relative overflow-hidden ${addedToCart ? 'bg-black text-white hover:bg-gray-800 border-black' : 'border-emerald-200 text-emerald-800 hover:bg-emerald-50 bg-emerald-50/50'}`}
                                                 disabled={isAdding}
@@ -2045,13 +2047,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 <div className={`transition-transform duration-300 flex items-center justify-center gap-2 ${isAdding ? 'translate-y-[-100%] opacity-0' : 'translate-y-0 opacity-100'}`}>
                                                     {addedToCart ? (
                                                         <><Check className="h-5 w-5" /> View Cart</>
-                                                    ) : "Add to cart"}
+                                                    ) : "Add to Cart"}
                                                 </div>
                                             </Button>
                                         </>
                                     )}
                                     <div className="flex flex-col items-center">
                                         <Button
+                                            id="pdp-negotiate"
                                             variant="outline"
                                             className="w-full rounded-full border-amber-500 text-amber-600 hover:bg-amber-50 font-black py-6 text-base transition-all hover:scale-[1.02] shadow-sm"
                                             onClick={() => setIsNegotiationOpen(true)}
@@ -2543,12 +2546,23 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     ) : (
                         <>
                             <Button
+                                id="pdp-negotiate-mobile"
+                                variant="outline"
+                                className="shrink-0 w-14 h-14 rounded-full border-amber-500 text-amber-600 hover:bg-amber-50 shadow-sm active:scale-95 transition-transform p-0"
+                                onClick={() => setIsNegotiationOpen(true)}
+                                aria-label="Negotiate Price"
+                            >
+                                <Handshake className="h-5 w-5" />
+                            </Button>
+                            <Button
+                                id="pdp-mobile-buy-now"
                                 className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
                                 onClick={handleBuyNow}
                             >
                                 Buy Now
                             </Button>
                             <Button
+                                id="pdp-mobile-add-to-cart"
                                 className="flex-1 rounded-full bg-gray-900 hover:bg-black text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
                                 onClick={() => {
                                     setIsAdding(true);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 /**
  * GET /api/products/:id/contact
@@ -39,6 +40,16 @@ export async function GET(
     if (!product?.seller) {
         return NextResponse.json({ error: "Product or seller not found" }, { status: 404 });
     }
+
+    // A buyer who reveals a seller's direct contact may go on to complete the deal
+    // entirely off-platform — that transaction never creates an Order row here, so
+    // there's nothing to retroactively tag "off-platform" in order details. This is
+    // the one traceable signal that actually exists: log it so admin can see when a
+    // buyer went this route, distinct from a real on-platform order/checkout.
+    notifyAdmins(
+        `👀 Buyer revealed contact for *${product.name}* — may be completing this deal off-platform.`,
+        { type: "system", link: `/product/${id}` }
+    ).catch(() => { /* non-critical */ });
 
     return NextResponse.json({
         business_name: product.seller.businessName,
