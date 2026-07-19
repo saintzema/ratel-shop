@@ -741,9 +741,20 @@ class DataSyncServiceService {
                             seller_id: dbOrder.product.sellerId || dbOrder.product.seller_id,
                             category: dbOrder.product.category,
                         } : undefined,
-                    };
+                    } as any;
                     // 🛡️ Data Integrity: If local order is terminal ('delivered', 'cancelled'), don't let remote fetch revert it
                     const localVersion = localMap.get(dbOrder.id);
+                    // `mapped` never carried chat_messages at all — this sync runs on every
+                    // order_message_sync broadcast (debounced ~2s after ANY message is sent,
+                    // by ANY sender), and REPLACES the local order wholesale with `mapped`, so
+                    // every single message send was wiping the order's own chat history a few
+                    // seconds later, independent of any crash or race. Chat is append-only:
+                    // take the DB's array unless it's shorter than what's already cached.
+                    const dbChat = dbOrder.chatMessages || dbOrder.chat_messages;
+                    const localChat = localVersion?.chat_messages;
+                    mapped.chat_messages = (dbChat && localChat && dbChat.length < localChat.length)
+                        ? localChat
+                        : (dbChat || localChat || []);
                     if (localVersion && (localVersion.status === 'delivered' || localVersion.status === 'cancelled') && dbOrder.status !== localVersion.status) {
                         mapped.status = localVersion.status;
                         mapped.escrow_status = localVersion.escrow_status;

@@ -148,6 +148,29 @@ export async function POST(req: NextRequest) {
             } catch (e) {
                 console.warn("Prisma notification creation failed (might be a non-existing user):", e);
             }
+        } else if (effectiveEmail) {
+            // Not email-shaped — the caller (e.g. addOrderMessage targeting a customer by
+            // their order.customer_id) tried to resolve an email client-side first via a
+            // LOCAL cache (getAllUsers()), and fell back to the raw id when that cache was
+            // incomplete (very likely for a guest/newer customer on an admin's device). That
+            // silently dropped the notification here forever. Resolve it server-side instead,
+            // where the full user table is always available.
+            try {
+                const user = await db.user.findUnique({ where: { id: effectiveEmail }, select: { id: true } });
+                if (user) {
+                    await db.notification.create({
+                        data: {
+                            user: { connect: { id: user.id } },
+                            type: safeType,
+                            message: message,
+                            link: link || null,
+                            read: false
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn("Prisma notification creation failed (id-based fallback):", e);
+            }
         }
 
         // 2. Sync to Django Backend
