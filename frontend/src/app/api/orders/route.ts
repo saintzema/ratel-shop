@@ -5,6 +5,7 @@ import { broadcast } from "@/lib/realtime-service";
 import { triggerZema360 } from "@/lib/zema-trigger";
 import { getUserFromRequest } from "@/lib/jwt";
 import { verifyPaystackReference } from "@/lib/payout-transfer";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 export const runtime = "nodejs";
 
@@ -258,6 +259,20 @@ export async function POST(request: Request) {
 
             return order;
         });
+
+        // Notify admins too — previously only the seller was ever alerted about a new
+        // order (bell + email below), so admin had zero visibility into new orders
+        // unless a seller happened to escalate or a buyer messaged in. That meant a
+        // seller who missed/ignored a notification could let an order sit unfulfilled
+        // with nobody at FairPrice aware anything was wrong until the buyer cancelled.
+        {
+            const productName = (newOrder as any).product?.name || "a product";
+            const amount = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(body.amount || 0);
+            notifyAdmins(
+                `📦 New order: *${productName}* (${amount}) from ${userName}${body.seller_name ? ` — ${body.seller_name}` : ''}`,
+                { type: "order", link: `/admin/orders` }
+            ).catch(() => { /* non-critical */ });
+        }
 
         // Notify the seller via persistent DB notification + email
         if (body.seller_id) {

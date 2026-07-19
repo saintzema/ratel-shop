@@ -506,6 +506,23 @@ export default function SellerDashboard() {
                 <StatCard icon={<Star />} label="Trust Score" value={`${safeSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
             </motion.div>
 
+            {/* ── First product CTA — new sellers had no clear next step after onboarding
+                besides discovering the sidebar nav or noticing a notification, which
+                dropped some sellers between KYC completion and their first product form
+                visit. Only the sidebar/notification path existed before this. ── */}
+            {products.length === 0 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center">
+                    <Package className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+                    <h3 className="font-bold text-lg text-gray-900">List your first product</h3>
+                    <p className="text-sm text-gray-600 mt-1">Your store is live — start adding products so buyers can find you.</p>
+                    <Link href="/seller/products/new">
+                        <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl">
+                            Add Your First Product
+                        </Button>
+                    </Link>
+                </div>
+            )}
+
             {/* ── Important Alerts — foldable, newest first ── */}
             {sellerAlerts.length > 0 && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">

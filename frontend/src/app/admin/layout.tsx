@@ -56,7 +56,11 @@ export default function AdminLayout({
     const navItems = [
         { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
         { label: "Platform Orders", href: "/admin/orders", icon: Package },
-        { label: "Concierge Ops", href: "/admin/inbox", icon: MessageSquare },
+        // Was "/admin/inbox" — a separate, essentially-unused DM/"Conversations" data
+        // model that Ziva's real per-order concierge chats never write to. Every actual
+        // conversation lives in Order.chat_messages, rendered at /admin/inbox/orders —
+        // clicking this nav item always showed an empty inbox regardless of real activity.
+        { label: "Concierge Ops", href: "/admin/inbox/orders", icon: MessageSquare },
         { label: "User Directory", href: "/admin/users", icon: Users },
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "QR Payments", href: "/admin/qr-payments", icon: QrCode },

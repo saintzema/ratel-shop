@@ -1254,6 +1254,7 @@ function NewProductContent() {
                             </Button>
                         </Link>
                         <Button
+                            id="publish-listing-btn"
                             onClick={handleSubmit}
                             disabled={!formData.name || !formData.price || isSubmitting}
                             className="bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold shadow-sm h-11 px-7 text-sm transition-all hover:shadow-md disabled:opacity-40"

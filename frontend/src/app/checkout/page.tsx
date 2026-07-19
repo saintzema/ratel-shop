@@ -2594,6 +2594,7 @@ function CheckoutContent() {
                     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 lg:sticky top-24 relative mb-24 lg:mb-0">
                         <div className="hidden lg:block">
                             <Button
+                                id="checkout-place-order-desktop"
                                 size="lg"
                                 onClick={handlePlaceOrder}
                                 disabled={isProcessing}
@@ -2823,6 +2824,7 @@ function CheckoutContent() {
                                 </div>
                             </div>
                             <Button
+                                id="checkout-place-order-mobile"
                                 size="lg"
                                 type="button"
                                 onClick={(e) => {
