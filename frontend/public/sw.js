@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'fairprice-v3';
+const CACHE_VERSION = 'fairprice-v4';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -46,6 +46,23 @@ self.addEventListener('activate', event => {
     self.clients.claim();
 });
 
+// caches.match() resolves to `undefined` when nothing is cached — passing that straight
+// to event.respondWith() throws "Failed to convert value to 'Response'" and the browser
+// reports the whole request as a network error (net::ERR_FAILED), even though the actual
+// fetch may have simply failed for an unrelated transient reason. Almost none of the API
+// GET routes (orders, notifications, negotiations, kyc, payouts, ...) are ever pre-cached,
+// so every one of them hit this on any network blip. Every fallback below now guarantees
+// a real Response no matter what.
+function respondOrFallback(request) {
+    return caches.match(request).then(cached => {
+        if (cached) return cached;
+        return new Response(JSON.stringify({ error: 'offline' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    });
+}
+
 // ──────────────────────────────────────────────
 // FETCH — Smart caching strategies per request type
 // ──────────────────────────────────────────────
@@ -70,7 +87,7 @@ self.addEventListener('fetch', event => {
                     }
                     return response;
                 })
-                .catch(() => caches.match(request))
+                .catch(() => respondOrFallback(request))
         );
         return;
     }
@@ -115,9 +132,14 @@ self.addEventListener('fetch', event => {
                     return response;
                 })
                 .catch(() => {
-                    // Network failed — try cache first, then offline page
+                    // Network failed — try cache first, then offline page, then a synthetic
+                    // fallback if even '/offline' was never cached.
                     return caches.match(request).then(cached => {
-                        return cached || caches.match('/offline');
+                        if (cached) return cached;
+                        return caches.match('/offline').then(offline => offline || new Response(
+                            '<html><body>You appear to be offline.</body></html>',
+                            { status: 503, headers: { 'Content-Type': 'text/html' } }
+                        ));
                     });
                 })
         );
@@ -135,7 +157,7 @@ self.addEventListener('fetch', event => {
                         caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
                     }
                     return response;
-                }).catch(() => cached);
+                }).catch(() => cached || respondOrFallback(request));
 
                 // Return cached immediately, update in background (stale-while-revalidate)
                 return cached || fetchPromise;
@@ -146,6 +168,6 @@ self.addEventListener('fetch', event => {
 
     // ─── Default: Network with cache fallback ───
     event.respondWith(
-        fetch(request).catch(() => caches.match(request))
+        fetch(request).catch(() => respondOrFallback(request))
     );
 });
