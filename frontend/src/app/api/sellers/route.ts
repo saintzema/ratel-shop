@@ -228,7 +228,9 @@ export async function POST(req: Request) {
             // it's what gates WhatsApp-only features (QR generation via chat, product
             // upload via chat, etc). A seller who only has a non-WhatsApp phone number
             // should still be able to use the platform without being force-enrolled.
-            ...(body.whatsapp_number ? { whatsappNumber: body.whatsapp_number, whatsappEnabled: true } : {}),
+            // Client-side Seller type uses `.whatsapp` (matches every read-site in
+            // sync-store.ts); `.whatsapp_number` is kept for back-compat with older callers.
+            ...((body.whatsapp || body.whatsapp_number) ? { whatsappNumber: body.whatsapp || body.whatsapp_number, whatsappEnabled: true } : {}),
         };
 
         // Enforce Subscription Limits for NEW sellers

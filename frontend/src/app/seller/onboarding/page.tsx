@@ -225,7 +225,7 @@ export default function KYCOnboarding() {
             location: `${city}, ${stateRegion}`,
             phone_number: phoneNumbers.split(",")[0].trim(),
             phone_numbers: phoneNumbers.split(",").map(p => p.trim()).filter(Boolean),
-            whatsapp_number: (waSameAsPhone ? phoneNumbers.split(",")[0].trim() : whatsappNumber) || undefined,
+            whatsapp: (waSameAsPhone ? phoneNumbers.split(",")[0].trim() : whatsappNumber) || undefined,
             business_registered: isRegistered,
             cac_rc_number: isRegistered ? cacNumber : undefined,
             cac_document_url: isRegistered ? (cacDocumentUrl || undefined) : undefined,
