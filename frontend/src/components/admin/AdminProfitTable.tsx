@@ -19,27 +19,63 @@ export const AdminProfitTable = () => {
     });
 
     useEffect(() => {
-        const load = () => {
-            const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
-            
+        // getOrders()/getSellers() only ever read the local per-device cache — any
+        // seller/order this admin session hasn't synced locally (very likely on a
+        // fresh login, or after other admins/sellers made changes elsewhere) was
+        // silently missing from this ledger, understating every figure below it,
+        // subscriptions especially since it only takes one seller record to miss.
+        const authHeaders = (): Record<string, string> => {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            return token ? { Authorization: `Bearer ${token}` } : {};
+        };
+
+        const load = async () => {
+            let allOrders: any[] = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
+            let sellers: any[] = DataSyncService.getSellers();
+
+            try {
+                const [ordersRes, sellersRes] = await Promise.all([
+                    fetch("/api/orders?all=true", { headers: authHeaders() }),
+                    fetch("/api/sellers?all=true", { headers: authHeaders() }),
+                ]);
+                if (ordersRes.ok) {
+                    const data = await ordersRes.json();
+                    const dbOrders = Array.isArray(data) ? data : (data?.orders || []);
+                    if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+                        allOrders = dbOrders.filter((o: any) => !String(o.id).includes("FP-DEMO"));
+                    }
+                }
+                if (sellersRes.ok) {
+                    const data = await sellersRes.json();
+                    const dbSellers = Array.isArray(data) ? data : (data?.sellers || []);
+                    if (Array.isArray(dbSellers) && dbSellers.length > 0) {
+                        sellers = dbSellers;
+                    }
+                }
+            } catch { /* fall back to local cache above if the DB fetch fails */ }
+
             let escrowSum = 0;
             let deliverySum = 0;
 
             allOrders.forEach(o => {
                 // Approximate escrow fee
                 escrowSum += calculateTieredEscrowFee(o.amount);
-                
+
                 // Approximate delivery revenue
                 if (o.delivery_method !== "pickup") {
                     deliverySum += Number(localStorage.getItem("fp_doorstep_fee")) || 4000;
                 }
             });
 
-            // Subscription Revenue approximation
-            const sellers = DataSyncService.getSellers();
+            // Subscription revenue is an ESTIMATE of current recurring revenue (active
+            // plan x flat monthly rate, summed once per seller) — the platform doesn't
+            // persist a real payment ledger for subscription upgrades (the Paystack
+            // webhook only flips subscriptionPlan/planExpiryDate on the Seller row, it
+            // never writes a transaction record), so an accurate historical total isn't
+            // computable from current data without adding one.
             let subsSum = 0;
-            sellers.forEach(s => {
-                const plan = (s.subscription_plan || "Starter").toLowerCase();
+            sellers.forEach((s: any) => {
+                const plan = (s.subscription_plan || s.subscriptionPlan || "Starter").toLowerCase();
                 if (plan === "pro") subsSum += 12000;
                 else if (plan === "growth") subsSum += 35000;
                 else if (plan === "scale") subsSum += 100000;
@@ -106,7 +142,9 @@ export const AdminProfitTable = () => {
                         <Award className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Subscriptions</p>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5" title="Estimated monthly recurring revenue from sellers currently on a paid plan — not a historical payment ledger.">
+                            Subscriptions (Est. Monthly)
+                        </p>
                         <p className="text-lg font-black text-gray-900">₦{profitData.subscriptionRevenue.toLocaleString()}</p>
                     </div>
                 </div>
