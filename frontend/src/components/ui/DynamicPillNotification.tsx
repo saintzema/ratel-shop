@@ -163,7 +163,7 @@ export function DynamicPillNotification() {
                     if (ageMs > 12000) return false;
                     
                     const isSignificantChange = (n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending");
-                    const notifyKey = `buyer_${n.id}_${n.status}_${(n as any).counter_status}`;
+                    const notifyKey = `buyer_${n.id}_${n.status}_${(n as any).counter_status || 'none'}`;
                     const lastTime = notifiedHistory.current.get(notifyKey) || 0;
 
                     // Skip if this exact deal-state was already acknowledged on a prior
@@ -174,7 +174,7 @@ export function DynamicPillNotification() {
 
                 if (recentBuyerNeg) {
                     const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
-                    const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status}`;
+                    const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status || 'none'}`;
                     notifiedHistory.current.set(notifyKey, Date.now());
                     ackDeal(notifyKey); // remember across reloads
                     triggerBuyerNotification(recentBuyerNeg, product);
@@ -197,16 +197,23 @@ export function DynamicPillNotification() {
                 // negotiation update on reconnect or page navigation, so without this check
                 // an already-acknowledged "offer accepted" pill would keep reappearing
                 // indefinitely — exactly the stuck-notification bug reported.
-                const notifyKey = `buyer_${neg.id}_${neg.status}_${neg.counter_status}`;
+                const notifyKey = `buyer_${neg.id}_${neg.status}_${neg.counter_status || 'none'}`;
                 if (getDealAckSet().has(notifyKey)) return;
                 ackDeal(notifyKey);
                 const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 triggerBuyerNotification(neg, product);
             }
             else if (currentSellerId && neg.seller_id === currentSellerId && neg.status === 'pending' && !neg.counter_status) {
+                // This branch had the exact same gap the buyer branch above was fixed for —
+                // no dedup at all, so a redelivered SSE event (reconnect, navigation) kept
+                // re-showing an already-seen pill indefinitely. An admin account that also
+                // owns a seller identity (e.g. Global Stores) hits this path routinely.
+                const notifyKey = `seller_${neg.id}_${neg.proposed_price}_${neg.status}`;
+                if (getDealAckSet().has(notifyKey)) return;
+                ackDeal(notifyKey);
                 const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 setCustomNotification({
-                    id: neg.id + "_" + neg.proposed_price, 
+                    id: neg.id + "_" + neg.proposed_price,
                     text: `Buyer counter-offered ₦${neg.proposed_price.toLocaleString()} for ${product?.name || 'Product'}`,
                     isNegotiation: true,
                     isSellerAction: true,

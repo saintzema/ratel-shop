@@ -181,6 +181,15 @@ export function ZivaChat() {
     // Whether the user has manually dismissed the bubble — stop cycling after that.
     const bubbleDismissedRef = useRef(false);
 
+    // The invite bubble sits directly over the navbar search input on mobile, blocking it
+    // while a user is trying to type. Hide it (without permanently dismissing the pulse
+    // cycle) whenever search gets focus.
+    useEffect(() => {
+        const hideForSearch = () => setShowInviteBubble(false);
+        window.addEventListener("fp-search-focused", hideForSearch);
+        return () => window.removeEventListener("fp-search-focused", hideForSearch);
+    }, []);
+
     // Use the original premium glass chime for the bubble (not the lighter message-receive tone)
     const playBubbleChime = () => playDingSound();
 

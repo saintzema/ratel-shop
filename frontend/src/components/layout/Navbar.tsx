@@ -1098,7 +1098,7 @@ export function Navbar() {
                                 placeholder="Search products here..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onFocus={() => { setShowSuggestions(true); triggerNavSync(); }}
+                                onFocus={() => { setShowSuggestions(true); triggerNavSync(); window.dispatchEvent(new Event("fp-search-focused")); }}
                                 onKeyDown={handleKeyDown}
                             />
 

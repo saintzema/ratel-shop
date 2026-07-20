@@ -70,21 +70,28 @@ export default function StoreProfile() {
         if (!slug) return;
 
         const loadStore = async () => {
-            const allSellers = [...DataSyncService.getSellers(), ...SEED_SELLERS];
-            const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
-            let foundSeller: Seller | null = uniqueSellers.find(s =>
-                s.store_url === slug || s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
-            ) || null;
+            // DB-first — the local cache can hold a stale seller record for this slug (e.g.
+            // an id that predates a later normalization/merge), and since that stale match
+            // was tried BEFORE the DB fallback, this page would silently query
+            // /api/products?sellerId=<stale-id> forever and show "No products found" even
+            // though the real seller's real products existed and the DB had the right id
+            // the whole time. The DB is authoritative; only fall back to local cache if the
+            // DB lookup itself fails (offline).
+            let foundSeller: Seller | null = null;
+            try {
+                const res = await fetch(`/api/sellers?slug=${encodeURIComponent(slug)}`);
+                if (res.ok) {
+                    const dbSeller = await res.json();
+                    if (dbSeller?.id) foundSeller = dbSeller as Seller;
+                }
+            } catch { /* offline — fall through to local cache below */ }
 
-            // DB fallback — localStorage may not have this seller yet (first visit / cleared cache)
             if (!foundSeller) {
-                try {
-                    const res = await fetch(`/api/sellers?slug=${encodeURIComponent(slug)}`);
-                    if (res.ok) {
-                        const dbSeller = await res.json();
-                        if (dbSeller?.id) foundSeller = dbSeller as Seller;
-                    }
-                } catch { /* offline — keep null */ }
+                const allSellers = [...DataSyncService.getSellers(), ...SEED_SELLERS];
+                const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+                foundSeller = uniqueSellers.find(s =>
+                    s.store_url === slug || s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
+                ) || null;
             }
 
             if (foundSeller) {

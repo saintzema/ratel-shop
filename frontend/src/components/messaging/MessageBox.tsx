@@ -540,7 +540,10 @@ export function MessageBox() {
                     type: a.type || "system",
                     message: a.message,
                     read: a.read,
-                    timestamp: a.timestamp,
+                    // /api/notifications returns created_at, not timestamp — using a.timestamp
+                    // directly here always produced "Invalid Date" for any notification that
+                    // only exists server-side (never synced into the local cache).
+                    timestamp: a.timestamp || a.created_at,
                     link: a.link || undefined,
                 });
             }
