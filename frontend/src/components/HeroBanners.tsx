@@ -228,16 +228,16 @@ export function Zema360HeroBanner() {
           <a
             href="/zema360"
             onClick={e => e.stopPropagation()}
-            className="font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03] absolute left-1/2 -translate-x-1/2 sm:static sm:left-auto sm:translate-x-0 sm:self-start"
+            className="font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03] absolute left-[30%] -translate-x-1/2 sm:static sm:left-auto sm:translate-x-0 sm:self-start"
             style={{
               background: "linear-gradient(135deg,#10b981,#059669)",
               color: "#fff",
-              fontSize: "clamp(10px,1.2vw,13px)",
-              padding: "clamp(7px,1vw,10px) clamp(14px,2vw,20px)",
+              fontSize: "clamp(9px,1.2vw,13px)",
+              padding: "clamp(6px,1vw,10px) clamp(11px,2vw,20px)",
               boxShadow: "0 10px 25px -5px rgba(16,185,129,0.5), 0 0 0 1px rgba(52,211,153,0.4)",
               whiteSpace: "nowrap",
               zIndex: 20,
-              bottom: "58px",
+              bottom: "52px",
             }}
           >
             GET ACCESS →
@@ -245,9 +245,10 @@ export function Zema360HeroBanner() {
 
           {/* Tagline — mobile only (center column hidden on mobile). Now sits right where
               GET ACCESS used to be, since that button moved to float above the bottom
-              overlay row instead. */}
-          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "24ch" }}>
-            AI agents that handle every order, escrow &amp; payout — fully hands-free.
+              overlay row instead. Kept short so it can't run into the Start Selling button
+              below it. */}
+          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch" }}>
+            AI agents — fully hands-free.
           </p>
         </div>
 
