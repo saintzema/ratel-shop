@@ -187,7 +187,7 @@ export function Zema360HeroBanner() {
       />
 
       {/* Three-column layout: brand LEFT · tagline+perks CENTER · pipeline+metrics+CTA RIGHT */}
-      <div className="absolute inset-0 flex items-stretch p-4 md:p-6 pb-6 gap-3 md:gap-6" style={{ zIndex: 7 }}>
+      <div className="absolute inset-0 flex items-stretch pl-4 pr-2 md:px-6 py-4 md:py-6 pb-6 gap-3 md:gap-6" style={{ zIndex: 7 }}>
 
         {/* ── LEFT: Brand identity ── */}
         <div className="flex flex-col justify-center flex-shrink-0 min-w-0">
@@ -220,28 +220,34 @@ export function Zema360HeroBanner() {
             Autonomous e-Commerce OS
           </p>
 
-          {/* GET ACCESS — lives under subtitle on all screen sizes */}
+          {/* GET ACCESS — centered above the Start Selling / Price Checker AI overlay on
+              mobile (that row is a page.tsx overlay, centered + pinned to the bottom of this
+              same banner), back in normal flow under the subtitle on desktop. Color now
+              matches Start Selling's green — more visible, and getting sellers in is the
+              priority over the gold "premium" look. */}
           <a
             href="/zema360"
             onClick={e => e.stopPropagation()}
-            className="self-start font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03]"
+            className="font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03] absolute left-1/2 -translate-x-1/2 sm:static sm:left-auto sm:translate-x-0 sm:self-start"
             style={{
-              background: "linear-gradient(135deg,#DAA520,#FFD700)",
-              color: "#111",
+              background: "linear-gradient(135deg,#10b981,#059669)",
+              color: "#fff",
               fontSize: "clamp(10px,1.2vw,13px)",
               padding: "clamp(7px,1vw,10px) clamp(14px,2vw,20px)",
-              boxShadow: "0 6px 22px -4px rgba(218,165,32,0.55), 0 0 0 1px rgba(255,215,0,0.3)",
+              boxShadow: "0 10px 25px -5px rgba(16,185,129,0.5), 0 0 0 1px rgba(52,211,153,0.4)",
               whiteSpace: "nowrap",
-              zIndex: 10,
-              position: "relative",
+              zIndex: 20,
+              bottom: "58px",
             }}
           >
             GET ACCESS →
           </a>
 
-          {/* Tagline — mobile only (center column hidden on mobile) */}
-          <p className="sm:hidden text-gray-400 font-medium leading-snug mt-2" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "20ch" }}>
-            AI agents — fully hands-free.
+          {/* Tagline — mobile only (center column hidden on mobile). Now sits right where
+              GET ACCESS used to be, since that button moved to float above the bottom
+              overlay row instead. */}
+          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "24ch" }}>
+            AI agents that handle every order, escrow &amp; payout — fully hands-free.
           </p>
         </div>
 

@@ -375,7 +375,7 @@ function HomeContent() {
                     </Button>
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/5 hover:bg-white/15 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
                       onClick={() => setIsPriceModalOpen(true)}
                     >
                       PRICE CHECKER AI
