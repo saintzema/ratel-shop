@@ -158,11 +158,14 @@ async function handleChargeSuccess(data: any) {
 
             // Checkout-routed QR payments also carry order ids — stamp them so the
             // customer's order history shows the payment as real and verifiable.
+            // QR payments are in-person hand-offs (buyer scans and pays at the point of
+            // sale) — there's no separate delivery step to wait for, so mark delivered
+            // immediately rather than leaving the order stuck at "processing" forever.
             const qrOrderIds: string[] = (metadata?.order_ids ? String(metadata.order_ids).split(",") : []).map((s: string) => s.trim()).filter(Boolean);
             for (const oid of qrOrderIds) {
                 await db.order.update({
                     where: { id: oid },
-                    data: { status: "processing", escrowStatus: "released", payoutStatus: "requested", paymentReference: reference },
+                    data: { status: "delivered", deliveredAt: new Date(), escrowStatus: "released", payoutStatus: "requested", paymentReference: reference },
                 }).catch(() => { /* order row may not exist yet — non-fatal */ });
             }
 

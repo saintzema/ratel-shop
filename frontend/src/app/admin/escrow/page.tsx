@@ -191,7 +191,12 @@ export default function EscrowManagement() {
         const { type, orderId } = actionModal;
 
         if (type === "release" && orderId) {
-            DataSyncService.releaseEscrow(orderId);
+            DataSyncService.releaseEscrow(orderId).then(persisted => {
+                if (!persisted) {
+                    alert("Release was saved on this device, but failed to reach the server — it may revert if viewed elsewhere. Please try again.");
+                    setOrders(DataSyncService.getOrders());
+                }
+            });
 
             // Track admin escrow released
             if (typeof window !== "undefined" && (window as any).pendo) {
@@ -237,8 +242,12 @@ export default function EscrowManagement() {
         setActionModal({ isOpen: false, type: null, orderId: null, message: "" });
     };
 
-    const handleSellerConfirm = (orderId: string) => {
-        DataSyncService.sellerConfirmDelivery(orderId);
+    const handleSellerConfirm = async (orderId: string) => {
+        setOrders(DataSyncService.getOrders());
+        const persisted = await DataSyncService.sellerConfirmDelivery(orderId);
+        if (!persisted) {
+            alert("Confirm Delivery was saved on this device, but failed to reach the server — it may revert if viewed elsewhere. Try again, or use Release to Seller from All Orders.");
+        }
         setOrders(DataSyncService.getOrders());
     };
 
@@ -960,12 +969,26 @@ export default function EscrowManagement() {
                                         accept="image/*"
                                         className="hidden"
                                         ref={chatFileInputRef}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) {
-                                                const reader = new FileReader();
-                                                reader.onloadend = () => setChatImagePreview(reader.result as string);
-                                                reader.readAsDataURL(file);
+                                            e.target.value = "";
+                                            if (!file) return;
+                                            // Base64 data: URLs here bloated localStorage (quota "nuclear
+                                            // clear") and 413'd /api/orders/sync-messages — upload to blob
+                                            // storage and keep only the real URL, same fix as the seller
+                                            // and buyer chat composers.
+                                            try {
+                                                const formData = new FormData();
+                                                formData.append("file", file);
+                                                const res = await fetch("/api/orders/upload-message-image", { method: "POST", body: formData });
+                                                const data = await res.json();
+                                                if (res.ok && data.url) {
+                                                    setChatImagePreview(data.url);
+                                                } else {
+                                                    alert(`Failed to upload image: ${data.error || "unknown error"}`);
+                                                }
+                                            } catch {
+                                                alert("Failed to upload image — check your connection and try again.");
                                             }
                                         }}
                                     />

@@ -445,19 +445,37 @@ export default function UniversalMessagesPage() {
         window.dispatchEvent(new Event("storage"));
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
+        e.target.value = ""; // allow re-selecting the same file
 
-        Array.from(files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setSelectedImagePreviews(prev => [...prev, event.target!.result as string]);
+        // Previously read each file as a base64 data: URL and stored that raw string in
+        // both localStorage (chat_messages) and the /api/orders/sync-messages POST body.
+        // A single photo easily runs 1-3MB as base64, which blew through the localStorage
+        // quota (triggering "nuclear clear" of unrelated cached data) and 413'd the sync
+        // request outright. Upload to blob storage instead and only ever store the URL.
+        // Uses the same guest-safe endpoint the buyer-side concierge chat uses (no JWT
+        // requirement), rather than /api/upload which would reject any unauthenticated
+        // caller — simpler to share one upload path than plumb auth through both.
+        for (const file of Array.from(files)) {
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                const res = await fetch("/api/orders/upload-message-image", {
+                    method: "POST",
+                    body: formData,
+                });
+                const data = await res.json();
+                if (res.ok && data.url) {
+                    setSelectedImagePreviews(prev => [...prev, data.url]);
+                } else {
+                    alert(`Failed to upload ${file.name}: ${data.error || "unknown error"}`);
                 }
-            };
-            reader.readAsDataURL(file);
-        });
+            } catch {
+                alert(`Failed to upload ${file.name} — check your connection and try again.`);
+            }
+        }
     };
 
     const removeImage = (index: number) => {
@@ -1103,8 +1121,10 @@ export default function UniversalMessagesPage() {
                             <div className="h-4" />
                         </div>
 
-                        {/* Input Area */}
-                        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20 shrink-0">
+                        {/* Input Area — extra bottom padding on mobile reserves room for the
+                            global fixed MobileBottomNav (h-16 + safe-area, z-50), which
+                            otherwise sits on top of and hides this composer/send button. */}
+                        <div className="p-4 pb-[calc(1rem+4rem+env(safe-area-inset-bottom))] md:pb-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20 shrink-0">
 
                             {replyingTo && (
                                 <div className="mb-3 px-3 py-2 bg-indigo-50/50 border border-indigo-100 rounded-lg flex items-center justify-between">

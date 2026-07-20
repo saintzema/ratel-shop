@@ -239,11 +239,19 @@ export function Zema360HeroBanner() {
             GET ACCESS →
           </a>
 
-          {/* Tagline — mobile only (center column hidden on mobile) */}
-          <p className="sm:hidden text-gray-400 font-medium leading-snug mt-2" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "20ch" }}>
-            AI agents — fully hands-free.
-          </p>
         </div>
+
+        {/* Tagline — mobile only (center column hidden on mobile). Pinned to the
+            extreme bottom-left of the banner, below the Start Selling / Price
+            Checker AI button overlay (page.tsx renders that at bottom-4, centered
+            full-width) — previously sat inline in the vertically-centered left
+            column and ended up hidden behind that button. */}
+        <p
+          className="sm:hidden absolute text-gray-400 font-medium leading-snug"
+          style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "20ch", left: "12px", bottom: "2px", zIndex: 8 }}
+        >
+          AI agents — fully hands-free.
+        </p>
 
         {/* ── CENTER: Tagline · What sellers get (desktop only) ── */}
         <div className="hidden sm:flex flex-col justify-center flex-1 min-w-0 px-1 md:px-3">
@@ -283,8 +291,12 @@ export function Zema360HeroBanner() {
           </div>
         </div>
 
-        {/* ── RIGHT: Pipeline (desktop) · Metrics (desktop) · GET ACCESS (all screens) ── */}
-        <div className="flex flex-col items-end flex-shrink-0" style={{ minWidth: "min(40%,155px)", gap: "clamp(8px,1.5vw,14px)" }}>
+        {/* ── RIGHT: Pipeline (desktop) · Metrics (desktop) · GET ACCESS (all screens) ──
+             ml-auto: on mobile the CENTER column is hidden entirely (no flex-1 sibling
+             left to absorb the row's free space), so this column previously sat right
+             next to LEFT instead of pushed to the far right edge. On desktop this is a
+             no-op — CENTER's flex-1 already claims all remaining space. */}
+        <div className="flex flex-col items-end flex-shrink-0 ml-auto" style={{ minWidth: "min(40%,155px)", gap: "clamp(8px,1.5vw,14px)" }}>
 
           {/* Live pipeline — desktop only */}
           <div className="hidden sm:flex flex-col gap-[3px] items-end">

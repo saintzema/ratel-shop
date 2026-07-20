@@ -602,10 +602,22 @@ export default function AdminDashboard() {
                                 />
                             </div>
                             <Button
-                                onClick={() => {
+                                onClick={async () => {
                                     if (!broadcastMessage.trim()) return;
-                                    const sellers = DataSyncService.getSellers();
-                                    sellers.forEach(s => {
+                                    // DataSyncService.getSellers() reads the LOCAL cache, which can be
+                                    // empty right after a fresh session or a localStorage quota-triggered
+                                    // "nuclear clear" — that's why this previously reported "0 sellers"
+                                    // even when real sellers existed. Fetch the live, authoritative list.
+                                    let sellers: any[] = [];
+                                    try {
+                                        const res = await fetch("/api/sellers?all=true");
+                                        if (res.ok) sellers = await res.json();
+                                    } catch { /* fall through with empty list below */ }
+                                    if (!sellers.length) {
+                                        alert("Could not load the seller list — broadcast not sent. Please try again.");
+                                        return;
+                                    }
+                                    sellers.forEach((s: any) => {
                                         DataSyncService.addNotification({
                                             userId: s.user_id || s.id,
                                             type: "system",

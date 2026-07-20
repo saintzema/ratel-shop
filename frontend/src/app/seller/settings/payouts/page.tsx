@@ -56,6 +56,7 @@ export default function PayoutsSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [saveError, setSaveError] = useState("");
     const [payoutRequested, setPayoutRequested] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [orders, setOrders] = useState<Order[]>([]);
@@ -151,16 +152,45 @@ export default function PayoutsSettingsPage() {
         if (!seller) return;
 
         setSaving(true);
-        await new Promise((r) => setTimeout(r, 600));
+        setSaveError("");
 
-        DataSyncService.updateSeller(seller.id, bankData);
-        const refreshed = DataSyncService.getCurrentSeller();
-        if (refreshed) setSeller(refreshed as Seller);
+        // DataSyncService.updateSeller() fires its POST fire-and-forget and the old code
+        // here showed "Saved!" immediately regardless — a failed/dropped write (or a write
+        // to a stale/wrong seller row) would leave the wrong bank account on file while
+        // the seller believed they'd updated it, with money then going to the old account.
+        // POST directly here and await the real result before telling them it's saved.
+        try {
+            const token = localStorage.getItem("fp_token");
+            const res = await fetch("/api/sellers", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ ...seller, ...bankData }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || `Save failed (${res.status})`);
+            }
+            const saved = await res.json();
+            if (saved.bankName !== bankData.bank_name || saved.accountNumber !== bankData.account_number) {
+                throw new Error("Bank details didn't save correctly — please try again.");
+            }
 
-        setSaving(false);
-        setIsEditing(false);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
+            // Now safe to sync the local optimistic cache too.
+            DataSyncService.updateSeller(seller.id, bankData);
+            const refreshed = DataSyncService.getCurrentSeller();
+            if (refreshed) setSeller(refreshed as Seller);
+
+            setIsEditing(false);
+            setSuccess(true);
+            setTimeout(() => setSuccess(false), 3000);
+        } catch (err: any) {
+            setSaveError(err.message || "Could not save your bank details. Please try again.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Payout calculations
@@ -297,6 +327,17 @@ export default function PayoutsSettingsPage() {
                         <span className="font-bold text-sm">
                             Changes saved successfully!
                         </span>
+                    </motion.div>
+                )}
+                {saveError && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl p-4"
+                    >
+                        <AlertCircle className="h-5 w-5 text-red-600" />
+                        <span className="font-bold text-sm">{saveError}</span>
                     </motion.div>
                 )}
                 {payoutRequested && (

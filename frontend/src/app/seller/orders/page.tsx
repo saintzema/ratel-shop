@@ -210,6 +210,25 @@ function SellerOrdersContent() {
                 message: `📋 Seller note on order ${order.id}: ${note}`,
                 link: '/admin/orders',
             });
+            // addNotification() only ever wrote to localStorage + this same-device
+            // dashboard — the buyer's own device/email never heard about it. Send a
+            // real email too, same pattern used for shipping/delivery updates above.
+            if (order.customer_email) {
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: order.customer_email,
+                        type: 'BUYER_ORDER_MESSAGE',
+                        payload: {
+                            name: order.customer_name || 'Customer',
+                            orderId: order.id,
+                            sellerName: DataSyncService.getCurrentSeller()?.business_name,
+                            message: note,
+                        },
+                    }),
+                }).catch(() => { /* email is best-effort — in-app/DB notification already sent */ });
+            }
             // Clear the draft and update local orders list
             setStatusNotes(prev => ({ ...prev, [order.id]: '' }));
             setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status_note: note } : o));

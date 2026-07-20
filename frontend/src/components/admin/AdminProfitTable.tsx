@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DataSyncService } from "@/lib/sync-store";
 import { Wallet, ShieldCheck, Truck, TrendingUp, Award } from "lucide-react";
-import { calculateTieredEscrowFee } from "@/lib/escrow-utils"
 
 export const AdminProfitTable = () => {
     const [profitData, setProfitData] = useState<{
@@ -19,38 +17,26 @@ export const AdminProfitTable = () => {
     });
 
     useEffect(() => {
-        const load = () => {
-            const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
-            
-            let escrowSum = 0;
-            let deliverySum = 0;
-
-            allOrders.forEach(o => {
-                // Approximate escrow fee
-                escrowSum += calculateTieredEscrowFee(o.amount);
-                
-                // Approximate delivery revenue
-                if (o.delivery_method !== "pickup") {
-                    deliverySum += Number(localStorage.getItem("fp_doorstep_fee")) || 4000;
-                }
-            });
-
-            // Subscription Revenue approximation
-            const sellers = DataSyncService.getSellers();
-            let subsSum = 0;
-            sellers.forEach(s => {
-                const plan = (s.subscription_plan || "Starter").toLowerCase();
-                if (plan === "pro") subsSum += 12000;
-                else if (plan === "growth") subsSum += 35000;
-                else if (plan === "scale") subsSum += 100000;
-            });
-
-            setProfitData({
-                escrowRevenue: escrowSum,
-                deliveryRevenue: deliverySum,
-                subscriptionRevenue: subsSum,
-                totalOrders: allOrders.length
-            });
+        // Previously computed from DataSyncService.getOrders()/getSellers() — the local
+        // browser cache, capped at 200 orders (the /api/orders "all=true" safety limit)
+        // and prone to being emptied entirely by a localStorage-quota "nuclear clear".
+        // That's why this could show wrong/stale figures instead of the platform's real
+        // totals. Now backed by a real DB aggregate at /api/admin/profit-ledger.
+        const load = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const res = await fetch("/api/admin/profit-ledger", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                setProfitData({
+                    escrowRevenue: data.escrowRevenue || 0,
+                    deliveryRevenue: data.deliveryRevenue || 0,
+                    subscriptionRevenue: data.subscriptionRevenue || 0,
+                    totalOrders: data.totalOrders || 0,
+                });
+            } catch { /* keep last-known values on transient failure */ }
         };
         load();
         window.addEventListener("sync-store-update", load);

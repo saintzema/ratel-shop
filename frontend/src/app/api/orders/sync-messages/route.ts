@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { orderId, sender, text, imageUrl, replyTo } = body;
+        const { orderId, sender, text, imageUrl, imageUrls, replyTo } = body;
 
         if (!orderId) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
             sender,
             text,
             imageUrl,
+            imageUrls,
             replyTo,
             timestamp: new Date().toISOString()
         };

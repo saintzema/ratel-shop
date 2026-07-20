@@ -373,7 +373,6 @@ function CheckoutContent() {
 
     const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
     const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
-    const [guestId] = useState(() => "guest_" + Math.random().toString(36).substring(2, 11));
 
     useEffect(() => {
         // isDirectPaymentOnly depends on checkoutItems, which starts empty before cart/QR
@@ -1506,16 +1505,22 @@ function CheckoutContent() {
                 // They will be prompted to secure their account after the order is finalized.
                 setIsGuestCheckout(true);
 
-                // Sync guest user to DB with a default password so they can log in later if they skip (though we'll force setup)
+                // Sync guest user to DB with NO password — leaving it unset is what lets
+                // /api/auth/claim-guest's "Secure Your Account" flow claim this identity
+                // later (it 409s if a password is already present). A shared hardcoded
+                // default password here was also a real account-takeover hole: anyone who
+                // knew/guessed a guest's checkout email could log in as them with it.
                 fetch("/api/users", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        id: guestId,
+                        // Must match orderUserId (the id already stamped onto this order's
+                        // customerId above) — not an unrelated random id — or claim-guest's
+                        // relink-by-customerId query can never find this order later.
+                        id: orderUserId,
                         email: address.email,
                         name: fullName || "Guest User",
                         role: "customer",
-                        password: "fairprice123", // Default password — user will be prompted to change
                         phone: `${countryCode} ${address.phone}`,
                         whatsapp: showWhatsappField ? `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}` : undefined,
                         address: deliveryMethod === "doorstep"

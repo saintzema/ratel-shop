@@ -101,7 +101,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, type, message, link, userEmail } = body;
+        // DataSyncService.addNotification() — the app's only caller of this endpoint —
+        // sends `user_email` (snake_case, matching this route's own GET param). This
+        // handler previously only read `userEmail`/`userId`, so effectiveEmail below was
+        // ALWAYS undefined and no notification from that helper ever persisted to the DB —
+        // meaning it only ever showed up on the same browser/device that sent it, never on
+        // a different device (e.g. the buyer's own phone).
+        const { userId, type, message, link, userEmail, user_email } = body;
 
         // NotificationType is a lowercase Postgres enum (system|order|negotiation|promo).
         // The frontend sends many free-form types (success, info, price_alert, …) and the
@@ -114,7 +120,7 @@ export async function POST(req: NextRequest) {
             : ("system" as any);
 
         // 1. Sync to Prisma if we have a user identity
-        const effectiveEmail = userEmail || userId;
+        const effectiveEmail = userEmail || user_email || userId;
         if (effectiveEmail === "admin") {
             // Admin-targeted notifications were localStorage-only and disappeared on a new
             // login / quota clear. Persist them to every admin user so they're durable.

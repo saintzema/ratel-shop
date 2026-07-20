@@ -217,16 +217,19 @@ export default function AdminOrdersPage() {
                                                         onClick={async () => {
                                                             if (!confirm("Manually release funds for this order?")) return;
                                                             try {
-                                                                const res = await fetch("/api/orders", {
-                                                                    method: "PATCH",
+                                                                const res = await fetch("/api/escrow/release", {
+                                                                    method: "POST",
                                                                     headers: { "Content-Type": "application/json" },
-                                                                    body: JSON.stringify({ id: order.id, escrowStatus: "released", payoutStatus: "payoutable" })
+                                                                    body: JSON.stringify({ orderId: order.id, releasedBy: "admin" })
                                                                 });
-                                                                if (res.ok) {
+                                                                const data = await res.json().catch(() => ({}));
+                                                                if (res.ok && data.success) {
                                                                     alert("Funds released!");
                                                                     loadOrders();
+                                                                } else {
+                                                                    alert(`Release failed: ${data.error || "unknown error"}`);
                                                                 }
-                                                            } catch (e) { console.error(e); }
+                                                            } catch (e) { console.error(e); alert("Release failed — see console."); }
                                                         }}
                                                         className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20"
                                                     >

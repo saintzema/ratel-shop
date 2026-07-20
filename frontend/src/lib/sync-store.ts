@@ -148,6 +148,7 @@ class DataSyncServiceService {
     private readonly _PENDING_ORDER_KEY = "fp_pending_order_edits";
     private _isRegisteringSeller = false;
     private _syncDebounceTimer: any = null;
+    private _lastRealtimeSyncFire = 0;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -375,11 +376,29 @@ class DataSyncServiceService {
                 else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
                 else if (data.type === "notification") collectionToSync = "notifications";
 
-                // Debounce to prevent rapid-fire DB compute spikes and UI jank
+                // Debounce to prevent rapid-fire DB compute spikes and UI jank. The 2s
+                // debounce alone wasn't enough — a single QR payment (or any flow that
+                // fires several broadcast() calls back to back, e.g. order_updated +
+                // payout_created + notification) restarts this timer each time, and each
+                // resulting sync fetches orders+negotiations+notifications together
+                // (unpaginated-ish, up to 200 rows each). On a page with the tab open
+                // through a burst of events, that stacked up into tens of MB of repeated
+                // fetches. Add a hard floor so a burst can't fire more than once per 8s,
+                // matching the MIN_GAP_MS pattern already used for notification polling.
+                const REALTIME_SYNC_MIN_GAP_MS = 8000;
                 if (this._syncDebounceTimer) clearTimeout(this._syncDebounceTimer);
-                this._syncDebounceTimer = setTimeout(() => {
+                const runSync = () => {
+                    const gapRemaining = REALTIME_SYNC_MIN_GAP_MS - (Date.now() - this._lastRealtimeSyncFire);
+                    if (gapRemaining > 0) {
+                        // Too soon — don't drop the update, just push it out to the floor
+                        // so a burst still resolves to one fresh sync, not zero.
+                        this._syncDebounceTimer = setTimeout(runSync, gapRemaining);
+                        return;
+                    }
+                    this._lastRealtimeSyncFire = Date.now();
                     this.syncWithDB(collectionToSync, true);
-                }, 2000); 
+                };
+                this._syncDebounceTimer = setTimeout(runSync, 2000);
             } catch (e) {
                 console.warn("Failed to parse real-time event:", e);
             }
@@ -4246,10 +4265,15 @@ class DataSyncServiceService {
      * local edit so a background syncWithDB() doesn't overwrite it with a stale value
      * before the PATCH lands. Used by all escrow lifecycle transitions.
      */
-    private _persistOrderEscrow(id: string, escrow_status: Order["escrow_status"], extra: Record<string, any> = {}) {
+    private _persistOrderEscrow(id: string, escrow_status: Order["escrow_status"], extra: Record<string, any> = {}): Promise<boolean> {
         this._pendingOrderEdits.add(id);
         try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
-        fetch("/api/orders", {
+        // This used to be pure fire-and-forget with no way for a caller to know the write
+        // actually reached the DB. The local optimistic write + _pendingOrderEdits guard
+        // protect THIS browser from seeing a revert, but a different admin session/device
+        // (no local pending flag) would still see the server's stale, un-patched state if
+        // this PATCH silently failed — which read to the admin as "the button reappeared."
+        return fetch("/api/orders", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id, escrow_status, ...extra }),
@@ -4257,21 +4281,23 @@ class DataSyncServiceService {
             if (res.ok) {
                 this._pendingOrderEdits.delete(id);
                 try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+                return true;
             }
-        }).catch(() => { /* stays pending; retried on next escrow action */ });
+            return false;
+        }).catch(() => false); /* stays pending; retried on next escrow action */
     }
 
-    updateOrderEscrow(id: string, escrow_status: Order["escrow_status"]) {
+    updateOrderEscrow(id: string, escrow_status: Order["escrow_status"]): Promise<boolean> {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === id);
-        if (!order) return;
+        if (!order) return Promise.resolve(false);
 
         const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
         this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // CRITICAL: persist to DB + mark pending so a background syncWithDB() doesn't revert
         // this escrow change (which made Confirm/Release buttons reappear).
-        this._persistOrderEscrow(id, escrow_status);
+        const persisted = this._persistOrderEscrow(id, escrow_status);
 
         // Financial Integrity: Recalculate balance on escrow state change
         this.recalculateSellerBalances(order.seller_id);
@@ -4288,6 +4314,7 @@ class DataSyncServiceService {
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+        return persisted;
     }
 
     updateTrackingStatus(id: string, status: string, location: string, carrier?: string, tracking_id?: string, driver?: { name?: string; phone?: string }) {
@@ -5530,10 +5557,10 @@ class DataSyncServiceService {
         return true;
     }
 
-    sellerConfirmDelivery(orderId: string) {
+    sellerConfirmDelivery(orderId: string): Promise<boolean> {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === orderId);
-        if (!order) return;
+        if (!order) return Promise.resolve(false);
 
         const confirmedAt = new Date().toISOString();
         const updated = orders.map(o => o.id === orderId ? {
@@ -5545,7 +5572,7 @@ class DataSyncServiceService {
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Persist to DB + mark pending so a background sync doesn't revert the confirmation
-        this._persistOrderEscrow(orderId, "seller_confirmed", { seller_confirmed_at: confirmedAt, status: "delivered" });
+        const persisted = this._persistOrderEscrow(orderId, "seller_confirmed", { seller_confirmed_at: confirmedAt, status: "delivered" });
 
         // --- Notifications ---
         const productName = order.product?.name || `Product ${order.product_id}`;
@@ -5580,6 +5607,7 @@ class DataSyncServiceService {
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+        return persisted;
     }
 
     buyerConfirmReceipt(orderId: string) {
@@ -5620,10 +5648,10 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    releaseEscrow(orderId: string) {
+    releaseEscrow(orderId: string): Promise<boolean> {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === orderId);
-        if (!order) return;
+        if (!order) return Promise.resolve(false);
 
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
@@ -5633,7 +5661,7 @@ class DataSyncServiceService {
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Update stats & trigger storage event
-        this.updateOrderEscrow(orderId, "released");
+        const persisted = this.updateOrderEscrow(orderId, "released");
         
         // Force immediate balance recalculation to ensure availability
         this.recalculateSellerBalances(order.seller_id);
@@ -5748,6 +5776,7 @@ class DataSyncServiceService {
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+        return persisted;
     }
 
     /** Bulk release of escrow funds */

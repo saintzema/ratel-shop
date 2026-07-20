@@ -200,11 +200,30 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
     if (!isOpen) return null;
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        e.target.value = "";
 
-        const imageUrl = URL.createObjectURL(file);
+        // URL.createObjectURL() is a browser-local, in-memory reference — it's invalid
+        // after a page reload and never resolves on the seller's own device/session, so
+        // the seller would see a broken image for every buyer-uploaded photo. Upload to
+        // real blob storage and use the durable URL instead. Uses the guest-safe
+        // upload-message-image endpoint rather than /api/upload, since buyers here are
+        // very often unauthenticated guests with no JWT to send.
+        let imageUrl: string;
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("orderId", orderId || "");
+            const res = await fetch("/api/orders/upload-message-image", { method: "POST", body: formData });
+            const data = await res.json();
+            if (!res.ok || !data.url) throw new Error(data.error || "Upload failed");
+            imageUrl = data.url;
+        } catch {
+            alert(`Failed to upload ${file.name} — check your connection and try again.`);
+            return;
+        }
 
         const userMsg: Message = {
             id: Date.now().toString(),
