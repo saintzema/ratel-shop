@@ -220,15 +220,18 @@ export function Zema360HeroBanner() {
             Autonomous e-Commerce OS
           </p>
 
-          {/* GET ACCESS — centered above the Start Selling / Price Checker AI overlay on
-              mobile (that row is a page.tsx overlay, centered + pinned to the bottom of this
-              same banner), back in normal flow under the subtitle on desktop. Color now
-              matches Start Selling's green — more visible, and getting sellers in is the
-              priority over the gold "premium" look. */}
+          {/* GET ACCESS — tried floating this above the Start Selling / Price Checker AI
+              overlay row with absolute positioning, but the banner is too short vertically
+              for that to clear both the subtitle above and the button row below at once
+              (confirmed by screenshot — it overlapped one or the other). Kept in normal
+              flow instead, centered under the brand block on mobile, so it can never
+              collide with anything else. Desktop keeps its original left-aligned spot.
+              Color now matches Start Selling's green — more visible, and getting sellers
+              in is the priority over the gold "premium" look. */}
           <a
             href="/zema360"
             onClick={e => e.stopPropagation()}
-            className="font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03] absolute left-[30%] -translate-x-1/2 sm:static sm:left-auto sm:translate-x-0 sm:self-start"
+            className="self-center sm:self-start font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 hover:opacity-90 hover:scale-[1.03]"
             style={{
               background: "linear-gradient(135deg,#10b981,#059669)",
               color: "#fff",
@@ -236,18 +239,13 @@ export function Zema360HeroBanner() {
               padding: "clamp(6px,1vw,10px) clamp(11px,2vw,20px)",
               boxShadow: "0 10px 25px -5px rgba(16,185,129,0.5), 0 0 0 1px rgba(52,211,153,0.4)",
               whiteSpace: "nowrap",
-              zIndex: 20,
-              bottom: "52px",
             }}
           >
             GET ACCESS →
           </a>
 
-          {/* Tagline — mobile only (center column hidden on mobile). Now sits right where
-              GET ACCESS used to be, since that button moved to float above the bottom
-              overlay row instead. Kept short so it can't run into the Start Selling button
-              below it. */}
-          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch" }}>
+          {/* Tagline — mobile only (center column hidden on mobile). */}
+          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1.5 text-center" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch", marginLeft: "auto", marginRight: "auto" }}>
             AI agents — fully hands-free.
           </p>
         </div>
