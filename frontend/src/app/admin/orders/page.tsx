@@ -62,9 +62,18 @@ export default function AdminOrdersPage() {
         const syncDB = () => setOrders(DataSyncService.getOrders().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         window.addEventListener("storage", syncDB);
         window.addEventListener("sync-store-update", syncDB);
+        // Navigating to an order's Details page and then back restores this page from
+        // the browser's back/forward cache — the component isn't remounted, so this
+        // effect never re-runs and the table stays on whatever it last rendered before
+        // navigating away (empty, if the initial fetch hadn't resolved yet). pageshow's
+        // event.persisted flag is exactly how a bfcache restoration is detected; re-run
+        // the load in that case.
+        const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) loadOrders(); };
+        window.addEventListener("pageshow", onPageShow);
         return () => {
             window.removeEventListener("storage", syncDB);
             window.removeEventListener("sync-store-update", syncDB);
+            window.removeEventListener("pageshow", onPageShow);
         };
     }, []);
 
@@ -168,7 +177,13 @@ export default function AdminOrdersPage() {
                                             </td>
                                             <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate md:whitespace-normal">
                                                 {order.product?.name || "Product"}
-                                                <div className="text-[10px] text-indigo-600 font-bold mt-0.5">{order.product?.seller_name || "FairPrice"}</div>
+                                                {order.seller_id ? (
+                                                    <Link href={`/admin/users/${order.seller_id}`} className="block text-[10px] text-indigo-600 font-bold mt-0.5 hover:underline">
+                                                        {order.product?.seller_name || order.seller_name || "FairPrice"}
+                                                    </Link>
+                                                ) : (
+                                                    <div className="text-[10px] text-indigo-600 font-bold mt-0.5">{order.product?.seller_name || order.seller_name || "FairPrice"}</div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 font-black text-gray-900">
                                                 ₦{order.amount.toLocaleString()}

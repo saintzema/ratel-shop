@@ -322,9 +322,45 @@ export default function AdminUserDetailPage() {
                         </Button>
                     )}
                     {isSeller && userEntity.paystack_subaccount_code && (
-                        <span className="h-11 px-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
-                            <Wallet className="h-4 w-4" /> Instant Payout Enabled
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="h-11 px-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                                <Wallet className="h-4 w-4" /> Instant Payout Enabled
+                            </span>
+                            {/* Once set, there was previously no way back — a subaccount
+                                created before the Paystack resolve-check existed (or one
+                                that's genuinely Unverified on Paystack's side) had no path
+                                to retry, permanently hiding the create button. */}
+                            <Button
+                                onClick={async () => {
+                                    if (!confirm("Reset instant payout for this seller? This clears the current subaccount reference so a fresh one can be created — the old one is left orphaned on Paystack, nothing is deleted there.")) return;
+                                    setIsProvisioningPayout(true);
+                                    try {
+                                        const token = localStorage.getItem("fp_token");
+                                        const res = await fetch(`/api/sellers/${userEntity.id}/subaccount`, {
+                                            method: "DELETE",
+                                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            setUserEntity((prev: any) => ({ ...prev, paystack_subaccount_code: null }));
+                                        } else {
+                                            alert(`Couldn't reset instant payout: ${data.error}`);
+                                        }
+                                    } catch {
+                                        alert("Network error resetting instant payout");
+                                    } finally {
+                                        setIsProvisioningPayout(false);
+                                    }
+                                }}
+                                disabled={isProvisioningPayout}
+                                variant="outline"
+                                size="sm"
+                                className="h-11 px-4 rounded-2xl border-gray-200 bg-white/80 text-gray-500 font-bold text-[10px] uppercase tracking-wider hover:bg-white hover:text-rose-600 hover:border-rose-200 shadow-sm"
+                                title="Clear and retry if this subaccount is stuck Unverified on Paystack"
+                            >
+                                Reset &amp; Retry
+                            </Button>
+                        </div>
                     )}
 
                     {/* Edit Details */}

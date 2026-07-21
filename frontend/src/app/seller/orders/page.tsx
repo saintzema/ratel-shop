@@ -106,9 +106,15 @@ function SellerOrdersContent() {
         loadWarehouses();
         window.addEventListener("storage", loadOrders);
         window.addEventListener("sync-store-update", loadOrders);
+        // Navigating away (e.g. to an order's messages/detail view) and back can restore
+        // this page from the browser's back/forward cache without remounting it, leaving
+        // the list on whatever it last rendered before the initial fetch resolved.
+        const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) loadOrders(); };
+        window.addEventListener("pageshow", onPageShow);
         return () => {
             window.removeEventListener("storage", loadOrders);
             window.removeEventListener("sync-store-update", loadOrders);
+            window.removeEventListener("pageshow", onPageShow);
         };
     }, []);
 
