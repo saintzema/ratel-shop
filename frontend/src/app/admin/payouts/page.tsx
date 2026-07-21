@@ -267,7 +267,19 @@ export default function PayoutRequestsDirectory() {
                                             ) : s.verified ? (
                                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700">Verified</span>
                                             ) : (
-                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-700" title="Paystack may hold or delay settlement to an unverified subaccount">Unverified — settlement may be delayed</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-700" title="Paystack holds the FIRST payout to a new/updated subaccount indefinitely as an anti-fraud check — a one-time manual step in Paystack's own dashboard, no API can skip it.">
+                                                        Unverified — first payout is held
+                                                    </span>
+                                                    <a
+                                                        href="https://dashboard.paystack.com/#/subaccounts"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[10px] font-bold text-indigo-600 hover:underline whitespace-nowrap"
+                                                    >
+                                                        Verify in Paystack →
+                                                    </a>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>

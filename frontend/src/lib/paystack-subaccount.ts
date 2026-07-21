@@ -11,6 +11,16 @@ import { resolveBankCode } from "@/lib/bank-codes";
  * Shared by the admin-triggered endpoint (/api/sellers/[id]/subaccount) and automatic
  * creation the moment a seller saves bank details that resolve correctly.
  *
+ * IMPORTANT: the /bank/resolve check below only catches a mistyped account number —
+ * it does NOT prevent Paystack's separate "Unverified" subaccount state. Paystack
+ * intentionally holds the FIRST payout to any new (or updated) subaccount indefinitely
+ * as an anti-fraud safeguard against a hijacked account redirecting payouts, and there
+ * is no API to bypass or automate this — it's a deliberate manual, human-in-the-loop
+ * control, done once per subaccount from the Subaccounts page of Paystack's own
+ * dashboard (select it, click "Verify Subaccounts"). After that one-time step, every
+ * future payout to that subaccount processes automatically on the normal schedule.
+ *
+
  * percentage_charge is Paystack's "percentage the MAIN account receives" — NOT the
  * subaccount's cut. Set to 0 so the safe default favors the seller (they get 100%
  * unless we explicitly carve out our fee via transaction_charge at checkout time,
