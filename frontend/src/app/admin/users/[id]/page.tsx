@@ -49,6 +49,7 @@ export default function AdminUserDetailPage() {
     const [loading, setLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isProvisioningPayout, setIsProvisioningPayout] = useState(false);
+    const [subaccountStatus, setSubaccountStatus] = useState<{ verified: boolean } | null | "loading">(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<any>({});
     const [userEntity, setUserEntity] = useState<any>(null);
@@ -236,6 +237,26 @@ export default function AdminUserDetailPage() {
         loadData();
     }, [id]);
 
+    // Live Paystack verification status for the Instant Payout badge — "enabled" only
+    // ever meant a subaccount code exists locally, not that Paystack has actually
+    // cleared its one-time anti-fraud hold on the first payout. Fetch the real status
+    // instead of just showing a static "enabled" label.
+    useEffect(() => {
+        if (!userEntity?.paystack_subaccount_code || !userEntity?.id) {
+            setSubaccountStatus(null);
+            return;
+        }
+        setSubaccountStatus("loading");
+        const token = localStorage.getItem("fp_token");
+        fetch("/api/admin/subaccounts", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+            .then((res) => res.json())
+            .then((data) => {
+                const match = (data.subaccounts || []).find((s: any) => s.sellerId === userEntity.id);
+                setSubaccountStatus(match ? { verified: !!match.verified } : null);
+            })
+            .catch(() => setSubaccountStatus(null));
+    }, [userEntity?.paystack_subaccount_code, userEntity?.id]);
+
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -321,46 +342,39 @@ export default function AdminUserDetailPage() {
                             <Wallet className="h-4 w-4 mr-2" /> {isProvisioningPayout ? "Provisioning…" : "Enable Instant Payout"}
                         </Button>
                     )}
+                    {/* "Enabled" only ever meant a subaccount code exists locally — it never
+                        reflected Paystack's own one-time anti-fraud hold on a new/updated
+                        subaccount's first payout (a manual, non-API step done once in
+                        Paystack's dashboard). Shows the real live status instead, with a
+                        direct link to the one place this can actually be resolved. There is
+                        no "reset" action here anymore — recreating the subaccount doesn't
+                        skip Paystack's hold, it just creates ANOTHER one that also needs the
+                        same one-time manual verification, which only ever adds orphaned
+                        duplicate subaccounts on Paystack's side. */}
                     {isSeller && userEntity.paystack_subaccount_code && (
-                        <div className="flex items-center gap-2">
+                        subaccountStatus === "loading" ? (
+                            <span className="h-11 px-5 rounded-2xl border border-gray-100 bg-gray-50 text-gray-400 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                                <Wallet className="h-4 w-4" /> Checking Payout Status…
+                            </span>
+                        ) : subaccountStatus?.verified ? (
                             <span className="h-11 px-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
                                 <Wallet className="h-4 w-4" /> Instant Payout Enabled
                             </span>
-                            {/* Once set, there was previously no way back — a subaccount
-                                created before the Paystack resolve-check existed (or one
-                                that's genuinely Unverified on Paystack's side) had no path
-                                to retry, permanently hiding the create button. */}
-                            <Button
-                                onClick={async () => {
-                                    if (!confirm("Reset instant payout for this seller? This clears the current subaccount reference so a fresh one can be created — the old one is left orphaned on Paystack, nothing is deleted there.")) return;
-                                    setIsProvisioningPayout(true);
-                                    try {
-                                        const token = localStorage.getItem("fp_token");
-                                        const res = await fetch(`/api/sellers/${userEntity.id}/subaccount`, {
-                                            method: "DELETE",
-                                            headers: token ? { Authorization: `Bearer ${token}` } : {},
-                                        });
-                                        const data = await res.json();
-                                        if (data.success) {
-                                            setUserEntity((prev: any) => ({ ...prev, paystack_subaccount_code: null }));
-                                        } else {
-                                            alert(`Couldn't reset instant payout: ${data.error}`);
-                                        }
-                                    } catch {
-                                        alert("Network error resetting instant payout");
-                                    } finally {
-                                        setIsProvisioningPayout(false);
-                                    }
-                                }}
-                                disabled={isProvisioningPayout}
-                                variant="outline"
-                                size="sm"
-                                className="h-11 px-4 rounded-2xl border-gray-200 bg-white/80 text-gray-500 font-bold text-[10px] uppercase tracking-wider hover:bg-white hover:text-rose-600 hover:border-rose-200 shadow-sm"
-                                title="Clear and retry if this subaccount is stuck Unverified on Paystack"
-                            >
-                                Reset &amp; Retry
-                            </Button>
-                        </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <span className="h-11 px-5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2" title="Paystack holds the first payout to a new/updated subaccount until it's manually verified once in Paystack's own dashboard — no API can skip this.">
+                                    <Wallet className="h-4 w-4" /> Unverified — First Payout Held
+                                </span>
+                                <a
+                                    href="https://dashboard.paystack.com/#/subaccounts"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-indigo-600 hover:underline whitespace-nowrap"
+                                >
+                                    Verify in Paystack →
+                                </a>
+                            </div>
+                        )
                     )}
 
                     {/* Edit Details */}

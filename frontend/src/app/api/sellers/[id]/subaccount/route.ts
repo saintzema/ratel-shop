@@ -45,29 +45,3 @@ export async function POST(
     }
     return NextResponse.json({ success: true, subaccountCode: result.subaccountCode });
 }
-
-/**
- * DELETE /api/sellers/:id/subaccount
- * Clears the stored subaccount reference so a seller stuck with a broken/unverified
- * subaccount (e.g. one created before the resolve-check existed) can get a fresh one —
- * the "Instant Payout Enabled" state otherwise has no way back once set, permanently
- * hiding the create button even when the underlying subaccount never actually verified.
- * Does not delete anything on Paystack's side (no API for that); the old subaccount is
- * simply orphaned there, harmless since it's never referenced by an order again.
- */
-export async function DELETE(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    const user = getUserFromRequest(request);
-    if (!user || user.role !== "admin") {
-        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-    }
-
-    const { id } = await params;
-    await db.seller.update({
-        where: { id },
-        data: { paystackSubaccountCode: null },
-    });
-    return NextResponse.json({ success: true });
-}
