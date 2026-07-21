@@ -2634,7 +2634,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     )}
 
                     {/* Main Content Area */}
-                    <div className="flex flex-col lg:flex-row items-center justify-center gap-12 w-full h-full px-4 lg:px-24">
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-12 w-full h-full px-0 lg:px-24">
                         {/* Image Display */}
                         <div 
                             className="relative w-full lg:flex-1 h-[50vh] lg:h-[80vh] flex items-center justify-center z-[10004]"
@@ -2716,20 +2716,22 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                         </div>
                     </div>
 
-                    {/* Navigation Arrows */}
+                    {/* Navigation Arrows — small, faintly-transparent overlay on mobile so they
+                        never compete with the image itself for space; full-size solid treatment
+                        preserved on desktop where there's room to spare. */}
                     {allImages.length > 1 && (
                         <>
-                            <button 
-                                className="absolute left-6 lg:left-32 top-1/2 -translate-y-1/2 z-[10006] w-14 h-14 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-md group"
+                            <button
+                                className="absolute left-1.5 lg:left-32 top-1/2 -translate-y-1/2 z-[10006] w-9 h-9 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-black/20 lg:bg-black/40 hover:bg-black/50 lg:hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-sm lg:backdrop-blur-md group"
                                 onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }}
                             >
-                                <ChevronLeft className="h-8 w-8 group-hover:-translate-x-0.5 transition-transform" />
+                                <ChevronLeft className="h-5 w-5 lg:h-8 lg:w-8 group-hover:-translate-x-0.5 transition-transform" />
                             </button>
-                            <button 
-                                className="absolute right-6 lg:right-32 top-1/2 -translate-y-1/2 z-[10006] w-14 h-14 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-md group"
+                            <button
+                                className="absolute right-1.5 lg:right-32 top-1/2 -translate-y-1/2 z-[10006] w-9 h-9 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-black/20 lg:bg-black/40 hover:bg-black/50 lg:hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-sm lg:backdrop-blur-md group"
                                 onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }}
                             >
-                                <ChevronRight className="h-8 w-8 group-hover:translate-x-0.5 transition-transform" />
+                                <ChevronRight className="h-5 w-5 lg:h-8 lg:w-8 group-hover:translate-x-0.5 transition-transform" />
                             </button>
                         </>
                     )}

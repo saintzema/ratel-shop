@@ -519,6 +519,7 @@ export function ZivaChat() {
                 const allProducts = [...catalogProducts, ...cacheProducts.filter((cp: any) => !catalogProducts.some(p => p.id === cp.id))];
 
                 if (data.suggestedProducts && data.suggestedProducts.length > 0) {
+                    const unmatched: string[] = [];
                     suggestedProducts = data.suggestedProducts.flatMap((sp: string) => {
                         const spLower = sp.toLowerCase();
                         const tokens = spLower.split(/\s+/).filter((t: string) => t.length > 2);
@@ -528,8 +529,29 @@ export function ZivaChat() {
                         if (matches.length === 0 && tokens.length >= 2) {
                             matches = allProducts.filter(p => tokens.every((t: string) => p.name.toLowerCase().includes(t)));
                         }
+                        if (matches.length === 0) unmatched.push(sp);
                         return matches;
                     });
+
+                    // The AI names a real catalog product by name, but the client only ever
+                    // matched against the LOCAL cache (getProducts()/search cache) — a product
+                    // this browser never happened to fetch before (e.g. the AI found it via a
+                    // DB search the client's own cache never ran) matched zero results here even
+                    // though the AI got the exact right name, so no card ever rendered. Fall back
+                    // to a direct DB search for any name that didn't match locally.
+                    if (unmatched.length > 0) {
+                        try {
+                            const dbResults = await Promise.all(unmatched.map(async (sp) => {
+                                const res = await fetch(`/api/products?q=${encodeURIComponent(sp)}&limit=3`);
+                                if (!res.ok) return [];
+                                const payload = await res.json();
+                                const found = Array.isArray(payload) ? payload : (payload.products ?? []);
+                                return found;
+                            }));
+                            suggestedProducts.push(...dbResults.flat());
+                        } catch { /* non-critical — keep whatever locally matched */ }
+                    }
+
                     // Deduplicate
                     const seen = new Set<string>();
                     suggestedProducts = suggestedProducts.filter(p => {
