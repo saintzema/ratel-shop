@@ -112,7 +112,7 @@ export async function POST(req: Request) {
             let categoriesRemoved = 0;
             if (losing.length) {
                 const deleted = await (tx as any).marketplaceCategory.deleteMany({
-                    where: { id: { in: losing.map((c) => c.id) } },
+                    where: { id: { in: losing.map((c: { id: string }) => c.id) } },
                 });
                 categoriesRemoved = deleted.count;
             }

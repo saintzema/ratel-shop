@@ -77,6 +77,7 @@ export interface Seller {
     seller_role?: string;
     auto_payout_enabled?: boolean;
     whatsapp?: string;
+    whatsapp_number?: string;
     ziva_whatsapp_bridge?: boolean;
 }
 

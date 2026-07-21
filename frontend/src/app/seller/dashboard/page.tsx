@@ -248,7 +248,7 @@ export default function SellerDashboard() {
         // even though the DB has them. Ask the DB directly before giving up.
         if ((bankName === "N/A" || accountNumber === "N/A") && currentSeller?.id) {
             try {
-                const authHeaders = () => {
+                const authHeaders = (): Record<string, string> => {
                     const token = localStorage.getItem("fp_token");
                     return token ? { Authorization: `Bearer ${token}` } : {};
                 };
