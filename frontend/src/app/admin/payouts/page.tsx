@@ -26,6 +26,35 @@ export default function PayoutRequestsDirectory() {
     const [manualNote, setManualNote] = useState<string>("");
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Split-payment subaccounts — QR/direct-payment orders settle straight to the
+    // seller's bank via Paystack's own subaccount split, never touching the payout
+    // system below. Previously zero visibility into this from inside FairPrice.
+    const [subaccounts, setSubaccounts] = useState<any[]>([]);
+    const [subaccountsLoading, setSubaccountsLoading] = useState(true);
+    const [subaccountsError, setSubaccountsError] = useState("");
+
+    useEffect(() => {
+        const loadSubaccounts = async () => {
+            try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                const res = await fetch("/api/admin/subaccounts", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    setSubaccountsError(data.error || "Could not load subaccount status.");
+                    return;
+                }
+                setSubaccounts(data.subaccounts || []);
+            } catch {
+                setSubaccountsError("Could not reach the server.");
+            } finally {
+                setSubaccountsLoading(false);
+            }
+        };
+        loadSubaccounts();
+    }, []);
+
     useEffect(() => {
         const loadLocal = () => {
             setPayouts(DataSyncService.getPayouts().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
@@ -200,6 +229,55 @@ export default function PayoutRequestsDirectory() {
                     Your admin session has expired, so this page can't load payouts from the database. Log out and back in, then refresh.
                 </div>
             )}
+            {/* Split-Payment Subaccounts — live status pulled directly from Paystack,
+                since these settlements never create a record in our own payout system. */}
+            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6">
+                <div className="mb-4">
+                    <h3 className="text-lg font-black text-gray-900">Split-Payment Subaccounts</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                        QR/direct-payment orders settle straight to the seller's bank via Paystack's own split — these never appear in the Payout Requests list below. Status is fetched live from Paystack.
+                    </p>
+                </div>
+                {subaccountsLoading ? (
+                    <p className="text-sm text-gray-400 font-medium">Checking Paystack…</p>
+                ) : subaccountsError ? (
+                    <p className="text-sm text-rose-600 font-medium">{subaccountsError}</p>
+                ) : subaccounts.length === 0 ? (
+                    <p className="text-sm text-gray-400 font-medium">No sellers have a split-payment subaccount set up yet.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead>
+                                <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                    <th className="pb-2 pr-4">Seller</th>
+                                    <th className="pb-2 pr-4">Bank</th>
+                                    <th className="pb-2 pr-4">Subaccount Code</th>
+                                    <th className="pb-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {subaccounts.map((s) => (
+                                    <tr key={s.sellerId}>
+                                        <td className="py-2.5 pr-4 font-bold text-gray-900">{s.businessName}</td>
+                                        <td className="py-2.5 pr-4 text-gray-600">{s.bankName} {s.accountNumber}</td>
+                                        <td className="py-2.5 pr-4 font-mono text-xs text-gray-500">{s.subaccountCode}</td>
+                                        <td className="py-2.5">
+                                            {s.fetchError ? (
+                                                <span className="text-xs font-bold text-rose-600">Error: {s.fetchError}</span>
+                                            ) : s.verified ? (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700">Verified</span>
+                                            ) : (
+                                                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-700" title="Paystack may hold or delay settlement to an unverified subaccount">Unverified — settlement may be delayed</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">Payout Requests</h2>
