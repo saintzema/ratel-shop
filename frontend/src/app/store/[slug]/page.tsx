@@ -46,7 +46,11 @@ export default function StoreProfile() {
     const [seller, setSeller] = useState<Seller | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
-    const [priceRange, setPriceRange] = useState({ min: 0, max: 5000000 });
+    // max: null means "no ceiling" — a hardcoded 5,000,000 default here silently hid
+    // every product priced above it (e.g. a real ₦14M car) on every store page, with
+    // no visible indication a filter was even active. Only apply a max once the buyer
+    // actually sets one.
+    const [priceRange, setPriceRange] = useState<{ min: number; max: number | null }>({ min: 0, max: null });
     const [loading, setLoading] = useState(true);
     const [isUpdatingCover, setIsUpdatingCover] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
@@ -206,7 +210,7 @@ export default function StoreProfile() {
         .filter(p =>
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
             p.price >= priceRange.min &&
-            p.price <= priceRange.max
+            (priceRange.max === null || p.price <= priceRange.max)
         )
         .sort((a, b) => {
             if (sortBy === "price-low") return a.price - b.price;
@@ -470,17 +474,17 @@ export default function StoreProfile() {
                                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Max Price</label>
                                     <Input
                                         type="number"
-                                        value={priceRange.max}
-                                        onChange={(e) => setPriceRange(prev => ({ ...prev, max: Number(e.target.value) }))}
+                                        value={priceRange.max ?? ""}
+                                        onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value === "" ? null : Number(e.target.value) }))}
                                         className="h-10 bg-gray-50 border-none rounded-xl font-bold text-xs"
-                                        placeholder="5,000,000"
+                                        placeholder="No limit"
                                     />
                                 </div>
                                 <div className="pt-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPriceRange({ min: 0, max: 5000000 })}
+                                        onClick={() => setPriceRange({ min: 0, max: null })}
                                         className="w-full h-9 rounded-xl text-[10px] font-black uppercase tracking-widest border-gray-100"
                                     >
                                         Reset Filter
