@@ -81,7 +81,7 @@ function BaseTemplate(title: string, contentHTML: string, brandColor: string = B
             .text-muted { color: #a1a1a6 !important; }
             .code-box { background-color: #2c2c2e !important; border-color: #48484a !important; }
             .code-text { color: #34d399 !important; }
-            .btn { background-color: #34d399 !important; color: #151516 !important; }
+            .btn { background-color: #34d399 !important; color: #ffffff !important; }
             .feature-box { background-color: #2c2c2e !important; border-color: #333336 !important; }
             .divider { border-top-color: #333336 !important; }
         }

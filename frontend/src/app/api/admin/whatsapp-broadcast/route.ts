@@ -95,6 +95,11 @@ export async function POST(req: Request) {
 
         const targetList = Array.from(phoneNumbers);
         let sentCount = 0;
+        // NEXTAUTH_URL is set to the raw Vercel deployment URL (meant for OAuth
+        // callbacks), not the custom domain — used bare with no fallback here, so a
+        // broadcast link could point to fairprice-ten.vercel.app, or literally
+        // "undefined/product/..." if the env var were ever unset.
+        const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
 
         for (const phone of targetList) {
             try {
@@ -105,7 +110,7 @@ export async function POST(req: Request) {
                         templateName: "product_offer_v1",
                         bodyText: `${product.name} - ${message || 'Check out this deal!'}`,
                         headerImage: product.image_url,
-                        buttonLink: `${process.env.NEXTAUTH_URL}/product/${product.id}`
+                        buttonLink: `${site}/product/${product.id}`
                     });
                 } else {
                     // Send a Generic template (e.g. Happy New Month)
@@ -113,7 +118,7 @@ export async function POST(req: Request) {
                     result = await WhatsAppService.sendMarketingBroadcast(phone, {
                         templateName: templateName || "monthly_promo",
                         bodyText: message,
-                        buttonLink: process.env.NEXTAUTH_URL
+                        buttonLink: site
                     });
                 }
                 

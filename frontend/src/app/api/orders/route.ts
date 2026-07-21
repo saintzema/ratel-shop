@@ -301,7 +301,7 @@ export async function POST(request: Request) {
                 .then(seller => {
                     const email = seller?.ownerEmail || body.seller_email;
                     if (!email) return;
-                    fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
+                    fetch(`${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/api/email`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -313,7 +313,7 @@ export async function POST(request: Request) {
                                 productName,
                                 amount,
                                 orderId: newOrder.id,
-                                orderLink: `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/seller/orders`,
+                                orderLink: `${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/seller/orders`,
                                 quantity: body.quantity || 1,
                                 shippingAddress: body.shipping_address || '',
                             }

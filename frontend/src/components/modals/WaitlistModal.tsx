@@ -16,7 +16,7 @@ import {
     Zap,
 } from "lucide-react";
 
-const DELAY_MS = 4000;
+const DELAY_MS = 30000;
 const DISMISS_KEY = "fairprice_waitlist_dismissed";
 
 const FEATURES = [

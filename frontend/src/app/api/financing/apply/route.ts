@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
         // Email admin
         const adminEmail = process.env.ADMIN_EMAIL || "admin@fairprice.ng";
-        fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
+        fetch(`${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/api/email`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
                     productName: productName || 'N/A',
                     applicationType: appType,
                     applicationId: application.id,
-                    reviewLink: `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/admin/financing/${application.id}`,
+                    reviewLink: `${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/admin/financing/${application.id}`,
                 }
             })
         }).catch(() => { /* non-critical */ });

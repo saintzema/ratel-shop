@@ -44,10 +44,15 @@ export async function POST(request: Request) {
             }
         });
 
-        // Send Email
-        const resetLink = `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/reset-password?token=${token}&email=${encodeURIComponent(normalizedEmail)}`;
-        
-        await fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
+        // Send Email — NEXTAUTH_URL is set to the raw Vercel deployment URL in this
+        // project's env config (meant for OAuth callbacks), not the custom domain, so
+        // using it here sent password-reset links to fairprice-ten.vercel.app instead of
+        // fairprice.ng. FAIRPRICE_URL is the dedicated var for user-facing links, already
+        // used the same way elsewhere (e.g. the WhatsApp webhook's CTA links).
+        const site = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+        const resetLink = `${site}/reset-password?token=${token}&email=${encodeURIComponent(normalizedEmail)}`;
+
+        await fetch(`${site}/api/email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

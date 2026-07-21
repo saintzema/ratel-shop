@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
                 // Email the customer
                 if (application.email) {
-                    fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
+                    fetch(`${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/api/email`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -91,7 +91,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                                 message,
                                 productName: application.product?.name || 'your product',
                                 applicationId: id,
-                                dashboardLink: `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/account/financing`,
+                                dashboardLink: `${process.env.FAIRPRICE_URL || 'https://www.fairprice.ng'}/account/financing`,
                             }
                         })
                     }).catch(() => {});
