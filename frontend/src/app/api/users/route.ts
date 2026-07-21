@@ -179,11 +179,19 @@ export async function GET(req: Request) {
             return NextResponse.json(user);
         }
         if (email) {
-            const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true } });
+            // password was deliberately never selected here (correct — never leak a hash to
+            // the client), but the login page's email-lookup path checked the raw `password`
+            // field on this response to decide whether to show "Enter Password" or "Create
+            // New Password". Since that field never existed, it was always falsy — EVERY
+            // user with a real password got routed to "Create New Password" on every login,
+            // forever. Select the hash server-side only to compute a safe boolean, same
+            // pattern already used correctly by /api/auth/whatsapp/lookup.
+            const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, password: true } });
             if (!user) {
                 return NextResponse.json({ exists: false, userId: null });
             }
-            return NextResponse.json({ ...user, exists: true, userId: user.id }, {
+            const { password, ...safeUser } = user;
+            return NextResponse.json({ ...safeUser, exists: true, userId: user.id, hasPassword: !!password }, {
                 headers: { "Cache-Control": "private, max-age=300" }
             });
         }

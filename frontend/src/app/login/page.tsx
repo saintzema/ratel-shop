@@ -223,7 +223,9 @@ export default function UnifiedAuthPage() {
                         setLastName(parts.slice(1).join(" ") || "");
                     }
 
-                    setStep(fetched.password ? "password_existing" : "password_new");
+                    // fetched.password is never present — the API correctly never sends the
+                    // raw hash to the client. Use the safe boolean it computes instead.
+                    setStep(fetched.hasPassword ? "password_existing" : "password_new");
                     setIsLoading(false);
                     return;
                 }
@@ -469,7 +471,7 @@ export default function UnifiedAuthPage() {
         setStep("verification_new");
     };
 
-    const handleSendVerificationEmail = async (code: string, nameToUse: string) => {
+    const handleSendVerificationEmail = async (code: string, nameToUse: string): Promise<boolean> => {
         const targetEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
 
         try {
@@ -483,34 +485,44 @@ export default function UnifiedAuthPage() {
                 })
             });
             const data = await res.json();
-            
+
             if (data.warning || !data.success) {
+                // Previously logged and swallowed — the OTP screen still showed as if the
+                // send succeeded, leaving the user stuck entering a code that was never
+                // actually delivered, with no indication anything had gone wrong.
                 console.warn("Email API warned/failed:", data);
+                return false;
             }
+
+            DataSyncService.addNotification({
+                userId: DataSyncService.getCurrentUserId() || "guest",
+                message: `Verification Email Sent: A code has been sent to ${targetEmail}`,
+                type: "system",
+                link: "#"
+            });
+            return true;
         } catch (err) {
             console.error("Email fetch failed:", err);
+            return false;
         }
-
-        DataSyncService.addNotification({
-            userId: DataSyncService.getCurrentUserId() || "guest",
-            message: `Verification Email Sent: A code has been sent to ${targetEmail}`,
-            type: "system",
-            link: "#"
-        });
     };
 
-    const handleResendCode = () => {
+    const handleResendCode = async () => {
+        setError("");
         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
         setSentCode(newCode);
         const nameToUse = step === 'otp_existing' ? (existingUser?.name || "User") : firstName.trim();
-        handleSendVerificationEmail(newCode, nameToUse);
+        const sent = await handleSendVerificationEmail(newCode, nameToUse);
+        if (!sent) setError("Could not send the code — please check your email address and try again.");
     };
 
-    const handleSendOtpLoginCode = () => {
+    const handleSendOtpLoginCode = async () => {
+        setError("");
         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
         setSentCode(newCode);
-        handleSendVerificationEmail(newCode, existingUser?.name || "User");
         setStep("otp_existing");
+        const sent = await handleSendVerificationEmail(newCode, existingUser?.name || "User");
+        if (!sent) setError("Could not send the verification code — please try again in a moment.");
     };
 
     const handleFinalizeRegistration = (skipped: boolean = false) => {

@@ -1256,12 +1256,24 @@ async function startWhatsAppNegotiation(
 ) {
     if (!from?.trim()) return;
     const displayName = contactName?.trim() || "WhatsApp Buyer";
-    const waEmail = `wa-${from}@fairprice.ng`;
-    const waUser = await db.user.upsert({
-        where: { email: waEmail },
-        update: contactName ? { name: displayName } : {},
-        create: { email: waEmail, name: displayName, role: "customer" },
+    // Canonical format is wa_<phone>@fairprice.ng (underscore) — matches every other
+    // WhatsApp-derived account creation path (register, bulk-import, status). This
+    // function used a dash instead, with no check for an existing underscore account,
+    // so a customer who already had a wa_ account (e.g. from bulk-import) got a second,
+    // completely separate wa- account the moment they started a WhatsApp negotiation —
+    // splitting their order/negotiation history across two identities.
+    const waEmail = `wa_${from}@fairprice.ng`;
+    const existing = await db.user.findFirst({
+        where: { email: { in: [waEmail, `wa-${from}@fairprice.ng`] } },
     });
+    const waUser = existing
+        ? await db.user.update({
+            where: { id: existing.id },
+            data: contactName ? { name: displayName } : {},
+        })
+        : await db.user.create({
+            data: { email: waEmail, name: displayName, role: "customer" },
+        });
 
     const proposed = Math.round(product.price * 0.9);
     // Store phone in digits-only format so all query variants match
