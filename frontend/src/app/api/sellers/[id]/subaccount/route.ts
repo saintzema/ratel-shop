@@ -72,6 +72,26 @@ export async function POST(
         }
 
         const bankCode = resolveBankCode(seller.bankName);
+        if (!bankCode) {
+            return NextResponse.json({ error: `Unrecognized bank "${seller.bankName}" — cannot resolve a Paystack bank code.` }, { status: 400 });
+        }
+
+        // Resolve the account number against the bank BEFORE creating the subaccount —
+        // this is the single most common cause of a subaccount sitting "Unverified" on
+        // Paystack indefinitely (a wrong digit in the account number, or a bank code
+        // mismatch, that nothing here ever caught before creating it anyway). Failing
+        // fast here means a bad account never gets a subaccount at all, instead of an
+        // unverified one that silently never settles.
+        const resolveRes = await fetch(
+            `https://api.paystack.co/bank/resolve?account_number=${seller.accountNumber}&bank_code=${bankCode}`,
+            { headers: { Authorization: `Bearer ${secret}` } }
+        );
+        const resolveData = await resolveRes.json().catch(() => ({}));
+        if (!resolveRes.ok || !resolveData?.status) {
+            return NextResponse.json({
+                error: `Could not verify this account with ${seller.bankName}: ${resolveData?.message || "account number/bank mismatch"}. Ask the seller to double-check their bank details before retrying.`,
+            }, { status: 400 });
+        }
 
         const res = await fetch("https://api.paystack.co/subaccount", {
             method: "POST",
