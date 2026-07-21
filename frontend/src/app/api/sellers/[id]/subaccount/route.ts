@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
-import { resolveBankCode } from "@/lib/bank-codes";
+import { createSubaccountForSeller } from "@/lib/paystack-subaccount";
 
 export const dynamic = "force-dynamic";
 
@@ -25,112 +25,23 @@ export async function GET(
 
 /**
  * POST /api/sellers/:id/subaccount
- *
- * Provisions a Paystack Subaccount for this seller using their on-file bank
- * details, and stores the returned subaccount_code. Once set, QR/direct-
- * payment checkouts route the seller's exact cut there via Paystack's split
- * at the moment of payment — Paystack settles it to their bank automatically,
- * no Transfer API call ever fires for that seller again.
- *
- * percentage_charge is Paystack's "percentage the MAIN account receives" —
- * NOT the subaccount's cut. Set to 0 so the safe default favors the seller
- * (they get 100% unless we explicitly carve out our fee via transaction_charge
- * at checkout time, since our platform fee is tiered/variable, not a fixed %).
- * Setting this to 100 (an earlier version of this file did) would mean any
- * charge that somehow skips the transaction_charge override sends the seller
- * NOTHING and the platform gets it all — the wrong direction to fail safe in.
+ * Admin-triggered manual creation — most sellers get this automatically the moment
+ * they save bank details that resolve correctly (see createSubaccountForSeller call
+ * in /api/sellers POST); this stays available for sellers who need a retry.
  */
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const user = getUserFromRequest(request);
-        if (!user || user.role !== "admin") {
-            return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-        }
-
-        const { id } = await params;
-        const seller = await db.seller.findUnique({
-            where: { id },
-            select: { id: true, businessName: true, bankName: true, accountNumber: true, accountName: true, ownerEmail: true, paystackSubaccountCode: true },
-        });
-
-        if (!seller) {
-            return NextResponse.json({ error: "Seller not found" }, { status: 404 });
-        }
-        if (seller.paystackSubaccountCode) {
-            return NextResponse.json({ error: "Seller already has a subaccount", subaccountCode: seller.paystackSubaccountCode }, { status: 409 });
-        }
-        if (!seller.bankName || !seller.accountNumber) {
-            return NextResponse.json({ error: "Seller has no bank details on file — cannot create a subaccount." }, { status: 400 });
-        }
-
-        const secret = process.env.PAYSTACK_SECRET_KEY;
-        if (!secret) {
-            return NextResponse.json({ error: "Paystack not configured on this server." }, { status: 500 });
-        }
-
-        const bankCode = resolveBankCode(seller.bankName);
-        if (!bankCode) {
-            return NextResponse.json({ error: `Unrecognized bank "${seller.bankName}" — cannot resolve a Paystack bank code.` }, { status: 400 });
-        }
-
-        // Resolve the account number against the bank BEFORE creating the subaccount —
-        // this is the single most common cause of a subaccount sitting "Unverified" on
-        // Paystack indefinitely (a wrong digit in the account number, or a bank code
-        // mismatch, that nothing here ever caught before creating it anyway). Failing
-        // fast here means a bad account never gets a subaccount at all, instead of an
-        // unverified one that silently never settles.
-        const resolveRes = await fetch(
-            `https://api.paystack.co/bank/resolve?account_number=${seller.accountNumber}&bank_code=${bankCode}`,
-            { headers: { Authorization: `Bearer ${secret}` } }
-        );
-        const resolveData = await resolveRes.json().catch(() => ({}));
-        if (!resolveRes.ok || !resolveData?.status) {
-            return NextResponse.json({
-                error: `Could not verify this account with ${seller.bankName}: ${resolveData?.message || "account number/bank mismatch"}. Ask the seller to double-check their bank details before retrying.`,
-            }, { status: 400 });
-        }
-
-        const res = await fetch("https://api.paystack.co/subaccount", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${secret}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                business_name: seller.accountName || seller.businessName,
-                settlement_bank: bankCode,
-                account_number: seller.accountNumber,
-                percentage_charge: 0, // seller keeps 100% by default; our fee is carved out via transaction_charge per-transaction
-                primary_contact_email: seller.ownerEmail || undefined,
-                settlement_schedule: "AUTO", // T+1
-            }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok || !data?.status) {
-            return NextResponse.json(
-                { error: data?.message || "Paystack rejected the subaccount request", detail: data },
-                { status: 502 }
-            );
-        }
-
-        const subaccountCode = data.data?.subaccount_code;
-        if (!subaccountCode) {
-            return NextResponse.json({ error: "Paystack did not return a subaccount code" }, { status: 502 });
-        }
-
-        await db.seller.update({
-            where: { id: seller.id },
-            data: { paystackSubaccountCode: subaccountCode },
-        });
-
-        return NextResponse.json({ success: true, subaccountCode });
-    } catch (error: any) {
-        console.error("[subaccount] creation error:", error);
-        return NextResponse.json({ error: "Failed to create subaccount", detail: error?.message }, { status: 500 });
+    const user = getUserFromRequest(request);
+    if (!user || user.role !== "admin") {
+        return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
+
+    const { id } = await params;
+    const result = await createSubaccountForSeller(id);
+    if (!result.success) {
+        return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json({ success: true, subaccountCode: result.subaccountCode });
 }

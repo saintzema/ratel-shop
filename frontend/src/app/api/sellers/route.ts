@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest } from "@/lib/jwt";
 import { resolveStoreUrl } from "@/lib/seller-utils";
+import { createSubaccountForSeller } from "@/lib/paystack-subaccount";
 
 export async function GET(req: Request) {
     try {
@@ -274,6 +275,18 @@ export async function POST(req: Request) {
         });
 
         broadcast({ type: "seller_updated", id: seller.id });
+
+        // Auto-create the Paystack subaccount the moment a seller has bank details on
+        // file and doesn't have one yet — previously required an admin to manually click
+        // "Activate Instant Payout" on the seller's detail page. createSubaccountForSeller
+        // resolves the account with Paystack first, so this never creates a broken
+        // subaccount from a mistyped account number; it just quietly does nothing if the
+        // resolve fails; the admin can still retry manually from the seller detail page.
+        if (seller.bankName && seller.accountNumber && !seller.paystackSubaccountCode) {
+            createSubaccountForSeller(seller.id).catch((e) => {
+                console.warn(`[auto-subaccount] failed for seller ${seller.id}:`, e?.message || e);
+            });
+        }
 
         return NextResponse.json(seller);
     } catch (error: any) {
