@@ -40,6 +40,12 @@ export default function AdminOrdersPage() {
                         seller_id: o.sellerId ?? o.seller_id,
                         created_at: o.createdAt ?? o.created_at,
                         escrow_status: o.escrowStatus ?? o.escrow_status,
+                        // Missing here — tracking_id was always undefined for API-sourced
+                        // orders, so the Logistics column showed "N/A" regardless of what
+                        // the seller actually entered.
+                        tracking_id: o.trackingId ?? o.tracking_id,
+                        tracking_steps: o.trackingSteps ?? o.tracking_steps,
+                        tracking_status: o.trackingStatus ?? o.tracking_status,
                     }));
                     setOrders(normalized.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
                 }
