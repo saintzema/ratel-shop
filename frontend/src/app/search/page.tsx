@@ -282,6 +282,7 @@ function SearchContent() {
   const [collapsedGroups, setCollapsedGroups] = useState<
     Record<string, boolean>
   >({});
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [globalResults, setGlobalResults] = useState<
     {
       name: string;
@@ -391,8 +392,12 @@ function SearchContent() {
   }, []);
 
   useEffect(() => {
+    // Also has to reset when the params go away — otherwise browser Back (or a
+    // Clear that only drops the URL params) leaves the old bracket still applied
+    // to the results while the UI shows no active price filter.
     if (minPriceParam)
       setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 500000000]);
+    else setPriceRange([0, 500000000]);
     setSelectedCategory(categoryParam);
     setIsVerified(verifiedParam);
     setSortBy(sortParam);
@@ -513,6 +518,11 @@ function SearchContent() {
   const categoryFilterGroups = useMemo(() => {
     return getFiltersForCategory(detectedCategory);
   }, [detectedCategory]);
+
+  const activeAttrCount = useMemo(
+    () => Object.values(attributeFilters).reduce((n, vals) => n + vals.length, 0),
+    [attributeFilters]
+  );
 
   // Live products from DataSyncService — lazy init so catalog renders on first frame
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>(() => {
@@ -1027,12 +1037,21 @@ function SearchContent() {
         if (product.price < priceRange[0] || product.price > priceRange[1])
           return false;
 
-        // Apply attribute filters
+        // Apply attribute filters. Both sides are normalised to bare alphanumerics
+        // because the filter config uses underscore values ("semi_automatic",
+        // "fuel_cell") while real listing specs are written naturally
+        // ("Semi-automatic", "Fuel Cell") — comparing them raw silently matched
+        // nothing for every multi-word option.
+        // Products missing the spec entirely are intentionally NOT excluded:
+        // spec coverage is patchy across a marketplace catalogue, and dropping
+        // them would hide most real listings behind any filter.
+        const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
         for (const [key, values] of Object.entries(attributeFilters)) {
           if (values.length === 0) continue;
-          const productValue = product.specs?.[key]?.toLowerCase();
-          if (!productValue) continue;
-          if (!values.some((v) => productValue.includes(v))) return false;
+          const raw = product.specs?.[key];
+          if (!raw) continue;
+          const productValue = normalise(String(raw));
+          if (!values.some((v) => productValue.includes(normalise(v)))) return false;
         }
 
         return true;
@@ -1379,8 +1398,122 @@ function SearchContent() {
                     >
                       <ShieldCheck className="h-3.5 w-3.5" /> Verified
                     </button>
+
+                    <button
+                      onClick={() => setShowFilterPanel(v => !v)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border shrink-0 snap-start transition-all",
+                        showFilterPanel || activeAttrCount > 0
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : "bg-white text-gray-700 border-gray-200"
+                      )}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      {detectedCategory && detectedCategory !== "All"
+                        ? `${detectedCategory.charAt(0).toUpperCase()}${detectedCategory.slice(1)} filters`
+                        : "Filters"}
+                      {activeAttrCount > 0 && (
+                        <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-white text-indigo-700 text-[10px] font-black flex items-center justify-center">
+                          {activeAttrCount}
+                        </span>
+                      )}
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", showFilterPanel && "rotate-180")} />
+                    </button>
                 </div>
             </div>
+
+            {/* Category-aware filter panel. The filter groups (getFiltersForCategory),
+                dynamic price brackets, attribute state, URL sync and the matching
+                logic in filteredProducts all already existed — there was simply never
+                any UI rendering them, so every category filter was unreachable. */}
+            <AnimatePresence>
+              {showFilterPanel && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden border-t border-gray-100"
+                >
+                  <div className="py-4 space-y-5">
+                    {/* Price brackets — bounds change per detected category */}
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-wider text-gray-500 mb-2">Price</p>
+                      <div className="flex flex-wrap gap-2">
+                        {priceBrackets.map(b => {
+                          const active = priceRange[0] === b.min && priceRange[1] === b.max;
+                          return (
+                            <button
+                              key={b.label}
+                              onClick={() => {
+                                if (active) {
+                                  setPriceRange([0, 500000000]);
+                                  updateFilters({ minPrice: null, maxPrice: null });
+                                } else {
+                                  setPriceRange([b.min, b.max]);
+                                  updateFilters({ minPrice: b.min, maxPrice: b.max });
+                                }
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all",
+                                active
+                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-emerald-400"
+                              )}
+                            >
+                              {b.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {categoryFilterGroups.map(group => {
+                      const selected = attributeFilters[group.key] || [];
+                      const collapsed = collapsedGroups[group.key];
+                      return (
+                        <div key={group.key}>
+                          <button
+                            onClick={() => toggleGroupCollapse(group.key)}
+                            className="flex items-center gap-1.5 mb-2 group"
+                          >
+                            <p className="text-[11px] font-black uppercase tracking-wider text-gray-500 group-hover:text-gray-800">
+                              {group.label}
+                            </p>
+                            {selected.length > 0 && (
+                              <span className="min-w-[16px] h-4 px-1 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black flex items-center justify-center">
+                                {selected.length}
+                              </span>
+                            )}
+                            <ChevronDown className={cn("h-3 w-3 text-gray-400 transition-transform", collapsed && "-rotate-90")} />
+                          </button>
+                          {!collapsed && (
+                            <div className="flex flex-wrap gap-2">
+                              {group.options.map(opt => {
+                                const active = selected.includes(opt.value);
+                                return (
+                                  <button
+                                    key={opt.value}
+                                    onClick={() => toggleAttributeFilter(group.key, opt.value)}
+                                    className={cn(
+                                      "px-3 py-1.5 rounded-full text-[12px] font-bold border transition-all",
+                                      active
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-white text-gray-700 border-gray-200 hover:border-indigo-400"
+                                    )}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Compact Stats Bar */}
             <div className="flex items-center border-t border-emerald-100/60 pt-2 px-2 bg-emerald-50/20 pb-2 -mx-4 px-4 sm:mx-0 sm:px-4">
