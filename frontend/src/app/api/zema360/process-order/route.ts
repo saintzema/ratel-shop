@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { isDynamoConfigured, ensureTable, writeAgentLog } from "@/lib/dynamodb";
+import { DEFAULT_CARRIER } from "@/lib/carriers";
 
 export const dynamic = "force-dynamic";
 
@@ -71,13 +72,12 @@ async function stepFulfillment(orderId: string) {
 
     // No real carrier API is wired in yet (no carrier account/credentials on file) —
     // this is a placeholder assignment, not a live dispatch to an actual courier.
-    // Swap this block for a real carrier API call once a carrier partner + API key
-    // is chosen; until then this deliberately picks from real Nigerian carrier names
-    // (not "Carrier A/B") only for demo-data realism, not because a courier was
-    // actually notified.
+    // Defaults to SpeeDAF (the seller/admin can override per-order from the order
+    // detail page — see DEFAULT_CARRIER/CARRIERS in lib/carriers.ts) rather than
+    // picking randomly, since a real carrier name shown to a buyer should reflect
+    // an actual, consistent choice, not a coin flip.
     const trackingId = `FP${Date.now().toString(36).toUpperCase()}`;
-    const carriers = ["GIG Logistics", "DHL Nigeria", "Jumia Logistics", "RedStar Express"];
-    const carrier = carriers[Math.floor(Math.random() * carriers.length)];
+    const carrier = DEFAULT_CARRIER;
 
     try {
         await db.order.update({

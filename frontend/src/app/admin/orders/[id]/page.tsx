@@ -28,6 +28,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { formatDateExact, cn } from "@/lib/utils";
+import { CARRIERS, DEFAULT_CARRIER } from "@/lib/carriers";
 
 export default function AdminOrderDetailPage() {
     const params = useParams();
@@ -60,6 +61,22 @@ export default function AdminOrderDetailPage() {
         DataSyncService.updateOrderStatus(order.id, newStatus as any);
         setOrder((prev: any) => prev ? { ...prev, status: newStatus } : null);
         alert(`Order status updated to ${newStatus}`);
+    };
+
+    const handleCarrierUpdate = async (newCarrier: string) => {
+        if (!order) return;
+        setOrder((prev: any) => prev ? { ...prev, carrier: newCarrier } : null);
+        try {
+            const res = await fetch("/api/orders", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: order.id, carrier: newCarrier }),
+            });
+            if (!res.ok) throw new Error("save failed");
+        } catch {
+            alert("Couldn't save the carrier change — please try again.");
+            loadOrder();
+        }
     };
 
     const handleEscrowUpdate = (newEscrow: string) => {
@@ -119,7 +136,7 @@ export default function AdminOrderDetailPage() {
                     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 sm:p-8">
                         <h2 className="text-lg font-black text-gray-900 mb-6">Status Management</h2>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
                             <div className="space-y-3">
                                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Fulfillment Status</label>
                                 <Select value={order.status} onValueChange={handleStatusUpdate}>
@@ -150,6 +167,17 @@ export default function AdminOrderDetailPage() {
                                         <SelectItem value="released">Funds Released (Payout)</SelectItem>
                                         <SelectItem value="disputed">Disputed / Frozen</SelectItem>
                                         <SelectItem value="refunded">Refunded to Buyer</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Delivery Carrier</label>
+                                <Select value={order.carrier || DEFAULT_CARRIER} onValueChange={handleCarrierUpdate}>
+                                    <SelectTrigger className="h-12 rounded-xl border-gray-200 font-bold bg-gray-50/50">
+                                        <SelectValue placeholder="Select Carrier" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl font-medium">
+                                        {CARRIERS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
