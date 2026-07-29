@@ -669,12 +669,40 @@ export function ZivaChat() {
                 } else {
                     cartActionNote = `\n\n⚠️ I couldn't find "${data.cartAction.product}" to add — could you point me to the exact listing?`;
                 }
-            } else if (data.cartAction?.type === "checkout") {
-                if (cart.length > 0) {
-                    cartActionNote = `\n\n✅ **Taking you to checkout now...**`;
-                    setTimeout(() => { window.location.href = "/checkout"; }, 1200);
-                } else {
+            }
+
+            let checkoutQuickActions: { label: string; query: string; icon: string }[] = [];
+            if (data.cartAction?.type === "checkout") {
+                if (cart.length === 0) {
                     cartActionNote = `\n\n🛒 Your cart is empty — add something first and I'll take you straight to checkout.`;
+                } else {
+                    // A saved card lets Ziva charge instantly on confirmation instead of
+                    // just opening the checkout page — but that's real money moving, so
+                    // it always requires this explicit button tap, never just the chat
+                    // text alone (the model can't trigger a charge by itself).
+                    let defaultCard: { id: string; last4: string } | null = null;
+                    try {
+                        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                        if (token) {
+                            const cardsRes = await fetch("/api/payments/cards", { headers: { Authorization: `Bearer ${token}` } });
+                            if (cardsRes.ok) {
+                                const { cards: savedCards } = await cardsRes.json();
+                                defaultCard = savedCards?.find((c: any) => c.isDefault) || savedCards?.[0] || null;
+                            }
+                        }
+                    } catch { /* no saved card available — fall back to normal checkout */ }
+
+                    if (defaultCard) {
+                        const cartTotal = cart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+                        cartActionNote = `\n\n💳 Ready when you are — confirm below and I'll charge your card ending in ${defaultCard.last4} for ₦${cartTotal.toLocaleString()}.`;
+                        checkoutQuickActions = [
+                            { label: `Confirm & Pay ₦${cartTotal.toLocaleString()}`, query: `__NAV__/checkout?ziva_pay=${defaultCard.id}`, icon: "💳" },
+                            { label: "Review cart first", query: "__NAV__/checkout", icon: "🛒" },
+                        ];
+                    } else {
+                        cartActionNote = `\n\n✅ **Taking you to checkout now...**`;
+                        setTimeout(() => { window.location.href = "/checkout"; }, 1200);
+                    }
                 }
             }
 
@@ -682,7 +710,7 @@ export function ZivaChat() {
                 content: data.message + imageRequestNote + cartActionNote,
                 intent: data.intent,
                 products: finalProducts,
-                quickActions: []
+                quickActions: checkoutQuickActions
             };
 
         } catch (error) {

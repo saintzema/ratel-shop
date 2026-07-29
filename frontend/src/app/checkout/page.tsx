@@ -325,6 +325,15 @@ function CheckoutContent() {
     
     const searchParams = useSearchParams();
     const negotiationId = searchParams?.get("negotiation");
+    // Set when the buyer confirmed "pay with my saved card" inside Ziva chat —
+    // charges that card instead of opening the Paystack popup, then feeds the
+    // resulting reference into the exact same finalizeOrder() pipeline a normal
+    // card payment uses. Only auto-submits the order if a saved address is
+    // already on file; otherwise the buyer still lands here with the card
+    // pre-selected and just fills in delivery details once, same as any first-time order.
+    const zivaPayCardId = searchParams?.get("ziva_pay");
+    const zivaAutoTriggered = useRef(false);
+    const [zivaPayError, setZivaPayError] = useState<string | null>(null);
     
     // Determine items to show
     let checkoutItems: { product: Product, price: number, quantity: number, isNegotiated?: boolean }[] = [];
@@ -828,6 +837,25 @@ function CheckoutContent() {
             .catch(() => { });
     }, [user]);
 
+    // Ziva-chat "pay with my saved card" confirmation — only auto-submits if a
+    // saved address already filled the form above (a real address is a hard
+    // requirement for delivery; we never invent one). Otherwise the buyer still
+    // arrives here with everything but the address ready, one manual field away
+    // instead of a full manual checkout.
+    useEffect(() => {
+        if (!zivaPayCardId || zivaAutoTriggered.current) return;
+        if (paymentMethod !== "paystack") return;
+        if (checkoutItems.length === 0) return;
+        if (!address.firstName.trim() || !address.phone.trim()) return;
+        if (deliveryMethod === "doorstep" && !address.street.trim()) return;
+        if (deliveryMethod === "pickup" && !pickupDetails.station) return;
+
+        zivaAutoTriggered.current = true;
+        const t = setTimeout(() => handlePlaceOrder(), 400);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [zivaPayCardId, address, deliveryMethod, pickupDetails, checkoutItems.length, paymentMethod]);
+
     // Redirect if empty
     useEffect(() => {
         if (!negotiationId && cart.length === 0) {
@@ -1160,7 +1188,11 @@ function CheckoutContent() {
                         total_amount: total
                     });
                 }
-                setShowPaystack(true);
+                if (zivaPayCardId && !isDirectPaymentOnly) {
+                    payWithSavedCard(zivaPayCardId);
+                } else {
+                    setShowPaystack(true);
+                }
             }
         };
 
@@ -1285,6 +1317,33 @@ function CheckoutContent() {
         lines.push(`Placed via www.fairprice.ng`);
 
         return lines.join('\n');
+    };
+
+    // Charges a saved card directly (no Paystack popup) — the Ziva-chat "pay with
+    // my card on file" path. The reference charge_authorization returns is a real
+    // Paystack transaction reference just like the popup's, so it goes through the
+    // exact same finalizeOrder() verification + order-creation pipeline; nothing
+    // about how an order gets recorded is duplicated or special-cased here.
+    const payWithSavedCard = async (cardId: string) => {
+        setIsProcessing(true);
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const res = await fetch("/api/payments/charge-saved-card", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ cardId, amount: Math.round(total * 100), reason: "ziva_chat_checkout" }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                setIsProcessing(false);
+                setZivaPayError(data.error || "Your saved card was declined. Please choose another payment method.");
+                return;
+            }
+            await finalizeOrder(data.reference);
+        } catch {
+            setIsProcessing(false);
+            setZivaPayError("Couldn't reach the payment provider. You have NOT been charged — please try again.");
+        }
     };
 
     // Entry point from the Paystack popup / COD / WhatsApp flows.
@@ -2283,6 +2342,9 @@ function CheckoutContent() {
 
                                         {addressError && (
                                             <p className="text-sm text-red-500 font-semibold bg-red-50 p-3 rounded-lg flex items-center gap-2"><X className="h-4 w-4 shrink-0" /> {addressError}</p>
+                                        )}
+                                        {zivaPayError && (
+                                            <p className="text-sm text-red-500 font-semibold bg-red-50 p-3 rounded-lg flex items-center gap-2"><X className="h-4 w-4 shrink-0" /> {zivaPayError}</p>
                                         )}
                                         <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                                             {isDirectPaymentOnly && (
