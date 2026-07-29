@@ -23,8 +23,46 @@ export async function POST(req: Request) {
 
         if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-        const token = signToken({ userId: user.id, email: user.email, role: effectiveRole(user.email, user.role) as any });
-        return NextResponse.json({ token });
+        // An invited teammate acting on someone else's seller dashboard gets
+        // staffOf/staffPermissions embedded so permission checks (e.g. blocking
+        // price/stock edits) work without a DB lookup on every request. Only
+        // applies if this email isn't itself a real seller — an actual seller
+        // logging in should never be scoped down by a stale staff invite.
+        let staffClaims: { staffOf: string; staffPermissions: any } | null = null;
+        const ownSeller = await db.seller.findFirst({ where: { userId: user.id } });
+        if (!ownSeller) {
+            let staffRecord = await db.sellerStaff.findFirst({
+                where: { invitedEmail: user.email.toLowerCase(), status: { in: ["invited", "active"] } },
+            });
+            // First login after being invited — no separate "accept" click required;
+            // the invite itself (sent by the seller, to an email the seller chose) is
+            // the consent step. Link the account and flip to active here.
+            if (staffRecord && staffRecord.status === "invited") {
+                staffRecord = await db.sellerStaff.update({
+                    where: { id: staffRecord.id },
+                    data: { status: "active", userId: user.id },
+                });
+            }
+            if (staffRecord) {
+                staffClaims = {
+                    staffOf: staffRecord.sellerId,
+                    staffPermissions: {
+                        canEditPrice: staffRecord.canEditPrice,
+                        canEditStock: staffRecord.canEditStock,
+                        canManageDiscounts: staffRecord.canManageDiscounts,
+                        canViewFinancials: staffRecord.canViewFinancials,
+                    },
+                };
+            }
+        }
+
+        const token = signToken({
+            userId: user.id,
+            email: user.email,
+            role: effectiveRole(user.email, user.role) as any,
+            ...(staffClaims || {}),
+        });
+        return NextResponse.json({ token, ...(staffClaims ? { staffOf: staffClaims.staffOf } : {}) });
     } catch (err: any) {
         console.error("[issue-token] error:", err);
         return NextResponse.json({ error: "Service unavailable" }, { status: 500 });

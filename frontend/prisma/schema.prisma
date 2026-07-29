@@ -199,6 +199,7 @@ model Seller {
   priceAlerts    PriceAlert[]
   products       Product[]
   quotes         Quote[]
+  staff          SellerStaff[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -232,6 +233,26 @@ model Quote {
 
   @@index([sellerId])
   @@index([status])
+}
+
+// A teammate a seller invited into their dashboard with restricted permissions
+// (e.g. can't touch price/stock) — free for a seller's first 3 months per the
+// standing plan policy, checked at invite time against Seller.joinedAt.
+model SellerStaff {
+  id           String   @id @default(cuid())
+  sellerId     String
+  invitedEmail String
+  userId       String? // set once the invited email actually has/creates an account and accepts
+  canEditPrice Boolean  @default(false)
+  canEditStock Boolean  @default(false)
+  canManageDiscounts Boolean @default(false)
+  canViewFinancials  Boolean @default(false)
+  status       String   @default("invited") // invited | active | revoked
+  createdAt    DateTime @default(now())
+  seller       Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@unique([sellerId, invitedEmail])
 }
 
 model QuotePayment {

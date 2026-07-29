@@ -498,9 +498,10 @@ export default function CatalogControl() {
             //    sync-store-update above) reads FRESH data instead of racing the
             //    background write and returning stale values.
             try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
                 await fetch("/api/products", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                     body: JSON.stringify({ ...editingProduct, ...updates }),
                 });
             } catch { /* non-critical: background write from updateProduct is still in flight */ }

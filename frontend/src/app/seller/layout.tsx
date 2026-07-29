@@ -228,6 +228,7 @@ export default function SellerLayout({
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
         { label: "Balance & Settlements", href: "/seller/balance", icon: Landmark },
         { label: "QR Payments", href: "/seller/dashboard/payments", icon: QrCode },
+        { label: "Team", href: "/seller/settings/team", icon: Users },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
     ];

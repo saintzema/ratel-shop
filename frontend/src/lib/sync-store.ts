@@ -3765,9 +3765,10 @@ class DataSyncServiceService {
         // Uses AbortSignal timeout (20s) so a slow Neon cold-start doesn't stall anything
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20_000);
+        const _updToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/products", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(_updToken ? { Authorization: `Bearer ${_updToken}` } : {}) },
             body: JSON.stringify(mergedProduct),
             signal: controller.signal,
         })

@@ -391,8 +391,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     body: JSON.stringify({ email: userData.email }),
                 });
                 if (tokenRes.ok) {
-                    const { token } = await tokenRes.json();
+                    const { token, staffOf } = await tokenRes.json();
                     if (token) localStorage.setItem("fp_token", token);
+                    // An invited teammate (not a seller themselves) lands straight in
+                    // the seller dashboard they were invited to, scoped to that seller —
+                    // same session mechanism a real seller's own login already uses.
+                    if (staffOf) DataSyncService.loginSeller(staffOf);
                 }
             } catch { /* non-critical */ }
         }

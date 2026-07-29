@@ -551,9 +551,10 @@ function EditProductContent() {
         // when we navigate to it (the background write from updateProduct races with
         // the list-page fetch and often loses, showing stale data).
         try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             await fetch("/api/products", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ ...product, ...updates }),
             });
         } catch { /* non-critical: background write in updateProduct is still in flight */ }

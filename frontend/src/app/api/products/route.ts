@@ -2,10 +2,29 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
 
 const SITE_URL = "https://www.fairprice.ng";
 function productSlug(name: string | null | undefined): string {
     return (name || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+// A seller-scoped write is allowed if the requester is an admin, or the requester
+// owns the target seller record (by userId or ownerEmail match).
+async function userOwnsSeller(sellerId: string | undefined | null, user: JWTPayload): Promise<boolean> {
+    if (user.role === "admin") return true;
+    if (!sellerId) return false;
+    // An invited teammate isn't the real owner, but IS allowed to manage this
+    // seller's products in general — canEditPrice/canEditStock (checked
+    // separately below) is what actually gates the two fields the seller
+    // wanted staff to never touch unsupervised.
+    if (user.staffOf === sellerId) return true;
+    const seller = await db.seller.findUnique({
+        where: { id: sellerId },
+        select: { userId: true, ownerEmail: true },
+    });
+    if (!seller) return false;
+    return seller.userId === user.userId || (!!user.email && seller.ownerEmail === user.email);
 }
 
 export async function GET(req: Request) {
@@ -236,6 +255,14 @@ export async function POST(req: Request) {
 
         // FALLBACK: Handle deletion via POST if DELETE method is blocked
         if (body.action === "delete" && body.id) {
+            const user = getUserFromRequest(req);
+            if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+            const target = await db.product.findUnique({ where: { id: body.id }, select: { sellerId: true } });
+            if (target && !(await userOwnsSeller(target.sellerId, user))) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+
             await db.product.delete({ where: { id: body.id } });
             broadcast({ type: "product_updated", id: body.id });
             return NextResponse.json({ success: true, message: "Product deleted via POST fallback" });
@@ -268,6 +295,37 @@ export async function POST(req: Request) {
                     return NextResponse.json({ success: true, skipped: true, reason: "product_not_found" });
                 }
                 throw imgErr;
+            }
+        }
+
+        // ─── Auth + Ownership Guard ───
+        // Full create/update (price, stock, name, description, etc.) requires the
+        // requester to be authenticated and to either be an admin or own the target
+        // seller record. Without this, anyone could upsert any product for any seller.
+        const authedUser = getUserFromRequest(req);
+        if (!authedUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!(await userOwnsSeller(body.seller_id, authedUser))) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        // ─── Staff permission gate (price/stock) ───
+        // An invited teammate can generally manage this seller's products, but not
+        // silently overhike a price or fudge a stock count without being explicitly
+        // granted that — the exact scenario a store owner invites staff wants to
+        // prevent while overseas/away. Only applies to existing products (staff
+        // creating a brand-new listing is a different, less risky action); for an
+        // existing product, any price/stock in the payload that differs from what's
+        // already in the DB gets reverted to the current value when unauthorized.
+        if (authedUser.staffOf === body.seller_id) {
+            const perms = authedUser.staffPermissions;
+            const current = await db.product.findUnique({ where: { id: body.id }, select: { price: true, stock: true } });
+            if (current) {
+                if (!perms?.canEditPrice && body.price !== undefined && body.price !== current.price) {
+                    body.price = current.price;
+                }
+                if (!perms?.canEditStock && body.stock !== undefined && body.stock !== current.stock) {
+                    body.stock = current.stock;
+                }
             }
         }
 
