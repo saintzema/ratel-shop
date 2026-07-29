@@ -45,6 +45,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import { useAuth } from "@/context/AuthContext";
 import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
+import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
 
 
 export default function SellerDashboard() {
@@ -396,6 +397,8 @@ export default function SellerDashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6 max-w-6xl pb-20"
         >
+            <SellerFeatureSpotlight sellerId={safeSeller.id} />
+
             {/* First alert: no WhatsApp on file yet — QR payments, WhatsApp product
                 uploads, and negotiation alerts all require it. Deep-links straight to
                 the activation control in Settings instead of just telling the seller

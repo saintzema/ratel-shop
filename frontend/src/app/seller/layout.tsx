@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
 import { Seller, NegotiationRequest } from "@/lib/types";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { FEATURE_TOUR_ITEMS, markFeatureSeen } from "@/lib/seller-feature-tour";
 import {
     Dialog,
     DialogContent,
@@ -65,6 +66,15 @@ export default function SellerLayout({
 
     // Skip sidebar for login/onboarding routes
     const isPublicRoute = pathname.startsWith("/seller/login") || pathname.startsWith("/seller/onboarding") || pathname.startsWith("/seller/verified");
+
+    // Feature-discovery tracking — mark a tour item "seen" the moment a seller
+    // actually navigates to its page, so the dashboard nudge (SellerFeatureSpotlight)
+    // never re-suggests something they've already opened.
+    useEffect(() => {
+        if (!currentSeller?.id) return;
+        const match = FEATURE_TOUR_ITEMS.find((f) => pathname.startsWith(f.href));
+        if (match) markFeatureSeen(currentSeller.id, match.key);
+    }, [pathname, currentSeller?.id]);
 
     useEffect(() => {
         if (isPublicRoute) return;
