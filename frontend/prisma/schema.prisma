@@ -198,11 +198,51 @@ model Seller {
   payouts        Payout[]
   priceAlerts    PriceAlert[]
   products       Product[]
+  quotes         Quote[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
   @@index([category])
+}
+
+// Seller-generated quotes/invoices for clients — AI-assisted natural-language
+// drafting, downloadable as PDF, shareable via WhatsApp/copy-paste, and
+// payable through a public link (deposit or full balance) that reuses the
+// same Paystack verification path as regular checkout.
+model Quote {
+  id             String   @id @default(cuid())
+  sellerId       String
+  title          String
+  clientName     String
+  clientContact  String?
+  items          Json // [{ description, qty, unitPrice }]
+  subtotal       Float
+  total          Float
+  depositRequired Boolean @default(false)
+  depositAmount  Float?
+  amountPaid     Float    @default(0)
+  status         String   @default("draft") // draft | sent | deposit_paid | paid | cancelled
+  notes          String?
+  currency       String   @default("NGN")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  payments       QuotePayment[]
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+model QuotePayment {
+  id        String   @id @default(cuid())
+  quoteId   String
+  amount    Float
+  reference String   @unique
+  createdAt DateTime @default(now())
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
 }
 
 model Product {

@@ -7,6 +7,7 @@ import {
     LayoutDashboard,
     Users,
     Package,
+    FileText,
     ShieldCheck,
     Settings,
     LogOut,
@@ -72,6 +73,7 @@ export default function AdminLayout({
         { label: "Gift Cards", href: "/admin/gift-cards", icon: Gift },
         { label: "WhatsApp", href: "/admin/whatsapp", icon: MessageCircle },
         { label: "Financing", href: "/admin/financing", icon: LucideWallet },
+        { label: "Seller Quotes", href: "/admin/quotes", icon: FileText },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
 
