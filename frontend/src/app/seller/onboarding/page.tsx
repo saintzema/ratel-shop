@@ -31,16 +31,38 @@ export default function KYCOnboarding() {
     const [uploadError, setUploadError] = useState<string | null>(null);
 
     const uploadKycFile = async (file: File, folder: "kyc" | "cac"): Promise<string | null> => {
-        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("folder", folder);
-        try {
-            const res = await fetch("/api/upload", {
+        let token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        const doUpload = async () => {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("folder", folder);
+            return fetch("/api/upload", {
                 method: "POST",
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
                 body: fd,
             });
+        };
+        try {
+            let res = await doUpload();
+            // A cached fp_user with a missing/expired fp_token looks fully logged in
+            // but 401s here — AuthContext re-issues one on mount, but if that hasn't
+            // landed yet (or this token is genuinely stale), get a fresh one and retry
+            // once instead of surfacing "Unauthorized" for something the seller can't fix.
+            if (res.status === 401 && user?.email) {
+                const tokenRes = await fetch("/api/auth/issue-token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: user.email }),
+                });
+                if (tokenRes.ok) {
+                    const { token: freshToken } = await tokenRes.json();
+                    if (freshToken) {
+                        token = freshToken;
+                        localStorage.setItem("fp_token", freshToken);
+                        res = await doUpload();
+                    }
+                }
+            }
             const data = await res.json();
             if (!res.ok || !data.url) {
                 setUploadError(data.error || "Upload failed. Please try again.");

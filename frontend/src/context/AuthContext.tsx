@@ -90,9 +90,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     created_at: new Date().toISOString()
                 };
                 login(oauthUser);
+            } else if (!localStorage.getItem("fp_token")) {
+                // fp_user already matched the session so login()/its token-issue call
+                // above never ran — but fp_token can still be absent (cleared, expired,
+                // or a user who's been sitting on this tab since before we started
+                // issuing tokens at all). Every Bearer-authenticated call (KYC/ID
+                // upload, product photos, etc.) silently 401s in that state with no
+                // hint why, since `user` itself looks perfectly logged in. Re-issue.
+                ensureToken(session.user.email!);
             }
         }
     }, [session, sessionStatus]);
+
+    const ensureToken = async (email: string) => {
+        try {
+            const tokenRes = await fetch("/api/auth/issue-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+            });
+            if (tokenRes.ok) {
+                const { token } = await tokenRes.json();
+                if (token) localStorage.setItem("fp_token", token);
+            }
+        } catch { /* non-critical — next authenticated action will just 401 and retry here */ }
+    };
 
     useEffect(() => {
         // Initialize from localStorage
@@ -123,6 +145,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     localStorage.setItem("fp_user", JSON.stringify(parsed));
                 }
                 setUser(parsed);
+                // Same self-healing as the NextAuth branch below: a cached fp_user
+                // with no matching fp_token (expired, manually cleared, or from before
+                // token-issuing existed) looks fully logged in but silently 401s on
+                // every Bearer-authenticated call — e.g. the seller onboarding KYC/ID
+                // upload, which showed "Unauthorized" under the upload box for exactly
+                // this reason regardless of which document type was selected.
+                if (parsed?.email && !localStorage.getItem("fp_token")) {
+                    ensureToken(parsed.email);
+                }
             } catch (e) {
                 console.error("Failed to parse stored user", e);
             }
