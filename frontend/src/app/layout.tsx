@@ -129,9 +129,18 @@ export default function RootLayout({
               // Auto-dismiss if ANY fatal JS error occurs during boot
               window.onerror = function() { hideSplash(); };
               window.onunhandledrejection = function() { hideSplash(); };
-              // Timeout fail-safes (3s, 6s)
-              setTimeout(hideSplash, 3000);
-              setTimeout(hideSplash, 6000);
+              // Timeout fail-safes. These used to fire at 3s/6s — meant as a last
+              // resort for a genuinely frozen/broken boot, they were instead firing
+              // on ordinary slow connections (rural/low-bandwidth) before the JS
+              // bundle had even finished downloading, let alone hydrated. That
+              // yanked the splash away early and exposed the raw, not-yet-hydrated
+              // page underneath — the "white screen with just the nav" report.
+              // SplashDismiss (React, mounts once hydration is real) is the primary,
+              // hydration-aware path and already has its own faster dismiss + 5s
+              // backup; these are now a true last-resort, comfortably past any
+              // reasonable load time even on a bad connection.
+              setTimeout(hideSplash, 12000);
+              setTimeout(hideSplash, 20000);
             })();
           `
         }} />
@@ -224,7 +233,16 @@ export default function RootLayout({
           <SwipeToBack />
           <ClientImageFallback />
           <PopupCloser />
-          <Suspense fallback={<div className="min-h-screen bg-white" />}>
+          {/* If this ever actually suspends (slow streaming chunk, etc.), show
+              something that still looks like FairPrice loading rather than a
+              bare blank div — the branded #fp-splash above should still be
+              covering this anyway, but on a bad connection the two need to
+              agree, not one hiding early while this one is still blank. */}
+          <Suspense fallback={
+            <div className="min-h-screen bg-white flex items-center justify-center">
+              <div className="w-6 h-6 rounded-full border-[3px] border-gray-100 border-t-emerald-500 animate-spin" />
+            </div>
+          }>
             <SessionWrapper>
               <LocationProvider>
                 <AuthProvider>
