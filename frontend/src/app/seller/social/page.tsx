@@ -96,10 +96,35 @@ export default function SellerSocialComposerPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    // WhatsApp has no public API/URL scheme for posting directly to a user's
+    // Status — that's deliberate on WhatsApp's part (no third-party site can
+    // auto-post to someone's Status, for spam/abuse reasons). The closest real
+    // thing: the Web Share API opens the phone's native OS share sheet, and
+    // WhatsApp (including "My Status" as a destination within it) is one of
+    // the apps that sheet offers — one button press gets there, picking
+    // "Status" inside WhatsApp is one more tap by WhatsApp's own design, not
+    // something any website can skip. Falls back to the wa.me chat-share link
+    // (opens a chat, not Status) on desktop or browsers without file sharing.
+    const shareToWhatsApp = async () => {
+        const text = `${caption}\n\n${productUrl}`;
+        if (navigator.share && selectedProduct?.image_url) {
+            try {
+                const res = await fetch(selectedProduct.image_url);
+                const blob = await res.blob();
+                const file = new File([blob], "product.jpg", { type: blob.type || "image/jpeg" });
+                if ((navigator as any).canShare?.({ files: [file] })) {
+                    await navigator.share({ files: [file], text });
+                    return;
+                }
+            } catch { /* fall through to chat-share link below */ }
+        }
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    };
+
     const publish = () => {
         const text = `${caption}\n\n${productUrl}`;
         if (selectedPlatforms.has("whatsapp")) {
-            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+            shareToWhatsApp();
         }
         if (selectedPlatforms.has("x")) {
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(productUrl)}`, "_blank");
@@ -195,7 +220,7 @@ export default function SellerSocialComposerPage() {
                                                 whileTap={mode !== "soon" ? { scale: 0.94 } : undefined}
                                                 onClick={() => mode !== "soon" && togglePlatform(key)}
                                                 disabled={mode === "soon"}
-                                                title={mode === "soon" ? "Coming soon — needs a TikTok developer app + platform review" : mode === "manual" ? "Instagram has no direct-post API without Meta's approval yet — this copies your caption so you can paste it in" : undefined}
+                                                title={mode === "soon" ? "Coming soon — needs a TikTok developer app + platform review" : mode === "manual" ? "Instagram has no direct-post API without Meta's approval yet — this copies your caption so you can paste it in" : key === "whatsapp" ? "Opens your phone's share sheet with the image ready — pick WhatsApp, then My Status" : undefined}
                                                 className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-[10px] font-bold transition-all ${
                                                     mode === "soon" ? "opacity-35 cursor-not-allowed border-gray-100 bg-gray-50" :
                                                     active ? "border-transparent shadow-lg" : "border-gray-200 text-gray-500 hover:border-gray-300 bg-white"
@@ -228,7 +253,7 @@ export default function SellerSocialComposerPage() {
                             </div>
                         </div>
                         <p className="text-xs text-gray-400 px-1">
-                            WhatsApp, X, and Facebook open that platform's own share window, pre-filled — one tap to confirm and it's posted. Instagram and TikTok don't offer a way to publish directly from other apps without special platform approval, so those copy your caption for you to paste in manually.
+                            On your phone, WhatsApp opens your native share sheet with the photo ready — tap WhatsApp, then My Status. X and Facebook open that platform's own share window, pre-filled — one tap to confirm and it's posted. Instagram and TikTok don't offer a way to publish directly from other apps without special platform approval, so those copy your caption for you to paste in manually.
                         </p>
                     </>
                 )}
