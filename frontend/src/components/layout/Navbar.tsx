@@ -112,6 +112,7 @@ export function Navbar() {
     // Bumped when server search enriches the local store, so the instant scorer re-runs.
     const [catalogVersion, setCatalogVersion] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
+    const [animatedPlaceholder, setAnimatedPlaceholder] = useState("Search products here...");
     const [suggestions, setSuggestions] = useState<Product[]>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
@@ -136,6 +137,52 @@ export function Navbar() {
 
     useEffect(() => {
         setMounted(true);
+    }, []);
+
+    // Rotating typewriter placeholder — replaces the static "Search products
+    // here..." with catchier, concrete examples of what the search actually
+    // does well (price-checking, comparisons, specific real products), typed
+    // and erased in a loop. Purely cosmetic — never touches searchQuery/value,
+    // so it can't interfere with anything the user actually types.
+    useEffect(() => {
+        const phrases = [
+            "Check the market price of this product...",
+            "UK-used iPhone 15 Pro Max",
+            "Cheapest electric cars in Lagos",
+            "Solar generator for a small shop",
+            "Negotiate a better price on a laptop",
+            "Search products here...",
+        ];
+        let phraseIndex = 0;
+        let charIndex = 0;
+        let deleting = false;
+        let timeoutId: ReturnType<typeof setTimeout>;
+
+        const tick = () => {
+            const current = phrases[phraseIndex];
+            if (!deleting) {
+                charIndex++;
+                setAnimatedPlaceholder(current.slice(0, charIndex));
+                if (charIndex === current.length) {
+                    deleting = true;
+                    timeoutId = setTimeout(tick, 1800);
+                    return;
+                }
+                timeoutId = setTimeout(tick, 45);
+            } else {
+                charIndex--;
+                setAnimatedPlaceholder(current.slice(0, charIndex));
+                if (charIndex === 0) {
+                    deleting = false;
+                    phraseIndex = (phraseIndex + 1) % phrases.length;
+                    timeoutId = setTimeout(tick, 400);
+                    return;
+                }
+                timeoutId = setTimeout(tick, 25);
+            }
+        };
+        timeoutId = setTimeout(tick, 800);
+        return () => clearTimeout(timeoutId);
     }, []);
 
     useEffect(() => {
@@ -1095,7 +1142,7 @@ export function Navbar() {
                                 autoComplete="off"
                                 suppressHydrationWarning
                                 className="flex-1 border-0 bg-transparent px-2 md:px-5 text-[13px] md:text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
-                                placeholder="Search products here..."
+                                placeholder={animatedPlaceholder}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => { setShowSuggestions(true); triggerNavSync(); window.dispatchEvent(new Event("fp-search-focused")); }}
