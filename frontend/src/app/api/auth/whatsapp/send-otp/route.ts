@@ -64,14 +64,21 @@ export async function POST(req: Request) {
         // Send the OTP via WhatsApp Cloud API Template
         const sendResult = await WhatsAppService.sendVerificationTemplate(cleanPhone, code);
 
-        if (!sendResult) {
+        if (!sendResult || "error" in sendResult) {
             // Either credentials are missing, or Meta's API rejected the send
             // (unapproved template, expired token, recipient not opted in, etc.)
             // — both used to be swallowed into a silent "success", leaving the
             // user waiting forever for a code that was never actually sent.
-            console.warn(`WhatsApp OTP for ${cleanPhone}: ${code} (send failed — see WhatsAppService error log above)`);
+            // The reason is almost never a bad phone number (a real number fails
+            // identically to a fake one if the "verification_code" template itself
+            // isn't approved in Meta Business Manager) — surface the real reason
+            // instead of blaming the number, which just sends users on a wild
+            // goose chase re-typing a number that was never the problem.
+            const detail = sendResult && "error" in sendResult ? sendResult.error : "unknown";
+            console.warn(`WhatsApp OTP for ${cleanPhone}: ${code} (send failed: ${detail})`);
             return NextResponse.json({
-                error: "Could not send the verification code to that WhatsApp number. Double-check the number is correct and can receive WhatsApp messages, then try again."
+                error: "Could not send the verification code over WhatsApp right now. This is usually a WhatsApp Business setup issue on our end, not your number — please try email verification instead, or contact support.",
+                detail
             }, { status: 502 });
         }
 

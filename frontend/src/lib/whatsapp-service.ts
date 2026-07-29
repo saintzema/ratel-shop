@@ -280,10 +280,10 @@ export class WhatsAppService {
      * Requirement: Template must be created in Meta Business Manager first.
      * Recommended Template Body: "{{1}} is your verification code."
      */
-    static async sendVerificationTemplate(to: string, code: string, templateName: string = "verification_code") {
+    static async sendVerificationTemplate(to: string, code: string, templateName: string = "verification_code"): Promise<{ data: any } | { error: string } | null> {
         if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
             console.warn("WhatsApp credentials missing. Verification code suppressed:", code);
-            return null;
+            return { error: "WhatsApp is not configured on this server (missing access token/phone number ID)." };
         }
 
         const cleanTo = this.normalizePhoneNumber(to);
@@ -324,17 +324,20 @@ export class WhatsAppService {
             const data = await response.json();
             if (data.error) {
                 // Meta's Cloud API still returns HTTP 200 with a body-level `error`
-                // for most failures (unapproved/missing template, expired token,
-                // recipient not opted in, etc.) — returning `data` here made every
-                // one of those failures look identical to a real send to the caller,
-                // which only checked truthiness. Return null so callers can tell.
+                // for most failures — and the single most common one for THIS call
+                // specifically is an unapproved/missing "verification_code" template:
+                // OTP is an business-initiated message outside any 24h customer-service
+                // window, so Meta REQUIRES a pre-approved template for it (unlike the
+                // free-form replies ZEMA 360 sends elsewhere, which work fine because
+                // they're replies within that window) — a real number fails identically
+                // to a fake one here, which is why blaming "the number" was misleading.
                 console.error("WhatsApp Template Error:", JSON.stringify(data.error));
-                return null;
+                return { error: data.error.message || data.error.error_data?.details || "Meta rejected the template send" };
             }
-            return data;
-        } catch (error) {
+            return { data };
+        } catch (error: any) {
             console.error("WhatsApp Template Send Error:", error);
-            return null;
+            return { error: error?.message || "Request to Meta failed" };
         }
     }
 
