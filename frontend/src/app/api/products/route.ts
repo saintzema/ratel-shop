@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
+import { parseLocationFromQuery, locationTier } from "@/lib/location-search";
 
 const SITE_URL = "https://www.fairprice.ng";
 function productSlug(name: string | null | undefined): string {
@@ -34,9 +35,21 @@ export async function GET(req: Request) {
         const updatedAfter = searchParams.get("updated_after");
         const cursor = searchParams.get("cursor") || undefined;
         const sellerIdFilter = searchParams.get("sellerId") || undefined;
-        const q = (searchParams.get("q") || "").trim();
+        const rawQ = (searchParams.get("q") || "").trim();
         // Keep the limit high for admin, but manageable
         const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
+
+        // Location: either explicit filter params (from the SRP's state/city dropdowns)
+        // or parsed out of free text ("cars in Maitama, Abuja" → city=Maitama, state=Abuja
+        // (FCT), leaving "cars" as the actual product query). Explicit params win if both
+        // are somehow present.
+        const explicitState = searchParams.get("state") || null;
+        const explicitCity = searchParams.get("city") || null;
+        const parsedLocation = rawQ ? parseLocationFromQuery(rawQ) : { state: null, city: null, remainingQuery: rawQ };
+        const targetState = explicitState || parsedLocation.state;
+        const targetCity = explicitCity || parsedLocation.city;
+        const q = (explicitState || explicitCity) ? rawQ : parsedLocation.remainingQuery;
+        const hasLocation = !!(targetState || targetCity);
 
         const whereClause: any = includeInactive
             ? {}
@@ -119,30 +132,38 @@ export async function GET(req: Request) {
             financingAvailable: true,
             createdAt: true,
             slug: true,
+            ...(hasLocation ? { seller: { select: { state: true, city: true } } } : {}),
         } as any;
 
         // 2. Fetch the specific page/batch of products
         let products: any[];
         let nextCursor: string | null = null;
 
-        if (q) {
+        if (q || hasLocation) {
             // Relevance-ranked search: pull a wider candidate pool of DB matches, then rank
             // by how well each NAME matches the query (exact > prefix > all-words > substring
             // > tag/category-only), with popularity tiebreakers. This makes a searched product
             // instantly surface near the top in NavSearch + SRP — not buried by newest-first
             // ordering — even when the catalogue has thousands of items.
+            //
+            // When a location is in play (typed in the query or picked from the state/city
+            // filter), results are grouped into tiers FIRST — same city, then same state,
+            // then everywhere else — and only ranked by text/popularity relevance WITHIN
+            // each tier. This is the Jiji-style behavior: local listings surface first, but
+            // nothing outside the area is hidden, it just sorts after.
             const pool = await db.product.findMany({
                 where: whereClause,
                 select: productSelect,
                 orderBy: { createdAt: "desc" },
-                take: 200,
+                take: 300,
             });
             const ql = q.toLowerCase();
             const qWords = ql.split(/\s+/).filter((w) => w.length > 1);
             const relevance = (p: any): number => {
                 const name = (p.name || "").toLowerCase();
                 let s = 0;
-                if (name === ql) s += 1000;
+                if (!ql) s += 50; // no text query — location/browse only, everything ties on text score
+                else if (name === ql) s += 1000;
                 else if (name.startsWith(ql)) s += 600;
                 else if (name.includes(ql)) s += 400;
                 else if (qWords.length > 0 && qWords.every((w) => name.includes(w))) s += 250;
@@ -153,7 +174,14 @@ export async function GET(req: Request) {
                 return s;
             };
             products = pool
-                .sort((a, b) => relevance(b) - relevance(a))
+                .sort((a, b) => {
+                    if (hasLocation) {
+                        const tierA = locationTier({ state: targetState, city: targetCity }, (a as any).seller?.state, (a as any).seller?.city);
+                        const tierB = locationTier({ state: targetState, city: targetCity }, (b as any).seller?.state, (b as any).seller?.city);
+                        if (tierA !== tierB) return tierA - tierB;
+                    }
+                    return relevance(b) - relevance(a);
+                })
                 .slice(0, limit || 60);
         } else {
             products = await db.product.findMany({

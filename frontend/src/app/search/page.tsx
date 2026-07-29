@@ -239,6 +239,8 @@ function getProductIcon(name: string, category?: string) {
 import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { useAuth } from "@/context/AuthContext";
+import { parseLocationFromQuery } from "@/lib/location-search";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
 function SearchContent() {
   const { user } = useAuth();
@@ -253,6 +255,17 @@ function SearchContent() {
   const minPriceParam = searchParams.get("minPrice");
   const maxPriceParam = searchParams.get("maxPrice");
   const pageParam = searchParams.get("page");
+  const stateParam = searchParams.get("state") || "";
+  const cityParam = searchParams.get("city") || "";
+  // A typed query can carry a location phrase ("cars in Maitama, Abuja") — parse it
+  // out so text-matching only ever runs against "cars", never "cars in maitama
+  // abuja" (which would zero out every real result, since no product name
+  // literally contains a city name). Explicit state/city dropdown params always
+  // win over anything parsed from free text.
+  const parsedFromQuery = useMemo(() => parseLocationFromQuery(query), [query]);
+  const locationStrippedQuery = (stateParam || cityParam) ? query : parsedFromQuery.remainingQuery;
+  const effectiveState = stateParam || parsedFromQuery.state || "";
+  const effectiveCity = cityParam || parsedFromQuery.city || "";
 
   // Local State
   const [isMounted, setIsMounted] = useState(false);
@@ -583,9 +596,18 @@ function SearchContent() {
   // filter. This keeps the SRP correct as the catalog scales to thousands of products.
   useEffect(() => {
     const effectiveQ = (query || "").trim();
-    if (!effectiveQ || effectiveQ.length < 2) return;
+    // Fires on a real text query OR a location filter alone — picking a state/city
+    // with no typed query is a valid "browse this area" search (Jiji-style), and
+    // needs the server's location-tiered ranking too, not just the client's
+    // most-recent-200 cache with no locality awareness at all.
+    if ((!effectiveQ || effectiveQ.length < 2) && !stateParam && !cityParam) return;
     let cancelled = false;
-    fetch(`/api/products?q=${encodeURIComponent(effectiveQ)}&limit=60`)
+    const params = new URLSearchParams();
+    if (effectiveQ) params.set("q", effectiveQ);
+    if (stateParam) params.set("state", stateParam);
+    if (cityParam) params.set("city", cityParam);
+    params.set("limit", "60");
+    fetch(`/api/products?${params.toString()}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.products?.length) return;
@@ -596,7 +618,7 @@ function SearchContent() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [query]);
+  }, [query, stateParam, cityParam]);
 
   // Debounced global search for the search page
   useEffect(() => {
@@ -960,8 +982,8 @@ function SearchContent() {
         // ALWAYS keep global products, as they are already semantically matched by the backend AI
         if ((product as any)._source === "global") return true;
 
-        if (query) {
-          const q = query.toLowerCase();
+        if (locationStrippedQuery) {
+          const q = locationStrippedQuery.toLowerCase();
           const pName = (product.name || "").toLowerCase();
           const pDesc = (product.description || "").toLowerCase();
 
@@ -1031,9 +1053,16 @@ function SearchContent() {
           case "top_rated":
             return (b.avg_rating || 0) - (a.avg_rating || 0);
           default: {
+            // A location filter's tiering (same city → same state → everywhere
+            // else) already came correctly ordered from the server fetch — this
+            // client-side popularity re-sort would otherwise flatten that back
+            // out, since it knows nothing about seller location. Preserve
+            // fetch order (stable sort) instead of re-scoring when one's active.
+            if (effectiveState || effectiveCity) return 0;
+
             if (a.is_sponsored && !b.is_sponsored) return -1;
             if (!a.is_sponsored && b.is_sponsored) return 1;
-            
+
             let scoreA = a.sold_count * 2 + a.review_count;
             let scoreB = b.sold_count * 2 + b.review_count;
             if (a.is_trending) scoreA += 200;
@@ -1046,6 +1075,9 @@ function SearchContent() {
       });
   }, [
     query,
+    locationStrippedQuery,
+    effectiveState,
+    effectiveCity,
     selectedCategory,
     isVerified,
     priceRange,
@@ -1275,7 +1307,7 @@ function SearchContent() {
 
                 {/* Filters */}
                 <div className="flex items-center gap-2 shrink-0">
-                    {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000) && (
+                    {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000 || stateParam || cityParam) && (
                         <button
                           onClick={() => {
                             setAttributeFilters({});
@@ -1290,6 +1322,36 @@ function SearchContent() {
                         >
                           <Filter className="h-3 w-3" /> Clear
                         </button>
+                    )}
+
+                    {/* Location — Jiji-style: narrows to a state/city but never hides
+                        results outside it, just ranks them after (see the server's
+                        location-tiered sort in /api/products). */}
+                    <div className="relative shrink-0 snap-start">
+                      <select
+                        value={stateParam}
+                        onChange={(e) => updateFilters({ state: e.target.value || null, city: null })}
+                        className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white max-w-[110px]"
+                      >
+                        <option value="">All Nigeria</option>
+                        {NIGERIAN_STATES.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                    </div>
+                    {stateParam && (
+                      <div className="relative shrink-0 snap-start">
+                        <select
+                          value={cityParam}
+                          onChange={(e) => updateFilters({ city: e.target.value || null })}
+                          className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white max-w-[110px]"
+                        >
+                          <option value="">Any city</option>
+                          {NIGERIAN_STATES.find(s => s.state === stateParam)?.cities.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                      </div>
                     )}
 
                     <div className="relative shrink-0 snap-start">

@@ -209,6 +209,13 @@ export async function POST(req: Request) {
             accountName: body.account_name,
             storeUrl: resolvedStoreUrl,
             location: body.location,
+            // Onboarding's address step collects these (state/city dropdowns backed
+            // by NIGERIAN_STATES) but they were sent and silently dropped here —
+            // nothing ever persisted them, so every seller's structured location was
+            // empty regardless of what they picked. These are what powers localized
+            // search (same-city results first, then same-state, then everywhere else).
+            ...(body.state ? { state: body.state } : {}),
+            ...(body.city ? { city: body.city } : {}),
             weeklyOrders: body.weekly_orders,
             currencies: body.currencies || [],
             staffCount: body.staff_count,

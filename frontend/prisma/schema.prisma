@@ -161,6 +161,13 @@ model Seller {
   accountName    String?
   storeUrl       String?              @unique
   location       String?
+  // Structured location — onboarding already collects a state/city via the
+  // address step but was silently dropping them (only the free-text `location`
+  // field existed, and nothing populated it either). These are what powers
+  // Jiji-style localized search: same-city results first, then same-state,
+  // then everywhere else.
+  state          String?
+  city           String?
   weeklyOrders   String?
   currencies     String[]
   staffCount     String?
