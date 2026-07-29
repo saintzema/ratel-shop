@@ -35,6 +35,12 @@ async function log(agent: string, event: string, status: string, payload?: any, 
 // ── Step handlers ─────────────────────────────────────────────────────────────
 
 async function stepInventory(orderId: string) {
+    // NOTE: stock is already decremented atomically inside the order-creation
+    // transaction (src/app/api/orders/route.ts) the moment the order is placed —
+    // that's the race-safe place to do it (same transaction that creates the row),
+    // not here, which runs asynchronously afterward and used to decrement AGAIN,
+    // silently oversubtracting every order's quantity from stock twice. This step
+    // now only verifies/logs; it must never touch stock itself.
     const order = await db.order.findUnique({
         where: { id: orderId },
         include: { product: { select: { id: true, name: true, stock: true } } },
@@ -42,17 +48,13 @@ async function stepInventory(orderId: string) {
     if (!order) return { ok: false, error: "order_not_found" };
 
     const stock = order.product.stock ?? 0;
-    if (stock < order.quantity) {
-        await log("InventoryAgent", "stock_insufficient", "failed", { stock, required: order.quantity }, orderId);
+    if (stock < 0) {
+        await log("InventoryAgent", "stock_negative_after_order", "failed", { stock, required: order.quantity }, orderId);
         return { ok: false, error: "insufficient_stock", stock_available: stock, required: order.quantity };
     }
 
-    await db.product.update({
-        where: { id: order.productId },
-        data: { stock: { decrement: order.quantity } },
-    });
-    await log("InventoryAgent", `Stock decremented: ${order.product.name} −${order.quantity}`, "completed", { stock_remaining: stock - order.quantity }, orderId);
-    return { ok: true, product: order.product.name, stock_remaining: stock - order.quantity };
+    await log("InventoryAgent", `Stock verified: ${order.product.name} at ${stock} remaining`, "completed", { stock_remaining: stock }, orderId);
+    return { ok: true, product: order.product.name, stock_remaining: stock };
 }
 
 async function stepFulfillment(orderId: string) {
@@ -67,6 +69,12 @@ async function stepFulfillment(orderId: string) {
         return { ok: true, tracking_id: order.trackingId, carrier: order.carrier ?? "Unknown", already_fulfilled: true };
     }
 
+    // No real carrier API is wired in yet (no carrier account/credentials on file) —
+    // this is a placeholder assignment, not a live dispatch to an actual courier.
+    // Swap this block for a real carrier API call once a carrier partner + API key
+    // is chosen; until then this deliberately picks from real Nigerian carrier names
+    // (not "Carrier A/B") only for demo-data realism, not because a courier was
+    // actually notified.
     const trackingId = `FP${Date.now().toString(36).toUpperCase()}`;
     const carriers = ["GIG Logistics", "DHL Nigeria", "Jumia Logistics", "RedStar Express"];
     const carrier = carriers[Math.floor(Math.random() * carriers.length)];

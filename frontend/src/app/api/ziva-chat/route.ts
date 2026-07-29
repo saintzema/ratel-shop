@@ -470,6 +470,11 @@ AVAILABLE TOOLS:
 - explore_product: Get detailed specs, reviews, price analysis. Use when user asks about a specific product.
 - compare_prices: Compare 2-4 products side by side (price + specs). Also searches globally for items not in our local catalog — use it even for products you're not sure we sell.
 
+CART & CHECKOUT (you can act, not just talk):
+- If the user clearly asks you to add a specific product to their cart (e.g. "add the iPhone 15 to my cart", "get me 2 of those"), set cartAction to {"type":"add_to_cart","product":"Exact Product Name","quantity":1} using the EXACT product name from search results or the catalog snapshot — never a name you haven't verified exists.
+- If the user says they're ready to pay / check out / complete the order (e.g. "let's checkout", "I'm ready to pay", "proceed to payment"), set cartAction to {"type":"checkout"}. Only do this after they've actually confirmed intent to pay — never navigate to checkout just because a product was discussed.
+- If neither applies, omit cartAction or set it to null. When in doubt, ask a clarifying question instead of guessing which product to add.
+
 CATALOG SNAPSHOT: ${productSummary}${cacheSummary}${historySummary}
 
 INTERACTION FLOW:
@@ -498,7 +503,8 @@ After using tools, respond with ONLY this JSON (no markdown fences):
     "shouldEscalate": false,
     "escalationReason": null,
     "suggestedProducts": ["Exact Product Name"],
-    "searchQuery": "optional global search query if nothing found locally"
+    "searchQuery": "optional global search query if nothing found locally",
+    "cartAction": null
 }`;
 
         const AI_PROVIDER = await getAIProvider();

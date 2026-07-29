@@ -34,6 +34,50 @@ model User {
   discountUsages  UserDiscountUsage[]
   whatsAppVerifications WhatsAppVerification[]
   financingApplications FinancingApplication[]
+  savedCards      SavedCard[]
+}
+
+// A tokenized Paystack card authorization — never the raw card number, which
+// we never receive or store (Paystack's own Inline popup collects it directly).
+// authorizationCode is the only thing capable of charging this card again, via
+// Paystack's charge_authorization endpoint — treat it with the same care as a
+// credential, not just an opaque ID.
+model SavedCard {
+  id                String   @id @default(cuid())
+  userId            String
+  authorizationCode String   @unique
+  last4             String
+  expMonth          String
+  expYear           String
+  cardType          String?
+  bank              String?
+  signature         String?
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Audit log of every attempt to charge a saved card — written on success AND
+// failure, since these charges can be triggered by an AI agent (Ziva chat /
+// WhatsApp) rather than a human directly filling out a payment form. Without
+// this, "why was I charged ₦X" or "did the agent actually charge the card"
+// has no answer.
+model ChargeAttempt {
+  id          String   @id @default(cuid())
+  savedCardId String
+  userId      String
+  amount      Int
+  reason      String
+  initiatedBy String
+  status      String // success | failed | error
+  detail      String?
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([savedCardId])
 }
 
 model Account {

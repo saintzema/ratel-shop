@@ -652,8 +652,34 @@ export function ZivaChat() {
                     : `\n\n📩 **I've sent messages to the sellers requesting product photos for ${productsNeedingImages.length} products** — you'll be notified when they respond!`;
             }
 
+            // ─── Cart & checkout actions (Ziva can act, not just talk) ───
+            // The model decides WHEN (user asked to add/checkout); we resolve WHICH
+            // real product it means and perform the actual mutation client-side —
+            // the model never gets to invent a product or silently skip this check.
+            let cartActionNote = "";
+            if (data.cartAction?.type === "add_to_cart" && data.cartAction.product) {
+                const wantedLower = String(data.cartAction.product).toLowerCase();
+                const pool = [...finalProducts, ...DataSyncService.getProducts(), ...DataSyncService.getAllCachedProducts()];
+                const match = pool.find((p: any) => p.name?.toLowerCase() === wantedLower)
+                    || pool.find((p: any) => p.name?.toLowerCase().includes(wantedLower));
+                if (match) {
+                    const qty = Math.max(1, Number(data.cartAction.quantity) || 1);
+                    addToCart(match, qty);
+                    cartActionNote = `\n\n🛒 **Added ${qty > 1 ? `${qty}x ` : ""}${match.name} to your cart!**`;
+                } else {
+                    cartActionNote = `\n\n⚠️ I couldn't find "${data.cartAction.product}" to add — could you point me to the exact listing?`;
+                }
+            } else if (data.cartAction?.type === "checkout") {
+                if (cart.length > 0) {
+                    cartActionNote = `\n\n✅ **Taking you to checkout now...**`;
+                    setTimeout(() => { window.location.href = "/checkout"; }, 1200);
+                } else {
+                    cartActionNote = `\n\n🛒 Your cart is empty — add something first and I'll take you straight to checkout.`;
+                }
+            }
+
             return {
-                content: data.message + imageRequestNote,
+                content: data.message + imageRequestNote + cartActionNote,
                 intent: data.intent,
                 products: finalProducts,
                 quickActions: []

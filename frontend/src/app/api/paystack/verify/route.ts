@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyPaystackTransaction } from "@/lib/paystack-verify";
 
 export const dynamic = "force-dynamic";
 
@@ -27,74 +28,43 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "reference_required" }, { status: 400 });
     }
 
-    // Hard reject the client-side demo/mock fallback references — these never
-    // touched Paystack and must never be treated as a real payment.
-    if (reference.startsWith("mock_ref_") || reference.startsWith("mock_")) {
+    const result = await verifyPaystackTransaction(reference);
+    if (!result.ok) {
+        if (result.error === "secret_key_missing") {
+            console.error("[paystack/verify] PAYSTACK_SECRET_KEY is not set — cannot verify payments.");
+        }
         return NextResponse.json(
-            { ok: false, status: "mock", error: "mock_reference_rejected" },
-            { status: 402 }
+            { ok: false, status: result.error === "mock_reference_rejected" ? "mock" : "verification_failed", error: result.error, detail: result.detail },
+            { status: result.status }
         );
     }
 
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
-        console.error("[paystack/verify] PAYSTACK_SECRET_KEY is not set — cannot verify payments.");
-        return NextResponse.json(
-            { ok: false, error: "secret_key_missing" },
-            { status: 500 }
-        );
-    }
+    const tx = result.tx;
+    const paid = tx.status === "success";
 
-    try {
-        const res = await fetch(
-            `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-            {
-                method: "GET",
-                headers: { Authorization: `Bearer ${secret}` },
-                cache: "no-store",
-            }
-        );
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok || !data?.status) {
-            // Paystack returns status:false with a message for invalid keys / unknown refs
+    // Optional amount check — guard against client tampering with the charged value.
+    if (paid && typeof body.expectedAmount === "number" && tx.amount !== null) {
+        // Allow exact match only (both in kobo).
+        if (tx.amount < body.expectedAmount) {
             return NextResponse.json(
-                { ok: false, status: "verification_failed", detail: data?.message || `http_${res.status}` },
+                {
+                    ok: false,
+                    status: "amount_mismatch",
+                    detail: `charged ${tx.amount} < expected ${body.expectedAmount}`,
+                    amount: tx.amount,
+                },
                 { status: 402 }
             );
         }
-
-        const tx = data.data || {};
-        const paid = tx.status === "success";
-        const amount = typeof tx.amount === "number" ? tx.amount : null; // in kobo
-
-        // Optional amount check — guard against client tampering with the charged value.
-        if (paid && typeof body.expectedAmount === "number" && amount !== null) {
-            // Allow exact match only (both in kobo).
-            if (amount < body.expectedAmount) {
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        status: "amount_mismatch",
-                        detail: `charged ${amount} < expected ${body.expectedAmount}`,
-                        amount,
-                    },
-                    { status: 402 }
-                );
-            }
-        }
-
-        return NextResponse.json({
-            ok: paid,
-            status: tx.status,
-            amount,
-            currency: tx.currency ?? "NGN",
-            paid_at: tx.paid_at ?? null,
-            channel: tx.channel ?? null,
-            reference: tx.reference ?? reference,
-        });
-    } catch (err: any) {
-        console.error("[paystack/verify] error", err);
-        return NextResponse.json({ ok: false, error: "verify_request_failed", detail: err?.message }, { status: 502 });
     }
+
+    return NextResponse.json({
+        ok: paid,
+        status: tx.status,
+        amount: tx.amount,
+        currency: tx.currency,
+        paid_at: tx.paid_at,
+        channel: tx.channel,
+        reference: tx.reference,
+    });
 }

@@ -15,20 +15,35 @@ import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { Order } from "@/lib/types";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 
 interface PaymentMethod {
     id: string;
-    type: "card" | "bank";
+    type: "bank";
     label: string;
     last4: string;
     bankName?: string;
     accountName?: string;
     accountNumber?: string;
-    expiry?: string;
+    isDefault: boolean;
+}
+
+// Real Paystack-tokenized card — never a raw card number, just what Paystack's
+// own popup handed back after collecting the card itself.
+interface SavedCard {
+    id: string;
+    last4: string;
+    expMonth: string;
+    expYear: string;
+    cardType: string | null;
+    bank: string | null;
     isDefault: boolean;
 }
 
 const STORAGE_KEY = "fp_payment_methods";
+// A small, real charge is how Paystack Inline captures & tokenizes a card for
+// reuse — there's no $0 "just save it" flow. Disclosed to the buyer up front.
+const CARD_VERIFICATION_AMOUNT_KOBO = 5000; // ₦50
 
 const PaymentLogos = () => (
     <div className="flex flex-wrap items-center gap-3 mt-4">
@@ -56,15 +71,73 @@ const PaymentLogos = () => (
 
 export default function PaymentsPage() {
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
-    const [adding, setAdding] = useState<"card" | "bank" | null>(null);
+    const [cards, setCards] = useState<SavedCard[]>([]);
+    const [loadingCards, setLoadingCards] = useState(false);
+    const [showCardCheckout, setShowCardCheckout] = useState(false);
+    const [cardSaveError, setCardSaveError] = useState<string | null>(null);
+    const [adding, setAdding] = useState<"bank" | null>(null);
     const [showAccount, setShowAccount] = useState<string | null>(null);
-    const [cardForm, setCardForm] = useState({ number: "", expiry: "", name: "" });
     const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountName: "" });
     const [transactions, setTransactions] = useState<Order[]>([]);
     const [selectedTxn, setSelectedTxn] = useState<Order | null>(null);
     const [walletTab, setWalletTab] = useState<"all" | "received" | "sent" | "paid_out">("all");
     const [isFunding, setIsFunding] = useState(false);
     const { user } = useAuth();
+
+    const authHeaders = (): HeadersInit => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+
+    const fetchCards = async () => {
+        setLoadingCards(true);
+        try {
+            const res = await fetch("/api/payments/cards", { headers: authHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                setCards(data.cards || []);
+            }
+        } catch { /* leave list empty — retry on next mount/action */ }
+        setLoadingCards(false);
+    };
+
+    const handleCardSaved = async (reference: string) => {
+        setShowCardCheckout(false);
+        setCardSaveError(null);
+        try {
+            const res = await fetch("/api/payments/save-card", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ reference }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setCardSaveError(data.error || "Couldn't save this card. Please try again.");
+                return;
+            }
+            await fetchCards();
+        } catch {
+            setCardSaveError("Couldn't save this card — check your connection and try again.");
+        }
+    };
+
+    const removeCard = async (id: string) => {
+        setCards(prev => prev.filter(c => c.id !== id)); // optimistic
+        try {
+            await fetch(`/api/payments/cards/${id}`, { method: "DELETE", headers: authHeaders() });
+        } finally {
+            fetchCards();
+        }
+    };
+
+    const setDefaultCard = async (id: string) => {
+        setCards(prev => prev.map(c => ({ ...c, isDefault: c.id === id }))); // optimistic
+        try {
+            await fetch(`/api/payments/cards/${id}/default`, { method: "POST", headers: authHeaders() });
+        } finally {
+            fetchCards();
+        }
+    };
 
     // Derived Wallet Balance
     const balance = useMemo(() => {
@@ -94,24 +167,13 @@ export default function PaymentsPage() {
                 o.status !== "cancelled"
             ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setTransactions(userOrders);
+            fetchCards();
         }
     }, [user]);
 
     const persist = (updated: PaymentMethod[]) => {
         setMethods(updated);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    };
-
-    const addCard = () => {
-        if (!cardForm.number || !cardForm.expiry || !cardForm.name) return;
-        const last4 = cardForm.number.replace(/\s/g, "").slice(-4);
-        const newCard: PaymentMethod = {
-            id: `pm_${Date.now()}`, type: "card", label: `Card ending in ${last4}`, last4,
-            expiry: cardForm.expiry, isDefault: methods.length === 0
-        };
-        persist([...methods, newCard]);
-        setCardForm({ number: "", expiry: "", name: "" });
-        setAdding(null);
     };
 
     const addBank = () => {
@@ -207,7 +269,7 @@ export default function PaymentsPage() {
                 {/* Payment Methods Section */}
                 <div className="mb-10">
                     <div className="flex gap-3 mb-4">
-                        <Button onClick={() => setAdding("card")} className="bg-black text-white rounded-xl font-semibold">
+                        <Button onClick={() => { setCardSaveError(null); setShowCardCheckout(true); }} className="bg-black text-white rounded-xl font-semibold">
                             <CreditCard className="h-4 w-4 mr-1" /> Add Card
                         </Button>
                         <Button onClick={() => setAdding("bank")} variant="outline" className="rounded-xl font-semibold border-emerald-500 text-emerald-700 hover:bg-emerald-50">
@@ -215,35 +277,48 @@ export default function PaymentsPage() {
                         </Button>
                     </div>
 
-                    {/* Add Card Form */}
-                    {adding === "card" && (
-                        <div className="mb-6 p-5 border-2 border-dashed border-blue-300 rounded-2xl bg-blue-50/50 space-y-3">
-                            <h3 className="font-bold text-gray-900">Add Debit/Credit Card</h3>
-                            <div className="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 p-2 rounded-lg">
-                                <ShieldCheck className="h-4 w-4" /> Your card details are stored securely and encrypted
-                            </div>
-                            <Input placeholder="Card Number" value={cardForm.number} onChange={e => {
-                                const raw = e.target.value.replace(/\D/g, "").slice(0, 16);
-                                const formatted = raw.replace(/(.{4})/g, "$1 ").trim();
-                                setCardForm({ ...cardForm, number: formatted });
-                            }} maxLength={19} />
-                            <div className="grid grid-cols-2 gap-3">
-                                <Input placeholder="MM/YY" value={cardForm.expiry} onChange={e => {
-                                    let val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                    if (val.length >= 2) {
-                                        const mm = parseInt(val.slice(0, 2));
-                                        if (mm > 12) val = "12" + val.slice(2);
-                                        if (mm === 0) val = "01" + val.slice(2);
-                                        val = val.slice(0, 2) + "/" + val.slice(2);
-                                    }
-                                    setCardForm({ ...cardForm, expiry: val });
-                                }} maxLength={5} />
-                                <Input placeholder="Cardholder Name" value={cardForm.name} onChange={e => setCardForm({ ...cardForm, name: e.target.value })} />
-                            </div>
-                            <div className="flex gap-2 pt-2">
-                                <Button onClick={addCard} className="bg-blue-600 text-white rounded-xl font-bold">Save Card</Button>
-                                <Button onClick={() => setAdding(null)} variant="outline" className="rounded-xl">Cancel</Button>
-                            </div>
+                    {cardSaveError && (
+                        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700">
+                            {cardSaveError}
+                        </div>
+                    )}
+
+                    {/* Real Paystack card tokenization — a small ₦50 charge is how Paystack's
+                        Inline popup collects & verifies a card for reuse; we never see the
+                        card number ourselves, only the reusable authorization it returns. */}
+                    {showCardCheckout && user?.email && (
+                        <PaystackCheckout
+                            amount={CARD_VERIFICATION_AMOUNT_KOBO}
+                            email={user.email}
+                            metadata={{ purpose: "save_card", user_id: user.id }}
+                            onSuccess={handleCardSaved}
+                            onClose={() => setShowCardCheckout(false)}
+                        />
+                    )}
+
+                    {/* Saved Cards */}
+                    {cards.length > 0 && (
+                        <div className="space-y-3 mb-4">
+                            {cards.map(c => (
+                                <div key={c.id} className={`p-4 rounded-2xl border-2 transition-all ${c.isDefault ? "border-emerald-500 bg-emerald-50/30" : "border-gray-200 hover:border-gray-300"}`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-100">
+                                                <CreditCard className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-sm capitalize">{c.cardType || "Card"} ending in {c.last4}</p>
+                                                <p className="text-xs text-gray-500">Expires {c.expMonth}/{c.expYear}{c.bank ? ` · ${c.bank}` : ""}</p>
+                                                {c.isDefault && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">DEFAULT</span>}
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            {!c.isDefault && <button onClick={() => setDefaultCard(c.id)} className="text-xs text-emerald-600 hover:underline px-2 py-1">Set Default</button>}
+                                            <button onClick={() => removeCard(c.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
 
@@ -265,35 +340,32 @@ export default function PaymentsPage() {
                         </div>
                     )}
 
-                    {/* Saved Methods */}
-                    {methods.length === 0 && !adding ? (
+                    {/* Saved bank accounts */}
+                    {methods.length === 0 && cards.length === 0 && !adding && !loadingCards ? (
                         <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                             <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                             <h3 className="font-bold text-gray-700 mb-1">No payment methods saved</h3>
                             <p className="text-sm text-gray-500">Add a card for quick checkout or bank details for refunds.</p>
                         </div>
-                    ) : (
+                    ) : methods.length > 0 ? (
                         <div className="space-y-3">
                             {methods.map(m => (
                                 <div key={m.id} className={`p-4 rounded-2xl border-2 transition-all ${m.isDefault ? "border-emerald-500 bg-emerald-50/30" : "border-gray-200 hover:border-gray-300"}`}>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${m.type === "card" ? "bg-blue-100" : "bg-emerald-100"}`}>
-                                                {m.type === "card" ? <CreditCard className="h-5 w-5 text-blue-600" /> : <Building className="h-5 w-5 text-emerald-600" />}
+                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-100">
+                                                <Building className="h-5 w-5 text-emerald-600" />
                                             </div>
                                             <div>
                                                 <p className="font-bold text-gray-900 text-sm">{m.label}</p>
-                                                {m.type === "card" && m.expiry && <p className="text-xs text-gray-500">Expires {m.expiry}</p>}
-                                                {m.type === "bank" && (
-                                                    <div className="flex items-center gap-1">
-                                                        <p className="text-xs text-gray-500">
-                                                            {m.accountName} · {showAccount === m.id ? m.accountNumber : `****${m.last4}`}
-                                                        </p>
-                                                        <button onClick={() => setShowAccount(showAccount === m.id ? null : m.id)} className="text-gray-400 hover:text-gray-600">
-                                                            {showAccount === m.id ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-1">
+                                                    <p className="text-xs text-gray-500">
+                                                        {m.accountName} · {showAccount === m.id ? m.accountNumber : `****${m.last4}`}
+                                                    </p>
+                                                    <button onClick={() => setShowAccount(showAccount === m.id ? null : m.id)} className="text-gray-400 hover:text-gray-600">
+                                                        {showAccount === m.id ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                                    </button>
+                                                </div>
                                                 {m.isDefault && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">DEFAULT</span>}
                                             </div>
                                         </div>
@@ -305,7 +377,7 @@ export default function PaymentsPage() {
                                 </div>
                             ))}
                         </div>
-                    )}
+                    ) : null}
 
                     {/* We Accept */}
                     <div className="mt-6 pt-4 border-t border-gray-100">
