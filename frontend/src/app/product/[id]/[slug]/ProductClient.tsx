@@ -1641,6 +1641,20 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             )}
                         </div>
 
+                        {/* Negotiate — inline, right under the description on mobile, where it's
+                            actually visible while browsing. The sticky bottom bar's icon-only
+                            negotiate button (pdp-negotiate-mobile) is easy to miss/small; this is
+                            a second, clearly-labeled entry point to the same negotiation modal. */}
+                        {product?.stock !== 0 && (
+                            <button
+                                id="pdp-negotiate-inline-mobile"
+                                onClick={() => setIsNegotiationOpen(true)}
+                                className="md:hidden mt-3 w-full flex items-center justify-center gap-2 h-11 rounded-full border-2 border-amber-500 text-amber-600 font-black text-sm hover:bg-amber-50 active:scale-[0.98] transition-all"
+                            >
+                                <Handshake className="h-4 w-4" /> Negotiate Price
+                            </button>
+                        )}
+
 
 
                         {/* Seller Info */}
