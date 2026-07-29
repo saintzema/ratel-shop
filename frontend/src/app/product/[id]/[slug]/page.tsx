@@ -229,7 +229,17 @@ export default async function ProductPage({ params }: Props) {
         '@context': 'https://schema.org',
         '@type': 'Product',
         name: productDetails?.name || 'Product',
-        image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://www.fairprice.ng/logo.png',
+        // schema.org/Product accepts an array, and Google prefers several images per
+        // offer (Merchant Center grades "Images per offer"). Previously only the single
+        // primary image was emitted even when the product had a full gallery.
+        image: (() => {
+            const primary = (productDetails as any)?.imageUrl || (productDetails as any)?.image_url;
+            const gallery = ((productDetails as any)?.images || []) as string[];
+            const all = [primary, ...gallery].filter(
+                (u, i, arr) => typeof u === 'string' && u.startsWith('http') && arr.indexOf(u) === i
+            );
+            return all.length ? all.slice(0, 10) : ['https://www.fairprice.ng/logo.png'];
+        })(),
         description: productDetails?.description || 'Price verification and secure marketplace for premium products in Nigeria.',
         sku: productDetails?.id,
         ...(extractedColor ? { color: extractedColor } : {}),

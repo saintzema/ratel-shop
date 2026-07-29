@@ -72,9 +72,19 @@ export async function GET() {
         const isExternal = rawImageUrl && rawImageUrl.startsWith('http');
         
         // Cache bust: Add &v=1 to force Google Merchant Center to re-scrape the images.
-        const finalImageUrl = isExternal 
+        const finalImageUrl = isExternal
             ? `${baseUrl}/api/image-cdn?url=${encodeURIComponent(rawImageUrl)}&v=1`
             : `${baseUrl}/assets/images/placeholder.png`;
+
+        // Merchant Center's store-quality scorecard grades "Images per offer", which
+        // was Incomplete because the feed only ever sent a single image_link even for
+        // products that have a whole gallery. Google accepts up to 10 extras.
+        const additionalImageLinks = ((product.images || []) as string[])
+            .slice(1)
+            .filter((u) => typeof u === "string" && u.startsWith("http") && u !== rawImageUrl)
+            .slice(0, 10)
+            .map((u) => `<g:additional_image_link>${escapeXml(`${baseUrl}/api/image-cdn?url=${encodeURIComponent(u)}&v=1`)}</g:additional_image_link>`)
+            .join("\n            ");
 
         // ─── Attribute Extraction from Specs ───
         const specs = (product.specs || {}) as Record<string, any>;
@@ -139,6 +149,7 @@ export async function GET() {
             <g:description>${description}</g:description>
             <g:link>${baseUrl}/product/${encodeURIComponent(product.id)}</g:link>
             <g:image_link>${escapeXml(finalImageUrl)}</g:image_link>
+            ${additionalImageLinks}
             <g:condition>new</g:condition>
             <g:availability>${product.stock > 0 ? 'in stock' : 'out of stock'}</g:availability>
             <g:price>${product.price}.00 NGN</g:price>
@@ -164,6 +175,12 @@ export async function GET() {
             <g:shipping><g:country>GB</g:country><g:service>International Standard</g:service><g:price>0.00 NGN</g:price></g:shipping>
             <g:shipping><g:country>CA</g:country><g:service>International Standard</g:service><g:price>0.00 NGN</g:price></g:shipping>
             <g:shipping><g:country>IE</g:country><g:service>International Standard</g:service><g:price>0.00 NGN</g:price></g:shipping>
+            <g:shipping><g:country>ZA</g:country><g:service>International Standard</g:service><g:price>0.00 NGN</g:price></g:shipping>
+
+            <!-- Return window/cost were scored "Incomplete" because neither the feed nor
+                 the account declared a policy. 14 days, free, matching hasMerchantReturnPolicy
+                 in the PDP's JSON-LD and the published /returns page — keep all three in sync. -->
+            <g:return_policy_label>FairPrice 14-Day Free Return</g:return_policy_label>
 
             <g:identifier_exists>no</g:identifier_exists>
         </item>`;

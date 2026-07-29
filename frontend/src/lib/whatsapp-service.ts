@@ -8,6 +8,38 @@ const API_VERSION = "v20.0";
 
 export class WhatsAppService {
     /**
+     * WhatsApp usernames (rolling out through 2026) mean a customer can message a
+     * business with NO phone number attached. Meta identifies those users by a
+     * business-scoped user ID (BSUID) instead — e.g. "US.13491208655302741918".
+     *
+     * Sending differs by identifier type: a phone goes in `to`, a BSUID goes in
+     * `recipient` (and `to` must be omitted — if both are set, `to` wins). The old
+     * `to.replace(/\D/g, "")` normalisation would have silently mangled a BSUID
+     * into a meaningless digit string and misrouted or dropped the message.
+     *
+     * Phone numbers never contain letters, so that's the discriminator.
+     */
+    static isBsuid(identifier: string): boolean {
+        return /[a-z]/i.test(identifier || "");
+    }
+
+    /**
+     * Builds the recipient portion of a Cloud API send payload for either
+     * identifier type. Spread into the request body.
+     */
+    static recipientPayload(to: string): Record<string, string> {
+        if (this.isBsuid(to)) {
+            return { recipient: to.trim() };
+        }
+        return { to: to.replace(/\D/g, "") };
+    }
+
+    /** Stable key for logging/lookup — the BSUID as-is, or the digits of a phone. */
+    static recipientKey(to: string): string {
+        return this.isBsuid(to) ? to.trim() : to.replace(/\D/g, "");
+    }
+
+    /**
      * Sends a plain text message via WhatsApp Cloud API
      */
     static async sendMessage(to: string, text: string) {
@@ -16,8 +48,8 @@ export class WhatsAppService {
             return null;
         }
 
-        // Normalize phone number (ensure no + and starts with country code)
-        const cleanTo = to.replace(/\D/g, "");
+        // Phone → `to`, BSUID → `recipient` (see recipientPayload)
+        const cleanTo = this.recipientKey(to);
 
         try {
             const response = await fetch(
@@ -31,7 +63,7 @@ export class WhatsAppService {
                     body: JSON.stringify({
                         messaging_product: "whatsapp",
                         recipient_type: "individual",
-                        to: cleanTo,
+                        ...this.recipientPayload(to),
                         type: "text",
                         text: { body: text },
                     }),
@@ -70,7 +102,7 @@ export class WhatsAppService {
             console.warn("WhatsApp credentials missing. Image message suppressed:", imageUrl);
             return null;
         }
-        const cleanTo = to.replace(/\D/g, "");
+        const cleanTo = this.recipientKey(to);
         try {
             const response = await fetch(
                 `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
@@ -83,7 +115,7 @@ export class WhatsAppService {
                     body: JSON.stringify({
                         messaging_product: "whatsapp",
                         recipient_type: "individual",
-                        to: cleanTo,
+                        ...this.recipientPayload(to),
                         type: "image",
                         image: { link: imageUrl, ...(caption ? { caption } : {}) },
                     }),
@@ -113,7 +145,7 @@ export class WhatsAppService {
             console.warn("WhatsApp credentials missing. CTA message suppressed.");
             return null;
         }
-        const cleanTo = to.replace(/\D/g, "");
+        const cleanTo = this.recipientKey(to);
         try {
             const response = await fetch(
                 `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
@@ -126,7 +158,7 @@ export class WhatsAppService {
                     body: JSON.stringify({
                         messaging_product: "whatsapp",
                         recipient_type: "individual",
-                        to: cleanTo,
+                        ...this.recipientPayload(to),
                         type: "interactive",
                         interactive: {
                             type: "cta_url",
@@ -202,7 +234,7 @@ export class WhatsAppService {
             return null;
         }
 
-        const cleanTo = to.replace(/\D/g, "");
+        const cleanTo = this.recipientKey(to);
 
         try {
             const response = await fetch(
@@ -215,7 +247,7 @@ export class WhatsAppService {
                     },
                     body: JSON.stringify({
                         messaging_product: "whatsapp",
-                        to: cleanTo,
+                        ...this.recipientPayload(to),
                         type: "template",
                         template: {
                             name: templateName,
@@ -299,6 +331,10 @@ export class WhatsAppService {
                     },
                     body: JSON.stringify({
                         messaging_product: "whatsapp",
+                        // OTP always goes to a phone number the user just typed (they're
+                        // signing up WITH a phone), so this deliberately keeps
+                        // normalizePhoneNumber's NG-local handling (0803… → 234803…)
+                        // rather than recipientPayload's plain digit strip.
                         to: cleanTo,
                         type: "template",
                         template: {

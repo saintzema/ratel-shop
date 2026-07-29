@@ -19,6 +19,12 @@ model User {
   updatedAt       DateTime             @updatedAt
   isPremium       Boolean              @default(false)
   whatsappNumber  String?              @unique
+  // Meta's business-scoped user ID. Since WhatsApp usernames rolled out, an
+  // inbound message can arrive with NO phone number at all — the BSUID is then
+  // the ONLY stable way to recognise a returning customer. Always present on
+  // inbound webhooks (username adopter or not), so we record it whenever seen.
+  whatsappUserId  String?              @unique
+  whatsappUsername String?
   premiumExpiresAt DateTime?
   accounts        Account[]
   addresses       Address[]

@@ -16,8 +16,14 @@ const COMMON_DISALLOW = [
   '/reset-password',
   '/order-confirmation',
   '/search', // infinite/duplicate query URLs — keep out of the index
-  '/_next/static/', // JS/CSS bundle chunks — not indexable content
   '/_next/data/',   // RSC JSON payloads — not indexable content
+  // NOTE: '/_next/static/' must NOT be listed here. It was, and Search Console
+  // duly reported dozens of "Blocked by robots.txt" hits for our own .css/.js
+  // chunks. Google renders pages before judging them, so blocking the CSS/JS
+  // needed to paint the page means Googlebot evaluates a broken, unstyled
+  // version of the site — Google's own guidance is explicitly to allow these.
+  // They're not "indexable content" (true), but robots.txt is a crawl control,
+  // not an indexing one, and crawling them is exactly what we want.
 ]
 
 export default function robots(): MetadataRoute.Robots {

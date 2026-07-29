@@ -115,19 +115,61 @@ export async function POST(req: Request) {
 
         if (!message) return NextResponse.json({ ok: true });
 
-        const from = message.from;
-        // Guard: ignore malformed messages with no sender phone number
+        const contact = value?.contacts?.[0];
+
+        // ── WhatsApp usernames / BSUID ────────────────────────────────────────
+        // Since usernames rolled out, a customer messaging us for the first time
+        // can arrive with NO phone number: `message.from` and `contacts[].wa_id`
+        // are both omitted, and the only identifier is Meta's business-scoped
+        // user ID. The old code read message.from and bailed out when it was
+        // empty — which would have silently swallowed every single message from
+        // a username adopter (returning ok:true, doing nothing, no error, no log).
+        //
+        // The BSUID is present on EVERY inbound message (username user or not),
+        // so we record it against the user the first time we see them alongside
+        // a phone number, and from then on it identifies them even when Meta
+        // stops sending the number.
+        const bsuid: string = message.from_user_id || contact?.user_id || "";
+        const waUsername: string = contact?.profile?.username || "";
+        const phone: string = message.from || contact?.wa_id || "";
+
+        // Prefer the phone number (everything downstream — negotiations, orders,
+        // seller lookup — is keyed on it). With no phone, fall back to a phone we
+        // previously recorded for this BSUID, and only then to the BSUID itself,
+        // which is a valid send target via the Cloud API `recipient` field.
+        let from: string = phone;
+        if (!from && bsuid) {
+            const known = await db.user.findUnique({
+                where: { whatsappUserId: bsuid },
+                select: { whatsappNumber: true },
+            }).catch(() => null);
+            from = known?.whatsappNumber || bsuid;
+        }
+
+        // Guard: ignore genuinely malformed messages — no phone AND no BSUID.
         if (!from || !from.trim()) return NextResponse.json({ ok: true });
 
         // WhatsApp profile name from the contacts array (the sender's WA display name)
-        const contactName: string = value?.contacts?.[0]?.profile?.name || "";
+        const contactName: string = contact?.profile?.name || "";
+
+        // Record the BSUID (and username) against this contact so we can still
+        // recognise them once Meta stops including their phone number.
+        if (bsuid && phone) {
+            db.user.updateMany({
+                where: { whatsappNumber: phone },
+                data: {
+                    whatsappUserId: bsuid,
+                    ...(waUsername ? { whatsappUsername: waUsername } : {}),
+                },
+            }).catch(() => {});
+        }
 
         // If WA sent us a real name, update any existing user matched by whatsappNumber —
         // this covers bulk-imported users (wa_) who still show as "WhatsApp User"
         if (contactName) {
             db.user.updateMany({
                 where: {
-                    whatsappNumber: from,
+                    ...(phone ? { whatsappNumber: from } : { whatsappUserId: bsuid }),
                     name: { in: ["WhatsApp User", "WhatsApp Buyer"] },
                 },
                 data: { name: contactName },
