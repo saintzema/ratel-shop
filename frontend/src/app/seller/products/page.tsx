@@ -27,7 +27,7 @@ import {
     TrendingUp,
     Star,
     ArrowUpDown,
-    Timer,
+    Flame,
     ChevronLeft,
     ChevronRight,
     Loader2,
@@ -637,7 +637,7 @@ function SellerProductsContent() {
                                                         onClick={() => setDealModalOpen({ isOpen: true, product })}
                                                         title="Add to Deals"
                                                     >
-                                                        <Timer className="h-4 w-4" />
+                                                        <Flame className="h-4 w-4" />
                                                     </Button>
                                                     <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Edit Item">
@@ -706,15 +706,15 @@ function SellerProductsContent() {
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{product.category}</p>
                                 </div>
                                 
-                                <div className="mt-4 flex items-end justify-between">
+                                <div className="mt-4 flex flex-col gap-3">
                                     <div>
-                                        <span className="text-xl font-black text-gray-900">{formatPrice(product.price)}</span>
+                                        <span className="text-xl font-black text-gray-900 break-all">{formatPrice(product.price)}</span>
                                         <div className="flex items-center gap-2 mt-1">
                                             <Badge variant="outline" className="text-[8px] font-bold h-4">Live</Badge>
                                             {product.is_sponsored && <Badge className="bg-amber-500 text-white text-[8px] font-bold h-4 border-none">Promoted</Badge>}
                                         </div>
                                     </div>
-                                    <div className="flex gap-1.5 items-center">
+                                    <div className="flex gap-1.5 items-center flex-wrap">
                                         {!product.is_sponsored ? (
                                             <Button
                                                 size="icon"
@@ -738,7 +738,7 @@ function SellerProductsContent() {
                                             onClick={() => setDealModalOpen({ isOpen: true, product })}
                                             title="Add to Deals"
                                         >
-                                            <Timer className="h-4 w-4" />
+                                            <Flame className="h-4 w-4" />
                                         </Button>
                                         <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                             <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm" title="Edit Item">
@@ -875,7 +875,7 @@ function SellerProductsContent() {
             <Dialog open={dealModalOpen.isOpen} onOpenChange={(open) => !open && setDealModalOpen({ isOpen: false, product: null })}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-black flex items-center gap-2"><Timer className="text-purple-600" /> Promote to Deals</DialogTitle>
+                        <DialogTitle className="text-xl font-black flex items-center gap-2"><Flame className="text-purple-600" /> Promote to Deals</DialogTitle>
                     </DialogHeader>
                     {dealModalOpen.product && (() => {
                         const currentSeller = DataSyncService.getCurrentSeller();

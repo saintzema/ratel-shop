@@ -151,6 +151,24 @@ function EditProductContent() {
             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
             const decodedId = decodeURIComponent(productId);
             const found = allProducts.find(p => String(p.id) === decodedId || String(p.id) === productId);
+            if (!found) {
+                // Local cache is just this browser's own catalog snapshot — a product
+                // created server-side without ever passing through this client (e.g.
+                // uploaded via the WhatsApp ZEMA 360 flow) was never in it, so editing
+                // it always showed "Product not found" no matter how legitimately the
+                // seller owned it. Fall back to the real server record before giving up.
+                fetch(`/api/products/${encodeURIComponent(decodedId)}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        const p = data?.product || data;
+                        if (p?.id) {
+                            DataSyncService.addRawProducts([p], false);
+                            // Re-run loadData now that the cache actually has it.
+                            loadData();
+                        }
+                    })
+                    .catch(() => {});
+            }
             if (found) {
                 setProduct(found);
                 // Only overwrite formData if the user hasn't made unsaved edits.
