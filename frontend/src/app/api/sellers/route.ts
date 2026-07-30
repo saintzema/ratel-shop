@@ -20,7 +20,7 @@ export async function GET(req: Request) {
                 id: true, userId: true, businessName: true, description: true,
                 logoUrl: true, coverImageUrl: true, category: true, verified: true,
                 rating: true, trustScore: true, status: true, kycStatus: true,
-                storeUrl: true, location: true, createdAt: true, ownerName: true,
+                storeUrl: true, location: true, state: true, city: true, createdAt: true, ownerName: true,
                 subscriptionPlan: true, planExpiryDate: true,
             } as const;
 
@@ -93,6 +93,8 @@ export async function GET(req: Request) {
                 kycStatus: true,
                 storeUrl: true,
                 location: true,
+                state: true,
+                city: true,
                 createdAt: true,
                 ownerName: true,
                 subscriptionPlan: true,

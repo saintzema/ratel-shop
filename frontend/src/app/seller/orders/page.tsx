@@ -9,6 +9,8 @@ import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CARRIERS, DEFAULT_CARRIER } from "@/lib/carriers";
 import {
     Search,
     Filter,
@@ -46,7 +48,7 @@ function SellerOrdersContent() {
     const [cancelReason, setCancelReason] = useState<string>("");
     
     // Shipping Form State (Controlled)
-    const [shipCarrier, setShipCarrier] = useState("");
+    const [shipCarrier, setShipCarrier] = useState(DEFAULT_CARRIER);
     const [shipTrackingId, setShipTrackingId] = useState("");
     const [shipDriverName, setShipDriverName] = useState("");
     const [shipDriverPhone, setShipDriverPhone] = useState("");
@@ -559,12 +561,14 @@ function SellerOrdersContent() {
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Shipping Carrier</label>
-                                                                <Input
-                                                                    placeholder="Carrier (RT Logistics, DHL...)"
-                                                                    className="h-9 text-xs rounded-lg"
-                                                                    value={shipCarrier}
-                                                                    onChange={(e) => setShipCarrier(e.target.value)}
-                                                                />
+                                                                <Select value={shipCarrier || DEFAULT_CARRIER} onValueChange={setShipCarrier}>
+                                                                    <SelectTrigger className="h-9 text-xs rounded-lg">
+                                                                        <SelectValue placeholder="Select Carrier" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent className="rounded-xl font-medium">
+                                                                        {CARRIERS.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
                                                             </div>
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Tracking ID (Optional)</label>

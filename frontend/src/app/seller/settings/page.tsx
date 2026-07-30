@@ -30,6 +30,7 @@ import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
 export default function SellerSettingsPage() {
     const router = useRouter();
@@ -59,6 +60,8 @@ export default function SellerSettingsPage() {
         cover_image_url: "",
         store_url: "",
         location: "",
+        state: "",
+        city: "",
         weekly_orders: "",
         staff_count: "",
         physical_stores: "",
@@ -89,6 +92,8 @@ export default function SellerSettingsPage() {
             cover_image_url: coverUrl,
             store_url: storeUrl,
             location: s.location || "",
+            state: s.state || "",
+            city: s.city || "",
             weekly_orders: (s as any).weekly_orders || (s as any).weeklyOrders || "",
             staff_count: (s as any).staff_count || (s as any).staffCount || "",
             physical_stores: (s as any).physical_stores || (s as any).physicalStores || "",
@@ -121,6 +126,8 @@ export default function SellerSettingsPage() {
                     cover_image_url: formData.cover_image_url,
                     store_url: formData.store_url,
                     location: formData.location,
+                    state: formData.state,
+                    city: formData.city,
                     weekly_orders: formData.weekly_orders,
                     staff_count: formData.staff_count,
                     physical_stores: formData.physical_stores,
@@ -589,13 +596,32 @@ export default function SellerSettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-3">
                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Physical Location</label>
-                            <Input
-                                disabled={!isEditing}
-                                value={formData.location}
-                                onChange={e => setFormData({ ...formData, location: e.target.value })}
-                                placeholder="E.g. Lagos, Nigeria"
-                                className="h-14 bg-gray-50 border-gray-200 rounded-2xl focus-visible:ring-brand-green-600 focus-visible:border-brand-green-600 font-bold disabled:opacity-80"
-                            />
+                            {/* State/city (not free text) is what powers localized search — buyers
+                                searching "cars in Maitama, Abuja" rank this seller's listings first
+                                only if this matches. Changing it here immediately affects every
+                                product listed under this seller/store, not just the store page. */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <select
+                                    disabled={!isEditing}
+                                    value={formData.state}
+                                    onChange={e => setFormData({ ...formData, state: e.target.value, city: "", location: e.target.value ? `${e.target.value}` : "" })}
+                                    className="h-14 bg-gray-50 border border-gray-200 rounded-2xl px-4 font-bold text-sm disabled:opacity-80"
+                                >
+                                    <option value="">Select State</option>
+                                    {NIGERIAN_STATES.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+                                </select>
+                                <select
+                                    disabled={!isEditing || !formData.state}
+                                    value={formData.city}
+                                    onChange={e => setFormData({ ...formData, city: e.target.value, location: e.target.value ? `${e.target.value}, ${formData.state}` : formData.state })}
+                                    className="h-14 bg-gray-50 border border-gray-200 rounded-2xl px-4 font-bold text-sm disabled:opacity-80"
+                                >
+                                    <option value="">Select City</option>
+                                    {NIGERIAN_STATES.find(s => s.state === formData.state)?.cities.map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         <div className="space-y-3">
