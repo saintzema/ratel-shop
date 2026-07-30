@@ -120,6 +120,21 @@ model InstagramMessage {
   @@index([sellerId, igsid])
 }
 
+// A post published to Instagram via the Social Composer — tracked so "My
+// Posts" can show real, live insights (likes/comments/reach) for exactly the
+// posts FairPrice made on the seller's behalf, not their whole IG history.
+model InstagramPost {
+  id         String   @id @default(cuid())
+  sellerId   String
+  mediaId    String   @unique
+  permalink  String?
+  caption    String?
+  productId  String?
+  publishedAt DateTime @default(now())
+
+  @@index([sellerId])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

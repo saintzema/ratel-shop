@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
@@ -177,7 +178,7 @@ export default function SellerSocialComposerPage() {
             const res = await fetch("/api/seller/instagram/publish", {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ imageUrl: selectedProduct.image_url, caption }),
+                body: JSON.stringify({ imageUrl: selectedProduct.image_url, caption, productId: selectedProduct.id }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -230,14 +231,21 @@ export default function SellerSocialComposerPage() {
                 <div className="relative overflow-hidden bg-gradient-to-br from-violet-600 via-indigo-600 to-indigo-800 p-6 sm:p-7 rounded-3xl text-white shadow-xl shadow-indigo-500/20">
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
                     <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-                    <div className="relative flex items-center gap-3">
-                        <div className="p-3 bg-white/15 rounded-2xl backdrop-blur-md border border-white/10">
-                            <Share2 className="h-6 w-6 text-white" />
+                    <div className="relative flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-white/15 rounded-2xl backdrop-blur-md border border-white/10">
+                                <Share2 className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-black tracking-tight">Social Composer</h1>
+                                <p className="text-indigo-100 text-xs sm:text-sm font-medium mt-0.5">AI captions, one tap to every platform.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-xl sm:text-2xl font-black tracking-tight">Social Composer</h1>
-                            <p className="text-indigo-100 text-xs sm:text-sm font-medium mt-0.5">AI captions, one tap to every platform.</p>
-                        </div>
+                        {igConnected && (
+                            <Link href="/seller/social/posts" className="shrink-0 text-[10px] sm:text-xs font-bold bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/10 rounded-full px-3 py-2 transition-colors">
+                                My Posts
+                            </Link>
+                        )}
                     </div>
                 </div>
 

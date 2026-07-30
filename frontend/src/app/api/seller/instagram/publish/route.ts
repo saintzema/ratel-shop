@@ -26,16 +26,16 @@ export async function POST(req: NextRequest) {
                 ...(user.email ? [{ ownerEmail: user.email }] : []),
             ],
         },
-        select: { id: true, instagramAccessToken: true, instagramUserId: true, instagramTokenExpiry: true } as any,
+        select: { id: true, instagramAccessToken: true, instagramUserId: true, instagramTokenExpiry: true },
     });
 
     if (!seller) return NextResponse.json({ error: "No seller account" }, { status: 404 });
 
-    const { instagramAccessToken: token, instagramUserId: igUserId } = seller as any;
+    const { instagramAccessToken: token, instagramUserId: igUserId } = seller;
     if (!token || !igUserId) {
         return NextResponse.json({ error: "Instagram not connected — connect it under Integrations first." }, { status: 400 });
     }
-    const expiry: Date | null = (seller as any).instagramTokenExpiry;
+    const expiry = seller.instagramTokenExpiry;
     if (expiry && expiry < new Date()) {
         return NextResponse.json({ error: "Your Instagram connection has expired — please reconnect." }, { status: 400 });
     }
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "invalid_json" }, { status: 400 });
     }
 
-    const { imageUrl, caption } = body;
+    const { imageUrl, caption, productId } = body as { imageUrl?: string; caption?: string; productId?: string };
     if (!imageUrl || !imageUrl.startsWith("http")) {
         return NextResponse.json({ error: "A public image URL is required to publish to Instagram." }, { status: 400 });
     }
@@ -101,6 +101,12 @@ export async function POST(req: NextRequest) {
             const permaData = await permaRes.json();
             permalink = permaData.permalink || null;
         } catch { /* non-fatal */ }
+
+        // So "My Posts" can show live insights for exactly what FairPrice
+        // published, not the seller's whole Instagram history.
+        await db.instagramPost.create({
+            data: { sellerId: seller.id, mediaId, permalink, caption: caption || null, productId: productId || null },
+        }).catch((e) => console.error("[IG publish] failed to record post:", e));
 
         return NextResponse.json({ success: true, mediaId, permalink });
     } catch (err: any) {
