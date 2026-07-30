@@ -24,10 +24,17 @@ export function calculateTieredEscrowFee(subtotal: number): number {
 
     let fee: number;
 
+    // These two lowest tiers were priced below Paystack's own processing cost
+    // on the same order (1.5% + ₦100, e.g. ~₦147 on a ₦3,000 order vs. the
+    // ₦100 fee collected) — the seller's 2.5% commission covered the gap in
+    // practice, but the escrow-fee line itself didn't stand on its own.
+    // Bumped just enough to cover Paystack's cost at these basket sizes;
+    // still trivial next to a delivery fee, so buyer-facing competitiveness
+    // shouldn't move.
     if (subtotal < 5_000) {
-        fee = 100;
-    } else if (subtotal < 10_000) {
         fee = 150;
+    } else if (subtotal < 10_000) {
+        fee = 200;
     } else if (subtotal < 50_000) {
         fee = Math.min(subtotal * 0.015, 750);
     } else if (subtotal < 200_000) {
