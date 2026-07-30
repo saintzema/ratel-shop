@@ -7,9 +7,10 @@ import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink } from "lucide-react";
+import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink, Search, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 // What's real vs. what's blocked on an external approval process the owner
@@ -34,6 +35,8 @@ export default function SellerSocialComposerPage() {
     const router = useRouter();
     const [products, setProducts] = useState<Product[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [productSearch, setProductSearch] = useState("");
+    const [pickerOpen, setPickerOpen] = useState(false);
     const [caption, setCaption] = useState("");
     const [generating, setGenerating] = useState(false);
     const [selectedPlatforms, setSelectedPlatforms] = useState<Set<PlatformKey>>(new Set(["whatsapp"]));
@@ -258,26 +261,67 @@ export default function SellerSocialComposerPage() {
                         <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-gray-100 shadow-sm p-5 sm:p-6 space-y-5">
                             <div className="space-y-2">
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Product</label>
-                                <select
-                                    className="w-full h-12 rounded-2xl border border-gray-200 px-4 text-sm font-semibold bg-gray-50/60 focus:bg-white focus:ring-2 focus:ring-indigo-500/30 transition-all"
-                                    value={selectedProduct?.id || ""}
-                                    onChange={(e) => setSelectedProduct(products.find(p => p.id === e.target.value) || null)}
-                                >
-                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} — {formatPrice(p.price)}</option>)}
-                                </select>
-                            </div>
 
-                            {selectedProduct && (
-                                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-2xl border border-gray-100">
-                                    {selectedProduct.image_url && (
-                                        <img src={selectedProduct.image_url} alt="" className="w-14 h-14 rounded-xl object-cover shadow-sm" />
-                                    )}
-                                    <div>
-                                        <p className="font-bold text-gray-900 text-sm">{selectedProduct.name}</p>
-                                        <p className="text-xs text-gray-500 font-medium">{formatPrice(selectedProduct.price)}</p>
+                                {/* Selected-product summary doubles as the toggle to reopen the picker —
+                                    same "tap the current selection to change it" pattern as most pickers,
+                                    rather than always showing the full list expanded. */}
+                                {selectedProduct && !pickerOpen ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setPickerOpen(true)}
+                                        className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-50/50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors text-left"
+                                    >
+                                        {selectedProduct.image_url && (
+                                            <img src={selectedProduct.image_url} alt="" className="w-14 h-14 rounded-xl object-cover shadow-sm shrink-0" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-bold text-gray-900 text-sm truncate">{selectedProduct.name}</p>
+                                            <p className="text-xs text-gray-500 font-medium">{formatPrice(selectedProduct.price)}</p>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-indigo-600 shrink-0">Change</span>
+                                    </button>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <div className="relative group">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                            <Input
+                                                autoFocus={!!selectedProduct}
+                                                placeholder="Search your products…"
+                                                className="pl-10 pr-9 h-12 rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white text-sm font-semibold"
+                                                value={productSearch}
+                                                onChange={(e) => setProductSearch(e.target.value)}
+                                            />
+                                            {productSearch && (
+                                                <button onClick={() => setProductSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="border border-gray-100 rounded-2xl max-h-64 overflow-y-auto divide-y divide-gray-50">
+                                            {products
+                                                .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
+                                                .map(p => (
+                                                    <button
+                                                        key={p.id}
+                                                        type="button"
+                                                        onClick={() => { setSelectedProduct(p); setPickerOpen(false); setProductSearch(""); }}
+                                                        className={`w-full flex items-center gap-3 p-2.5 text-left hover:bg-gray-50 transition-colors ${selectedProduct?.id === p.id ? "bg-indigo-50/60" : ""}`}
+                                                    >
+                                                        {p.image_url && <img src={p.image_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
+                                                            <p className="text-xs text-gray-500">{formatPrice(p.price)}</p>
+                                                        </div>
+                                                        {selectedProduct?.id === p.id && <Check className="h-4 w-4 text-indigo-600 shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                                                <p className="text-xs text-gray-400 text-center py-6">No products match "{productSearch}"</p>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
 
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
