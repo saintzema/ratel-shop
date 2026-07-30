@@ -1168,9 +1168,19 @@ function CheckoutContent() {
                         const subRes = await fetch(`/api/sellers/${uniqueSellerIds[0]}/subaccount`);
                         const subData = await subRes.json();
                         if (subData?.subaccountCode) {
+                            // Split-payment orders never went through EscrowService.releaseFunds,
+                            // which is the only place a seller's commissionRate ever got deducted —
+                            // Paystack settles the split straight to the seller's bank, so this was
+                            // the sole other place that deduction could happen and it never did.
+                            // A seller selling entirely through QR/split checkout kept 100% of every
+                            // sale while the exact same seller's regular-checkout orders paid the
+                            // standard commission — same seller, same product, different margin
+                            // purely because of which checkout path the buyer happened to use.
+                            const commissionRate = typeof subData.commissionRate === "number" ? subData.commissionRate : 2.5;
+                            const commissionCut = subtotal * (commissionRate / 100);
                             setPaystackSplit({
                                 subaccount: subData.subaccountCode,
-                                transactionCharge: Math.round((total - subtotal) * 100), // platform fee, in kobo
+                                transactionCharge: Math.round((total - subtotal + commissionCut) * 100), // platform fee, in kobo
                                 bearer: "account",
                             });
                         } else {

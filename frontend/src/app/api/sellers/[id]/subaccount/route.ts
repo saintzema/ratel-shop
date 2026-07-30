@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/sellers/:id/subaccount
- * Public, read-only — returns just the subaccount code (an opaque Paystack
+ * Public, read-only — returns the subaccount code (an opaque Paystack
  * reference, not sensitive) so checkout can decide whether to route this
- * seller's payment through a split at charge time.
+ * seller's payment through a split at charge time, plus their commission
+ * rate so checkout can size that split's platform cut correctly.
  */
 export async function GET(
     request: Request,
@@ -18,9 +19,12 @@ export async function GET(
     const { id } = await params;
     const seller = await db.seller.findUnique({
         where: { id },
-        select: { paystackSubaccountCode: true },
+        select: { paystackSubaccountCode: true, commissionRate: true },
     });
-    return NextResponse.json({ subaccountCode: seller?.paystackSubaccountCode || null });
+    return NextResponse.json({
+        subaccountCode: seller?.paystackSubaccountCode || null,
+        commissionRate: seller?.commissionRate ?? 2.5,
+    });
 }
 
 /**
