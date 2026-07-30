@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
-import { Heart, MessageCircle, Eye, ExternalLink, ChevronLeft, Loader2, Instagram } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { formatPrice } from "@/lib/utils";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
+import { Heart, MessageCircle, Eye, ExternalLink, ChevronLeft, Loader2, Instagram, Megaphone, X } from "lucide-react";
 
 interface MyPost {
     id: string;
@@ -17,11 +20,27 @@ interface MyPost {
     reach: number | null;
 }
 
+const MARKUP_PCT = 20; // matches SystemSetting.adsMarkupPct's default — see server-side verification for the authoritative value
+
 export default function MyInstagramPostsPage() {
     const router = useRouter();
+    const { user } = useAuth();
     const [posts, setPosts] = useState<MyPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const [promoteTarget, setPromoteTarget] = useState<MyPost | null>(null);
+    const [budgetNaira, setBudgetNaira] = useState("5000");
+    const [days, setDays] = useState("3");
+    const [showPaystack, setShowPaystack] = useState(false);
+    const [promoting, setPromoting] = useState(false);
+    const [promoteError, setPromoteError] = useState<string | null>(null);
+    const [promoteSuccess, setPromoteSuccess] = useState(false);
+
+    const authHeaders = () => {
+        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) };
+    };
 
     useEffect(() => {
         const sellerId = DataSyncService.getCurrentSellerId();
@@ -29,10 +48,7 @@ export default function MyInstagramPostsPage() {
             router.push("/seller/login");
             return;
         }
-        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
-        fetch("/api/seller/instagram/my-posts", {
-            headers: { ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
-        })
+        fetch("/api/seller/instagram/my-posts", { headers: authHeaders() })
             .then(async r => {
                 const data = await r.json();
                 if (!r.ok) throw new Error(data.error || "Failed to load");
@@ -42,6 +58,46 @@ export default function MyInstagramPostsPage() {
             .catch(e => setError(e.message))
             .finally(() => setLoading(false));
     }, [router]);
+
+    const budgetNum = Math.max(0, parseInt(budgetNaira) || 0);
+    const daysNum = Math.max(1, parseInt(days) || 1);
+    const totalNaira = Math.round(budgetNum * (1 + MARKUP_PCT / 100));
+
+    const openPromote = (post: MyPost) => {
+        setPromoteTarget(post);
+        setPromoteError(null);
+        setPromoteSuccess(false);
+    };
+
+    const onPaystackSuccess = async (reference: string) => {
+        setShowPaystack(false);
+        if (!promoteTarget) return;
+        setPromoting(true);
+        setPromoteError(null);
+        try {
+            const res = await fetch("/api/seller/facebook/promote", {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    platform: "instagram",
+                    postId: promoteTarget.mediaId,
+                    budgetNaira: budgetNum,
+                    days: daysNum,
+                    paystackReference: reference,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setPromoteError(data.error || "Couldn't start the boost.");
+                return;
+            }
+            setPromoteSuccess(true);
+        } catch {
+            setPromoteError("Payment went through but we couldn't reach our server to start the boost — contact support with your payment reference.");
+        } finally {
+            setPromoting(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -86,15 +142,89 @@ export default function MyInstagramPostsPage() {
                                     </a>
                                 )}
                             </div>
-                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-50">
-                                <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><Heart className="h-3.5 w-3.5 text-rose-500" /> {post.likeCount ?? "—"}</span>
-                                <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><MessageCircle className="h-3.5 w-3.5 text-blue-500" /> {post.commentsCount ?? "—"}</span>
-                                <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><Eye className="h-3.5 w-3.5 text-violet-500" /> {post.reach ?? "—"} reach</span>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+                                <div className="flex items-center gap-4">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><Heart className="h-3.5 w-3.5 text-rose-500" /> {post.likeCount ?? "—"}</span>
+                                    <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><MessageCircle className="h-3.5 w-3.5 text-blue-500" /> {post.commentsCount ?? "—"}</span>
+                                    <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600"><Eye className="h-3.5 w-3.5 text-violet-500" /> {post.reach ?? "—"} reach</span>
+                                </div>
+                                <button
+                                    onClick={() => openPromote(post)}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 rounded-full hover:from-amber-600 hover:to-orange-600 transition-colors"
+                                >
+                                    <Megaphone className="h-3.5 w-3.5" /> Promote
+                                </button>
                             </div>
                         </div>
                     ))}
                 </div>
             </div>
+
+            {/* Promote modal */}
+            {promoteTarget && (
+                <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4">
+                    <div className="w-full sm:max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-black text-gray-900 flex items-center gap-2"><Megaphone className="h-5 w-5 text-amber-500" /> Promote this post</h3>
+                            <button onClick={() => setPromoteTarget(null)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"><X className="h-4 w-4" /></button>
+                        </div>
+
+                        {promoteSuccess ? (
+                            <div className="text-center py-6">
+                                <p className="text-sm font-bold text-emerald-700">Boost started! 🎉</p>
+                                <p className="text-xs text-gray-500 mt-1">Your ad is live and running for {daysNum} day{daysNum !== 1 ? "s" : ""}.</p>
+                                <button onClick={() => setPromoteTarget(null)} className="mt-4 text-xs font-bold text-indigo-600 hover:underline">Close</button>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total budget (₦)</label>
+                                    <input
+                                        type="number" min={1000} step={500}
+                                        value={budgetNaira}
+                                        onChange={(e) => setBudgetNaira(e.target.value)}
+                                        className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Run for how many days?</label>
+                                    <input
+                                        type="number" min={1} max={30}
+                                        value={days}
+                                        onChange={(e) => setDays(e.target.value)}
+                                        className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-bold"
+                                    />
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-3 text-xs space-y-1">
+                                    <div className="flex justify-between text-gray-500"><span>Ad spend</span><span className="font-bold text-gray-900">{formatPrice(budgetNum)}</span></div>
+                                    <div className="flex justify-between text-gray-500"><span>Platform fee ({MARKUP_PCT}%)</span><span className="font-bold text-gray-900">{formatPrice(totalNaira - budgetNum)}</span></div>
+                                    <div className="flex justify-between font-black text-gray-900 pt-1 border-t border-gray-200"><span>Total</span><span>{formatPrice(totalNaira)}</span></div>
+                                </div>
+                                {promoteError && <p className="text-xs text-rose-600 font-medium">{promoteError}</p>}
+                                <button
+                                    onClick={() => setShowPaystack(true)}
+                                    disabled={promoting || budgetNum < 1000}
+                                    className="w-full h-12 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold disabled:opacity-50"
+                                >
+                                    {promoting ? "Starting boost…" : `Pay ${formatPrice(totalNaira)} & Boost`}
+                                </button>
+                                <p className="text-[10px] text-gray-400 text-center">Runs as a real Facebook/Instagram ad from your published post. We handle the ad account — you just fund the boost.</p>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {showPaystack && promoteTarget && user?.email && (
+                <PaystackCheckout
+                    amount={totalNaira * 100}
+                    email={user.email}
+                    onSuccess={onPaystackSuccess}
+                    onClose={() => setShowPaystack(false)}
+                    metadata={{ purpose: "ad_boost", postId: promoteTarget.mediaId }}
+                    autoStart
+                />
+            )}
         </div>
     );
 }

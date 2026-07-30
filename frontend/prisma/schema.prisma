@@ -653,6 +653,38 @@ model SystemSetting {
   // triggerZema360 checks this before restricting anything, so leaving it false never
   // changes current behavior.
   zema360PaidPlansOnly        Boolean  @default(false)
+  // Platform markup on seller-funded ad spend — see AdCampaign. Seller pays
+  // budget * (1 + adsMarkupPct/100) upfront; FairPrice pays Meta the plain
+  // budget and keeps the markup. 20% is mid-range for marketplace-managed ad
+  // products (commonly 15-30% across comparable platforms).
+  adsMarkupPct                 Float    @default(20)
+}
+
+// A seller-funded Facebook/Instagram boost of an already-published post.
+// Money flow: seller pays budgetKobo * (1 + markupPct/100) via a real
+// Paystack charge BEFORE any Meta campaign is created (paidReference proves
+// it) — FairPrice then spends budgetKobo of ITS OWN ad account balance with
+// Meta and keeps the markup as platform revenue. Never the other way around;
+// a failed/unverified payment must never result in a live campaign.
+model AdCampaign {
+  id              String   @id @default(cuid())
+  sellerId        String
+  productId       String?
+  platform        String // "facebook" | "instagram"
+  postId          String // the underlying Page post / IG media id being boosted
+  budgetKobo      Int // what actually gets spent with Meta (excludes markup)
+  markupPct       Float
+  totalChargedKobo Int // budgetKobo * (1 + markupPct/100) — what the seller paid
+  days            Int
+  paidReference   String // Paystack transaction reference, verified before campaign creation
+  metaCampaignId  String?
+  metaAdSetId     String?
+  metaAdId        String?
+  status          String   @default("pending") // pending | active | failed | completed
+  failureReason   String?
+  createdAt       DateTime @default(now())
+
+  @@index([sellerId])
 }
 
 model Discount {
