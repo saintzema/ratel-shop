@@ -86,6 +86,40 @@ model ChargeAttempt {
   @@index([savedCardId])
 }
 
+// A purchase-intent comment flagged on a seller's Instagram post (see
+// api/seller/instagram/webhook's handleComment) — persisted so the seller
+// can see and reply to it from the FairPrice dashboard instead of only
+// getting a one-shot notification with no record afterward.
+model InstagramComment {
+  id            String   @id @default(cuid())
+  sellerId      String
+  igCommentId   String   @unique
+  igMediaId     String?
+  fromUsername  String
+  text          String
+  replied       Boolean  @default(false)
+  replyText     String?
+  createdAt     DateTime @default(now())
+
+  @@index([sellerId])
+}
+
+// One row per inbound OR outbound Instagram DM — gives the Unified Inbox a
+// real thread history per buyer instead of only the single latest message a
+// notification carries.
+model InstagramMessage {
+  id           String   @id @default(cuid())
+  sellerId     String
+  igsid        String // Instagram-scoped ID of the buyer this thread is with
+  fromUsername String?
+  text         String
+  direction    String // "inbound" | "outbound"
+  isAiReply    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([sellerId, igsid])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

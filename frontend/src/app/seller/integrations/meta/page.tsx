@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { MessageCircle, Settings, Users, ArrowLeft, RefreshCw, Send, Image as ImageIcon, Zap, Plus, DownloadCloud, CheckCircle2 as Check, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -8,8 +9,20 @@ import { cn } from "@/lib/utils";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
 import { DataSyncService } from "@/lib/sync-store";
 
-export default function MetaBusinessSuite() {
-    const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "import" | "settings">("import");
+interface IgComment {
+    id: string; igCommentId: string; fromUsername: string; text: string; replied: boolean; createdAt: string;
+}
+interface IgThread {
+    id: string; igsid: string; fromUsername: string | null; text: string; direction: string; createdAt: string;
+}
+type InboxItem =
+    | { kind: "comment"; data: IgComment }
+    | { kind: "thread"; data: IgThread };
+
+function MetaBusinessSuiteContent() {
+    const searchParams = useSearchParams();
+    const initialTab = (searchParams.get("tab") as "inbox" | "automation" | "ads" | "import" | "settings" | null) || "import";
+    const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "import" | "settings">(initialTab);
     const [igConnected, setIgConnected] = useState(false);
     const [waConnected, setWaConnected] = useState(false);
 
@@ -19,12 +32,79 @@ export default function MetaBusinessSuite() {
         setWaConnected(!!(seller as any)?.whatsappNumber || !!(seller as any)?.whatsapp_number);
     }, []);
 
-    // Mock conversations
-    const [conversations] = useState([
-        { id: 1, name: "Jessica Taylor", platform: "instagram", lastMessage: "Is this dress available in small?", time: "10m ago", unread: true },
-        { id: 2, name: "David O.", platform: "whatsapp", lastMessage: "I've sent the payment receipt.", time: "1h ago", unread: false },
-        { id: 3, name: "Sarah Williams", platform: "instagram", lastMessage: "Can you deliver to Abuja tomorrow?", time: "2h ago", unread: false },
-    ]);
+    const authHeaders = () => {
+        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) };
+    };
+
+    const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+    const [selected, setSelected] = useState<InboxItem | null>(null);
+    const [threadHistory, setThreadHistory] = useState<IgThread[]>([]);
+    const [replyText, setReplyText] = useState("");
+    const [sendingReply, setSendingReply] = useState(false);
+    const [loadingInbox, setLoadingInbox] = useState(false);
+
+    const loadInbox = () => {
+        setLoadingInbox(true);
+        fetch("/api/seller/instagram/inbox", { headers: authHeaders() })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data) return;
+                const items: InboxItem[] = [
+                    ...(data.comments || []).map((c: IgComment) => ({ kind: "comment" as const, data: c })),
+                    ...(data.threads || []).map((t: IgThread) => ({ kind: "thread" as const, data: t })),
+                ].sort((a, b) => new Date(b.data.createdAt).getTime() - new Date(a.data.createdAt).getTime());
+                setInboxItems(items);
+            })
+            .catch(() => {})
+            .finally(() => setLoadingInbox(false));
+    };
+
+    useEffect(() => {
+        if (activeTab === "inbox") loadInbox();
+    }, [activeTab]);
+
+    const selectItem = (item: InboxItem) => {
+        setSelected(item);
+        setThreadHistory([]);
+        if (item.kind === "thread") {
+            fetch(`/api/seller/instagram/inbox?igsid=${encodeURIComponent(item.data.igsid)}`, { headers: authHeaders() })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => setThreadHistory(data?.history || []))
+                .catch(() => {});
+        }
+    };
+
+    const sendReply = async () => {
+        if (!selected || !replyText.trim()) return;
+        setSendingReply(true);
+        try {
+            if (selected.kind === "comment") {
+                const res = await fetch("/api/seller/instagram/comments/reply", {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: JSON.stringify({ commentId: selected.data.id, message: replyText }),
+                });
+                if (res.ok) {
+                    setReplyText("");
+                    loadInbox();
+                    setSelected(null);
+                }
+            } else {
+                const res = await fetch("/api/seller/instagram/messages/reply", {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: JSON.stringify({ igsid: selected.data.igsid, message: replyText }),
+                });
+                if (res.ok) {
+                    setThreadHistory(prev => [...prev, { id: `local-${Date.now()}`, igsid: selected.data.igsid, fromUsername: null, text: replyText, direction: "outbound", createdAt: new Date().toISOString() }]);
+                    setReplyText("");
+                }
+            }
+        } finally {
+            setSendingReply(false);
+        }
+    };
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -52,8 +132,8 @@ export default function MetaBusinessSuite() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button variant="outline" className="h-10 border-gray-200 text-gray-600 rounded-xl font-bold shadow-sm">
-                            <RefreshCw className="h-4 w-4 mr-2" /> Sync DMs
+                        <Button variant="outline" onClick={loadInbox} disabled={loadingInbox} className="h-10 border-gray-200 text-gray-600 rounded-xl font-bold shadow-sm">
+                            <RefreshCw className={cn("h-4 w-4 mr-2", loadingInbox && "animate-spin")} /> Sync DMs
                         </Button>
                     </div>
                 </div>
@@ -87,81 +167,105 @@ export default function MetaBusinessSuite() {
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
                 {activeTab === "inbox" && (
                     <div className="flex h-[600px] flex-col md:flex-row">
-                        {/* Conversation List */}
+                        {/* Item List */}
                         <div className="w-full md:w-80 border-r border-gray-100 flex flex-col">
                             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                                <input
-                                    type="text"
-                                    placeholder="Search messages..."
-                                    className="w-full h-10 px-4 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:border-[#1877F2]"
-                                />
+                                <p className="text-xs font-bold text-gray-500">Unreplied comments + DM threads, real Instagram data.</p>
                             </div>
                             <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-[#FAFAFA]">
-                                {conversations.map(conv => (
-                                    <button key={conv.id} className="w-full text-left p-3 rounded-xl hover:bg-gray-100/80 transition-colors flex items-start gap-3 relative group">
-                                        <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-white font-black shadow-sm ${conv.platform === 'whatsapp' ? 'bg-[#25D366]' : 'bg-gradient-to-tr from-[#FFDC80] via-[#FD1D1D] to-[#405DE6]'}`}>
-                                            {conv.name.charAt(0)}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-0.5">
-                                                <span className={`text-sm font-bold truncate ${conv.unread ? 'text-gray-900' : 'text-gray-700'}`}>{conv.name}</span>
-                                                <span className="text-[10px] font-bold text-gray-400">{conv.time}</span>
+                                {loadingInbox && inboxItems.length === 0 && (
+                                    <p className="text-center text-xs text-gray-400 py-8">Loading…</p>
+                                )}
+                                {!loadingInbox && inboxItems.length === 0 && (
+                                    <p className="text-center text-xs text-gray-400 py-8 px-4">Nothing here yet — purchase-intent comments and DMs on your connected Instagram account will show up here.</p>
+                                )}
+                                {inboxItems.map(item => {
+                                    const key = item.kind === "comment" ? item.data.id : item.data.igsid;
+                                    const name = item.kind === "comment" ? `@${item.data.fromUsername}` : (item.data.fromUsername ? `@${item.data.fromUsername}` : "Instagram user");
+                                    const active = selected && (selected.kind === "comment" ? selected.data.id === (item as any).data.id : item.kind === "thread" && selected.kind === "thread" && selected.data.igsid === item.data.igsid);
+                                    return (
+                                        <button key={key} onClick={() => selectItem(item)} className={cn("w-full text-left p-3 rounded-xl transition-colors flex items-start gap-3 relative group", active ? "bg-blue-50" : "hover:bg-gray-100/80")}>
+                                            <div className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-white font-black shadow-sm bg-gradient-to-tr from-[#FFDC80] via-[#FD1D1D] to-[#405DE6]">
+                                                {name.replace("@", "").charAt(0).toUpperCase()}
                                             </div>
-                                            <p className={`text-xs truncate ${conv.unread ? 'text-gray-900 font-bold' : 'text-gray-500'}`}>
-                                                {conv.lastMessage}
-                                            </p>
-                                        </div>
-                                        {conv.unread && (
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2.5 w-2.5 bg-[#1877F2] rounded-full" />
-                                        )}
-                                    </button>
-                                ))}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <span className="text-sm font-bold truncate text-gray-900">{name}</span>
+                                                    <span className="text-[10px] font-bold text-gray-400">{new Date(item.data.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</span>
+                                                </div>
+                                                <p className="text-xs truncate text-gray-500">
+                                                    {item.kind === "comment" ? "💬 " : "📩 "}{item.data.text}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* Chat Area */}
+                        {/* Detail / Reply Area */}
                         <div className="flex-1 flex flex-col bg-white">
-                            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-[#FFDC80] via-[#FD1D1D] to-[#405DE6] flex items-center justify-center text-white font-black shadow-sm">
-                                        J
+                            {!selected ? (
+                                <div className="flex-1 flex items-center justify-center text-gray-400 text-sm font-medium">Select a comment or conversation to reply.</div>
+                            ) : (
+                                <>
+                                    <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-[#FFDC80] via-[#FD1D1D] to-[#405DE6] flex items-center justify-center text-white font-black shadow-sm">
+                                                {(selected.kind === "comment" ? selected.data.fromUsername : selected.data.fromUsername || "I").charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900">
+                                                    {selected.kind === "comment" ? `@${selected.data.fromUsername}` : (selected.data.fromUsername ? `@${selected.data.fromUsername}` : "Instagram user")}
+                                                </h3>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                                    {selected.kind === "comment" ? "Comment reply" : "Instagram Direct"}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="text-sm font-bold text-gray-900">Jessica Taylor <span className="text-[10px] text-gray-400 font-medium ml-1">@jess_taylor</span></h3>
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Instagram Direct</span>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div className="flex-1 p-6 overflow-y-auto bg-[#F0F2F5] flex flex-col gap-4">
-                                <div className="flex justify-center">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 bg-gray-200/50 px-3 py-1 rounded-full">Today</span>
-                                </div>
-                                <div className="flex gap-3 max-w-[80%]">
-                                    <div className="h-8 w-8 rounded-full bg-gray-200 shrink-0" />
-                                    <div className="bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100">
-                                        <p className="text-sm text-gray-800">Hi, I saw your post about the new summer collection. Is the floral dress available in small?</p>
-                                        <span className="text-[9px] text-gray-400 font-bold mt-2 block">10:42 AM</span>
+                                    <div className="flex-1 p-6 overflow-y-auto bg-[#F0F2F5] flex flex-col gap-4">
+                                        {selected.kind === "comment" ? (
+                                            <div className="flex gap-3 max-w-[80%]">
+                                                <div className="h-8 w-8 rounded-full bg-gray-200 shrink-0" />
+                                                <div className="bg-white p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100">
+                                                    <p className="text-sm text-gray-800">{selected.data.text}</p>
+                                                    <span className="text-[9px] text-gray-400 font-bold mt-2 block">Comment on your post</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            threadHistory.map(m => (
+                                                <div key={m.id} className={cn("flex gap-3 max-w-[80%]", m.direction === "outbound" && "self-end flex-row-reverse")}>
+                                                    {m.direction === "inbound" && <div className="h-8 w-8 rounded-full bg-gray-200 shrink-0" />}
+                                                    <div className={cn("p-3.5 rounded-2xl shadow-sm border", m.direction === "outbound" ? "bg-[#1877F2] text-white border-transparent rounded-tr-sm" : "bg-white border-gray-100 rounded-tl-sm")}>
+                                                        <p className="text-sm">{m.text}</p>
+                                                        <span className={cn("text-[9px] font-bold mt-2 block", m.direction === "outbound" ? "text-blue-100" : "text-gray-400")}>
+                                                            {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
-                                </div>
-                            </div>
 
-                            <div className="p-4 bg-white border-t border-gray-100">
-                                <div className="flex items-end gap-2 bg-gray-50 p-2 border border-gray-200 rounded-2xl">
-                                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl text-gray-400 hover:text-gray-600 shrink-0">
-                                        <ImageIcon className="h-5 w-5" />
-                                    </Button>
-                                    <textarea
-                                        placeholder="Type a message..."
-                                        className="w-full bg-transparent resize-none max-h-32 min-h-[40px] focus:outline-none text-sm font-medium py-2.5"
-                                        rows={1}
-                                    />
-                                    <Button className="h-10 px-5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold shrink-0 shadow-md">
-                                        <Send className="h-4 w-4 mr-2" /> Send
-                                    </Button>
-                                </div>
-                                <p className="text-[10px] text-center text-gray-400 font-bold mt-2">DMs are powered by Meta Graph API. Messages sync instantly.</p>
-                            </div>
+                                    <div className="p-4 bg-white border-t border-gray-100">
+                                        <div className="flex items-end gap-2 bg-gray-50 p-2 border border-gray-200 rounded-2xl">
+                                            <textarea
+                                                value={replyText}
+                                                onChange={(e) => setReplyText(e.target.value)}
+                                                placeholder={selected.kind === "comment" ? "Reply to this comment…" : "Type a message…"}
+                                                className="w-full bg-transparent resize-none max-h-32 min-h-[40px] focus:outline-none text-sm font-medium py-2.5"
+                                                rows={1}
+                                            />
+                                            <Button onClick={sendReply} disabled={!replyText.trim() || sendingReply} className="h-10 px-5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold shrink-0 shadow-md">
+                                                <Send className="h-4 w-4 mr-2" /> Send
+                                            </Button>
+                                        </div>
+                                        <p className="text-[10px] text-center text-gray-400 font-bold mt-2">Real replies via the Instagram Graph API — {selected.kind === "comment" ? "posts as a genuine comment reply" : "sends a real DM"}.</p>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -270,5 +374,11 @@ export default function MetaBusinessSuite() {
     );
 }
 
-
+export default function MetaBusinessSuite() {
+    return (
+        <Suspense fallback={<div className="max-w-7xl mx-auto p-8 text-center text-gray-400 text-sm">Loading…</div>}>
+            <MetaBusinessSuiteContent />
+        </Suspense>
+    );
+}
 

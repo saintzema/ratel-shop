@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { notifySeller } from "@/lib/seller-notify";
 import { fireworksJSON, isFireworksEnabled } from "@/lib/fireworks";
+import { sendInstagramDm } from "@/lib/instagram-dm";
 
 const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || "fairprice_ig_webhook_2024";
 
@@ -80,11 +81,20 @@ async function handleComment(igAccountId: string, change: IgCommentChange) {
     const hasIntent = await classifyIntent(text);
     if (!hasIntent) return;
 
+    const igCommentId = change.value.id;
+    if (igCommentId) {
+        await db.instagramComment.upsert({
+            where: { igCommentId },
+            create: { sellerId: seller.id, igCommentId, igMediaId: media?.id, fromUsername: from.username, text },
+            update: {},
+        }).catch(() => {}); // duplicate webhook delivery — Meta retries are expected, not an error
+    }
+
     const postLink = media?.id ? `https://www.instagram.com/p/${media.id}/` : undefined;
     await notifySeller(
         seller.id,
         `💬 Possible buyer on Instagram: @${from.username} commented "${text}" on your post — looks like purchase interest.`,
-        { type: "system", link: postLink, alsoWhatsApp: true }
+        { type: "system", link: "/seller/integrations/meta?tab=inbox", alsoWhatsApp: true }
     );
 }
 
@@ -138,17 +148,6 @@ ${catalog}`,
     }
 }
 
-async function sendInstagramDm(igAccountId: string, token: string, recipientId: string, text: string) {
-    const res = await fetch(`https://graph.instagram.com/${igAccountId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
-    });
-    const data = await res.json();
-    if (data.error) console.error("[IG Webhook] DM send failed:", data.error);
-    return !data.error;
-}
-
 async function handleMessage(igAccountId: string, event: IgMessagingEvent) {
     const buyerId = event.sender?.id;
     const text = event.message?.text;
@@ -163,18 +162,27 @@ async function handleMessage(igAccountId: string, event: IgMessagingEvent) {
     });
     if (!seller?.instagramAccessToken) return;
 
+    await db.instagramMessage.create({
+        data: { sellerId: seller.id, igsid: buyerId, text, direction: "inbound" },
+    }).catch(() => {});
+
     const reply = await draftDmReply(seller.id, seller.businessName, text);
 
     if (reply) {
         const sent = await sendInstagramDm(igAccountId, seller.instagramAccessToken, buyerId, reply);
-        if (sent) return;
+        if (sent) {
+            await db.instagramMessage.create({
+                data: { sellerId: seller.id, igsid: buyerId, text: reply, direction: "outbound", isAiReply: true },
+            }).catch(() => {});
+            return;
+        }
         // Fall through to human handoff if the send itself failed.
     }
 
     await notifySeller(
         seller.id,
         `📩 Instagram DM needs your reply: "${text}"`,
-        { type: "system", link: "https://www.instagram.com/direct/inbox/", alsoWhatsApp: true }
+        { type: "system", link: "/seller/integrations/meta?tab=inbox", alsoWhatsApp: true }
     );
 }
 
