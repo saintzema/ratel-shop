@@ -34,7 +34,8 @@ import {
     LayoutGrid,
     List,
     X,
-    CheckCircle2
+    CheckCircle2,
+    Share2
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { useNotification } from "@/components/ui/NotificationProvider";
@@ -639,6 +640,11 @@ function SellerProductsContent() {
                                                     >
                                                         <Flame className="h-4 w-4" />
                                                     </Button>
+                                                    <Link href={`/seller/social?product=${product.id}`}>
+                                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="Share to social media">
+                                                            <Share2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </Link>
                                                     <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Edit Item">
                                                             <Edit3 className="h-4 w-4" />
@@ -740,6 +746,11 @@ function SellerProductsContent() {
                                         >
                                             <Flame className="h-4 w-4" />
                                         </Button>
+                                        <Link href={`/seller/social?product=${product.id}`}>
+                                            <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-indigo-50 hover:text-indigo-600" title="Share to social media">
+                                                <Share2 className="h-4 w-4" />
+                                            </Button>
+                                        </Link>
                                         <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                             <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm" title="Edit Item">
                                                 <Edit3 className="h-4 w-4" />

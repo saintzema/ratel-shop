@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
@@ -31,8 +31,10 @@ const PLATFORMS: { key: PlatformKey; label: string; icon: any; mode: "share" | "
     { key: "tiktok", label: "TikTok", icon: Music2, mode: "soon", color: "#000000" },
 ];
 
-export default function SellerSocialComposerPage() {
+function SellerSocialComposerContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const preselectProductId = searchParams.get("product");
     const [products, setProducts] = useState<Product[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [productSearch, setProductSearch] = useState("");
@@ -62,7 +64,10 @@ export default function SellerSocialComposerPage() {
         const all = DataSyncService.getProducts({ includeInactiveSellers: true });
         const mine = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
         setProducts(mine);
-        if (mine.length > 0) setSelectedProduct(mine[0]);
+        if (mine.length > 0) {
+            const preselect = preselectProductId ? mine.find(p => p.id === preselectProductId) : null;
+            setSelectedProduct(preselect || mine[0]);
+        }
 
         // Reuses the same connection the Instagram catalog importer already
         // established under Integrations — a seller who connected there
@@ -412,5 +417,13 @@ export default function SellerSocialComposerPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function SellerSocialComposerPage() {
+    return (
+        <Suspense fallback={<div className="max-w-3xl mx-auto py-16 text-center text-gray-400 text-sm">Loading…</div>}>
+            <SellerSocialComposerContent />
+        </Suspense>
     );
 }
