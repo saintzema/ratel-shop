@@ -88,12 +88,105 @@ async function handleComment(igAccountId: string, change: IgCommentChange) {
     );
 }
 
+interface IgMessagingEvent {
+    sender?: { id?: string };
+    recipient?: { id?: string };
+    timestamp?: number;
+    message?: { mid?: string; text?: string; is_echo?: boolean };
+}
+
 /**
- * POST — Receives real-time Instagram events (comments, once the
- * `instagram_business_manage_comments` webhook field is subscribed in the
- * Meta App dashboard). Detects purchase-intent comments on a connected
- * seller's posts and notifies them — nothing here posts/replies on the
- * seller's behalf without them acting from the notification.
+ * A buyer DM answered with the seller's real, current catalog — same shape of
+ * AI FAQ/product-question responder as ZEMA 360 runs on WhatsApp, deliberately
+ * simpler (no price negotiation, no order placement — those require a human,
+ * by design, same "0% false payouts" instinct behind the WhatsApp Finance
+ * Agent's human-in-the-loop gate). Returns null when the AI isn't confident
+ * this is a plain product question, so the caller hands off to the seller
+ * instead of guessing.
+ */
+async function draftDmReply(sellerId: string, sellerName: string, buyerText: string): Promise<string | null> {
+    if (!isFireworksEnabled() && !process.env.GEMINI_API_KEY) return null;
+
+    const products = await db.product.findMany({
+        where: { sellerId, isActive: true },
+        select: { name: true, price: true, description: true, stock: true },
+        take: 30,
+        orderBy: { soldCount: "desc" },
+    });
+    if (products.length === 0) return null;
+
+    const catalog = products
+        .map(p => `- ${p.name}: NGN ${p.price.toLocaleString()}${p.stock > 0 ? "" : " (out of stock)"} — ${(p.description || "").slice(0, 100)}`)
+        .join("\n");
+
+    try {
+        const result = await fireworksJSON<{ canAnswer: boolean; reply: string }>({
+            system: `You are a helpful assistant answering an Instagram DM on behalf of "${sellerName}", a Nigerian seller on FairPrice.ng. Answer ONLY plain product questions (price, availability, specs) using the catalog below — never invent a price or product that isn't listed. If the buyer is trying to negotiate a price, place an order, complain, or asks anything you can't answer from this catalog, set canAnswer to false so a human takes over. Reply with strict JSON only: {"canAnswer": true|false, "reply": "short, friendly, human-sounding answer — no markdown, no emoji spam"}.
+
+Catalog:
+${catalog}`,
+            prompt: `Buyer DM: "${buyerText}"`,
+            jsonMode: true,
+            temperature: 0.3,
+            maxTokens: 200,
+            timeoutMs: 6000,
+        });
+        if (!result || !result.canAnswer || !result.reply) return null;
+        return result.reply;
+    } catch {
+        return null;
+    }
+}
+
+async function sendInstagramDm(igAccountId: string, token: string, recipientId: string, text: string) {
+    const res = await fetch(`https://graph.instagram.com/${igAccountId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+    });
+    const data = await res.json();
+    if (data.error) console.error("[IG Webhook] DM send failed:", data.error);
+    return !data.error;
+}
+
+async function handleMessage(igAccountId: string, event: IgMessagingEvent) {
+    const buyerId = event.sender?.id;
+    const text = event.message?.text;
+    // is_echo marks our OWN outbound messages being echoed back to the webhook —
+    // without this guard, every auto-reply would trigger another "inbound"
+    // message, which would trigger another reply, forever.
+    if (!buyerId || !text || event.message?.is_echo) return;
+
+    const seller = await db.seller.findFirst({
+        where: { instagramUserId: igAccountId },
+        select: { id: true, businessName: true, instagramAccessToken: true },
+    });
+    if (!seller?.instagramAccessToken) return;
+
+    const reply = await draftDmReply(seller.id, seller.businessName, text);
+
+    if (reply) {
+        const sent = await sendInstagramDm(igAccountId, seller.instagramAccessToken, buyerId, reply);
+        if (sent) return;
+        // Fall through to human handoff if the send itself failed.
+    }
+
+    await notifySeller(
+        seller.id,
+        `📩 Instagram DM needs your reply: "${text}"`,
+        { type: "system", link: "https://www.instagram.com/direct/inbox/", alsoWhatsApp: true }
+    );
+}
+
+/**
+ * POST — Receives real-time Instagram events: comments (once
+ * `instagram_business_manage_comments` is subscribed) and DMs (once
+ * `messages` is subscribed) in the Meta App dashboard's Webhooks config.
+ * Comments get purchase-intent detection + a seller notification. DMs get an
+ * AI-drafted reply for plain product questions the seller's real catalog can
+ * answer, or a handoff notification for anything else (negotiation, orders,
+ * complaints) — nothing here ever auto-replies with a price it invented or
+ * auto-places an order.
  */
 export async function POST(req: NextRequest) {
     let body: any;
@@ -113,6 +206,12 @@ export async function POST(req: NextRequest) {
                     // Don't await inline in a loop that blocks the webhook ack for long —
                     // fire-and-forget per comment, Meta only needs a fast 200.
                     handleComment(igAccountId, change).catch((e) => console.error("[IG Webhook] comment handling failed:", e));
+                }
+            }
+            const messaging: IgMessagingEvent[] = Array.isArray(entry?.messaging) ? entry.messaging : [];
+            for (const event of messaging) {
+                if (igAccountId) {
+                    handleMessage(igAccountId, event).catch((e) => console.error("[IG Webhook] message handling failed:", e));
                 }
             }
         }
