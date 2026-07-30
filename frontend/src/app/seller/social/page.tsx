@@ -46,8 +46,10 @@ function SellerSocialComposerContent() {
     const [error, setError] = useState<string | null>(null);
     const [igConnected, setIgConnected] = useState<boolean | null>(null); // null = still checking
     const [igUsername, setIgUsername] = useState<string | null>(null);
+    const [fbConnected, setFbConnected] = useState<boolean | null>(null);
+    const [fbPageName, setFbPageName] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
-    const [publishResult, setPublishResult] = useState<string | null>(null);
+    const [publishResult, setPublishResult] = useState<{ platform: "instagram" | "facebook"; permalink: string | null } | null>(null);
 
     const authHeaders = () => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -79,18 +81,32 @@ function SellerSocialComposerContent() {
                 setIgUsername(data?.username || null);
             })
             .catch(() => setIgConnected(false));
+
+        fetch("/api/seller/facebook/status", { headers: authHeaders() })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                setFbConnected(!!data?.connected);
+                setFbPageName(data?.pageName || null);
+            })
+            .catch(() => setFbConnected(false));
     }, [router]);
 
-    // Instagram's real publish mode is only available once connected — a
-    // seller who hasn't connected yet still sees Instagram as a platform
+    // Instagram/Facebook's real publish mode is only available once connected
+    // — a seller who hasn't connected yet still sees the platform as an
     // option, but selecting it prompts them to connect rather than silently
     // trying (and failing) to publish, or silently degrading to copy-only.
     const igMode: "publish" | "manual" | "checking" = igConnected === null ? "checking" : igConnected ? "publish" : "manual";
+    const fbMode: "publish" | "manual" | "checking" = fbConnected === null ? "checking" : fbConnected ? "publish" : "manual";
 
     const togglePlatform = (key: PlatformKey) => {
-        // Turning Instagram on before it's connected sends the seller to connect
-        // it (same OAuth flow the catalog importer uses) instead of silently
-        // toggling on a platform that has nothing to actually publish to.
+        // Instagram had no working fallback before a seller connects (the old
+        // "copy only" mode was the exact thing being fixed) — so turning it on
+        // unconnected sends the seller to connect instead of toggling on a
+        // platform with nothing to publish to. Facebook is different: it
+        // already has a real, always-working share-intent fallback (opens
+        // Facebook's own share dialog) even without a Page connected, so its
+        // toggle stays available either way — connecting just upgrades it to a
+        // real auto-post silently, no forced redirect on the main toggle.
         if (key === "instagram" && igMode === "manual" && !selectedPlatforms.has(key)) {
             router.push("/seller/integrations/meta");
             return;
@@ -100,6 +116,15 @@ function SellerSocialComposerContent() {
             if (next.has(key)) next.delete(key); else next.add(key);
             return next;
         });
+    };
+
+    const connectFacebook = (e: { stopPropagation: () => void }) => {
+        e.stopPropagation(); // don't also trigger the tile's own toggle
+        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        fetch("/api/seller/facebook/auth", { headers: { accept: "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) } })
+            .then(r => r.json())
+            .then(data => { if (data?.url) window.location.href = data.url; })
+            .catch(() => {});
     };
 
     const productUrl = selectedProduct
@@ -193,10 +218,34 @@ function SellerSocialComposerContent() {
                 setError(data.error || "Couldn't publish to Instagram.");
                 return false;
             }
-            setPublishResult(data.permalink || null);
+            setPublishResult({ platform: "instagram", permalink: data.permalink || null });
             return true;
         } catch {
             setError("Couldn't reach Instagram — check your connection and try again.");
+            return false;
+        }
+    };
+
+    const publishToFacebook = async () => {
+        if (!selectedProduct?.image_url) {
+            setError("This product has no image to publish.");
+            return false;
+        }
+        try {
+            const res = await fetch("/api/seller/facebook/publish", {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({ imageUrl: selectedProduct.image_url, caption }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error || "Couldn't publish to Facebook.");
+                return false;
+            }
+            setPublishResult({ platform: "facebook", permalink: data.permalink || null });
+            return true;
+        } catch {
+            setError("Couldn't reach Facebook — check your connection and try again.");
             return false;
         }
     };
@@ -215,9 +264,6 @@ function SellerSocialComposerContent() {
         if (selectedPlatforms.has("x")) {
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(productUrl)}`, "_blank");
         }
-        if (selectedPlatforms.has("facebook")) {
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`, "_blank");
-        }
         if (selectedPlatforms.has("tiktok")) {
             copyCaption();
         }
@@ -228,6 +274,15 @@ function SellerSocialComposerContent() {
                 setPublishing(false);
             } else {
                 copyCaption();
+            }
+        }
+        if (selectedPlatforms.has("facebook")) {
+            if (fbMode === "publish") {
+                setPublishing(true);
+                await publishToFacebook();
+                setPublishing(false);
+            } else {
+                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`, "_blank");
             }
         }
     };
@@ -356,7 +411,13 @@ function SellerSocialComposerContent() {
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Post to</label>
                                 <div className="space-y-1.5">
                                     {PLATFORMS.map(({ key, label, icon: Icon, mode: staticMode, color }) => {
-                                        const mode = key === "instagram" ? igMode : staticMode;
+                                        // Instagram has no fallback pre-connection (gated off entirely until
+                                        // connected). Facebook always has a working share-intent fallback, so
+                                        // "not yet connected" maps to the same always-usable "share" mode it
+                                        // had before, not a disabled state — connecting just upgrades it.
+                                        const mode = key === "instagram" ? igMode
+                                            : key === "facebook" ? (fbMode === "checking" ? "checking" : fbMode === "publish" ? "publish" : "share")
+                                            : staticMode;
                                         const active = selectedPlatforms.has(key);
                                         const disabled = mode === "soon" || mode === "checking";
                                         const subtitle =
@@ -364,6 +425,7 @@ function SellerSocialComposerContent() {
                                             mode === "checking" ? "Checking connection…" :
                                             mode === "manual" ? "Not connected — tap to connect" :
                                             mode === "publish" && key === "instagram" ? (igUsername ? `Auto-posts to @${igUsername}` : "Auto-posts to your account") :
+                                            mode === "publish" && key === "facebook" ? (fbPageName ? `Auto-posts to ${fbPageName}` : "Auto-posts to your Page") :
                                             undefined;
                                         return (
                                             <div
@@ -380,6 +442,11 @@ function SellerSocialComposerContent() {
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-bold" style={active && !disabled ? { color } : undefined}>{label}</p>
                                                     {subtitle && <p className="text-[10px] text-gray-400 font-medium truncate">{subtitle}</p>}
+                                                    {key === "facebook" && mode === "share" && (
+                                                        <button onClick={connectFacebook} className="text-[10px] font-bold text-indigo-600 hover:underline">
+                                                            Connect Page for auto-post →
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <Switch checked={active && !disabled} disabled={disabled} onCheckedChange={() => !disabled && togglePlatform(key)} />
                                             </div>
@@ -389,9 +456,15 @@ function SellerSocialComposerContent() {
                             </div>
 
                             {publishResult && (
-                                <a href={publishResult} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                                    <Check className="h-3.5 w-3.5" /> Published to Instagram — view live post <ExternalLink className="h-3 w-3" />
-                                </a>
+                                publishResult.permalink ? (
+                                    <a href={publishResult.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                                        <Check className="h-3.5 w-3.5" /> Published to {publishResult.platform === "instagram" ? "Instagram" : "Facebook"} — view live post <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                                        <Check className="h-3.5 w-3.5" /> Published to {publishResult.platform === "instagram" ? "Instagram" : "Facebook"}
+                                    </div>
+                                )
                             )}
 
                             <div className="flex gap-3 pt-1">
@@ -411,7 +484,7 @@ function SellerSocialComposerContent() {
                             </div>
                         </div>
                         <p className="text-xs text-gray-400 px-1">
-                            Connected Instagram accounts publish for real — no copying, no leaving FairPrice. On your phone (when Instagram is your only selection), WhatsApp opens your native share sheet with the photo ready — tap WhatsApp, then My Status; with multiple platforms selected it uses the plain share link instead, so every platform's window can open together. X and Facebook open that platform's own share window, pre-filled — one tap to confirm and it's posted. TikTok doesn't offer a way to publish directly from other apps without special platform approval, so that copies your caption for you to paste in manually.
+                            Connected Instagram and Facebook Page accounts publish for real — no copying, no leaving FairPrice. On your phone (when Instagram is your only selection), WhatsApp opens your native share sheet with the photo ready — tap WhatsApp, then My Status; with multiple platforms selected it uses the plain share link instead, so every platform's window can open together. X opens Twitter's own share window, pre-filled — one tap to confirm and it's posted. Facebook does the same until you connect a Page (link in its row above), after which it posts for real too. TikTok doesn't offer a way to publish directly from other apps without special platform approval, so that copies your caption for you to paste in manually.
                         </p>
                     </>
                 )}

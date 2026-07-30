@@ -247,6 +247,14 @@ model Seller {
   instagramUserId       String?
   instagramUsername     String?
   instagramTokenExpiry  DateTime?
+  // Standard Facebook Login for Business (graph.facebook.com), separate OAuth
+  // flow from Instagram Business Login above — a seller can have one, both,
+  // or neither connected. facebookPageAccessToken is a PAGE token (doesn't
+  // expire the way a user token does, as long as the underlying user token
+  // stays valid), not the user's own access token.
+  facebookPageId            String?
+  facebookPageName          String?
+  facebookPageAccessToken   String?
   idDocumentUrl     String?           // NIN/Passport/Driver's License scan — onboarding never actually uploaded this before
   cacDocumentUrl    String?           // CAC certificate for registered businesses — same gap
   cacRcNumber       String?
