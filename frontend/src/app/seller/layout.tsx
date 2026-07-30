@@ -327,10 +327,7 @@ export default function SellerLayout({
                                         {item.label}
                                     </div>
                                     {item.badge && (
-                                        <span className={cn(
-                                            "text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center",
-                                            isActive ? "bg-white shadow-sm text-gray-900" : "bg-gray-100 text-gray-500"
-                                        )}>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center bg-rose-600 text-white shadow-sm">
                                             {item.badge}
                                         </span>
                                     )}

@@ -141,16 +141,16 @@ export default function NewQuotePage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Quote Title</label>
-                                <Input value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl" />
+                                <Input value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl bg-white text-gray-900 font-semibold border-gray-200" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Client Name</label>
-                                <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Who is this for?" className="rounded-xl" />
+                                <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Who is this for?" className="rounded-xl bg-white text-gray-900 font-semibold border-gray-200" />
                             </div>
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Client Phone / Email (optional)</label>
-                            <Input value={clientContact} onChange={(e) => setClientContact(e.target.value)} className="rounded-xl" />
+                            <Input value={clientContact} onChange={(e) => setClientContact(e.target.value)} placeholder="e.g. client@email.com — we'll email the quote here" className="rounded-xl bg-white text-gray-900 font-semibold border-gray-200" />
                         </div>
 
                         <div className="space-y-2">
@@ -161,18 +161,18 @@ export default function NewQuotePage() {
                                         value={item.description}
                                         onChange={(e) => updateItem(idx, { description: e.target.value })}
                                         placeholder="Description"
-                                        className="flex-1 rounded-lg bg-white text-sm"
+                                        className="flex-1 rounded-lg bg-white text-sm text-gray-900 font-medium border-gray-200"
                                     />
                                     <div className="flex gap-2">
                                         <Input
                                             type="number" min={1} value={item.qty}
                                             onChange={(e) => updateItem(idx, { qty: Math.max(1, Number(e.target.value) || 1) })}
-                                            className="w-16 rounded-lg bg-white text-sm" title="Quantity"
+                                            className="w-16 rounded-lg bg-white text-sm text-gray-900 font-medium border-gray-200" title="Quantity"
                                         />
                                         <Input
                                             type="number" min={0} value={item.unitPrice}
                                             onChange={(e) => updateItem(idx, { unitPrice: Math.max(0, Number(e.target.value) || 0) })}
-                                            className="w-32 rounded-lg bg-white text-sm" title="Unit Price (₦)"
+                                            className="w-32 rounded-lg bg-white text-sm text-gray-900 font-medium border-gray-200" title="Unit Price (₦)"
                                         />
                                         <button onClick={() => removeItem(idx)} className="p-2 text-gray-400 hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
                                     </div>

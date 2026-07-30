@@ -64,7 +64,13 @@ RULES:
             system: "Output ONLY one valid JSON object, no markdown, no explanation.",
             prompt,
             temperature: 0.4,
-            maxTokens: 1000,
+            // "AT LEAST 3 line items" with realistic multi-clause descriptions
+            // (materials + specs) plus a notes field routinely needs more than
+            // 1000 tokens for a 6-7 item quote — a live example truncated mid-
+            // response, which produced syntactically-valid-but-empty leading
+            // items (missing description/price) once JSON.parse recovered
+            // what it could. 2000 gives real headroom without being unbounded.
+            maxTokens: 2000,
         });
         if (fw?.items?.length) draft = fw;
     }
@@ -90,17 +96,35 @@ RULES:
         } catch { /* fall through to error below */ }
     }
 
-    if (!draft || !draft.items?.length) {
+    // Real observed model failure modes this sanitizes:
+    //  1. Some items come back with description/unitPrice entirely missing
+    //     (blank name, ₦0) — useless line items that leaked straight into a
+    //     client-facing quote/PDF before this existed.
+    //  2. Some items echo the JSON field name into its own value —
+    //     `"description": "description: 2000W Brushless DC Hub Motor..."` —
+    //     so the literal word "description:" showed up in the rendered quote.
+    const cleanedItems = (draft?.items || [])
+        .map(i => {
+            let description = String(i?.description || "").trim();
+            description = description.replace(/^description\s*:\s*/i, "").trim();
+            return {
+                description,
+                qty: Math.max(1, Number(i?.qty) || 1),
+                unitPrice: Math.max(0, Number(i?.unitPrice) || 0),
+            };
+        })
+        // A blank description is never usable; a genuinely free line item
+        // (unitPrice 0) is rare enough in this context that combined with no
+        // description it's reliably a malformed entry, not an intentional freebie.
+        .filter(i => i.description.length > 0 && !(i.unitPrice === 0 && i.description.length < 3));
+
+    if (!draft || cleanedItems.length === 0) {
         return NextResponse.json({ error: "Couldn't draft a quote from that — try describing it with more detail." }, { status: 502 });
     }
 
     return NextResponse.json({
         title: draft.title || ask.slice(0, 60),
-        items: draft.items.map(i => ({
-            description: i.description,
-            qty: Math.max(1, Number(i.qty) || 1),
-            unitPrice: Math.max(0, Number(i.unitPrice) || 0),
-        })),
+        items: cleanedItems,
         notes: draft.notes || "",
     });
 }

@@ -1,8 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { BaseTemplate } from "@/lib/email-templates";
+import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
+
+const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
+const SITE = process.env.FAIRPRICE_URL || "https://www.fairprice.ng";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function emailQuoteToClient(quote: any, sellerName: string) {
+    if (!quote.clientContact || !EMAIL_RE.test(quote.clientContact)) return; // phone number, not an email — nothing to send to
+    const link = `${SITE}/quote/${quote.id}`;
+    const rows = (quote.items as any[])
+        .map(i => `<tr>
+            <td style="padding:8px 0;border-bottom:1px solid #eee;">${i.description} × ${i.qty}</td>
+            <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">NGN ${(i.qty * i.unitPrice).toLocaleString("en-NG")}</td>
+        </tr>`).join("");
+    const html = BaseTemplate(quote.title, `
+        <h2 style="margin:0 0 4px;">${quote.title}</h2>
+        <p style="color:#666;margin:0 0 20px;">A quote from ${sellerName} on FairPrice.ng</p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">${rows}</table>
+        <p style="text-align:right;font-weight:bold;font-size:16px;margin-top:16px;">Total: NGN ${quote.total.toLocaleString("en-NG")}</p>
+        <a href="${link}" style="display:inline-block;margin-top:20px;padding:12px 24px;background:#059669;color:#fff;text-decoration:none;border-radius:8px;font-weight:bold;">View & Pay Quote</a>
+    `);
+    await resend.emails.send({
+        from: `${sellerName} via FairPrice <hello@fairprice.ng>`,
+        to: [quote.clientContact],
+        subject: `Quote from ${sellerName}: ${quote.title}`,
+        html,
+    }).catch(err => console.error("Failed to send quote email:", err));
+}
 
 async function resolveSeller(userId: string, email?: string) {
     return db.seller.findFirst({
@@ -66,6 +95,11 @@ export async function POST(req: NextRequest) {
             notes: notes ? String(notes).slice(0, 500) : null,
         },
     });
+
+    // Fire-and-forget — a slow/failed email must never block the seller from
+    // getting their quote created (they can still share the payable link
+    // manually via WhatsApp/copy-link either way).
+    emailQuoteToClient(quote, seller.businessName).catch(() => {});
 
     return NextResponse.json({ quote });
 }

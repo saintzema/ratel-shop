@@ -15,7 +15,12 @@ export interface QuotePdfData {
     sellerContact?: string | null;
 }
 
-const fmt = (n: number) => `₦${n.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
+// jsPDF's built-in "helvetica" font is WinAnsi/Latin-1 only — it has no glyph
+// for ₦ (U+20A6), so the character rendered as a broken/garbled mark in every
+// PDF. Embedding a Unicode-capable TTF just for one currency symbol is a lot
+// of weight for this; "NGN " reads perfectly fine on a Nigerian invoice and
+// is what every glyph-safe alternative in this codebase already falls back to.
+const fmt = (n: number) => `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
 // Best-effort image fetch → data URL for jsPDF's addImage (which needs a
 // data URL, not a bare remote URL). Never throws — a logo that fails to load

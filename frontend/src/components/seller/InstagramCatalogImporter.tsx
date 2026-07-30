@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { DataSyncService } from "@/lib/sync-store";
 
 const CATEGORIES = ["Fashion", "Electronics", "Home", "Beauty", "Gaming", "Sports", "Food", "Accessories", "Health", "Uncategorized"];
 
@@ -46,6 +47,8 @@ export function InstagramCatalogImporter() {
     const [importing, setImporting] = useState(false);
     const [importResult, setImportResult] = useState<{ created: number; message: string } | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     // Read fresh on every call — avoids stale null when the admin session token
     // was set after the component first rendered.
@@ -66,6 +69,7 @@ export function InstagramCatalogImporter() {
             if (data.connected) {
                 setUsername(data.username || null);
                 setPosts(data.posts || []);
+                setNextCursor(data.nextCursor || null);
                 setStatus("connected");
             } else if (data.expired) {
                 setErrorMsg("Your Instagram connection has expired. Please reconnect.");
@@ -78,6 +82,25 @@ export function InstagramCatalogImporter() {
             setErrorMsg("Could not reach the server. Please try again.");
         }
     }, []); // eslint-disable-line
+
+    // Instagram only returns one page (up to 30 raw items, fewer after filtering
+    // to IMAGE/CAROUSEL_ALBUM) per call — older posts need this cursor to reach.
+    const loadMorePosts = async () => {
+        if (!nextCursor || loadingMore) return;
+        setLoadingMore(true);
+        try {
+            const res = await fetch(`/api/seller/instagram/posts?after=${encodeURIComponent(nextCursor)}`, { headers: authHeaders() });
+            const data = await res.json();
+            if (data.connected) {
+                setPosts(prev => [...prev, ...(data.posts || [])]);
+                setNextCursor(data.nextCursor || null);
+            }
+        } catch {
+            // leave nextCursor as-is so the button can just be retried
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     // On mount: check URL params from OAuth redirect, then fetch posts
     useEffect(() => {
@@ -193,7 +216,12 @@ export function InstagramCatalogImporter() {
                     });
                 }
 
-                // Trigger site-wide product list refresh
+                // The import creates real Product rows server-side, but this component
+                // never had them locally — dispatching sync-store-update alone told the
+                // products page to re-read its LOCAL cache, which still didn't contain
+                // the new products, so nothing appeared until a full reload re-synced
+                // from the DB. Pull the real data down first, then fire the event.
+                await DataSyncService.syncWithDB("products");
                 window.dispatchEvent(new Event("sync-store-update"));
             } else {
                 alert(data.error || "Import failed. Please try again.");
@@ -371,6 +399,16 @@ export function InstagramCatalogImporter() {
                     );
                 })}
             </div>
+
+            {nextCursor && (
+                <button
+                    onClick={loadMorePosts}
+                    disabled={loadingMore}
+                    className="w-full text-center text-[11px] font-bold text-pink-600 hover:text-pink-700 py-2 disabled:opacity-50"
+                >
+                    {loadingMore ? "Loading…" : "Load older posts"}
+                </button>
+            )}
 
             <div className="flex items-center justify-between pt-1 border-t border-gray-50">
                 <button

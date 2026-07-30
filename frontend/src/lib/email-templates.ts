@@ -31,7 +31,7 @@ interface EmailTemplatePayload {
 
 const BRAND_COLOR = "#059669";
 
-function BaseTemplate(title: string, contentHTML: string, brandColor: string = BRAND_COLOR) {
+export function BaseTemplate(title: string, contentHTML: string, brandColor: string = BRAND_COLOR) {
     return `
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">

@@ -38,9 +38,15 @@ export async function GET(req: NextRequest) {
 
     try {
         const fields = "id,caption,media_url,thumbnail_url,media_type,timestamp,permalink";
+        // `after` is Graph API's own opaque paging cursor, passed straight through from
+        // the client's previous response — was previously always a fresh first-page
+        // call with no way to reach older posts. Instagram counts VIDEO/REELS/etc.
+        // toward the raw `limit` before this route's IMAGE/CAROUSEL_ALBUM filter runs,
+        // which is why one page of "30" could yield far fewer importable posts.
+        const after = req.nextUrl.searchParams.get("after");
         // Instagram Business Login tokens use graph.instagram.com, not graph.facebook.com
         const igRes  = await fetch(
-            `https://graph.instagram.com/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}`
+            `https://graph.instagram.com/${igUserId}/media?fields=${fields}&limit=30&access_token=${token}${after ? `&after=${encodeURIComponent(after)}` : ""}`
         );
         const igData = await igRes.json();
 
@@ -67,7 +73,11 @@ export async function GET(req: NextRequest) {
                 permalink:  p.permalink,
             }));
 
-        return NextResponse.json({ connected: true, username: instagramUsername, posts });
+        const nextCursor: string | null = igData.paging?.cursors?.after && igData.paging?.next
+            ? igData.paging.cursors.after
+            : null;
+
+        return NextResponse.json({ connected: true, username: instagramUsername, posts, nextCursor });
     } catch (err: any) {
         console.error("[IG posts] Fetch error:", err.message);
         return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 });
