@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "prisma generate && node scripts/db-push-retry.mjs && next build",
+    "build": "prisma generate && (npx prisma db push --accept-data-loss || (sleep 8 && npx prisma db push --accept-data-loss) || (sleep 8 && npx prisma db push --accept-data-loss) || (sleep 8 && npx prisma db push --accept-data-loss)) && next build",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:normalize-phones": "tsx scripts/normalize_phones.ts",

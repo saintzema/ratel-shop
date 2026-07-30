@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { put } from "@vercel/blob";
+
+/**
+ * Instagram's media CDN URLs (scontent-*.cdninstagram.com) are signed and
+ * time-limited — they expire within days. Storing that URL directly as a
+ * product's imageUrl meant the image (and, downstream, the og:image used for
+ * every WhatsApp/X/Facebook share preview) silently broke everywhere on
+ * FairPrice — PDP, search results, cards, shared links — the moment the
+ * signed link expired, with no error anywhere to catch it. Re-hosting the
+ * bytes on our own Blob storage at import time makes the URL permanent.
+ * Falls back to the original (still-live-for-now) URL if the fetch/upload
+ * fails, rather than blocking the import entirely.
+ */
+async function rehostImage(igUrl: string, seedId: string): Promise<string> {
+    try {
+        const res = await fetch(igUrl);
+        if (!res.ok) return igUrl;
+        const contentType = res.headers.get("content-type") || "image/jpeg";
+        if (!contentType.startsWith("image/")) return igUrl;
+        const buffer = await res.arrayBuffer();
+        const ext = contentType.includes("png") ? "png" : "jpg";
+        const blob = await put(`products/instagram/${seedId}.${ext}`, buffer, {
+            access: "public",
+            contentType,
+        });
+        return blob.url;
+    } catch (err: any) {
+        console.error("[IG import] Re-host failed, keeping original URL:", err.message);
+        return igUrl;
+    }
+}
 
 /**
  * POST /api/seller/instagram/import
@@ -37,6 +68,8 @@ export async function POST(req: NextRequest) {
             const productId = `ig_${prod.igPostId || Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
             const trimmedId = productId.length > 50 ? productId.slice(0, 50) : productId;
 
+            const stableImageUrl = await rehostImage(prod.imageUrl, trimmedId);
+
             await db.product.create({
                 data: {
                     id: trimmedId,
@@ -46,7 +79,7 @@ export async function POST(req: NextRequest) {
                     description: String(prod.description || prod.name).trim(),
                     price: parseFloat(prod.price) || 0,
                     category: prod.category || "Fashion",
-                    imageUrl: prod.imageUrl,
+                    imageUrl: stableImageUrl,
                     images: [],
                     stock: parseInt(prod.stock) || 10,
                     isActive: isSellerActive && parseFloat(prod.price) > 0,
