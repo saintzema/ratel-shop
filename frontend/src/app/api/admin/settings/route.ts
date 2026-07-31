@@ -51,7 +51,13 @@ export async function GET() {
             });
         }
 
-        return NextResponse.json(settings);
+        // This endpoint is fetched from public, unauthenticated pages across
+        // the app (checkout, navbar, contact/help, seller onboarding) for the
+        // ordinary config fields — it is NOT admin-gated. metaAdsAccessToken
+        // is a real Meta System User secret and must never round-trip to any
+        // client, admin browser included. Expose only whether one is set.
+        const { metaAdsAccessToken, ...safeSettings } = settings as any;
+        return NextResponse.json({ ...safeSettings, metaAdsAccessTokenConfigured: !!metaAdsAccessToken });
     } catch (error) {
         console.error("Failed to fetch DB settings, falling back to defaults:", error);
         return NextResponse.json({ ...DEFAULT_SETTINGS, _offlineMode: true });

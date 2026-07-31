@@ -19,7 +19,8 @@ import {
     Brain,
     TrendingUp,
     Sparkles,
-    LayoutGrid
+    LayoutGrid,
+    Megaphone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -57,6 +58,10 @@ export default function AdminSettings() {
     // Payout HITL threshold — auto-payouts at/below this go out instantly; above it
     // require a WhatsApp approval before the transfer fires (see paystack/webhook).
     const [payoutHitlThreshold, setPayoutHitlThreshold] = useState("50000");
+    const [metaAdAccountId, setMetaAdAccountId] = useState("");
+    const [metaAdsAccessToken, setMetaAdsAccessToken] = useState(""); // never pre-filled — the real token is never sent back by GET
+    const [metaAdsAccessTokenConfigured, setMetaAdsAccessTokenConfigured] = useState(false);
+    const [adsMarkupPct, setAdsMarkupPct] = useState("20");
 
     // ZEMA 360 — currently free/automatic for every seller. Off by default so nothing
     // changes until paid-plan-only ZEMA 360 features actually exist to gate.
@@ -161,6 +166,9 @@ export default function AdminSettings() {
                     if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
                     if (initialData.payoutHitlThreshold !== undefined) setPayoutHitlThreshold(initialData.payoutHitlThreshold.toString());
                     if (initialData.zema360PaidPlansOnly !== undefined) setZema360PaidPlansOnly(initialData.zema360PaidPlansOnly);
+                    if (initialData.metaAdAccountId) setMetaAdAccountId(initialData.metaAdAccountId);
+                    if (initialData.metaAdsAccessTokenConfigured !== undefined) setMetaAdsAccessTokenConfigured(initialData.metaAdsAccessTokenConfigured);
+                    if (initialData.adsMarkupPct !== undefined) setAdsMarkupPct(initialData.adsMarkupPct.toString());
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -263,7 +271,14 @@ export default function AdminSettings() {
     const handleSaveSecurity = () => saveSection({
         aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled, aiProvider,
         payoutHitlThreshold: parseFloat(payoutHitlThreshold) || 50000,
-        zema360PaidPlansOnly
+        zema360PaidPlansOnly,
+        metaAdAccountId: metaAdAccountId.trim() || null,
+        // GET never sends the real token back (see api/admin/settings), so this
+        // field always starts blank even when one IS saved — omitting the key
+        // entirely when left blank means the existing DB value is untouched,
+        // instead of every unrelated Security save silently wiping it out.
+        ...(metaAdsAccessToken.trim() ? { metaAdsAccessToken: metaAdsAccessToken.trim() } : {}),
+        adsMarkupPct: parseFloat(adsMarkupPct) || 20,
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -358,7 +373,10 @@ export default function AdminSettings() {
                                     <Input value={minFinancingPrice} onChange={(e) => setMinFinancingPrice(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Standard Commission (%)</label>
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Standard Commission (%)</label>
+                                        <InfoTooltip content="Live for every seller by default the moment you save — applies to both regular checkout payouts and QR/split-payment checkout. A seller only stays on a different rate if one was explicitly set for them." />
+                                    </div>
                                     <Input value={standardCommission} onChange={(e) => setStandardCommission(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
@@ -769,6 +787,34 @@ export default function AdminSettings() {
                                     <p className="text-xs text-gray-400 mt-0.5">Off = ZEMA 360 order automation runs for every seller (current behavior). On = restricted to sellers on a paid plan (Pro/Growth/Scale) once tiered features exist. Safe to leave off.</p>
                                 </div>
                                 <Switch checked={zema360PaidPlansOnly} onCheckedChange={setZema360PaidPlansOnly} />
+                            </div>
+
+                            {/* Meta Ads (post boosting) */}
+                            <div className="py-4 border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Megaphone className="h-4 w-4 text-amber-500" />
+                                    <h4 className="text-sm font-bold text-gray-900">Meta Ads — Post Boosting</h4>
+                                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg ${metaAdAccountId && metaAdsAccessTokenConfigured ? "bg-emerald-50 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        {metaAdAccountId && metaAdsAccessTokenConfigured ? "Configured" : "Not configured"}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-gray-400 mb-3">
+                                    Runs seller-funded post boosts through FairPrice's own ad account — sellers pay a budget + platform markup, we spend it with Meta on their behalf. Needs a System User access token with <code className="bg-gray-100 px-1 rounded">ads_management</code> on the ad account below. In Business Manager: Business Settings → Users → System Users → Add → assign the ad account with Full Control → Generate New Token (select the app + <code className="bg-gray-100 px-1 rounded">ads_management</code>, <code className="bg-gray-100 px-1 rounded">business_management</code> scopes). The Ad Account ID is the number after "act_" in Ads Manager's account switcher (bottom-left).
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Ad Account ID</label>
+                                        <Input value={metaAdAccountId} onChange={(e) => setMetaAdAccountId(e.target.value)} placeholder="e.g. 1234567890 (no 'act_' prefix)" className="h-11 bg-gray-50 border-none rounded-xl font-bold text-sm" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">System User Access Token</label>
+                                        <Input value={metaAdsAccessToken} onChange={(e) => setMetaAdsAccessToken(e.target.value)} type="password" placeholder={metaAdsAccessTokenConfigured ? "•••••••• (already set — type to replace)" : "EAAG..."} className="h-11 bg-gray-50 border-none rounded-xl font-bold text-sm" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Platform Markup on Ad Spend (%)</label>
+                                        <Input value={adsMarkupPct} onChange={(e) => setAdsMarkupPct(e.target.value)} type="number" className="h-11 bg-gray-50 border-none rounded-xl font-bold text-sm" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

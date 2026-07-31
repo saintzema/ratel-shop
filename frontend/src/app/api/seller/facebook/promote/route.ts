@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 import { verifyPaystackTransaction } from "@/lib/paystack-verify";
-import { createBoostCampaign, isMetaAdsConfigured } from "@/lib/meta-ads";
+import { createBoostCampaign, resolveMetaAdsCredentials } from "@/lib/meta-ads";
 
 async function resolveSeller(userId: string, email?: string) {
     return db.seller.findFirst({
@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
     const seller = await resolveSeller(user.userId, user.email);
     if (!seller) return NextResponse.json({ error: "No seller account" }, { status: 404 });
 
-    if (!isMetaAdsConfigured()) {
+    const credentials = await resolveMetaAdsCredentials();
+    if (!credentials) {
         return NextResponse.json({ error: "Ad boosting isn't set up on our end yet — check back soon." }, { status: 503 });
     }
 
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
         igUserId: seller.instagramUserId || undefined,
         budgetKobo,
         days,
+        credentials,
     });
 
     await db.adCampaign.update({

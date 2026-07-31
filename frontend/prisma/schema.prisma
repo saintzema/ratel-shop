@@ -658,6 +658,11 @@ model SystemSetting {
   // budget and keeps the markup. 20% is mid-range for marketplace-managed ad
   // products (commonly 15-30% across comparable platforms).
   adsMarkupPct                 Float    @default(20)
+  // Admin-editable so ad boosting can go live without a redeploy — env vars
+  // (META_AD_ACCOUNT_ID / META_ADS_ACCESS_TOKEN) still work as a fallback for
+  // local dev, but these DB values take priority whenever set.
+  metaAdAccountId               String?
+  metaAdsAccessToken            String?
 }
 
 // A seller-funded Facebook/Instagram boost of an already-published post.

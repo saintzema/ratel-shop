@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { buildEmailTemplate } from "@/lib/email-templates";
+import { resolveCommissionRate } from "@/lib/commission";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
@@ -47,11 +48,18 @@ export class EscrowService {
         });
 
         // 2. Create Payout Record
+        // Commission rate: the live admin Settings value is authoritative for
+        // every seller by default (see resolveCommissionRate) — this used to
+        // read the seller's own frozen commissionRate column directly, which
+        // an admin changing Settings never actually affected.
+        const commissionRate = await resolveCommissionRate(order.seller.commissionRate);
+        const payoutAmount = order.amount * (1 - commissionRate / 100);
+
         // We use the payout-transfer engine or just create a record for admin approval
         await db.payout.create({
             data: {
                 sellerId: order.sellerId,
-                amount: order.amount * (1 - (order.seller.commissionRate / 100)),
+                amount: payoutAmount,
                 status: "pending",
                 bankName: order.seller.bankName || "Unknown",
                 accountNumber: order.seller.accountNumber || "0000000000",
@@ -66,7 +74,7 @@ export class EscrowService {
         if (sellerEmail) {
             const { subject, html } = buildEmailTemplate("SELLER_PAYOUT_COMPLETED", {
                 name: order.seller.businessName,
-                amount: order.amount * (1 - (order.seller.commissionRate / 100)),
+                amount: payoutAmount,
                 orderId: order.id,
                 businessName: order.seller.businessName
             });

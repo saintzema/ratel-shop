@@ -4,17 +4,36 @@
 // Composer already published. Runs entirely under FairPrice's own ad
 // account/Business Manager — sellers never need their own Ads Manager.
 //
-// Requires META_AD_ACCOUNT_ID (the "act_..." id, without the "act_" prefix)
-// and META_ADS_ACCESS_TOKEN (a System User token with ads_management on that
-// account) to be configured. Neither exists yet as of this writing — every
-// call below fails closed with a clear "not configured" error rather than
-// guessing at credentials, so nothing spends real money until the account
-// is actually set up.
+// Credentials (ad account id + System User access token) are passed in
+// explicitly rather than read from process.env here — the caller resolves
+// them from SystemSetting (admin-editable, no redeploy needed) falling back
+// to env vars for local dev. See resolveMetaAdsCredentials() below.
+
+import { db } from "@/lib/db";
 
 const API_VERSION = "v21.0";
 
-export function isMetaAdsConfigured(): boolean {
-    return !!(process.env.META_AD_ACCOUNT_ID && process.env.META_ADS_ACCESS_TOKEN);
+export interface MetaAdsCredentials {
+    adAccountId: string; // WITHOUT the "act_" prefix
+    accessToken: string; // System User token with ads_management on that account
+}
+
+/**
+ * DB (admin settings) first, env vars as a local-dev fallback. Returns null
+ * if neither source has both values — callers must treat that as "ads
+ * aren't set up yet" and fail closed, never guess at partial credentials.
+ */
+export async function resolveMetaAdsCredentials(): Promise<MetaAdsCredentials | null> {
+    const settings = await db.systemSetting.findUnique({
+        where: { id: "global" },
+        select: { metaAdAccountId: true, metaAdsAccessToken: true },
+    }).catch(() => null);
+
+    const adAccountId = settings?.metaAdAccountId || process.env.META_AD_ACCOUNT_ID || null;
+    const accessToken = settings?.metaAdsAccessToken || process.env.META_ADS_ACCESS_TOKEN || null;
+
+    if (!adAccountId || !accessToken) return null;
+    return { adAccountId, accessToken };
 }
 
 interface CreateBoostParams {
@@ -24,6 +43,7 @@ interface CreateBoostParams {
     igUserId?: string; // required when platform === "instagram"
     budgetKobo: number; // total spend across the whole flight, excludes our markup
     days: number;
+    credentials: MetaAdsCredentials;
 }
 
 interface CreateBoostResult {
@@ -34,8 +54,7 @@ interface CreateBoostResult {
     error?: string;
 }
 
-async function metaPost(path: string, body: Record<string, any>): Promise<any> {
-    const token = process.env.META_ADS_ACCESS_TOKEN!;
+async function metaPost(path: string, body: Record<string, any>, token: string): Promise<any> {
     const res = await fetch(`https://graph.facebook.com/${API_VERSION}/${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,8 +63,7 @@ async function metaPost(path: string, body: Record<string, any>): Promise<any> {
     return res.json();
 }
 
-async function deleteMetaObject(id: string) {
-    const token = process.env.META_ADS_ACCESS_TOKEN!;
+async function deleteMetaObject(id: string, token: string) {
     await fetch(`https://graph.facebook.com/${API_VERSION}/${id}?access_token=${token}`, { method: "DELETE" }).catch(() => {});
 }
 
@@ -56,10 +74,8 @@ async function deleteMetaObject(id: string) {
  * leaving an orphaned half-built campaign silently sitting in the ad account.
  */
 export async function createBoostCampaign(params: CreateBoostParams): Promise<CreateBoostResult> {
-    if (!isMetaAdsConfigured()) {
-        return { success: false, error: "Ad account not configured on our end yet — contact support." };
-    }
-    const adAccount = `act_${process.env.META_AD_ACCOUNT_ID}`;
+    const { accessToken: token, adAccountId } = params.credentials;
+    const adAccount = `act_${adAccountId}`;
     const dailyBudgetKobo = Math.max(100000, Math.round(params.budgetKobo / params.days)); // Meta enforces a real minimum daily budget; ~₦1,000/day floor here is conservative
 
     let campaignId: string | null = null;
@@ -73,7 +89,7 @@ export async function createBoostCampaign(params: CreateBoostParams): Promise<Cr
             objective: "OUTCOME_ENGAGEMENT",
             status: "PAUSED",
             special_ad_categories: [],
-        });
+        }, token);
         if (campaign.error || !campaign.id) return { success: false, error: campaign.error?.message || "Meta rejected campaign creation." };
         campaignId = campaign.id;
 
@@ -91,9 +107,9 @@ export async function createBoostCampaign(params: CreateBoostParams): Promise<Cr
             start_time: now.toISOString(),
             end_time: end.toISOString(),
             status: "PAUSED",
-        });
+        }, token);
         if (adSet.error || !adSet.id) {
-            if (campaignId) await deleteMetaObject(campaignId);
+            if (campaignId) await deleteMetaObject(campaignId, token);
             return { success: false, error: adSet.error?.message || "Meta rejected ad set creation." };
         }
         adSetId = adSet.id;
@@ -105,9 +121,9 @@ export async function createBoostCampaign(params: CreateBoostParams): Promise<Cr
         const creative = await metaPost(`${adAccount}/adcreatives`, {
             name: `FairPrice boost creative — ${params.postId}`,
             object_story_id: objectStoryId,
-        });
+        }, token);
         if (creative.error || !creative.id) {
-            if (campaignId) await deleteMetaObject(campaignId);
+            if (campaignId) await deleteMetaObject(campaignId, token);
             return { success: false, error: creative.error?.message || "Meta rejected the creative (post may not be boostable)." };
         }
         creativeId = creative.id;
@@ -118,21 +134,21 @@ export async function createBoostCampaign(params: CreateBoostParams): Promise<Cr
             adset_id: adSetId,
             creative: { creative_id: creativeId },
             status: "ACTIVE",
-        });
+        }, token);
         if (ad.error || !ad.id) {
-            if (campaignId) await deleteMetaObject(campaignId);
+            if (campaignId) await deleteMetaObject(campaignId, token);
             return { success: false, error: ad.error?.message || "Meta rejected ad creation." };
         }
 
         // Now that the Ad is live, flip the Campaign/AdSet to ACTIVE too.
         // (campaignId/adSetId are guaranteed non-null here — every early return
         // above covers the cases where they'd still be null.)
-        await metaPost(campaignId as string, { status: "ACTIVE" });
-        await metaPost(adSetId as string, { status: "ACTIVE" });
+        await metaPost(campaignId as string, { status: "ACTIVE" }, token);
+        await metaPost(adSetId as string, { status: "ACTIVE" }, token);
 
         return { success: true, campaignId: campaignId as string, adSetId: adSetId as string, adId: ad.id };
     } catch (err: any) {
-        if (campaignId) await deleteMetaObject(campaignId); // cascades adset/ad/creative cleanup
+        if (campaignId) await deleteMetaObject(campaignId, token); // cascades adset/ad/creative cleanup
         return { success: false, error: err?.message || "Ad campaign creation failed." };
     }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
 import { createSubaccountForSeller } from "@/lib/paystack-subaccount";
+import { resolveCommissionRate } from "@/lib/commission";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET(
     });
     return NextResponse.json({
         subaccountCode: seller?.paystackSubaccountCode || null,
-        commissionRate: seller?.commissionRate ?? 2.5,
+        commissionRate: await resolveCommissionRate(seller?.commissionRate),
     });
 }
 
