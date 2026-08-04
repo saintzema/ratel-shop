@@ -1629,8 +1629,12 @@ function SearchContent() {
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
-              const displayCat = BRAND_MAP[cat] ? cat : "cars";
-              const brands = BRAND_MAP[cat] || BRAND_MAP["cars"];
+              // Only show a brand rail when the detected category actually has one —
+              // this used to silently fall back to "cars" for every other category
+              // (solar panels, appliances, beauty, etc.), showing Toyota/Lexus/BYD
+              // logos on totally unrelated searches.
+              const displayCat = cat;
+              const brands = BRAND_MAP[cat];
               if (!brands || brands.length === 0) return null;
               return (
                 <div className="mb-6">
