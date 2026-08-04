@@ -109,7 +109,12 @@ class DataSyncServiceService {
         if (currentProducts.length > 0) return;
 
         this._seedAttempted = true;
-        console.log("🛠️ Resilience: Database unreachable and store empty. Seeding fallback catalog.");
+        // NOTE: this fires on every fresh visit with empty localStorage (e.g. first-ever
+        // page load, or after a DATA_VERSION bump wipes storage) — NOT only on genuine DB
+        // outages. The real syncWithDB() call (fired concurrently) overwrites this seed
+        // data within moments on success. Don't read this log as evidence of a DB problem;
+        // check syncWithDB's actual response status / _isDbOffline for that.
+        console.log("🛠️ Resilience: local cache empty — seeding fallback catalog until live sync completes.");
 
         // Lazy-load the heavy seed blob ONLY in this rare DB-offline fallback path, so it
         // never ships in the synchronous main/shared bundle. Code-split into its own chunk.
