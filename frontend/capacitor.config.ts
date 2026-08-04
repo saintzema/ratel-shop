@@ -16,12 +16,22 @@ const config: CapacitorConfig = {
   webDir: "out", // Static fallback — used for offline/initial load
 
   server: {
-    // Development: point to your local machine (e.g., http://192.168.1.100:3000)
-    // Simulator: use http://localhost:3000
-    // Production: https://fairprice-ten.vercel.app
-    url: "http://localhost:3000",
+    // This was hardcoded to localhost:3000 for BOTH dev and "production"
+    // builds — IS_DEV was computed above but never actually applied here.
+    // Any release build made before this fix would install and show a blank/
+    // broken screen on a real device, since the device has nothing listening
+    // on its own localhost:3000. Now genuinely branches on IS_DEV.
+    //
+    // Local dev on a physical device/simulator: temporarily override this to
+    // your machine's LAN IP (e.g. http://192.168.1.100:3000) or
+    // http://localhost:3000 for the simulator only — never commit that
+    // override, it must always be the production URL by the time anyone
+    // runs a release build.
+    url: IS_DEV ? "http://localhost:3000" : "https://www.fairprice.ng",
     allowNavigation: [
-      "fairprice-ten.vercel.app",
+      "www.fairprice.ng",
+      "fairprice.ng",
+      "fairprice-ten.vercel.app", // staging/legacy alias — harmless to keep allowlisted
       "*.vercel.app",
       "localhost:3000",
       "*.paystack.co",         // Payment gateway
