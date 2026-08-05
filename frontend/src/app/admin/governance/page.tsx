@@ -25,6 +25,16 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
+// PATCH /api/sellers/[id] requires an admin bearer token for status/verified/kyc_status.
+function patchSeller(sellerId: string, body: Record<string, any>) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+    return fetch(`/api/sellers/${sellerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+    });
+}
+
 export default function GovernanceCenter() {
     const [kycs, setKycs] = useState<any[]>([]);
     const [complaints, setComplaints] = useState<any[]>([]);
@@ -34,7 +44,7 @@ export default function GovernanceCenter() {
     const approveItem = async (item: any) => {
         if (item._isSeller) {
             DataSyncService.updateSeller(item.seller_id, { status: "active", verified: true, kyc_status: "approved" });
-            try { await fetch(`/api/sellers/${item.seller_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "active", verified: true, kyc_status: "approved" }) }); } catch {}
+            try { await patchSeller(item.seller_id, { status: "active", verified: true, kyc_status: "approved" }); } catch {}
         } else {
             DataSyncService.updateKYCStatus(item.id, "approved");
         }
@@ -43,7 +53,7 @@ export default function GovernanceCenter() {
     const rejectItem = async (item: any) => {
         if (item._isSeller) {
             DataSyncService.updateSeller(item.seller_id, { status: "frozen", kyc_status: "rejected" });
-            try { await fetch(`/api/sellers/${item.seller_id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "frozen", kyc_status: "rejected" }) }); } catch {}
+            try { await patchSeller(item.seller_id, { status: "frozen", kyc_status: "rejected" }); } catch {}
         } else {
             DataSyncService.updateKYCStatus(item.id, "rejected");
         }

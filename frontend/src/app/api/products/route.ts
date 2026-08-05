@@ -270,7 +270,18 @@ export async function DELETE(req: Request) {
         const id = searchParams.get("id");
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
+        // This handler had no auth check at all — unlike the POST{action:"delete"}
+        // fallback right below it, which correctly checks ownership. Mirror it here.
+        const user = getUserFromRequest(req);
+        if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        const target = await db.product.findUnique({ where: { id }, select: { sellerId: true } });
+        if (target && !(await userOwnsSeller(target.sellerId, user))) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
         await db.product.delete({ where: { id } });
+        broadcast({ type: "product_updated", id });
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: "Delete failed" }, { status: 500 });

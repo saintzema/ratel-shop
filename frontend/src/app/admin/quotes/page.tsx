@@ -39,6 +39,7 @@ export default function AdminQuotesPage() {
                 </div>
             ) : (
                 <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
@@ -73,6 +74,7 @@ export default function AdminQuotesPage() {
                             ))}
                         </tbody>
                     </table>
+                </div>
                 </div>
             )}
         </div>

@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
 
 export const runtime = "nodejs";
+
+// A seller-scoped read is allowed for an admin, or the requester who owns the
+// target seller record (by userId or ownerEmail match) — mirrors the same
+// check in api/products/route.ts.
+async function userOwnsSeller(sellerId: string | undefined | null, user: JWTPayload): Promise<boolean> {
+    if (user.role === "admin") return true;
+    if (!sellerId) return false;
+    if (user.staffOf === sellerId) return true;
+    const seller = await db.seller.findUnique({
+        where: { id: sellerId },
+        select: { userId: true, ownerEmail: true },
+    });
+    if (!seller) return false;
+    return seller.userId === user.userId || (!!user.email && seller.ownerEmail === user.email);
+}
 
 // GET /api/kyc
 export async function GET(request: Request) {
@@ -10,6 +26,20 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const sellerId = searchParams.get("sellerId");
         const fetchAll = searchParams.get("all") === "true";
+
+        // KYC submissions carry real ID numbers and document images — never return
+        // them without verifying the caller is either the owning seller or an admin.
+        const user = getUserFromRequest(request);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        }
+        if (sellerId) {
+            if (user.role !== "admin" && !(await userOwnsSeller(sellerId, user))) {
+                return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+            }
+        } else if (user.role !== "admin") {
+            return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+        }
 
         const whereClause: any = {};
         if (sellerId) whereClause.sellerId = sellerId;

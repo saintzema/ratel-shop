@@ -225,7 +225,7 @@ export default function CategoryManagement() {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ id: editingId, type, name: editName })
             });
 
@@ -254,9 +254,8 @@ export default function CategoryManagement() {
         
         const type = parentId ? "subcategory" : "category";
         const performDelete = async (method: string, body?: any) => {
-            const options: RequestInit = { method };
+            const options: RequestInit = { method, headers: getAuthHeaders() };
             if (body) {
-                options.headers = { "Content-Type": "application/json" };
                 options.body = JSON.stringify(body);
             }
             return fetch(method === "DELETE" ? `/api/admin/taxonomy?id=${id}&type=${type}` : "/api/admin/taxonomy", options);
@@ -299,7 +298,7 @@ export default function CategoryManagement() {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ type: "category", name })
             });
 
@@ -335,7 +334,7 @@ export default function CategoryManagement() {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ type: "subcategory", name, categoryId: parentId })
             });
 

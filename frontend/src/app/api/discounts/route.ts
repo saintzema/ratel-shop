@@ -11,6 +11,19 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "Seller ID required" }, { status: 400 });
         }
 
+        // Promo codes + usages (customer names) are seller-private data — this used
+        // to accept any caller's seller_id with no auth check at all.
+        const user = getUserFromRequest(req);
+        if (!user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        if (user.role !== "admin" && user.staffOf !== sellerId) {
+            const owningSeller = await db.seller.findUnique({ where: { id: sellerId }, select: { userId: true } });
+            if (!owningSeller || owningSeller.userId !== user.userId) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+        }
+
         const discounts = await (db as any).discount.findMany({
             where: { sellerId },
             include: {

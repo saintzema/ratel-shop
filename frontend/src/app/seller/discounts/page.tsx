@@ -68,7 +68,7 @@ export default function DiscountsPage() {
 
         setLoading(true);
         try {
-            const res = await fetch(`/api/discounts?seller_id=${sellerId}`);
+            const res = await fetch(`/api/discounts?seller_id=${sellerId}`, { headers: authHeaders() });
             if (res.ok) {
                 setDiscounts(await res.json());
             }

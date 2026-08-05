@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export const runtime = "nodejs";
 
@@ -10,12 +11,23 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get("userId");
         const sellerId = searchParams.get("sellerId");
-        const fetchAll = searchParams.get("all") === "true";
+        // Trusting a client-supplied all=true with no role check let anyone pull
+        // every complaint (buyer/seller PII included) platform-wide — mirrors the
+        // same fix already applied to /api/orders.
+        const requestedAll = searchParams.get("all") === "true";
+        const fetchAll = requestedAll && getUserFromRequest(request)?.role === "admin";
 
         const whereClause: any = {};
         if (!fetchAll) {
             if (userId) whereClause.userId = userId;
             if (sellerId) whereClause.sellerId = sellerId;
+
+            // Without fetchAll, at least one scoping filter is required — an empty
+            // whereClause here matches every complaint, which is exactly the
+            // unscoped "all" query this gate exists to block.
+            if (!userId && !sellerId) {
+                return NextResponse.json({ success: true, complaints: [] });
+            }
         }
 
         const complaints = await db.complaint.findMany({

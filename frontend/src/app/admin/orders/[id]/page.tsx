@@ -67,9 +67,10 @@ export default function AdminOrderDetailPage() {
         if (!order) return;
         setOrder((prev: any) => prev ? { ...prev, carrier: newCarrier } : null);
         try {
+            const carrierToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch("/api/orders", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(carrierToken ? { Authorization: `Bearer ${carrierToken}` } : {}) },
                 body: JSON.stringify({ id: order.id, carrier: newCarrier }),
             });
             if (!res.ok) throw new Error("save failed");

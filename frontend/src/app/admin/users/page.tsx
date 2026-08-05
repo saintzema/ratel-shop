@@ -251,9 +251,12 @@ export default function UserDirectory() {
 
         const performDelete = async (method: string) => {
             const endpoint = method === "DELETE" ? `/api/users/${deletingUser.id}` : `/api/sellers/${deletingUser.id}`;
-            const options: RequestInit = { method };
+            const deleteToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const options: RequestInit = {
+                method,
+                headers: { "Content-Type": "application/json", ...(deleteToken ? { Authorization: `Bearer ${deleteToken}` } : {}) },
+            };
             if (method === "POST") {
-                options.headers = { "Content-Type": "application/json" };
                 options.body = JSON.stringify({ action: "delete" });
             }
             return fetch(endpoint, options);
@@ -351,13 +354,14 @@ export default function UserDirectory() {
         if (!editingUser) return;
         setEditLoading(true);
         try {
-            const endpoint = editingUser.role === "seller" 
-                ? `/api/sellers/${editingUser.id}` 
+            const endpoint = editingUser.role === "seller"
+                ? `/api/sellers/${editingUser.id}`
                 : `/api/users/${editingUser.id}`;
-            
+
+            const editToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch(endpoint, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(editToken ? { Authorization: `Bearer ${editToken}` } : {}) },
                 body: JSON.stringify(editFormData)
             });
 
@@ -405,9 +409,10 @@ export default function UserDirectory() {
                 ? `/api/sellers/${p.id}`
                 : `/api/users/${p.id}`;
 
+            const suspendToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch(endpoint, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(suspendToken ? { Authorization: `Bearer ${suspendToken}` } : {}) },
                 body: JSON.stringify({ status: newStatus })
             });
 

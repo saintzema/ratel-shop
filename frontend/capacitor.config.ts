@@ -57,8 +57,15 @@ const config: CapacitorConfig = {
     captureInput: true,      // Prevents keyboard issues
     webContentsDebuggingEnabled: IS_DEV, // WebView debug in dev only
     buildOptions: {
-      keystorePath: undefined, // Set when signing for Play Store
-      keystoreAlias: undefined,
+      // Real values live in android/keystore.properties (gitignored) and are read
+      // directly by android/app/build.gradle for `./gradlew bundleRelease`. These
+      // env-var reads only matter if you build via `npx cap build android` instead —
+      // never hardcode secrets here, this file is committed to git.
+      releaseType: "AAB",
+      keystorePath: process.env.ANDROID_KEYSTORE_PATH || "android/keystore/fairprice-release.jks",
+      keystorePassword: process.env.ANDROID_KEYSTORE_PASSWORD,
+      keystoreAlias: process.env.ANDROID_KEYSTORE_ALIAS || "fairprice",
+      keystoreAliasPassword: process.env.ANDROID_KEYSTORE_ALIAS_PASSWORD,
     },
   },
 

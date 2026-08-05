@@ -71,7 +71,8 @@ export default function AdminDashboard() {
         // DB (a fresh login, a cleared cache, or just orders syncing slower than sellers on
         // this page). Same fix as the seller-count refresh above: pull the real numbers
         // from the DB and overwrite the local-cache-derived defaults once they arrive.
-        fetch("/api/orders?all=true")
+        const ordersToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        fetch("/api/orders?all=true", { headers: ordersToken ? { Authorization: `Bearer ${ordersToken}` } : {} })
             .then(r => r.ok ? r.json() : null)
             .then((data: any) => {
                 const orders = Array.isArray(data) ? data : (data?.orders || []);

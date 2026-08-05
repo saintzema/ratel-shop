@@ -86,13 +86,40 @@ export async function PATCH(
         const { id } = await params;
         const body = await req.json();
 
+        // This used to accept status/verified/kycStatus/autoPayoutEnabled — and every
+        // profile field — from any caller who knew a seller id, no auth check at all.
+        // Resolve the target first so we can check both "does this caller own this
+        // seller" and "is this caller allowed to touch admin-only fields."
+        const authTarget = await db.seller.findFirst({
+            where: { OR: [{ id }, { userId: id }] },
+            select: { id: true, userId: true, ownerEmail: true },
+        });
+        if (!authTarget) {
+            return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+        }
+        const requester = getUserFromRequest(req);
+        const isAdmin = requester?.role === "admin";
+        const isOwner = !!requester && (
+            requester.userId === authTarget.userId ||
+            requester.staffOf === authTarget.id ||
+            (!!requester.email && requester.email === authTarget.ownerEmail)
+        );
+        if (!requester || (!isAdmin && !isOwner)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         // Build the update payload — handles both admin fields and seller self-service fields
         const sellerData: Record<string, any> = {};
 
-        // Admin-controlled fields
-        if (body.status !== undefined)                         sellerData.status = body.status;
-        if (body.verified !== undefined)                       sellerData.verified = body.verified;
-        if (body.kyc_status || body.kycStatus)                 sellerData.kycStatus = body.kyc_status || body.kycStatus;
+        // Admin-controlled fields — a seller (even the owner) must never be able to
+        // self-approve/self-verify/flip their own status via this same endpoint.
+        if (isAdmin) {
+            if (body.status !== undefined)                     sellerData.status = body.status;
+            if (body.verified !== undefined)                   sellerData.verified = body.verified;
+            if (body.kyc_status || body.kycStatus)              sellerData.kycStatus = body.kyc_status || body.kycStatus;
+        }
+        // autoPayoutEnabled is a genuine seller self-service toggle (seller/settings/
+        // payouts) — the owner may set it on their own account, not just an admin.
         if (body.autoPayoutEnabled !== undefined)              sellerData.autoPayoutEnabled = body.autoPayoutEnabled;
 
         // Seller self-service profile fields
@@ -126,7 +153,9 @@ export async function PATCH(
         if (body.name || body.display_name)         userUpdate.name = body.name || body.display_name;
         if (body.email || body.owner_email)         userUpdate.email = body.email || body.owner_email;
         // Only promote to "seller" if the user isn't already an admin — never downgrade an admin.
-        if (body.status === "active") {
+        // Gated by isAdmin: a non-admin caller must never trigger this via a raw body field
+        // even though sellerData.status itself was already stripped for them above.
+        if (isAdmin && body.status === "active") {
             const existingSeller = await db.seller.findFirst({ where: { OR: [{ id }, { userId: id }] }, select: { user: { select: { role: true } } } });
             if (existingSeller?.user?.role !== "admin") userUpdate.role = "seller";
         }
@@ -163,8 +192,8 @@ export async function PATCH(
         // Products uploaded while the account was still pending were saved with
         // isActive:false; flip them now. Match every id products may have been
         // stored under (seller id, user id, or the route param) so none are orphaned.
-        const isApproved = body.status === "active" || body.verified === true
-            || body.kyc_status === "approved" || body.kycStatus === "approved";
+        const isApproved = isAdmin && (body.status === "active" || body.verified === true
+            || body.kyc_status === "approved" || body.kycStatus === "approved");
         if (isApproved) {
             const sellerIds = Array.from(new Set([target.id, target.userId, id].filter(Boolean))) as string[];
             await db.product.updateMany({
@@ -196,6 +225,14 @@ export async function POST(
             // Since we are in the seller [id] route, we delete the seller and potentially the user
             const seller = await db.seller.findUnique({ where: { id }, include: { user: true } });
             if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+
+            // Account deletion is destructive and irreversible — admin only. A seller
+            // deleting their own account should go through a dedicated, more careful
+            // flow (which doesn't exist yet), not this bare id-based delete.
+            const requester = getUserFromRequest(req);
+            if (!requester || requester.role !== "admin") {
+                return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            }
 
             if (seller.user) {
                 await db.user.delete({ where: { id: seller.user.id } });

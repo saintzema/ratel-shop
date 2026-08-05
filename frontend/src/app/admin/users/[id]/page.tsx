@@ -41,6 +41,17 @@ import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 import { Seller, User, Order } from "@/lib/types";
 
+// PATCH /api/sellers/[id] now requires an admin bearer token for status/verified/
+// kyc_status fields — every call site in this admin page needs it attached.
+function patchSeller(sellerId: string, body: Record<string, any>) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+    return fetch(`/api/sellers/${sellerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+    });
+}
+
 export default function AdminUserDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -197,11 +208,7 @@ export default function AdminUserDetailPage() {
         DataSyncService.updateSeller(userEntity.id, { status: "active", verified: true, kyc_status: "approved" });
         // Also try API
         try {
-            await fetch(`/api/sellers/${userEntity.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "active", verified: true }),
-            });
+            await patchSeller(userEntity.id, { status: "active", verified: true });
         } catch { }
 
         // Track admin KYC approved
@@ -423,7 +430,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
-                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
+                                    try { await patchSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" }); } catch { }
                                 } else {
                                     // Update by both ID and email for reliable persistence
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus);
@@ -453,11 +460,7 @@ export default function AdminUserDetailPage() {
                                 setIsUpdating(true);
                                 DataSyncService.updateSeller(userEntity.id, { verified: true, kyc_status: "approved" });
                                 try {
-                                    await fetch(`/api/sellers/${userEntity.id}`, {
-                                        method: "PATCH",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ verified: true, kyc_status: "approved" }),
-                                    });
+                                    await patchSeller(userEntity.id, { verified: true, kyc_status: "approved" });
                                 } catch { }
                                 setUserEntity((prev: any) => ({ ...prev, verified: true, kyc_status: "approved" }));
                                 setIsUpdating(false);
@@ -475,7 +478,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
-                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
+                                    try { await patchSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" }); } catch { }
                                 } else {
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus);
                                 }
@@ -494,7 +497,7 @@ export default function AdminUserDetailPage() {
                                 const newStatus = userEntity.role === "seller" ? "frozen" : "banned";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus });
-                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) }); } catch { }
+                                    try { await patchSeller(userEntity.id, { status: newStatus }); } catch { }
                                 } else {
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus as any);
                                 }

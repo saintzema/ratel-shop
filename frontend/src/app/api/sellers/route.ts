@@ -152,8 +152,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "User ID is required" }, { status: 400 });
         }
 
-        // Security check: cannot create store for someone else unless admin
-        if (userPayload && userId !== userPayload.userId && userPayload.role !== "admin") {
+        // Security check: cannot create/update a store for someone else unless admin.
+        // This used to only reject when a token WAS present and didn't match — a
+        // request with no/invalid token (which is exactly what an unauthenticated
+        // caller sends) skipped the check entirely and could upsert any seller by id.
+        if (!userPayload || (userId !== userPayload.userId && userPayload.role !== "admin")) {
             return NextResponse.json({ error: "Forbidden: Unauthorized access" }, { status: 403 });
         }
 

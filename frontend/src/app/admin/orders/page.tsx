@@ -238,10 +238,17 @@ export default function AdminOrdersPage() {
                                                         onClick={async () => {
                                                             if (!confirm("Manually release funds for this order?")) return;
                                                             try {
+                                                                const releaseToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
                                                                 const res = await fetch("/api/orders", {
                                                                     method: "PATCH",
-                                                                    headers: { "Content-Type": "application/json" },
-                                                                    body: JSON.stringify({ id: order.id, escrowStatus: "released", payoutStatus: "payoutable" })
+                                                                    headers: {
+                                                                        "Content-Type": "application/json",
+                                                                        ...(releaseToken ? { Authorization: `Bearer ${releaseToken}` } : {}),
+                                                                    },
+                                                                    // Server reads snake_case (escrow_status/payout_status) — this
+                                                                    // sent camelCase, which the API silently ignored, so this
+                                                                    // button never actually changed anything.
+                                                                    body: JSON.stringify({ id: order.id, escrow_status: "released", payout_status: "payoutable" })
                                                                 });
                                                                 if (res.ok) {
                                                                     alert("Funds released!");

@@ -203,10 +203,11 @@ export default function PayoutsSettingsPage() {
         const pendingIds = pendingPayoutOrders.map(o => o.id);
 
         // Update DB for each order
+        const payoutReqToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         await Promise.all(pendingIds.map(id =>
             fetch("/api/orders", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(payoutReqToken ? { Authorization: `Bearer ${payoutReqToken}` } : {}) },
                 body: JSON.stringify({ id, payout_status: "payout_requested" })
             })
         )).catch(console.error);

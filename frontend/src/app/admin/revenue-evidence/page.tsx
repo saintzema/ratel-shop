@@ -237,6 +237,7 @@ export default function RevenueEvidencePage() {
                         </div>
                     ) : (
                         <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm">
+                        <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-100 bg-gray-50">
@@ -286,6 +287,7 @@ export default function RevenueEvidencePage() {
                                 </tfoot>
                             </table>
                         </div>
+                        </div>
                     )}
                 </div>
 
@@ -299,6 +301,7 @@ export default function RevenueEvidencePage() {
                         </div>
                     ) : (
                         <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm">
+                        <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-gray-100 bg-gray-50">
@@ -343,6 +346,7 @@ export default function RevenueEvidencePage() {
                                     </tr>
                                 </tfoot>
                             </table>
+                        </div>
                         </div>
                     )}
                 </div>

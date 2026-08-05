@@ -1239,9 +1239,10 @@ class DataSyncServiceService {
 
     async createPersistentCategory(name: string, silent: boolean = false) {
         try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ type: "category", name })
             });
             if (res.ok) await this.syncTaxonomy(silent);
@@ -1252,9 +1253,10 @@ class DataSyncServiceService {
 
     async createPersistentSubcategory(categoryId: string, name: string, silent: boolean = false) {
         try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ type: "subcategory", categoryId, name })
             });
             if (res.ok) await this.syncTaxonomy(silent);
@@ -2171,9 +2173,10 @@ class DataSyncServiceService {
         // whatever we have straight to the server, which is authoritative anyway.
         if (!updatedSeller) {
             const currentUser = this.getCurrentUser();
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             fetch("/api/sellers", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 // POST /api/sellers requires user_id even for what is functionally an
                 // update (it upserts by id) — supply it from the logged-in user since
                 // `updates` itself (e.g. onboarding's sellerUpdates) doesn't carry one.
@@ -2206,9 +2209,10 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
 
         // Persist to Postgres and clear pending on success
+        const updateSellerToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/sellers", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(updateSellerToken ? { Authorization: `Bearer ${updateSellerToken}` } : {}) },
             body: JSON.stringify(mergedSeller),
         }).then(res => {
             if (res.ok) {
@@ -4148,11 +4152,12 @@ class DataSyncServiceService {
         }
 
         // Sync to Remote DB
+        const updateOrderStatusToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/orders", {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                id, 
+            headers: { "Content-Type": "application/json", ...(updateOrderStatusToken ? { Authorization: `Bearer ${updateOrderStatusToken}` } : {}) },
+            body: JSON.stringify({
+                id,
                 status,
                 ...(status === 'delivered' ? { deliveredAt: now } : {})
             })
@@ -4291,9 +4296,10 @@ class DataSyncServiceService {
     private _persistOrderEscrow(id: string, escrow_status: Order["escrow_status"], extra: Record<string, any> = {}) {
         this._pendingOrderEdits.add(id);
         try { this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits))); } catch { /* quota */ }
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/orders", {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({ id, escrow_status, ...extra }),
         }).then(res => {
             if (res.ok) {
@@ -4366,12 +4372,13 @@ class DataSyncServiceService {
         this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
         // Sync to Remote DB
+        const trackingToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/orders", {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                id, 
-                carrier: carrier || order.carrier, 
+            headers: { "Content-Type": "application/json", ...(trackingToken ? { Authorization: `Bearer ${trackingToken}` } : {}) },
+            body: JSON.stringify({
+                id,
+                carrier: carrier || order.carrier,
                 tracking_id: tracking_id || order.tracking_id,
                 tracking_steps: updatedSteps,
                 tracking_status: status
@@ -6005,9 +6012,14 @@ class DataSyncServiceService {
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
         // Sync with backend API to prevent ghost rerenders from polling
+        // Requires an admin bearer token — the route rejects unauthenticated calls.
+        const resolveToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/admin/resolve-dispute", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(resolveToken ? { Authorization: `Bearer ${resolveToken}` } : {}),
+            },
             body: JSON.stringify({
                 disputeId,
                 orderId: dispute.order_id,

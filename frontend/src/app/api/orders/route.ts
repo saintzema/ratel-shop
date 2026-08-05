@@ -350,6 +350,31 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
         }
 
+        // Only the payment_reference branch checked auth — status/escrow_status/
+        // payout_status/tracking fields could be rewritten by anyone who knew an
+        // order id. Require the caller to be the order's buyer, its seller, or an
+        // admin. This doesn't further restrict WHICH fields each role may set (the
+        // client call sites already only ever send fields appropriate to their own
+        // role) — it just closes the "no auth at all" hole.
+        const existingOrder = await db.order.findUnique({
+            where: { id },
+            select: { customerId: true, sellerId: true },
+        });
+        if (!existingOrder) {
+            return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        }
+        const requester = getUserFromRequest(request);
+        const isAdminReq = requester?.role === "admin";
+        const isBuyer = !!requester && (requester.userId === existingOrder.customerId || requester.email === existingOrder.customerId);
+        const isSellerOwner = !!requester && !!existingOrder.sellerId && (
+            requester.userId === existingOrder.sellerId ||
+            requester.staffOf === existingOrder.sellerId ||
+            (await db.seller.findUnique({ where: { id: existingOrder.sellerId }, select: { userId: true } }))?.userId === requester.userId
+        );
+        if (!requester || (!isAdminReq && !isBuyer && !isSellerOwner)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const prismaUpdates: any = {};
         if (updates.status) prismaUpdates.status = updates.status;
         if (updates.escrow_status) prismaUpdates.escrowStatus = updates.escrow_status;
