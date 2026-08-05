@@ -233,7 +233,7 @@ export function WaitlistModal() {
                                                 </span>
                                             </h2>
                                             <p className="text-gray-500 text-xs sm:text-sm mt-1.5 sm:mt-2 max-w-[280px] sm:max-w-[300px] mx-auto leading-relaxed font-medium">
-                                                We{"'"}re building Africa{"'"}s first AI-powered marketplace that guarantees <span className="text-emerald-600 font-bold">fair prices</span> on everything.
+                                                Join Africa{"'"}s first AI-powered marketplace that guarantees <span className="text-emerald-600 font-bold">fair prices</span> on everything — get early access to deals and price drops.
                                             </p>
                                         </div>
 
@@ -309,11 +309,11 @@ export function WaitlistModal() {
                                         </div>
                                         <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-1.5 sm:mb-2">You{"'"}re In!</h3>
                                         <p className="text-gray-500 text-xs sm:text-sm max-w-xs mx-auto font-medium">
-                                            Welcome to the fair pricing revolution. We{"'"}ll notify you at <span className="text-emerald-600 font-bold break-all">{email}</span> when we launch.
+                                            Welcome to the fair pricing revolution. We{"'"}ll notify you at <span className="text-emerald-600 font-bold break-all">{email}</span> about exclusive deals and price drops.
                                         </p>
                                         <div className="mt-3 sm:mt-4 inline-flex items-center gap-2 text-[10px] sm:text-xs text-gray-400 font-medium">
                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                            Email saved to waitlist
+                                            Email saved
                                         </div>
                                     </motion.div>
                                 )}
