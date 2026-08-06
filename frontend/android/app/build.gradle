@@ -11,10 +11,17 @@ if (hasSigningConfig) {
 }
 
 android {
+    // namespace stays com.fairprice.app — purely internal to Gradle's R-class
+    // generation, invisible to Play Store, and matches the existing Java
+    // source package (android/app/src/main/java/com/fairprice/app/). Only
+    // applicationId is what Google Play actually checks/routes by, and that
+    // had to move to com.fairprice.ng after com.fairprice.app turned out to
+    // already be claimed on Play Console by an untraceable prior
+    // registration. AGP explicitly supports namespace != applicationId.
     namespace = "com.fairprice.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.fairprice.app"
+        applicationId "com.fairprice.ng"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

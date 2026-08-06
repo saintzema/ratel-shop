@@ -87,7 +87,7 @@ workflows:
       android_signing:
         - fairprice_release_keystore
       vars:
-        PACKAGE_NAME: "com.fairprice.app"
+        PACKAGE_NAME: "com.fairprice.ng"
       node: 20.11.1
       java: 17
     triggering:
