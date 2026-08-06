@@ -464,11 +464,15 @@ export default function UnifiedAuthPage() {
             return;
         }
 
-        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-        setSentCode(newCode);
-
-        handleSendVerificationEmail(newCode, firstName.trim());
-        setStep("verification_new");
+        // Standard password signup completes immediately — it used to force every
+        // new user through a mandatory 6-digit email-code step with no way to skip
+        // it in the UI, which meant a slow/undelivered email (e.g. a brand-new
+        // custom-domain mailbox with no inbox activity yet, common for a freshly
+        // created review/test account) hard-blocked account creation entirely.
+        // The email-code flow itself is intentionally kept as a genuine opt-in
+        // alternative ("Sign in with email code instead") for returning users at
+        // login — this only removes the forced gate on new signup.
+        handleFinalizeRegistration(true);
     };
 
     const handleSendVerificationEmail = async (code: string, nameToUse: string): Promise<boolean> => {
