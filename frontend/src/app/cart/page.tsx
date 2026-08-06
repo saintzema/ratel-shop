@@ -12,6 +12,8 @@ import { CheckCircle, AlertCircle, Trash2, ShoppingBag, Plus, Heart, ChevronDown
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useAuth } from "@/context/AuthContext";
+import { RewardedAdCard } from "@/components/ads/RewardedAdCard";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
@@ -23,6 +25,7 @@ export default function CartPage() {
     const { location, deliveryDate } = useLocation();
     const { cart, removeFromCart, updateQuantity, cartTotal, cartCount, clearCart, addToCart } = useCart();
     const { toggleFavorite } = useFavorites();
+    const { user } = useAuth();
     const router = useRouter();
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
     const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -153,6 +156,10 @@ export default function CartPage() {
                         Subtotal ({cartCount} items): <span className="font-bold">{formatPrice(cartTotal)}</span>
                     </div>
 
+                    <div className="mt-4 lg:hidden">
+                        <RewardedAdCard isLoggedIn={!!user} />
+                    </div>
+
                 </div>
 
                 {/* Right Sidebar: Checkout (Desktop Only) */}
@@ -181,6 +188,8 @@ export default function CartPage() {
                         <input type="checkbox" className="rounded" />
                         <span>This order contains a gift</span>
                     </div>
+
+                    <RewardedAdCard isLoggedIn={!!user} />
 
                     <Link href="/checkout">
                         <Button className="w-full rounded-full" variant="amazon" disabled={cart.length === 0}>

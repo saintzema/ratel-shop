@@ -493,6 +493,20 @@ function CheckoutContent() {
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
     const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
 
+    // Ad-reward credit — platform-funded, earned by watching a rewarded ad on
+    // the cart page (see RewardedAdCard). Separate from appliedCoupon (a
+    // seller's own promo code) since it's redeemed through its own endpoint.
+    const [adRewardCredit, setAdRewardCredit] = useState<{ id: string; amount: number; expiresAt: string } | null>(null);
+    useEffect(() => {
+        if (!user) return;
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        if (!token) return;
+        fetch("/api/ads/reward", { headers: { Authorization: `Bearer ${token}` } })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => setAdRewardCredit(data?.credit || null))
+            .catch(() => {});
+    }, [user]);
+
     // Savings Breakdown Toggle
     const [showSavingsBreakdown, setShowSavingsBreakdown] = useState(false);
 
@@ -925,9 +939,9 @@ function CheckoutContent() {
     }, 0);
 
     const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier)) : 0;
-    const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
+    const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0) + (adRewardCredit?.amount || 0);
 
-    const total = Math.max(0, itemsPayableNow + shipping + escrowFee - (appliedCoupon?.amount || 0));
+    const total = Math.max(0, itemsPayableNow + shipping + escrowFee - (appliedCoupon?.amount || 0) - (adRewardCredit?.amount || 0));
 
     // COD eligibility: admin-configurable threshold + expensive category override
     const EXPENSIVE_CATEGORIES = ["cars", "automotive", "vehicles"];
@@ -1531,6 +1545,15 @@ function CheckoutContent() {
 
             if (appliedCoupon && user) {
                 DataSyncService.useCoupon(appliedCoupon.code, user.id);
+            }
+
+            if (adRewardCredit && user && createdOrders[0]?.order?.id) {
+                const rewardToken = localStorage.getItem("fp_token");
+                fetch("/api/ads/reward", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", ...(rewardToken ? { Authorization: `Bearer ${rewardToken}` } : {}) },
+                    body: JSON.stringify({ creditId: adRewardCredit.id, orderId: createdOrders[0].order.id }),
+                }).catch(() => {});
             }
 
             // ─── Referral Rewards Dispensation ───
@@ -2843,6 +2866,16 @@ function CheckoutContent() {
                                                                 <span className="text-[10px] text-gray-400">Promo Discount Applied</span>
                                                             </div>
                                                             <span className="font-bold text-emerald-600">-{formatPrice(appliedCoupon.amount)}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {adRewardCredit && (
+                                                        <div className="flex justify-between items-center text-[13px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-gray-500 font-medium">Ad Reward Credit</span>
+                                                                <span className="text-[10px] text-gray-400">Earned by watching an ad</span>
+                                                            </div>
+                                                            <span className="font-bold text-emerald-600">-{formatPrice(adRewardCredit.amount)}</span>
                                                         </div>
                                                     )}
 

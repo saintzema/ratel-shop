@@ -41,6 +41,26 @@ model User {
   whatsAppVerifications WhatsAppVerification[]
   financingApplications FinancingApplication[]
   savedCards      SavedCard[]
+  adRewardCredits AdRewardCredit[]
+}
+
+// A buyer-facing, platform-funded credit earned by watching a rewarded ad —
+// distinct from Discount (a seller's own promo code, sellerId-scoped). This
+// applies to any order regardless of seller; FairPrice absorbs the cost as
+// the price of the ad impression, not the seller.
+model AdRewardCredit {
+  id          String    @id @default(cuid())
+  userId      String
+  amount      Float
+  source      String    @default("rewarded_ad")
+  status      String    @default("active") // active | redeemed | expired
+  expiresAt   DateTime
+  redeemedOrderId String?
+  createdAt   DateTime  @default(now())
+  redeemedAt  DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }
 
 // A tokenized Paystack card authorization — never the raw card number, which

@@ -70,6 +70,7 @@ export const viewport = {
 
 import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
 import { RouteProgressBar } from "@/components/ui/RouteProgressBar";
+import { AD_CONFIG, isAdSenseConfigured } from "@/lib/ad-config";
 
 export default function RootLayout({
   children,
@@ -209,6 +210,18 @@ export default function RootLayout({
             })
           }}
         />
+        {/* Google AdSense — no-ops entirely until NEXT_PUBLIC_ADSENSE_CLIENT_ID is
+            set (real AdSense account not created yet). Loading it unconditionally
+            with an empty client id would 400 on every page load for nothing. */}
+        {isAdSenseConfigured() && (
+          <Script
+            id="adsbygoogle-init"
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CONFIG.adsense.clientId}`}
+            crossOrigin="anonymous"
+            strategy="afterInteractive"
+          />
+        )}
       </head>
       <body
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}

@@ -241,6 +241,7 @@ import { useInView } from "react-intersection-observer";
 import { useAuth } from "@/context/AuthContext";
 import { parseLocationFromQuery } from "@/lib/location-search";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { InFeedNativeAd } from "@/components/ads/InFeedNativeAd";
 
 function SearchContent() {
   const { user } = useAuth();
@@ -1704,8 +1705,13 @@ function SearchContent() {
                    </div>
                 )}
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {combinedCurrentResults.map((product: any) => (
-                    <SearchGridCard key={product.id} product={product} />
+                  {combinedCurrentResults.map((product: any, i: number) => (
+                    <>
+                      <SearchGridCard key={product.id} product={product} />
+                      {/* One native ad every 8 products — no-ops entirely until
+                          AdSense is actually configured (see InFeedNativeAd). */}
+                      {(i + 1) % 8 === 0 && <InFeedNativeAd key={`ad-${product.id}`} />}
+                    </>
                   ))}
 
                   {/* Show catalog matches immediately while AI searches — replaced once combined results arrive */}
