@@ -54,6 +54,18 @@ workflows:
           keychain add-certificates
           xcode-project use-profiles
 
+      # Apple rejects any upload whose build number isn't strictly higher than
+      # every previously uploaded build for this bundle ID, even when the
+      # marketing version (1.0.0) is unchanged. A hardcoded CURRENT_PROJECT_VERSION
+      # in project.pbxproj hits that wall on every single push after the first
+      # successful upload — this queries App Store Connect for the actual latest
+      # build number and sets the next one automatically, every build.
+      - name: Bump build number from App Store Connect
+        script: |
+          cd "$CM_BUILD_DIR/frontend/ios/App"
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-build-number "$BUNDLE_ID")
+          agvtool new-version -all $(($LATEST_BUILD_NUMBER + 1))
+
       - name: Build ipa for distribution
         script: |
           xcode-project build-ipa \
