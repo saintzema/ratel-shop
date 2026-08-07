@@ -13,11 +13,11 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.fairprice.app
+        bundle_identifier: ai.fairprice.app
       vars:
         XCODE_WORKSPACE: "$CM_BUILD_DIR/frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-        BUNDLE_ID: "com.fairprice.app"
+        BUNDLE_ID: "ai.fairprice.app"
       node: 20.11.1
       xcode: latest
     triggering:

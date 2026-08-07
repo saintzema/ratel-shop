@@ -11,16 +11,20 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 const config: CapacitorConfig = {
-  // NOTE: iOS and Android now have DIFFERENT identifiers — com.fairprice.app
-  // was already registered on Apple Developer, but the same string was
-  // separately claimed on Google Play by an untraceable prior registration,
-  // so Android had to move to com.fairprice.ng instead (set directly in
-  // android/app/build.gradle's applicationId, not derived from this field).
+  // NOTE: iOS and Android now have DIFFERENT identifiers. iOS is
+  // ai.fairprice.app — the existing App Store Connect app record ("FairPrice
+  // Shopping with AI", Apple ID 6760352736) is bound to this bundle ID, even
+  // though com.fairprice.app is ALSO a registered Identifier — using
+  // com.fairprice.app would orphan the existing App Store Connect listing.
+  // Android is com.fairprice.ng — com.fairprice.app was separately claimed on
+  // Google Play by an untraceable prior registration, so Android moved to
+  // .ng instead (set directly in android/app/build.gradle's applicationId,
+  // not derived from this field).
   // Capacitor's config schema only supports one appId, and it only matters
   // for scaffolding a brand-new native project anyway — both native projects
   // already exist and read their real identifier from their own project
   // files, so this value just tracks iOS as the "primary" one.
-  appId: "com.fairprice.app",
+  appId: "ai.fairprice.app",
   appName: "FairPrice",
   webDir: "out", // Static fallback — used for offline/initial load
 
