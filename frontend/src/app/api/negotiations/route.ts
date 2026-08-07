@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"; // REBUILD_TRIGGER_ENV_FIX
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { WhatsAppService } from "@/lib/whatsapp-service";
+import { moderateMessageText } from "@/lib/content-moderation";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 export const runtime = "nodejs";
 
@@ -248,7 +250,28 @@ export async function PATCH(request: Request) {
         if (counterMessage !== undefined) updateData.counterMessage = counterMessage;
         if (counterStatus !== undefined) updateData.counterStatus = counterStatus;
 
-        if (chatMessages !== undefined) updateData.chatMessages = chatMessages;
+        if (chatMessages !== undefined) {
+            // The client always PATCHes the FULL message array (append-then-send), so
+            // the last entry is the newly-added message — that's the only one that
+            // needs moderating on this call; everything before it already passed
+            // moderation on the PATCH that originally added it.
+            const newest = Array.isArray(chatMessages) ? chatMessages[chatMessages.length - 1] : null;
+            if (newest?.text) {
+                const result = moderateMessageText(newest.text);
+                if (result.blocked) {
+                    notifyAdmins(
+                        `🚩 A chat message was auto-blocked (${result.reason}) on negotiation ${id}.`,
+                        { type: "system", link: "/admin/governance" }
+                    ).catch(() => {});
+                    return NextResponse.json({
+                        success: false,
+                        error: "This message can't be sent — it may violate our chat guidelines (harassment, or asking to pay outside FairPrice's protected checkout).",
+                        moderationReason: result.reason,
+                    }, { status: 422 });
+                }
+            }
+            updateData.chatMessages = chatMessages;
+        }
 
         const updated = await db.negotiationRequest.update({
             where: { id },

@@ -6,7 +6,7 @@ import {
     X, Send, MessageCircle, ChevronLeft, Search,
     Bell, Check, CheckCheck, ShoppingBag, Megaphone,
     Truck, Sparkles, Package, Bot, Headphones, Store, Coins,
-    Image as ImageIcon
+    Image as ImageIcon, Flag
 } from "lucide-react";
 import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
+import { moderateMessageText } from "@/lib/content-moderation";
 
 // ─── Notification types ─────────────────────────────────
 interface AppNotification {
@@ -81,20 +82,22 @@ const groupMessagesByDate = (messages: ChatMessage[]) => {
 };
 
 // ─── Memoized Sub-components ─────────────────────────────
-const ChatMessageItem = React.memo(({ 
-    msg, 
-    onReply, 
-    onAcceptCounter, 
-    onRejectCounter, 
+const ChatMessageItem = React.memo(({
+    msg,
+    onReply,
+    onAcceptCounter,
+    onRejectCounter,
     onRenegotiate,
+    onReport,
     storeName,
     storeLogo
-}: { 
-    msg: ChatMessage, 
+}: {
+    msg: ChatMessage,
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
     onRenegotiate: (productId: string, price: number) => void,
+    onReport: (msg: ChatMessage) => void,
     storeName?: string,
     storeLogo?: string
 }) => {
@@ -118,9 +121,25 @@ const ChatMessageItem = React.memo(({
             )}
             <div className={`max-w-[85%] relative flex flex-col items-${isUser ? "end" : "start"}`}>
                 {!isUser && (
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
-                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : (storeName || "Seller")}
-                    </p>
+                    <div className="flex items-center gap-1.5 mb-0.5 px-1 ml-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : (storeName || "Seller")}
+                        </p>
+                        {/* Only a real other-party message (seller) is reportable — not our
+                            own AI assistant or platform support, which aren't "content" in
+                            the sense the report feature exists to police. */}
+                        {msg.sender === "seller" && (
+                            <button
+                                type="button"
+                                onClick={() => onReport(msg)}
+                                title="Report this message"
+                                aria-label="Report this message"
+                                className="text-gray-300 hover:text-red-500 transition-colors"
+                            >
+                                <Flag className="h-2.5 w-2.5" />
+                            </button>
+                        )}
+                    </div>
                 )}
                 <div
                     className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${isUser
@@ -292,20 +311,22 @@ const ChatMessageItem = React.memo(({
 
 ChatMessageItem.displayName = "ChatMessageItem";
 
-const ChatMessageList = React.memo(({ 
-    messages, 
+const ChatMessageList = React.memo(({
+    messages,
     onReply,
     onAcceptCounter,
     onRejectCounter,
     onRenegotiate,
+    onReport,
     storeName,
     storeLogo
-}: { 
-    messages: ChatMessage[], 
+}: {
+    messages: ChatMessage[],
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
     onRenegotiate: (productId: string, price: number) => void,
+    onReport: (msg: ChatMessage) => void,
     storeName?: string,
     storeLogo?: string
 }) => {
@@ -354,13 +375,14 @@ const ChatMessageList = React.memo(({
                         </span>
                     </div>
                     {group.messages.map((msg) => (
-                        <ChatMessageItem 
-                            key={msg.id} 
-                            msg={msg} 
+                        <ChatMessageItem
+                            key={msg.id}
+                            msg={msg}
                             onReply={onReply}
                             onAcceptCounter={onAcceptCounter}
                             onRejectCounter={onRejectCounter}
                             onRenegotiate={onRenegotiate}
+                            onReport={onReport}
                             storeName={storeName}
                             storeLogo={storeLogo}
                         />
@@ -732,6 +754,7 @@ export function MessageBox() {
     }, []);
 
     const [contactWarning, setContactWarning] = useState(false);
+    const [moderationWarning, setModerationWarning] = useState(false);
 
     const handleSend = useCallback(() => {
         if (!input.trim() && selectedImagePreviews.length === 0) return;
@@ -739,10 +762,21 @@ export function MessageBox() {
 
         // Apply contact info masking
         const { masked, wasBlocked } = maskContactInfo(input.trim());
-        
+
         if (wasBlocked) {
             setContactWarning(true);
             setTimeout(() => setContactWarning(false), 4000);
+        }
+
+        // Moderation runs client-side first (immediate feedback, no round-trip) — the
+        // negotiations PATCH route re-checks server-side too, since a client check
+        // alone is trivially bypassable and this is what actually stops the message
+        // from persisting. Blocked here means we never even call sendMessage.
+        const moderation = moderateMessageText(masked);
+        if (moderation.blocked) {
+            setModerationWarning(true);
+            setTimeout(() => setModerationWarning(false), 5000);
+            return;
         }
 
         // If this is a negotiation thread, sync the message to the negotiation history
@@ -825,6 +859,48 @@ export function MessageBox() {
         }
     }, [selectedConvId, sendMessage]);
 
+    // Reports a specific seller message — files a real Complaint (same model/queue
+    // the admin Governance Center already reviews), scoped to the seller resolved
+    // from the conversation's product. This is a genuine moderation entry point,
+    // not a cosmetic button: it lands in the same admin review flow as order
+    // disputes.
+    const handleReportMessage = useCallback((msg: ChatMessage) => {
+        if (!selectedConvId) return;
+        const conv = conversations.find(c => c.id === selectedConvId);
+        if (!conv) return;
+
+        const reason = window.prompt(
+            `Report this message from ${conv.storeName || "this seller"}?\n\n"${msg.text.slice(0, 140)}"\n\nBriefly describe the issue (e.g. harassment, scam attempt, inappropriate content):`
+        );
+        if (!reason || !reason.trim()) return;
+
+        const productId = conv.orderId.replace("neg_", "").split("_")[0];
+        const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === productId);
+        const seller = product ? DataSyncService.getSellers().find(s => s.id === product.seller_id) : null;
+
+        fetch("/api/complaints", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                user_id: user?.id,
+                user_name: user?.name || "User",
+                seller_id: seller?.id || product?.seller_id,
+                seller_name: seller?.business_name || conv.storeName || "Unknown Seller",
+                order_id: conv.orderId,
+                type: "reported_message",
+                description: `Reported message: "${msg.text}"\n\nReason: ${reason.trim()}`,
+            }),
+        }).then(res => {
+            if (res.ok) {
+                alert("Thanks — this has been reported to our team for review.");
+            } else {
+                alert("Couldn't submit the report right now. Please try again.");
+            }
+        }).catch(() => {
+            alert("Couldn't submit the report right now. Please try again.");
+        });
+    }, [selectedConvId, conversations, user]);
+
     const handleSelectConversation = (conv: Conversation) => {
         setSelectedConvId(conv.id);
         markAsRead(conv.id);
@@ -903,12 +979,13 @@ export function MessageBox() {
                                 </div>
 
                                 {/* Chat Messages — Memoized List */}
-                                <ChatMessageList 
+                                <ChatMessageList
                                     messages={selectedConversation.messages}
                                     onReply={handleReply}
                                     onAcceptCounter={handleAcceptCounter}
                                     onRejectCounter={handleRejectCounter}
                                     onRenegotiate={handleRenegotiate}
+                                    onReport={handleReportMessage}
                                     storeName={selectedConversation.storeName}
                                     storeLogo={selectedConversation.storeLogo}
                                 />
@@ -1003,6 +1080,26 @@ export function MessageBox() {
                                                 <p className="text-[11px] font-bold text-amber-800">Contact info masked for your safety</p>
                                                 <p className="text-[10px] text-amber-600 leading-relaxed mt-0.5">
                                                     Phone numbers, emails, and social handles are automatically hidden. Use FairPrice's secure checkout to complete transactions.
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* Moderation Block Warning */}
+                                <AnimatePresence>
+                                    {moderationWarning && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 10 }}
+                                            className="mx-4 mb-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-start gap-2 shadow-sm"
+                                        >
+                                            <Flag className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                                            <div>
+                                                <p className="text-[11px] font-bold text-red-800">Message not sent</p>
+                                                <p className="text-[10px] text-red-600 leading-relaxed mt-0.5">
+                                                    This message may violate our chat guidelines (harassment, or asking to pay outside FairPrice's protected checkout). Please rephrase and try again.
                                                 </p>
                                             </div>
                                         </motion.div>
