@@ -47,5 +47,18 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- Google Mobile Ads SDK (added this session via @capacitor-community/admob)
+	     hard-crashes at launch if this key is missing — that's what caused the
+	     "renders splash, then crashes" report. This is Google's own published
+	     PUBLIC TEST App ID (safe, not a secret) — swap for the real AdMob App ID
+	     once that account exists; using the test ID unblocks launching in the
+	     meantime rather than leaving the app permanently broken. -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<!-- Required by Apple whenever an app can request App Tracking Transparency
+	     (AdMob's UserMessagingPlatform does this for personalized ads) — shown
+	     to the user the first time tracking permission is requested. -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This identifier will be used to deliver personalized ads and measure ad performance.</string>
 </dict>
 </plist>

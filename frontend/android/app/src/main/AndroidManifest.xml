@@ -33,6 +33,14 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Google Mobile Ads SDK (added this session for @capacitor-community/admob)
+             crashes at launch on Android too if this meta-data is missing — same
+             root cause as the iOS GADApplicationIdentifier crash. Using Google's
+             own published PUBLIC TEST App ID until a real AdMob account exists. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
     </application>
 
     <!-- Permissions -->
