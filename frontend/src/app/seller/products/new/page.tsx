@@ -549,7 +549,47 @@ function NewProductContent() {
                 }
             }
 
+            // addRawProduct writes to localStorage synchronously and fires the
+            // actual Postgres write as a fire-and-forget resilientFetch — awaiting
+            // it here does NOT wait for that network call, so it can never tell us
+            // the publish actually persisted. On a weak connection (the very case
+            // this flow needs to be reliable for — a first-time seller quick-selling
+            // from their phone) that meant: local cache shows the product, the POST
+            // silently 401s/403s/fails, and the product vanishes the next time
+            // anything re-syncs from the server. Explicitly re-POST here, awaited,
+            // with a hard timeout so "Publishing..." can never spin forever, and
+            // surface a real error instead of navigating away as if it worked.
             await DataSyncService.addRawProduct(newProduct);
+
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            let persisted = false;
+            try {
+                const res = await fetch("/api/products", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                    body: JSON.stringify(newProduct),
+                    signal: controller.signal,
+                });
+                persisted = res.ok;
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    console.error("Publish failed to persist:", res.status, errBody);
+                }
+            } catch (netErr: any) {
+                console.error("Publish network error:", netErr);
+            } finally {
+                clearTimeout(timeoutId);
+            }
+
+            if (!persisted) {
+                setIsSubmitting(false);
+                setAiErrorMsg(
+                    "Your listing is saved on this device but hasn't reached our servers yet (weak connection?). It'll keep retrying automatically — check Wi-Fi/data and tap Publish again to confirm it went through before leaving this page."
+                );
+                return;
+            }
 
             // Track product listed
             if (typeof window !== "undefined" && (window as any).pendo) {
@@ -592,20 +632,9 @@ function NewProductContent() {
             </Link>
 
             {/* Header */}
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">New Listing</h1>
-                    <p className="text-base text-gray-500 mt-2">Create a high-impact product listing with AI pricing guidance.</p>
-                </div>
-                <Button
-                    variant="outline"
-                    className="gap-2 border-gray-200 bg-green-600 text-white hover:bg-green-700 rounded-full text-sm font-semibold px-5 h-10"
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating || !formData.name}
-                >
-                    <Sparkles className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
-                    {isGenerating ? "Generating..." : "Auto-Fill with AI"}
-                </Button>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
+                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">New Listing</h1>
+                <p className="text-base text-gray-500 mt-2">Create a high-impact product listing with AI pricing guidance.</p>
             </motion.div>
 
             {aiErrorMsg && (
@@ -640,6 +669,16 @@ function NewProductContent() {
                                         value={formData.name}
                                         onChange={(e) => handleChange("name", e.target.value)}
                                     />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="gap-2 border-gray-200 bg-green-600 text-white hover:bg-green-700 rounded-xl text-sm font-semibold h-10 w-full mt-1"
+                                        onClick={handleAIGenerate}
+                                        disabled={isGenerating || !formData.name}
+                                    >
+                                        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                        {isGenerating ? "Generating..." : "Auto-Fill with AI"}
+                                    </Button>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Category</label>
@@ -831,9 +870,6 @@ function NewProductContent() {
                                     value={imageKeys[i]}
                                     className="relative shrink-0 w-24 sm:w-28 cursor-grab active:cursor-grabbing"
                                 >
-                                    {i === 0 && (
-                                        <span className="absolute -top-1 -left-1 z-10 bg-brand-green-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">Main</span>
-                                    )}
                                     <ProductImageSlot
                                         url={url}
                                         onUrlChange={(newUrl) => {
@@ -847,6 +883,10 @@ function NewProductContent() {
                                                 setFormData(prev => {
                                                     const next = [...prev.images];
                                                     next[i] = url;
+                                                    // Filling the last slot auto-reveals the next empty one,
+                                                    // so a seller adding several photos in a row never has
+                                                    // to reach for the separate "+" button each time.
+                                                    if (i === next.length - 1 && next.length < 8) next.push("");
                                                     return { ...prev, images: next };
                                                 });
                                             });

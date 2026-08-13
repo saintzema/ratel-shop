@@ -60,15 +60,17 @@ export async function POST(req: Request) {
 
         Output MUST be valid JSON matching this exact structure:
         {
+            "category": "string",
+            "subcategory": "string",
             "description": "A compelling, 3-4 paragraph product description. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
             "highlights": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5", "Point 6"],
             "specs": { "Brand": "...", "Model": "...", "...": "..." },
-            "subcategory": "string",
             "tags": ["tag1", "tag2", "tag3"],
             "colors": ["Color 1", "Color 2"]
         }
 
         CRITICAL RULES:
+        - "category" MUST be the single best-matching general marketplace category for this product (e.g. Electronics, Vehicles, Fashion, Home & Kitchen, Health & Beauty, Phones & Tablets, Furniture, Real Estate, Baby Products, Sporting Goods). Pick the closest real-world category name — never leave it blank, and never default to "Other" unless the product genuinely fits nowhere else.
         - Output ONLY raw, valid JSON. NO markdown.
         - Description must be at least 150 words.
         - Open the description with a natural sentence about the product itself (e.g. "This [product] comes with...", "Built for...", "Designed to..."). Never open with a bare restated product name as a sentence fragment (e.g. avoid "A bright yellow electric tricycle. Features include...").

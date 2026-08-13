@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { Upload, X, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Plus, Trash2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn, wrapInCDN, isVideoUrl, isIframeVideoUrl } from "@/lib/utils";
@@ -38,13 +38,54 @@ export function ProductImageSlot({
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Optimistic preview: the real `url` prop only updates once the parent's
+    // async upload finishes, so a slower connection left this box blank the
+    // whole time a file was uploading with zero feedback. Show the picked
+    // file immediately via a local object URL, dimmed with a spinner, until
+    // the parent hands back the real (Blob/CDN) URL.
+    const [localPreview, setLocalPreview] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const prevUrlRef = useRef(url);
+
+    useEffect(() => {
+        if (url !== prevUrlRef.current) {
+            prevUrlRef.current = url;
+            setIsUploading(false);
+            setLocalPreview(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return null;
+            });
+        }
+    }, [url]);
+
+    useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, []);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith("image/")) {
+            setLocalPreview(prev => {
+                if (prev) URL.revokeObjectURL(prev);
+                return URL.createObjectURL(file);
+            });
+            setIsUploading(true);
+        }
+        onFileSelect(e);
+    };
+
+    const displayUrl = localPreview || url;
+
     return (
         <div className={cn("space-y-3", className)}>
-            <div 
+            <div
                 className="aspect-square w-full max-w-[240px] sm:max-w-none mx-auto bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative group cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
                 onClick={() => fileInputRef.current?.click()}
             >
-                {url ? (
+                {isUploading && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
+                        <Loader2 className="h-6 w-6 text-indigo-500 animate-spin" />
+                    </div>
+                )}
+                {displayUrl ? (
                     <>
                         {isIframeVideoUrl(url) ? (
                             <div className="h-full w-full p-2">
@@ -66,7 +107,7 @@ export function ProductImageSlot({
                                 controls={false}
                             />
                         ) : (
-                            <img src={url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
+                            <img src={displayUrl} alt="Preview" className={cn("h-full w-full object-contain p-3 transition-transform group-hover:scale-105", isUploading && "opacity-50")} />
                         )}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                             <p className="text-white text-xs font-bold uppercase tracking-widest">Change Media</p>
@@ -86,7 +127,7 @@ export function ProductImageSlot({
                     type="file"
                     accept="image/*,video/*"
                     className="hidden"
-                    onChange={onFileSelect}
+                    onChange={handleFileSelect}
                 />
             </div>
             {!hideInput && (
