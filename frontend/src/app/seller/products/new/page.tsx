@@ -8,7 +8,7 @@ import { formatPrice, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import { motion, Reorder } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CATEGORIES } from "@/lib/types";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
@@ -17,6 +17,13 @@ import { upload } from "@vercel/blob/client";
 
 function NewProductContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    // Set by /sell when it auto-drafted a seller record for someone who
+    // wasn't a seller yet — the product gets created first, then this
+    // sends them to finish onboarding (bank details, KYC) instead of the
+    // normal product-list redirect, since a draft-status seller isn't
+    // actually able to receive payouts yet.
+    const isQuickSell = searchParams.get("quickSell") === "1";
     const fileInputRef = useRef<HTMLInputElement>(null);
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
@@ -561,7 +568,15 @@ function NewProductContent() {
                 });
             }
 
-            router.push("/seller/products");
+            if (isQuickSell) {
+                // Product exists now, but this seller record was auto-drafted with no
+                // bank/KYC info — send them to finish that instead of the product list,
+                // carrying the new product id so onboarding can show "your product is
+                // ready, just finish setup to publish it" rather than a blank flow.
+                router.push(`/seller/onboarding?fromProduct=${encodeURIComponent(newProduct.id)}`);
+            } else {
+                router.push("/seller/products");
+            }
         } catch (error) {
             console.error("Submission failed:", error);
             setIsSubmitting(false);

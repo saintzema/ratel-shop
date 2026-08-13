@@ -40,7 +40,8 @@ import {
     Package,
     Plug,
     AlertTriangle,
-    Flame
+    Flame,
+    Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -1710,6 +1711,18 @@ export function Navbar() {
                             )}
                         </AnimatePresence>
                     </div>
+
+                    {/* Sell — golden-amber, Jiji-style. Leads straight into product
+                        creation for anyone signed in (even a pure buyer who's never
+                        been a seller); /sell handles auth + seller-draft logic. An
+                        existing seller goes straight to their dashboard instead. */}
+                    <Link
+                        href={user?.role === "seller" ? "/seller/dashboard" : "/sell"}
+                        className="hidden md:flex items-center gap-1.5 bg-gradient-to-b from-[#fbbf24] to-brand-orange hover:from-[#fcd34d] hover:to-[#fbbf24] text-black font-black text-sm px-4 py-2 rounded-full shadow-[0_4px_14px_-2px_rgba(245,158,11,0.5)] transition-all active:scale-95 shrink-0"
+                    >
+                        <Plus className="h-4 w-4" strokeWidth={3} />
+                        Sell
+                    </Link>
 
                     {/* Returns & Orders */}
                     <Link href="/account/orders" className="hidden lg:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">

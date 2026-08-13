@@ -16,6 +16,15 @@ export default function KYCOnboarding() {
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    // Read directly off window instead of useSearchParams — avoids requiring a
+    // Suspense boundary around this whole (already large) form just for one param.
+    // Set by /sell -> seller/products/new when someone created a product before
+    // they were a seller yet; lets this completion step link straight to it.
+    const [fromProductId, setFromProductId] = useState<string | null>(null);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setFromProductId(new URLSearchParams(window.location.search).get("fromProduct"));
+    }, []);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [fileName, setFileName] = useState<string | null>(null);
@@ -316,6 +325,18 @@ export default function KYCOnboarding() {
             message: `Welcome to FairPrice! Your KYC details are currently under review. While you wait for verification, you can already start uploading products to your store.`,
             link: "/seller/settings"
         });
+
+        if (fromProductId) {
+            // The product they created via the Sell button before finishing
+            // onboarding — confirm it's actually live now that the store exists,
+            // and give them a direct tap-through to see it on their new storefront.
+            DataSyncService.addNotification({
+                userId: sellerId,
+                type: "system",
+                message: `🎉 Your store is set up and "${fromProductId.replace(/-/g, " ")}" is now live! Tap to view it on your storefront.`,
+                link: `/store/${storeUrl || sellerId}`
+            });
+        }
 
         if (user) {
             updateUser({ role: 'seller' });

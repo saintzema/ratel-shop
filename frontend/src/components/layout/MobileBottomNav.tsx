@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ShoppingCart, MessageCircle, Heart, Search, User } from "lucide-react";
-import { useCart } from "@/context/CartContext";
+import { Home, MessageCircle, Search, User, Plus } from "lucide-react";
 import { useMessages } from "@/context/MessageContext";
-import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -13,9 +11,7 @@ import { DataSyncService } from "@/lib/sync-store";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
-    const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
-    const { favoritesCount } = useFavorites();
     const { user } = useAuth();
     const [pic, setPic] = useState<string | null>(null);
 
@@ -37,7 +33,7 @@ export function MobileBottomNav() {
     }, [user]);
 
     // Always show the mobile nav bar on all pages
-    // (dashboard layouts have their own top-bar menus, but users need bottom nav for Home/Cart/Messages)
+    // (dashboard layouts have their own top-bar menus, but users need bottom nav for Home/Categories/Sell/Messages/Profile)
 
     const profileName = user ? user.name.split(" ")[0] : "Profile";
 
@@ -46,8 +42,11 @@ export function MobileBottomNav() {
     const navItems = [
         { name: "Home", href: "/", icon: Home },
         { name: "Categories", href: "/categories", icon: Search },
+        // Sell replaces Cart in the center slot, Jiji-style — cart is still
+        // reachable from the top navbar on every page, it just isn't one of
+        // the five primary bottom-nav destinations anymore.
+        { name: "Sell", href: "/sell", icon: Plus, isSell: true },
         { name: "Messages", href: "#messages", icon: MessageCircle, count: combinedUnread, isMessages: true },
-        { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];
 
@@ -86,6 +85,26 @@ export function MobileBottomNav() {
                             </span>
                         </>
                     );
+
+                    // Sell gets a raised, filled golden-amber circle (Jiji-style) instead
+                    // of the plain icon+label treatment every other item uses — it's the
+                    // primary action on this bar, not just another destination.
+                    if (item.isSell) {
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className="flex flex-col items-center justify-center w-full h-full space-y-1 relative text-gray-500"
+                            >
+                                <div className="h-11 w-11 -mt-6 rounded-full bg-brand-orange shadow-lg shadow-brand-orange/40 border-4 border-white flex items-center justify-center">
+                                    <Plus className="h-6 w-6 text-black" strokeWidth={2.75} />
+                                </div>
+                                <span className="text-[10px] font-bold tracking-wide text-gray-700">
+                                    {item.name}
+                                </span>
+                            </Link>
+                        );
+                    }
 
                     // Messages item opens the overlay instead of navigating
                     if (item.isMessages) {
