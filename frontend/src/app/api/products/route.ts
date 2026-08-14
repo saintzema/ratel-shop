@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { categoryMatchTerms } from "@/lib/category-aliases";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
 import { parseLocationFromQuery, locationTier } from "@/lib/location-search";
@@ -91,15 +92,23 @@ export async function GET(req: Request) {
         // Written into AND (not OR) so it composes with the `q` branch below —
         // which also writes OR on its short-query path — instead of one silently
         // clobbering the other when a category and a query are both present.
+        //
+        // Matched by ALIAS and `contains`, never `equals`: the stored categories
+        // are free text ("Vehicles", "automotive accessories", "Phones & Tablets")
+        // while browse pills say "Cars"/"Smartphones". An equals-match between
+        // those two vocabularies returns zero rows, which is exactly how browsing
+        // Cars ended up showing an empty catalog on top of 27 real vehicles.
         const categoryParam = (searchParams.get("category") || "").trim();
-        if (categoryParam && categoryParam.toLowerCase() !== "all") {
+        const catTerms = categoryMatchTerms(categoryParam);
+        if (catTerms.length > 0) {
             whereClause.AND = [
                 ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
                 {
-                    OR: [
-                        { category: { equals: categoryParam, mode: "insensitive" } },
-                        { subcategory: { equals: categoryParam, mode: "insensitive" } },
-                    ],
+                    OR: catTerms.flatMap(term => [
+                        { category: { contains: term, mode: "insensitive" } },
+                        { subcategory: { contains: term, mode: "insensitive" } },
+                        { name: { contains: term, mode: "insensitive" } },
+                    ]),
                 },
             ];
         }
@@ -107,13 +116,26 @@ export async function GET(req: Request) {
         if (q) {
             const terms = q.split(/\s+/).filter(t => t.length > 1).slice(0, 6);
             if (terms.length > 0) {
-                whereClause.AND = terms.map(term => ({
-                    OR: [
-                        { name: { contains: term, mode: "insensitive" } },
-                        { category: { contains: term, mode: "insensitive" } },
-                        { tags: { has: term.toLowerCase() } },
-                    ],
-                }));
+                // ANY term may match, not EVERY term.
+                //
+                // This used to require every word, so "red corolla" returned an
+                // empty catalog unless a listing literally contained both "red"
+                // and "corolla" — a shopper searching two words got nothing at all,
+                // on a catalog full of Corollas. Matching broadly and letting the
+                // relevance ranking below sort it out means the closest listings
+                // still come first, and a near-miss shows something useful instead
+                // of a dead end while the global/AI results load underneath.
+                whereClause.AND = [
+                    ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+                    {
+                        OR: terms.flatMap(term => [
+                            { name: { contains: term, mode: "insensitive" } },
+                            { category: { contains: term, mode: "insensitive" } },
+                            { subcategory: { contains: term, mode: "insensitive" } },
+                            { tags: { has: term.toLowerCase() } },
+                        ]),
+                    },
+                ];
             } else {
                 whereClause.OR = [
                     { name: { contains: q, mode: "insensitive" } },

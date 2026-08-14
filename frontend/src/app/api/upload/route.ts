@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserFromRequest, verifyToken } from "@/lib/jwt";
 import { put } from "@vercel/blob";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { watermarkImage } from "@/lib/watermark";
 
 // Client-side direct-to-blob uploads for large files (videos).
 // The browser calls POST /api/upload with { type: "blob.generate-client-token" }
@@ -73,10 +74,27 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         if (process.env.BLOB_READ_WRITE_TOKEN) {
-            const ext = file.name.split(".").pop() || (isVideo ? "mp4" : isPdf ? "pdf" : "jpg");
+            let ext = file.name.split(".").pop() || (isVideo ? "mp4" : isPdf ? "pdf" : "jpg");
             const folder = requestedFolder || (isVideo ? "product-videos" : "products");
+
+            // Watermark product PHOTOS only. Deliberately not applied to KYC/CAC
+            // documents (they must stay legible and unaltered for verification),
+            // nor to store logos/covers (the seller's own branding — stamping our
+            // name across it would be wrong), nor to video.
+            let body: File | Buffer = file;
+            const shouldWatermark = !isVideo && !isPdf && folder === "products";
+            if (shouldWatermark) {
+                const original = Buffer.from(await file.arrayBuffer());
+                const { buffer, applied, contentType } = await watermarkImage(original);
+                body = buffer;
+                if (applied) ext = contentType === "image/jpeg" ? "jpg" : ext;
+            }
+
             const filename = `${folder}/${user.userId || "unknown"}/${Date.now()}.${ext}`;
-            const blob = await put(filename, file, { access: "public" });
+            const blob = await put(filename, body, {
+                access: "public",
+                ...(body instanceof Buffer ? { contentType: file.type.startsWith("image/") ? "image/jpeg" : file.type } : {}),
+            });
             return NextResponse.json({ success: true, url: blob.url, name: file.name });
         }
 

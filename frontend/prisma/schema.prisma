@@ -143,6 +143,37 @@ model InstagramMessage {
 // A post published to Instagram via the Social Composer — tracked so "My
 // Posts" can show real, live insights (likes/comments/reach) for exactly the
 // posts FairPrice made on the seller's behalf, not their whole IG history.
+/**
+ * Platform-agnostic social post record — both already-published posts and
+ * ones queued to go out later.
+ *
+ * InstagramPost below is kept as-is for the existing IG records rather than
+ * migrated: it's referenced by the boost ownership check and the posts page,
+ * and a rename/backfill buys nothing here. New writes (Facebook, and anything
+ * scheduled) land in this table; Facebook posts previously weren't persisted
+ * at all, so the seller's post history was silently Instagram-only.
+ */
+model SocialPost {
+  id          String    @id @default(cuid())
+  sellerId    String
+  platform    String // "facebook" | "instagram"
+  productId   String?
+  caption     String?
+  imageUrl    String?
+  // scheduled | published | failed
+  status      String    @default("published")
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  externalId  String? // FB post id / IG media id
+  permalink   String?
+  failureReason String?
+  createdAt   DateTime  @default(now())
+
+  @@index([sellerId])
+  // Drives the scheduler sweep: "everything still queued whose time has come".
+  @@index([status, scheduledAt])
+}
+
 model InstagramPost {
   id         String   @id @default(cuid())
   sellerId   String

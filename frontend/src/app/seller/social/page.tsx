@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink, Search, X, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink, Search, X, AlertCircle, CalendarClock } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 // What's real vs. what's blocked on an external approval process the owner
@@ -51,6 +51,51 @@ function truncateForPlatform(text: string, platform: PlatformKey, url = ""): str
     return text.length <= room ? text : `${text.slice(0, Math.max(0, room - 1)).trimEnd()}…`;
 }
 
+/**
+ * Adapt one written caption to each platform's actual conventions, rather than
+ * blasting identical text everywhere. Same message, native-looking in each feed:
+ * Instagram expects hashtags, X wants it short with the link doing the work,
+ * WhatsApp reads as a direct message, Facebook can carry the full text + link.
+ */
+function formatForPlatform(
+    text: string,
+    platform: PlatformKey,
+    opts: { url?: string; productName?: string; price?: number; category?: string }
+): string {
+    const { url = "", productName = "", price, category } = opts;
+    const base = text.trim();
+
+    if (platform === "instagram") {
+        // Instagram posts can't carry a clickable link in the caption, so pointing
+        // at the profile link is the convention rather than pasting a dead URL.
+        const tagSource = [category, ...productName.split(/\s+/)].filter(Boolean) as string[];
+        const tags = Array.from(
+            new Set(
+                tagSource
+                    .map(w => w.replace(/[^a-z0-9]/gi, "").toLowerCase())
+                    .filter(w => w.length > 2)
+                    .slice(0, 5)
+            )
+        ).map(w => `#${w}`);
+        const hashtags = [...tags, "#fairpriceng", "#naijamarket"].join(" ");
+        return truncateForPlatform(`${base}\n\nLink in bio to order safely.\n\n${hashtags}`, "instagram");
+    }
+
+    if (platform === "x") {
+        // The URL is appended separately by the intent params, so keep it out of
+        // the text and leave room for t.co's fixed 23-char cost.
+        return truncateForPlatform(base, "x", url);
+    }
+
+    if (platform === "whatsapp") {
+        const priceLine = typeof price === "number" && price > 0 ? `\n\nPrice: ₦${price.toLocaleString()}` : "";
+        return `${base}${priceLine}${url ? `\n\n${url}` : ""}`;
+    }
+
+    // Facebook: full text plus the link, no hashtag padding (they read as spam there).
+    return truncateForPlatform(`${base}${url ? `\n\n${url}` : ""}`, "facebook");
+}
+
 function SellerSocialComposerContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -81,6 +126,13 @@ function SellerSocialComposerContent() {
 
     const addResult = (r: { platform: PlatformKey; ok: boolean; permalink?: string | null; message: string }) =>
         setResults(prev => [...prev.filter(p => p.platform !== r.platform), r]);
+
+    // Scheduling only applies to the platforms we can publish to server-side.
+    // Share-intent platforms (WhatsApp/X) need the seller's own browser at the
+    // moment of posting, so there's nothing to queue.
+    const [scheduleMode, setScheduleMode] = useState(false);
+    const [scheduleAt, setScheduleAt] = useState("");
+    const [scheduling, setScheduling] = useState(false);
 
     const authHeaders = () => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -254,8 +306,7 @@ function SellerSocialComposerContent() {
     // something any website can skip. Falls back to the wa.me chat-share link
     // (opens a chat, not Status) on desktop or browsers without file sharing.
     const shareToWhatsApp = async () => {
-        const text = `${caption}\n\n${productUrl}`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+        window.open(`https://wa.me/?text=${encodeURIComponent(captionFor("whatsapp"))}`, "_blank");
     };
 
     // Same native-share-sheet upgrade as before (photo attached, reaches
@@ -282,6 +333,15 @@ function SellerSocialComposerContent() {
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
     };
 
+    // One place that knows how to render the caption for a given platform.
+    const captionFor = (platform: PlatformKey) =>
+        formatForPlatform(caption, platform, {
+            url: productUrl,
+            productName: selectedProduct?.name || "",
+            price: selectedProduct?.price,
+            category: (selectedProduct as any)?.category,
+        });
+
     const publishToInstagram = async () => {
         if (!selectedProduct?.image_url) {
             addResult({ platform: "instagram", ok: false, message: "This product has no image to publish." });
@@ -293,9 +353,9 @@ function SellerSocialComposerContent() {
                 headers: authHeaders(),
                 body: JSON.stringify({
                     imageUrl: selectedProduct.image_url,
-                    // Instagram hard-rejects captions over 2200 chars with a raw
-                    // Graph error; trim rather than let the publish fail.
-                    caption: truncateForPlatform(caption, "instagram"),
+                    // Formatted for Instagram (hashtags, link-in-bio) and trimmed to
+                    // the 2200-char ceiling it hard-rejects past.
+                    caption: captionFor("instagram"),
                     productId: selectedProduct.id,
                 }),
             });
@@ -321,7 +381,11 @@ function SellerSocialComposerContent() {
             const res = await fetch("/api/seller/facebook/publish", {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ imageUrl: selectedProduct.image_url, caption }),
+                body: JSON.stringify({
+                    imageUrl: selectedProduct.image_url,
+                    caption: captionFor("facebook"),
+                    productId: selectedProduct.id,
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -333,6 +397,57 @@ function SellerSocialComposerContent() {
         } catch {
             addResult({ platform: "facebook", ok: false, message: "Couldn't reach Facebook — check your connection." });
             return false;
+        }
+    };
+
+    const schedulablePlatforms = (["instagram", "facebook"] as PlatformKey[]).filter(
+        p => selectedPlatforms.has(p) && (p === "instagram" ? igMode === "publish" : fbMode === "publish")
+    );
+
+    const schedulePost = async () => {
+        setError(null);
+        setResults([]);
+        if (!selectedProduct?.image_url) {
+            setError("This product needs a photo before it can be scheduled.");
+            return;
+        }
+        if (schedulablePlatforms.length === 0) {
+            setError("Scheduling needs a connected Instagram or Facebook account — WhatsApp and X open a share window, which has to happen while you're here.");
+            return;
+        }
+        setScheduling(true);
+        try {
+            const res = await fetch("/api/seller/social-schedule", {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    platforms: schedulablePlatforms,
+                    // Store the platform-formatted caption, so what's queued is exactly
+                    // what will post — the worker doesn't re-derive it later.
+                    caption: captionFor(schedulablePlatforms[0]),
+                    imageUrl: selectedProduct.image_url,
+                    productId: selectedProduct.id,
+                    scheduledAt: new Date(scheduleAt).toISOString(),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.error || "Couldn't schedule this post.");
+                return;
+            }
+            schedulablePlatforms.forEach(p =>
+                addResult({
+                    platform: p,
+                    ok: true,
+                    message: `Scheduled for ${new Date(data.scheduledAt).toLocaleString()}`,
+                })
+            );
+            setScheduleMode(false);
+            setScheduleAt("");
+        } catch {
+            setError("Couldn't reach the scheduler — check your connection and try again.");
+        } finally {
+            setScheduling(false);
         }
     };
 
@@ -349,7 +464,7 @@ function SellerSocialComposerContent() {
             addResult({ platform: "whatsapp", ok: true, message: "WhatsApp share opened" });
         }
         if (selectedPlatforms.has("x")) {
-            const xText = truncateForPlatform(caption, "x", productUrl);
+            const xText = captionFor("x");
             window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(productUrl)}`, "_blank");
             addResult({
                 platform: "x",
@@ -607,16 +722,58 @@ function SellerSocialComposerContent() {
                                 </div>
                             )}
 
+                            {/* Post later. Only offered when at least one connected
+                                platform is selected — WhatsApp/X open a share window
+                                that needs the seller present, so there's nothing to queue. */}
+                            {schedulablePlatforms.length > 0 && (
+                                <div className="rounded-2xl border border-gray-200 bg-white/60 p-3 space-y-3">
+                                    <label className="flex items-center justify-between cursor-pointer">
+                                        <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                            <CalendarClock className="h-4 w-4 text-indigo-500" />
+                                            Schedule for later
+                                        </span>
+                                        <Switch checked={scheduleMode} onCheckedChange={setScheduleMode} />
+                                    </label>
+                                    {scheduleMode && (
+                                        <>
+                                            <Input
+                                                type="datetime-local"
+                                                value={scheduleAt}
+                                                onChange={(e) => setScheduleAt(e.target.value)}
+                                                min={new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 16)}
+                                                className="h-11 rounded-xl border-gray-200"
+                                            />
+                                            <p className="text-[11px] text-gray-500">
+                                                Will post automatically to {schedulablePlatforms.map(p => PLATFORMS.find(x => x.key === p)?.label).join(" and ")}.
+                                                {selectedPlatforms.size > schedulablePlatforms.length &&
+                                                    " Your other selected platforms open a share window, so they can't be scheduled — post those now."}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="flex gap-3 pt-1">
                                 <motion.div whileTap={{ scale: 0.98 }} className="flex-1">
-                                    <Button
-                                        onClick={publish}
-                                        disabled={!caption.trim() || selectedPlatforms.size === 0 || publishing}
-                                        className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold shadow-lg shadow-emerald-500/25"
-                                    >
-                                        {publishing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                                        Share to {selectedPlatforms.size} platform{selectedPlatforms.size !== 1 ? "s" : ""}
-                                    </Button>
+                                    {scheduleMode ? (
+                                        <Button
+                                            onClick={schedulePost}
+                                            disabled={!caption.trim() || !scheduleAt || scheduling}
+                                            className="w-full h-12 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-500 hover:from-indigo-500 hover:to-violet-400 text-white font-bold shadow-lg shadow-indigo-500/25"
+                                        >
+                                            {scheduling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CalendarClock className="h-4 w-4 mr-2" />}
+                                            Schedule post
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={publish}
+                                            disabled={!caption.trim() || selectedPlatforms.size === 0 || publishing}
+                                            className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold shadow-lg shadow-emerald-500/25"
+                                        >
+                                            {publishing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                                            Share to {selectedPlatforms.size} platform{selectedPlatforms.size !== 1 ? "s" : ""}
+                                        </Button>
+                                    )}
                                 </motion.div>
                                 <Button variant="outline" onClick={copyCaption} disabled={!caption.trim()} className="h-12 rounded-2xl px-4 border-gray-200 bg-white/60">
                                     {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}

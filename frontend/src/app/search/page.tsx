@@ -7,6 +7,7 @@ import NextLink from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { SearchResultCard } from "@/components/product/SearchResultCard";
+import { productMatchesCategory } from "@/lib/category-aliases";
 import { SearchGridCard } from "@/components/product/SearchGridCard";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -1070,11 +1071,11 @@ function SearchContent() {
           selectedCategory &&
           selectedCategory !== "All"
         ) {
-          const selCat = selectedCategory.toLowerCase();
-          const prodCat = (product.category || "").toLowerCase();
-          const prodName = (product.name || "").toLowerCase();
-          // Match if either the product category or name includes the selected category term
-          if (!prodCat.includes(selCat) && !selCat.includes(prodCat) && !prodName.includes(selCat))
+          // Alias-aware: the stored category vocabulary ("Vehicles", "Phones &
+          // Tablets", "Computers") doesn't match the browse pills ("Cars",
+          // "Smartphones", "Computing"), and a plain substring test between the
+          // two hid the entire catalog behind an empty state.
+          if (!productMatchesCategory(selectedCategory, product.category, product.name, (product as any).subcategory))
             return false;
         }
         if (
@@ -1852,7 +1853,13 @@ function SearchContent() {
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
                 <h2 className="text-xl font-bold mb-2 text-black">
-                  No results for &quot;{query}&quot;
+                  {/* Browsing a category has no typed query, so this rendered a
+                      bare No results for "" — which read like a broken page. */}
+                  {query
+                    ? <>No results for &quot;{query}&quot;</>
+                    : selectedCategory && selectedCategory !== "All"
+                      ? <>Nothing in {selectedCategory} yet</>
+                      : <>No results</>}
                 </h2>
                 <p className="text-gray-500 max-w-md mb-6 text-sm">
                   {globalSearchError || "Try checking your spelling or use more general terms."}

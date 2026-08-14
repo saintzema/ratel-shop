@@ -9,11 +9,29 @@
  * one. The two are complementary and can both be active on one listing.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️  PRICING IS PLACEHOLDER. Every naira figure below is a structural stand-in
- *     so the flow is buildable and testable end to end — they are NOT commercial
- *     decisions and have not been signed off. Set the real numbers here (this is
- *     the single source of truth; nothing else hardcodes a price) before this is
- *     promoted to anything customers can pay against.
+ * ⚠️  PRICING IS STILL PLACEHOLDER. Every naira figure below is a structural
+ *     stand-in so the flow is testable end to end — NOT a commercial decision.
+ *     This file is the single source of truth; nothing else hardcodes a price.
+ *
+ *     We tried to price these competitively against Jiji and could not do it
+ *     honestly: Jiji's price table sits behind a login (jiji.ng/sc/premium-services
+ *     302-redirects to their login), and the only naira figures on the open web
+ *     are from an April 2023 article — three years and a large devaluation out of
+ *     date. Guessing from those would mean charging real money against numbers we
+ *     know are wrong, so the placeholders stay until someone reads the real ones
+ *     off a logged-in Jiji seller account (or asks their sales line).
+ *
+ *     What IS verified from Jiji's live public FAQ (jiji.ng/faq/22, /faq/24):
+ *       - Two product lines: TOP (single ad to top of search, 7 or 30 days) and
+ *         Boost (lifts ALL your ads, 1/3/6/12 months, auto-renews on an interval
+ *         that tightens as the tier rises).
+ *       - Tiers ascend Start → Basic → Business → Premium → VIP → VIP Gold →
+ *         VIP+ → Diamond → Enterprise.
+ *       - Five category groups gate which packages you can buy: Cars, Property,
+ *         Others, Others Lite, All-in-one. Cars/Property price highest.
+ *       - "Pro Sales" (pay-per-click) is bundled into Boost, not sold separately.
+ *     For a real market band, PropertyPro.ng publishes live agent plans at
+ *     ₦15,900–₦169,900/month — a genuine current Nigerian data point.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -41,7 +59,17 @@ export interface BoostAddOn {
     description: string;
     /** PLACEHOLDER — see the warning above. */
     priceNaira: number;
+    /**
+     * For add-ons that buy real external ad inventory: how much of the price is
+     * actual ad spend with the platform. The remainder is FairPrice's cut.
+     * Kept explicit rather than a percentage so the split is auditable, and so
+     * the seller can be told exactly what reaches Meta.
+     */
+    adSpendNaira?: number;
 }
+
+/** The add-on that extends an on-platform boost onto Facebook + Instagram. */
+export const META_ADS_ADDON_ID = "meta_ads";
 
 export const BOOST_TIERS: BoostTier[] = [
     {
@@ -91,6 +119,16 @@ export const BOOST_TIERS: BoostTier[] = [
 ];
 
 export const BOOST_ADDONS: BoostAddOn[] = [
+    {
+        id: META_ADS_ADDON_ID,
+        label: "Advertise on Facebook & Instagram",
+        description:
+            "We post this product to your connected Facebook Page and Instagram, then run it as a real paid ad on Meta — reaching people who've never heard of FairPrice.",
+        // PLACEHOLDER pricing. adSpendNaira is what actually reaches Meta; the
+        // difference is FairPrice's cut for running it.
+        priceNaira: 6000,
+        adSpendNaira: 5000,
+    },
     {
         id: "whatsapp_button",
         label: "WhatsApp Button",

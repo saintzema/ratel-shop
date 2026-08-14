@@ -312,9 +312,18 @@ export function Navbar() {
         if (words.every(w => name.includes(w))) {
             score += 60;
         } else {
-            // Some words match
+            // Some words match. The proportional score alone was far too weak:
+            // "red corolla" against "2015 Toyota Corolla" scored (1/2)*40 = 20 and
+            // was then dropped by the >55 threshold below — so a two-word search
+            // returned nothing on a catalog full of Corollas. Matching a
+            // distinctive word in the NAME is strong evidence on its own, so each
+            // one now carries real weight, and longer (more distinctive) words
+            // count for more than short filler ones like "red" or "new".
             const matchCount = words.filter(w => name.includes(w) || cat.includes(w) || seller.includes(w)).length;
             score += (matchCount / words.length) * 40;
+            for (const w of words) {
+                if (name.includes(w)) score += w.length > 4 ? 32 : 18;
+            }
         }
 
         // Category match bonus
@@ -369,7 +378,11 @@ export function Navbar() {
                 // For multi-word queries require at least one word to appear as a distinct token in the product name,
                 // preventing short words like "pro" from matching "professional" unrelated products.
                 .filter(s => {
-                    if (s.score <= 55) return false;
+                    // Was >55, which no partial match could ever reach — see the
+                    // scoring note in scoreProduct. The token-boundary guard below
+                    // is what actually keeps junk out for multi-word queries, so
+                    // this threshold only needs to exclude near-zero scores.
+                    if (s.score <= 38) return false;
                     if (words.length < 2) return true;
                     const name = (s.product.name || "").toLowerCase();
                     return words.some(w => w.length <= 2 ? name.includes(w) : new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(name));

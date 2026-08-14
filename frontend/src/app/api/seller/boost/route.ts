@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 import { verifyPaystackTransaction } from "@/lib/paystack-verify";
-import { BOOST_TIERS, getTier, getAddOn, calculateBoostTotal } from "@/lib/boost-packages";
+import { BOOST_TIERS, getTier, getAddOn, calculateBoostTotal, META_ADS_ADDON_ID } from "@/lib/boost-packages";
+import { createBoostCampaign, resolveMetaAdsCredentials } from "@/lib/meta-ads";
 
 /**
  * On-platform listing boosts (Basic / Premium / VIP + add-ons).
@@ -179,11 +180,116 @@ export async function POST(req: NextRequest) {
 
     const expiresAt = new Date(campaign.createdAt.getTime() + tier.days * 86400000);
 
+    // ─── Optional: extend the boost onto Facebook + Instagram ───
+    // The on-platform placement above is already paid for and live at this point.
+    // Everything below is best-effort: if Meta refuses, the seller keeps the boost
+    // they bought and we report the shortfall honestly rather than silently
+    // pocketing the ad portion.
+    let metaResult: { attempted: boolean; ok: boolean; detail: string } = {
+        attempted: false, ok: false, detail: "",
+    };
+
+    if (validAddOns.includes(META_ADS_ADDON_ID)) {
+        metaResult = { attempted: true, ok: false, detail: "" };
+        try {
+            const addOn = getAddOn(META_ADS_ADDON_ID);
+            const adSpendNaira = addOn?.adSpendNaira ?? 0;
+            const credentials = await resolveMetaAdsCredentials();
+
+            const fullSeller = await db.seller.findUnique({
+                where: { id: seller.id },
+                select: {
+                    facebookPageId: true,
+                    facebookPageAccessToken: true,
+                    instagramUserId: true,
+                },
+            });
+
+            if (!credentials) {
+                metaResult.detail = "Facebook/Instagram ads aren't configured on our end yet — we'll run this manually and contact you.";
+            } else if (!fullSeller?.facebookPageId || !fullSeller.facebookPageAccessToken) {
+                metaResult.detail = "Connect your Facebook Page under Integrations and we'll run the ad — nothing extra to pay.";
+            } else {
+                // Publish the product to the seller's Page first: Meta boosts an
+                // existing post, it can't advertise a bare product URL this way.
+                const productForPost = await db.product.findUnique({
+                    where: { id: productId },
+                    select: { name: true, imageUrl: true, price: true },
+                });
+
+                const fbRes = await fetch(
+                    `https://graph.facebook.com/v21.0/${fullSeller.facebookPageId}/photos`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            url: productForPost?.imageUrl,
+                            caption: `${productForPost?.name}\n\n₦${(productForPost?.price ?? 0).toLocaleString()}\n\nhttps://www.fairprice.ng/product/${productId}`,
+                            access_token: fullSeller.facebookPageAccessToken,
+                        }),
+                    }
+                );
+                const fbData = await fbRes.json();
+                if (fbData.error) throw new Error(fbData.error.message || "Facebook rejected the post");
+
+                const rawPostId: string = fbData.post_id || fbData.id || "";
+                // createBoostCampaign rebuilds "<pageId>_<postId>", so strip any prefix.
+                const barePostId = rawPostId.startsWith(`${fullSeller.facebookPageId}_`)
+                    ? rawPostId.slice(`${fullSeller.facebookPageId}_`.length)
+                    : rawPostId;
+
+                const boost = await createBoostCampaign({
+                    pageId: fullSeller.facebookPageId,
+                    postId: barePostId,
+                    platform: "facebook",
+                    igUserId: fullSeller.instagramUserId || undefined,
+                    budgetKobo: Math.round(adSpendNaira * 100),
+                    days: tier.days,
+                    credentials,
+                });
+
+                if (boost.success) {
+                    metaResult = { attempted: true, ok: true, detail: `Live on Facebook${fullSeller.instagramUserId ? " and Instagram" : ""} for ${tier.days} days.` };
+                    await db.adCampaign.create({
+                        data: {
+                            sellerId: seller.id,
+                            productId,
+                            platform: "facebook",
+                            postId: barePostId,
+                            budgetKobo: Math.round(adSpendNaira * 100),
+                            markupPct: 0,
+                            totalChargedKobo: Math.round((addOn?.priceNaira ?? 0) * 100),
+                            days: tier.days,
+                            // Same payment, distinct row — suffixed so the replay guard
+                            // above still blocks a genuine second use of this reference.
+                            paidReference: `${paystackReference}:meta`,
+                            status: "active",
+                            metaCampaignId: boost.campaignId,
+                            metaAdSetId: boost.adSetId,
+                            metaAdId: boost.adId,
+                        },
+                    }).catch(() => { /* bookkeeping only — the ad is live */ });
+                } else {
+                    metaResult.detail = boost.error || "Meta rejected the ad.";
+                }
+            }
+        } catch (err: any) {
+            metaResult.detail = err?.message || "Couldn't start the Facebook/Instagram ad.";
+        }
+    }
+
     return NextResponse.json({
         success: true,
         boostId: campaign.id,
         tier: tier.label,
         expiresAt: expiresAt.toISOString(),
-        message: `Boost ${tier.label} ${tier.days}d has been activated successfully.`,
+        meta: metaResult.attempted ? metaResult : undefined,
+        message:
+            `Boost ${tier.label} ${tier.days}d has been activated successfully.` +
+            (metaResult.attempted
+                ? metaResult.ok
+                    ? ` ${metaResult.detail}`
+                    : ` Your FairPrice boost is live. The Facebook/Instagram part didn't start: ${metaResult.detail} Our team will sort it or refund that portion.`
+                : ""),
     });
 }

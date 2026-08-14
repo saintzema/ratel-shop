@@ -45,6 +45,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import { useAuth } from "@/context/AuthContext";
 import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
+import { SocialComposerAlert } from "@/components/seller/SocialComposerAlert";
 import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
 
 
@@ -398,6 +399,11 @@ export default function SellerDashboard() {
             className="space-y-6 max-w-6xl pb-20"
         >
             <SellerFeatureSpotlight sellerId={safeSeller.id} />
+
+            {/* Social posting is one of the highest-leverage things a Nigerian
+                seller can do and it was buried in the sidebar — surface it, and
+                make the first-run "connect your accounts" step explicit. */}
+            <SocialComposerAlert />
 
             {/* First alert: no WhatsApp on file yet — QR payments, WhatsApp product
                 uploads, and negotiation alerts all require it. Deep-links straight to

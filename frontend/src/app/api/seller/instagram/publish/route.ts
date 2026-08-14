@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { validateMediaForPlatform } from "@/lib/social-media-validate";
 
 /**
  * POST /api/seller/instagram/publish  { imageUrl, caption }
@@ -50,6 +51,14 @@ export async function POST(req: NextRequest) {
     const { imageUrl, caption, productId } = body as { imageUrl?: string; caption?: string; productId?: string };
     if (!imageUrl || !imageUrl.startsWith("http")) {
         return NextResponse.json({ error: "A public image URL is required to publish to Instagram." }, { status: 400 });
+    }
+
+    // Instagram is strict about aspect ratio (4:5 to 1.91:1), size and format, and
+    // rejects violations deep in the container step with an opaque Graph error.
+    // Checking first turns that into something the seller can actually fix.
+    const media = await validateMediaForPlatform(imageUrl, "instagram");
+    if (!media.ok) {
+        return NextResponse.json({ error: media.error }, { status: 400 });
     }
 
     try {
@@ -107,6 +116,24 @@ export async function POST(req: NextRequest) {
         await db.instagramPost.create({
             data: { sellerId: seller.id, mediaId, permalink, caption: caption || null, productId: productId || null },
         }).catch((e) => console.error("[IG publish] failed to record post:", e));
+
+        // Also mirror into the platform-agnostic table so the seller's post history
+        // can show Instagram and Facebook together. instagramPost above is kept as
+        // the IG-specific record (the boost ownership check and live IG insights
+        // both read it), so this is an addition, not a replacement.
+        db.socialPost.create({
+            data: {
+                sellerId: seller.id,
+                platform: "instagram",
+                productId: productId || null,
+                caption: caption || null,
+                imageUrl,
+                status: "published",
+                publishedAt: new Date(),
+                externalId: mediaId,
+                permalink,
+            },
+        }).catch((e) => console.error("[IG publish] failed to mirror post:", e));
 
         return NextResponse.json({ success: true, mediaId, permalink });
     } catch (err: any) {

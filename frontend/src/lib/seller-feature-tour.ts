@@ -21,7 +21,7 @@ export const FEATURE_TOUR_ITEMS: FeatureTourItem[] = [
         key: "social",
         href: "/seller/social",
         label: "Social Composer",
-        description: "Generate a human-sounding caption and share a product to WhatsApp, X, and Facebook in one tap.",
+        description: "Write once, post everywhere — auto-publish to Instagram and Facebook, formatted per platform, now or scheduled.",
     },
     {
         key: "team",

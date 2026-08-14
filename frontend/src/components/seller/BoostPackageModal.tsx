@@ -71,6 +71,16 @@ export function BoostPackageModal({
                     link: `/seller/products`,
                 });
             }
+
+            // The on-platform boost succeeded, but the Meta ad portion is
+            // best-effort — if it didn't start, keep the seller on this screen and
+            // say so plainly rather than closing on a green tick they didn't get.
+            if (data.meta?.attempted && !data.meta.ok) {
+                setError(data.message);
+                onBoosted?.();
+                return;
+            }
+
             onBoosted?.();
             onClose();
         } catch {
