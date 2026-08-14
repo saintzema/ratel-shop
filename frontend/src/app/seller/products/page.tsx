@@ -35,7 +35,8 @@ import {
     List,
     X,
     CheckCircle2,
-    Share2
+    Share2,
+    CopyPlus
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { useNotification } from "@/components/ui/NotificationProvider";
@@ -650,6 +651,14 @@ function SellerProductsContent() {
                                                             <Edit3 className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
+                                                    {/* Jiji-style "post ad like this" — prefills a brand-new
+                                                        listing from this one, for sellers listing near-identical
+                                                        stock repeatedly (same model, different colour/condition). */}
+                                                    <Link href={`/seller/products/new?like=${encodeURIComponent(product.id)}`}>
+                                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors" title="Post an ad like this">
+                                                            <CopyPlus className="h-4 w-4" />
+                                                        </Button>
+                                                    </Link>
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
@@ -754,6 +763,11 @@ function SellerProductsContent() {
                                         <Link href={`/seller/products/${product.id}/edit?page=${currentPage}`}>
                                             <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm" title="Edit Item">
                                                 <Edit3 className="h-4 w-4" />
+                                            </Button>
+                                        </Link>
+                                        <Link href={`/seller/products/new?like=${encodeURIComponent(product.id)}`}>
+                                            <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-amber-50 hover:text-amber-600" title="Post an ad like this">
+                                                <CopyPlus className="h-4 w-4" />
                                             </Button>
                                         </Link>
                                         <Button 

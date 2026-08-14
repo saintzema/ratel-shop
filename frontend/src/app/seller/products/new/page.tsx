@@ -1,19 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2, Package } from "lucide-react";
-import { formatPrice, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
+import { Sparkles, Check, ChevronLeft, ChevronDown, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2, Package } from "lucide-react";
+import { formatPrice, wrapInCDN, getProxiedImageUrl, cn } from "@/lib/utils";
 import Link from "next/link";
-import { motion, Reorder } from "framer-motion";
+import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CATEGORIES } from "@/lib/types";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
+import { SortableGalleryGrid } from "@/components/product/SortableGalleryGrid";
 import { upload } from "@vercel/blob/client";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { getFiltersForCategory } from "@/lib/category-filters";
 
 function NewProductContent() {
     const router = useRouter();
@@ -50,7 +53,24 @@ function NewProductContent() {
         // this off is for in-person/consumable items (food, drinks) where a customer
         // just needs to pay — same fast checkout QR/payment links already use.
         require_delivery_details: true,
+        // Per-listing location. Products previously inherited location purely from
+        // the seller's profile, so a seller with stock in two cities couldn't say
+        // where any individual item actually is. Persisted into `specs` rather than
+        // new Product columns (schema adds are risky against the pooled connection)
+        // — specs is already the field the category filter system matches on.
+        location_state: "",
+        location_city: "",
+        // Jiji-style price negotiability. "" = not specified.
+        negotiable: "" as "" | "yes" | "no",
     });
+
+    // Category-specific structured attributes (e.g. a generator's Power kW, a car's
+    // transmission), keyed by the filter definitions in category-filters.ts so what
+    // a seller fills in here is exactly what buyers can later filter by. Kept apart
+    // from the freeform specs list so AI autofill can't clobber them.
+    const [categoryAttrs, setCategoryAttrs] = useState<Record<string, string>>({});
+    const [categoryQuery, setCategoryQuery] = useState("");
+    const [showCategoryList, setShowCategoryList] = useState(false);
 
     const [savedNumbers, setSavedNumbers] = useState<string[]>([]);
     const [minFinancingPrice, setMinFinancingPrice] = useState(300000);
@@ -121,6 +141,52 @@ function NewProductContent() {
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
     const [aiErrorMsg, setAiErrorMsg] = useState<string | null>(null);
 
+    // "Post ad like this" — prefill everything except the identity-ish bits from
+    // an existing listing. Price/stock/images ARE carried over (that's the point:
+    // near-identical restocks), but the seller lands on a normal blank-slate
+    // create flow, so publishing makes a genuinely new product rather than
+    // silently editing the original.
+    useEffect(() => {
+        const likeId = searchParams.get("like");
+        if (!likeId) return;
+        const source = DataSyncService.getProducts().find(p => p.id === likeId);
+        if (!source) return;
+
+        const sourceSpecs = (source.specs || {}) as Record<string, string>;
+        const RESERVED = ["location_state", "location_city", "negotiable"];
+        const attrKeys = getFiltersForCategory(source.category).map(g => g.key);
+
+        setFormData(prev => ({
+            ...prev,
+            name: source.name || "",
+            category: (source.category as string) || "",
+            subcategory: source.subcategory || "",
+            tags: source.tags || [],
+            price: source.price ? source.price.toLocaleString() : "",
+            original_price: source.original_price ? source.original_price.toLocaleString() : "",
+            stock: String(source.stock ?? 1),
+            description: source.description || "",
+            highlights: source.highlights || [],
+            colors: Array.isArray(source.colors) ? source.colors.join(", ") : "",
+            image_url: source.image_url && !source.image_url.includes("placeholder") ? source.image_url : "",
+            images: source.images?.length ? [...source.images] : [""],
+            external_url: source.external_url || "",
+            financing_available: !!source.financing_available,
+            location_state: sourceSpecs.location_state || "",
+            location_city: sourceSpecs.location_city || "",
+            negotiable: (sourceSpecs.negotiable as "" | "yes" | "no") || "",
+            specs: Object.entries(sourceSpecs)
+                .filter(([k]) => !RESERVED.includes(k) && !attrKeys.includes(k))
+                .map(([key, value]) => ({ key, value: String(value) })),
+        }));
+
+        setCategoryAttrs(
+            Object.fromEntries(
+                Object.entries(sourceSpecs).filter(([k]) => attrKeys.includes(k)).map(([k, v]) => [k, String(v)])
+            )
+        );
+    }, [searchParams]);
+
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
         const loadTaxonomy = () => {
@@ -145,6 +211,34 @@ function NewProductContent() {
             setPriceAnalysis((prev: any) => ({ ...prev, status, salesProbability }));
         }
     }, [formData.price, priceAnalysis?.marketAvg]);
+
+    // Flattened, de-duplicated category list backing the searchable picker —
+    // DB taxonomy first, then any hardcoded CATEGORIES not already in the DB.
+    // Admin-curated pseudo-categories (Trending / Best-Selling / Price Drop) are
+    // excluded: they're merchandising tabs, not things a seller can list into.
+    const categoryOptions = useMemo(() => {
+        const ADMIN_ONLY = ["trending", "best-selling", "best_selling", "price drop", "price-drop"];
+        const opts: { value: string; label: string }[] = [];
+        taxonomy
+            .filter(cat => !ADMIN_ONLY.includes(cat.name.toLowerCase()))
+            .forEach(cat => opts.push({ value: cat.name.toLowerCase(), label: cat.name }));
+        CATEGORIES
+            .filter(c => !c.adminOnly && !opts.some(o => o.value === c.value))
+            .forEach(c => opts.push({ value: c.value, label: c.label }));
+        return opts;
+    }, [taxonomy]);
+
+    const categoryLabel = (value: string) =>
+        categoryOptions.find(o => o.value === value)?.label ||
+        (value ? value.charAt(0).toUpperCase() + value.slice(1) : "");
+
+    // Structured, per-category attribute fields (Jiji-style). Sourced from the same
+    // definitions the search filters use, so anything a seller fills in here is
+    // immediately filterable by buyers rather than being dead freeform text.
+    const categoryFilterGroups = useMemo(
+        () => (formData.category ? getFiltersForCategory(formData.category) : []),
+        [formData.category]
+    );
 
     // --- AI Content Generation ---
     const handleAIGenerate = async () => {
@@ -465,6 +559,16 @@ function NewProductContent() {
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId || !formData.name || !formData.price || isSubmitting) return;
 
+        // At least one real photo. Listings with no image get almost no clicks and
+        // look like spam in the grid, and the form previously let them through
+        // silently (main image was fully optional).
+        const hasAnyImage = !!formData.image_url.trim() || formData.images.some(u => u.trim() !== "");
+        if (!hasAnyImage) {
+            setAiErrorMsg("Add at least one photo before publishing — listings without an image barely get viewed.");
+            if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
+
         setIsSubmitting(true);
         
         // Yield to allow UI to show loading state immediately
@@ -483,7 +587,12 @@ function NewProductContent() {
             const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
             const currentSeller = DataSyncService.getCurrentSeller();
-            const sellerLocation = currentSeller?.city && currentSeller?.state ? `${currentSeller.city}, ${currentSeller.state}` : currentSeller?.location || currentSeller?.street_address;
+            // Per-listing location wins over the store's default when the seller set one.
+            const listingLocation = formData.location_city && formData.location_state
+                ? `${formData.location_city}, ${formData.location_state}`
+                : formData.location_state || "";
+            const sellerLocation = listingLocation
+                || (currentSeller?.city && currentSeller?.state ? `${currentSeller.city}, ${currentSeller.state}` : currentSeller?.location || currentSeller?.street_address);
             
             let finalProductName = formData.name;
             if ((formData.category === 'cars' || formData.category === 'vehicles') && sellerLocation && !finalProductName.toLowerCase().includes(' in ')) {
@@ -504,7 +613,17 @@ function NewProductContent() {
                 subcategory: formData.subcategory,
                 tags: formData.tags,
                 colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
-                specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
+                // Freeform specs first, then the structured category attributes and
+                // location/negotiable on top — these live in specs rather than new
+                // Product columns so they ship without a schema migration, and the
+                // search filters already read attribute values straight out of here.
+                specs: {
+                    ...formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
+                    ...Object.fromEntries(Object.entries(categoryAttrs).filter(([, v]) => v)),
+                    ...(formData.location_state ? { location_state: formData.location_state } : {}),
+                    ...(formData.location_city ? { location_city: formData.location_city } : {}),
+                    ...(formData.negotiable ? { negotiable: formData.negotiable } : {}),
+                },
                 image_url: finalImageUrl,
                 images: finalImages,
                 stock: parseInt(formData.stock) || 0,
@@ -680,27 +799,50 @@ function NewProductContent() {
                                         {isGenerating ? "Generating..." : "Auto-Fill with AI"}
                                     </Button>
                                 </div>
-                                <div className="space-y-2">
+                                {/* Searchable category picker. A plain <select> meant scrolling
+                                    a long list on a phone to find "Generators" — typing to filter
+                                    is how Jiji (and every marketplace worth copying) does it. */}
+                                <div className="space-y-2 relative">
                                     <label className="text-sm font-medium text-gray-700">Category</label>
-                                    <select
-                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
-                                        value={formData.category}
-                                        onChange={(e) => handleChange("category", e.target.value)}
-                                    >
-                                        <option value="">Select Category</option>
-                                        {/* Admin-only tabs (Trending, Best-Selling, Price Drop) are curated by admins — hide from sellers */}
-                                        {taxonomy.filter(cat => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(cat.name.toLowerCase())).map(cat => (
-                                            <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
-                                        ))}
-                                        {/* Fallback for hardcoded categories not in DB (exclude admin-only) */}
-                                        {CATEGORIES.filter(c => !c.adminOnly && !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
-                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                        ))}
-                                        {/* Auto-select newly created custom category if it's in state but not in list yet */}
-                                        {formData.category && !taxonomy.some(c => c.name.toLowerCase() === formData.category) && !CATEGORIES.some(c => c.value === formData.category) && (
-                                            <option value={formData.category}>{formData.category.charAt(0).toUpperCase() + formData.category.slice(1)}</option>
-                                        )}
-                                    </select>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Type to search categories..."
+                                            className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 pr-9"
+                                            value={showCategoryList ? categoryQuery : (categoryLabel(formData.category) || "")}
+                                            onFocus={() => { setShowCategoryList(true); setCategoryQuery(""); }}
+                                            onChange={(e) => { setCategoryQuery(e.target.value); setShowCategoryList(true); }}
+                                            onBlur={() => setTimeout(() => setShowCategoryList(false), 150)}
+                                        />
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                                    </div>
+                                    {showCategoryList && (
+                                        <div className="absolute z-30 left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-xl">
+                                            {categoryOptions
+                                                .filter(o => !categoryQuery || o.label.toLowerCase().includes(categoryQuery.toLowerCase()))
+                                                .map(o => (
+                                                    <button
+                                                        key={o.value}
+                                                        type="button"
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            handleChange("category", o.value);
+                                                            handleChange("subcategory", "");
+                                                            setCategoryAttrs({});
+                                                            setShowCategoryList(false);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-indigo-50 transition-colors",
+                                                            formData.category === o.value ? "bg-indigo-50 text-indigo-700" : "text-gray-700"
+                                                        )}
+                                                    >
+                                                        {o.label}
+                                                    </button>
+                                                ))}
+                                            {categoryOptions.filter(o => !categoryQuery || o.label.toLowerCase().includes(categoryQuery.toLowerCase())).length === 0 && (
+                                                <p className="px-4 py-3 text-xs text-gray-400">No match. Keep typing to use "{categoryQuery}" as a custom category.</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Subcategory</label>
@@ -726,6 +868,40 @@ function NewProductContent() {
                                         />
                                     )}
                                 </div>
+                                {/* Per-listing location. Falls back to the seller's profile
+                                    location when left blank, so this is additive — a seller
+                                    with stock in more than one city can finally say which. */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">State</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                        value={formData.location_state}
+                                        onChange={(e) => {
+                                            handleChange("location_state", e.target.value);
+                                            handleChange("location_city", "");
+                                        }}
+                                    >
+                                        <option value="">Use my store location</option>
+                                        {NIGERIAN_STATES.map(s => (
+                                            <option key={s.state} value={s.state}>{s.state}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">City / Area</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 disabled:opacity-50"
+                                        value={formData.location_city}
+                                        disabled={!formData.location_state}
+                                        onChange={(e) => handleChange("location_city", e.target.value)}
+                                    >
+                                        <option value="">{formData.location_state ? "Any area" : "Pick a state first"}</option>
+                                        {NIGERIAN_STATES.find(s => s.state === formData.location_state)?.cities.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div className="space-y-2 col-span-1 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
                                     <TagsInput
@@ -853,71 +1029,61 @@ function NewProductContent() {
                             </div>
                         </div>
 
-                        {/* Single scrollable row, not a wrapping grid — see admin/products'
-                            gallery for why: framer-motion's Reorder only compares position
-                            along one axis, so a wrapping grid breaks drag-across-rows. */}
-                        <Reorder.Group
-                            as="div"
-                            axis="x"
-                            values={imageKeys}
+                        {/* Wrapping, drag-reorderable grid (dnd-kit). Was a single
+                            horizontally-scrolling row because framer-motion's Reorder
+                            is single-axis — on a phone that capped you at ~3 visible
+                            slots with no way to drag an image across to the front.
+                            Press-and-hold to drag; a plain tap still opens the picker. */}
+                        <p className="text-xs text-gray-400 mb-3">Press and hold any photo to drag it into a new position — the first image is the one buyers see first.</p>
+                        <SortableGalleryGrid
+                            keys={imageKeys}
                             onReorder={handleReorderImageKeys}
-                            className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
-                        >
-                            {formData.images.map((url, i) => (
-                                <Reorder.Item
-                                    as="div"
-                                    key={imageKeys[i]}
-                                    value={imageKeys[i]}
-                                    className="relative shrink-0 w-24 sm:w-28 cursor-grab active:cursor-grabbing"
-                                >
-                                    <ProductImageSlot
-                                        url={url}
-                                        onUrlChange={(newUrl) => {
-                                            const next = [...formData.images];
-                                            next[i] = newUrl;
-                                            setFormData(prev => ({ ...prev, images: next }));
-                                        }}
-                                        onFileSelect={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) uploadMedia(file, (url) => {
-                                                setFormData(prev => {
-                                                    const next = [...prev.images];
-                                                    next[i] = url;
-                                                    // Filling the last slot auto-reveals the next empty one,
-                                                    // so a seller adding several photos in a row never has
-                                                    // to reach for the separate "+" button each time.
-                                                    if (i === next.length - 1 && next.length < 8) next.push("");
-                                                    return { ...prev, images: next };
-                                                });
+                            allowRemove={formData.images.length > 1}
+                            onRemove={(i) => {
+                                setImageKeys(prev => prev.filter((_, idx) => idx !== i));
+                                setFormData(prev => ({
+                                    ...prev,
+                                    images: prev.images.filter((_, idx) => idx !== i)
+                                }));
+                            }}
+                            renderSlot={(i) => (
+                                <ProductImageSlot
+                                    url={formData.images[i]}
+                                    onUrlChange={(newUrl) => {
+                                        const next = [...formData.images];
+                                        next[i] = newUrl;
+                                        setFormData(prev => ({ ...prev, images: next }));
+                                    }}
+                                    onFileSelect={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) uploadMedia(file, (url) => {
+                                            setFormData(prev => {
+                                                const next = [...prev.images];
+                                                next[i] = url;
+                                                // Filling the last slot auto-reveals the next empty one,
+                                                // so a seller adding several photos in a row never has
+                                                // to reach for the separate "+" button each time.
+                                                if (i === next.length - 1 && next.length < 8) next.push("");
+                                                return { ...prev, images: next };
                                             });
-                                        }}
-                                        className="mb-0"
-                                    />
-                                    {formData.images.length > 1 && (
-                                        <button
-                                            onClick={() => {
-                                                setImageKeys(prev => prev.filter((_, idx) => idx !== i));
-                                                setFormData(prev => ({
-                                                    ...prev,
-                                                    images: prev.images.filter((_, idx) => idx !== i)
-                                                }));
-                                            }}
-                                            className="absolute -top-1 -right-1 h-6 w-6 bg-white border border-gray-200 text-gray-500 hover:text-rose-500 rounded-full shadow-md flex items-center justify-center z-10"
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    )}
-                                </Reorder.Item>
-                            ))}
-                            {formData.images.length < 8 && (
-                                <button
-                                    onClick={() => setFormData(prev => ({ ...prev, images: [...prev.images, ""] }))}
-                                    className="aspect-square shrink-0 w-24 sm:w-28 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
-                                >
-                                    <Plus className="h-4 w-4" />
-                                </button>
+                                        });
+                                    }}
+                                    className="mb-0"
+                                    hideInput
+                                />
                             )}
-                        </Reorder.Group>
+                            trailing={
+                                formData.images.length < 8 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, images: [...prev.images, ""] }))}
+                                        className="aspect-square border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                ) : null
+                            }
+                        />
                     </motion.section>
                     {/* Section 4: Specifications */}
                     <motion.section
@@ -928,6 +1094,65 @@ function NewProductContent() {
                     >
                         <h2 className="text-lg font-semibold text-gray-900 mb-1">Specifications</h2>
                         <p className="text-sm text-gray-500 mb-6">Add technical specs for detail-oriented buyers.</p>
+
+                        {/* Category-specific structured fields. These map 1:1 onto the
+                            attribute keys the search filters already match against, so
+                            filling them in is what makes this listing show up when a
+                            buyer narrows to e.g. Electric + Automatic. */}
+                        {categoryFilterGroups.length > 0 && (
+                            <div className="mb-8 pb-8 border-b border-gray-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="text-sm font-bold text-gray-900">{categoryLabel(formData.category)} details</h3>
+                                    <span className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full uppercase tracking-wide">Boosts visibility</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mb-4">Buyers filter on these — listings that fill them in get found far more often.</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {categoryFilterGroups.map(group => (
+                                        <div key={group.key} className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-600">{group.label}</label>
+                                            <select
+                                                className="flex h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 appearance-none cursor-pointer text-gray-900"
+                                                value={categoryAttrs[group.key] || ""}
+                                                onChange={(e) => setCategoryAttrs(prev => ({ ...prev, [group.key]: e.target.value }))}
+                                            >
+                                                <option value="">Not specified</option>
+                                                {group.options.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Jiji-style negotiability signal — buyers filter and self-select on
+                            this, and it sets expectations before a chat even starts. */}
+                        <div className="mb-8 pb-8 border-b border-gray-100">
+                            <label className="text-sm font-bold text-gray-900 block mb-1">Is the price negotiable?</label>
+                            <p className="text-xs text-gray-500 mb-3">Optional — leave unset if you'd rather not say.</p>
+                            <div className="flex gap-2">
+                                {[
+                                    { v: "yes", label: "Negotiable" },
+                                    { v: "no", label: "Fixed price" },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.v}
+                                        type="button"
+                                        onClick={() => handleChange("negotiable", formData.negotiable === opt.v ? "" : opt.v)}
+                                        className={cn(
+                                            "px-4 py-2 rounded-xl text-sm font-bold border transition-all active:scale-95",
+                                            formData.negotiable === opt.v
+                                                ? "bg-brand-green-600 text-white border-brand-green-600"
+                                                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                                        )}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="space-y-3">
                             {formData.specs.map((spec, index) => (
                                 <div key={index} className="flex gap-3 group">
