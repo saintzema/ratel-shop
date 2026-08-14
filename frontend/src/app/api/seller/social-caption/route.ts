@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fireworksJSON, isFireworksEnabled, fireworksModel } from "@/lib/fireworks";
+import { getUserFromRequest } from "@/lib/jwt";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -28,6 +29,16 @@ function checkRateLimit(req: Request): boolean {
  * read like a person wrote it in 20 seconds, not marketing copy).
  */
 export async function POST(req: Request) {
+    // This spends real Gemini/Fireworks credits per call. The IP rate limit below
+    // is in-memory and per-instance, so it resets on every cold start and doesn't
+    // hold across the serverless fleet — on its own it was not meaningful
+    // protection against anyone burning the AI budget from an open endpoint.
+    // Only signed-in users can generate captions.
+    const user = getUserFromRequest(req);
+    if (!user) {
+        return NextResponse.json({ error: "Sign in to generate captions" }, { status: 401 });
+    }
+
     if (!checkRateLimit(req)) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }

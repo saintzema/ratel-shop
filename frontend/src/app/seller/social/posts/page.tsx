@@ -20,7 +20,11 @@ interface MyPost {
     reach: number | null;
 }
 
-const MARKUP_PCT = 20; // matches SystemSetting.adsMarkupPct's default — see server-side verification for the authoritative value
+// Fallback only. The real value comes from the server (GET /api/seller/facebook/promote
+// returns markupPct from SystemSetting) — hardcoding it here meant that the moment an
+// admin changed the markup, the seller was charged the stale amount and the server then
+// rejected the payment for being short: money taken, no campaign.
+const DEFAULT_MARKUP_PCT = 20;
 
 export default function MyInstagramPostsPage() {
     const router = useRouter();
@@ -35,6 +39,7 @@ export default function MyInstagramPostsPage() {
     const [showPaystack, setShowPaystack] = useState(false);
     const [promoting, setPromoting] = useState(false);
     const [promoteError, setPromoteError] = useState<string | null>(null);
+    const [markupPct, setMarkupPct] = useState<number>(DEFAULT_MARKUP_PCT);
     const [promoteSuccess, setPromoteSuccess] = useState(false);
 
     const authHeaders = () => {
@@ -48,6 +53,12 @@ export default function MyInstagramPostsPage() {
             router.push("/seller/login");
             return;
         }
+        // Authoritative markup for pricing the boost — see DEFAULT_MARKUP_PCT above.
+        fetch("/api/seller/facebook/promote", { headers: authHeaders() })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (typeof d?.markupPct === "number") setMarkupPct(d.markupPct); })
+            .catch(() => { /* keep the default */ });
+
         fetch("/api/seller/instagram/my-posts", { headers: authHeaders() })
             .then(async r => {
                 const data = await r.json();
@@ -61,7 +72,7 @@ export default function MyInstagramPostsPage() {
 
     const budgetNum = Math.max(0, parseInt(budgetNaira) || 0);
     const daysNum = Math.max(1, parseInt(days) || 1);
-    const totalNaira = Math.round(budgetNum * (1 + MARKUP_PCT / 100));
+    const totalNaira = Math.round(budgetNum * (1 + markupPct / 100));
 
     const openPromote = (post: MyPost) => {
         setPromoteTarget(post);
@@ -197,7 +208,7 @@ export default function MyInstagramPostsPage() {
                                 </div>
                                 <div className="bg-gray-50 rounded-xl p-3 text-xs space-y-1">
                                     <div className="flex justify-between text-gray-500"><span>Ad spend</span><span className="font-bold text-gray-900">{formatPrice(budgetNum)}</span></div>
-                                    <div className="flex justify-between text-gray-500"><span>Platform fee ({MARKUP_PCT}%)</span><span className="font-bold text-gray-900">{formatPrice(totalNaira - budgetNum)}</span></div>
+                                    <div className="flex justify-between text-gray-500"><span>Platform fee ({markupPct}%)</span><span className="font-bold text-gray-900">{formatPrice(totalNaira - budgetNum)}</span></div>
                                     <div className="flex justify-between font-black text-gray-900 pt-1 border-t border-gray-200"><span>Total</span><span>{formatPrice(totalNaira)}</span></div>
                                 </div>
                                 {promoteError && <p className="text-xs text-rose-600 font-medium">{promoteError}</p>}

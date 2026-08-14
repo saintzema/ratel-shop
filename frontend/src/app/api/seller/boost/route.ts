@@ -125,6 +125,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Replay guard — a Paystack reference verifies as "success" on every check,
+    // so without this one payment could be POSTed repeatedly for unlimited boosts.
+    const alreadyUsed = await db.adCampaign.findFirst({
+        where: { paidReference: paystackReference },
+        select: { id: true },
+    });
+    if (alreadyUsed) {
+        return NextResponse.json(
+            { error: "This payment reference has already been used for another boost." },
+            { status: 409 }
+        );
+    }
+
     const totalNaira = calculateBoostTotal(tierId, validAddOns);
     const totalKobo = Math.round(totalNaira * 100);
 

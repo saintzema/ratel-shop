@@ -24,7 +24,18 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: 30,
     });
-    return NextResponse.json({ campaigns });
+
+    // Hand back the authoritative markup so the client can price the boost with the
+    // same number the POST handler will verify against. The composer used to hardcode
+    // 20%: the moment an admin changed adsMarkupPct, the seller was charged the stale
+    // amount, and then the server's "did you pay enough?" check rejected it — money
+    // taken, no campaign, and a confusing error.
+    const settings = await db.systemSetting.findUnique({
+        where: { id: "global" },
+        select: { adsMarkupPct: true },
+    });
+
+    return NextResponse.json({ campaigns, markupPct: settings?.adsMarkupPct ?? 20 });
 }
 
 /**
@@ -64,6 +75,57 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Instagram not connected" }, { status: 400 });
     }
 
+    // ─── Ownership of the post being boosted ───
+    // Previously this only checked that the seller HAD a connected FB/IG account,
+    // never that `postId` was theirs. Because boosting runs on FairPrice's own ad
+    // credentials (resolveMetaAdsCredentials below), any seller could pay to boost
+    // any other seller's post just by passing its id.
+    if (platform === "instagram") {
+        const ownsPost = await db.instagramPost.findFirst({
+            where: { sellerId: seller.id, mediaId: postId },
+            select: { id: true },
+        });
+        if (!ownsPost) {
+            return NextResponse.json(
+                { error: "That post doesn't belong to your store — nothing was charged or created." },
+                { status: 403 }
+            );
+        }
+    } else {
+        // Facebook Page posts come back from the publish route as "<pageId>_<postId>".
+        // Require that prefix to match the Page this seller actually connected — it's
+        // the only ownership signal a bare post id carries.
+        if (!postId.startsWith(`${seller.facebookPageId}_`)) {
+            return NextResponse.json(
+                { error: "That post doesn't belong to your connected Page — nothing was charged or created." },
+                { status: 403 }
+            );
+        }
+    }
+
+    // meta-ads.ts rebuilds object_story_id as `${pageId}_${postId}`, so hand it the
+    // BARE post id — passing the already-prefixed form through would produce
+    // "pageId_pageId_postId" and Meta would reject the creative.
+    const barePostId =
+        platform === "facebook" && seller.facebookPageId
+            ? postId.slice(`${seller.facebookPageId}_`.length)
+            : postId;
+
+    // ─── Payment-reference replay guard ───
+    // A Paystack reference verifies as "success" every time it's checked, so
+    // without this the same single payment could be POSTed repeatedly to spin up
+    // unlimited campaigns off one charge.
+    const alreadyUsed = await db.adCampaign.findFirst({
+        where: { paidReference: paystackReference },
+        select: { id: true },
+    });
+    if (alreadyUsed) {
+        return NextResponse.json(
+            { error: "This payment reference has already been used for another campaign." },
+            { status: 409 }
+        );
+    }
+
     const settings = await db.systemSetting.findUnique({ where: { id: "global" }, select: { adsMarkupPct: true } });
     const markupPct = settings?.adsMarkupPct ?? 20;
     const budgetKobo = Math.round(budgetNaira * 100);
@@ -96,7 +158,7 @@ export async function POST(req: NextRequest) {
 
     const result = await createBoostCampaign({
         pageId: seller.facebookPageId || "",
-        postId,
+        postId: barePostId,
         platform,
         igUserId: seller.instagramUserId || undefined,
         budgetKobo,

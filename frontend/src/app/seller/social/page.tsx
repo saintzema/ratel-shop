@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink, Search, X } from "lucide-react";
+import { Sparkles, Loader2, Copy, Check, MessageCircle, Facebook, Instagram, Music2, Twitter, Share2, ExternalLink, Search, X, AlertCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 // What's real vs. what's blocked on an external approval process the owner
@@ -31,6 +31,26 @@ const PLATFORMS: { key: PlatformKey; label: string; icon: any; mode: "share" | "
     { key: "tiktok", label: "TikTok", icon: Music2, mode: "soon", color: "#000000" },
 ];
 
+// Hard caption ceilings per platform. One shared caption used to be sent verbatim
+// everywhere, so anything over 280 chars was silently cut off by X's own intent
+// URL with no warning, and an over-length Instagram caption failed at the API with
+// a raw Graph error.
+const CAPTION_LIMITS: Partial<Record<PlatformKey, number>> = {
+    x: 280,
+    instagram: 2200,
+    facebook: 63206,
+};
+
+/** Trim a caption to fit a platform, leaving room for the appended product URL. */
+function truncateForPlatform(text: string, platform: PlatformKey, url = ""): string {
+    const limit = CAPTION_LIMITS[platform];
+    if (!limit) return text;
+    // X counts every URL as a fixed 23 chars regardless of real length (t.co).
+    const reserved = platform === "x" && url ? 24 : 0;
+    const room = limit - reserved;
+    return text.length <= room ? text : `${text.slice(0, Math.max(0, room - 1)).trimEnd()}…`;
+}
+
 function SellerSocialComposerContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -44,12 +64,23 @@ function SellerSocialComposerContent() {
     const [selectedPlatforms, setSelectedPlatforms] = useState<Set<PlatformKey>>(new Set(["whatsapp"]));
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Distinguishes "the connection check itself failed" from "not connected".
+    const [connectionWarning, setConnectionWarning] = useState<string | null>(null);
     const [igConnected, setIgConnected] = useState<boolean | null>(null); // null = still checking
     const [igUsername, setIgUsername] = useState<string | null>(null);
     const [fbConnected, setFbConnected] = useState<boolean | null>(null);
     const [fbPageName, setFbPageName] = useState<string | null>(null);
     const [publishing, setPublishing] = useState(false);
-    const [publishResult, setPublishResult] = useState<{ platform: "instagram" | "facebook"; permalink: string | null } | null>(null);
+    // Per-platform outcomes. This used to be a single object, so publishing to
+    // Instagram AND Facebook overwrote the first result with the second: if IG
+    // succeeded and FB failed, the seller saw only the FB error and no sign that
+    // IG had actually posted — and on a double success, only one permalink.
+    const [results, setResults] = useState<
+        { platform: PlatformKey; ok: boolean; permalink?: string | null; message: string }[]
+    >([]);
+
+    const addResult = (r: { platform: PlatformKey; ok: boolean; permalink?: string | null; message: string }) =>
+        setResults(prev => [...prev.filter(p => p.platform !== r.platform), r]);
 
     const authHeaders = () => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -74,22 +105,42 @@ function SellerSocialComposerContent() {
         // Reuses the same connection the Instagram catalog importer already
         // established under Integrations — a seller who connected there
         // never has to reconnect here, this just checks the same account.
+        // A failed probe is NOT the same as "not connected" — both used to collapse
+        // to the same disconnected state, so a 500 or an expired token looked
+        // identical to never having connected, and the seller got sent round the
+        // connect flow again for no reason. Track the difference.
         fetch("/api/seller/instagram/posts", { headers: authHeaders() })
-            .then(r => r.ok ? r.json() : null)
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) throw new Error(data?.error || `Instagram check failed (${r.status})`);
+                return data;
+            })
             .then(data => {
                 setIgConnected(!!data?.connected);
                 setIgUsername(data?.username || null);
             })
-            .catch(() => setIgConnected(false));
+            .catch((e) => {
+                setIgConnected(false);
+                setConnectionWarning(prev => prev || `Instagram: ${e.message}`);
+            });
 
         fetch("/api/seller/facebook/status", { headers: authHeaders() })
-            .then(r => r.ok ? r.json() : null)
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok) throw new Error(data?.error || `Facebook check failed (${r.status})`);
+                return data;
+            })
             .then(data => {
                 setFbConnected(!!data?.connected);
                 setFbPageName(data?.pageName || null);
             })
-            .catch(() => setFbConnected(false));
-    }, [router]);
+            .catch((e) => {
+                setFbConnected(false);
+                setConnectionWarning(prev => prev || `Facebook: ${e.message}`);
+            });
+        // preselectProductId is read on mount to pick the initial product; it was
+        // missing from the dep list.
+    }, [router, preselectProductId]);
 
     // Instagram/Facebook's real publish mode is only available once connected
     // — a seller who hasn't connected yet still sees the platform as an
@@ -121,28 +172,57 @@ function SellerSocialComposerContent() {
     const connectFacebook = (e: { stopPropagation: () => void }) => {
         e.stopPropagation(); // don't also trigger the tile's own toggle
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        setError(null);
         fetch("/api/seller/facebook/auth", { headers: { accept: "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) } })
-            .then(r => r.json())
-            .then(data => { if (data?.url) window.location.href = data.url; })
-            .catch(() => {});
+            .then(async r => {
+                const data = await r.json().catch(() => null);
+                if (!r.ok || !data?.url) throw new Error(data?.error || "Couldn't start Facebook sign-in.");
+                return data;
+            })
+            .then(data => { window.location.href = data.url; })
+            // The empty catch here meant a failed auth start did literally nothing —
+            // the seller clicked Connect and the button just sat there.
+            .catch(err => setError(err.message || "Couldn't start Facebook sign-in. Please try again."));
     };
 
     const productUrl = selectedProduct
         ? `https://www.fairprice.ng/product/${selectedProduct.id}/${(selectedProduct as any).slug || ""}`
         : "";
 
+    // The strictest caption ceiling among the platforms currently selected.
+    const { tightestLimit, tightestLimitPlatform } = (() => {
+        let limit: number | null = null;
+        let platform = "";
+        selectedPlatforms.forEach(key => {
+            const cap = CAPTION_LIMITS[key];
+            if (cap !== undefined && (limit === null || cap < limit)) {
+                limit = cap;
+                platform = PLATFORMS.find(p => p.key === key)?.label || key;
+            }
+        });
+        return { tightestLimit: limit as number | null, tightestLimitPlatform: platform };
+    })();
+
     const generateCaption = async () => {
         if (!selectedProduct) return;
         setGenerating(true);
         setError(null);
         try {
+            // Tell the generator which platform this is for — the route already
+            // supported a `platform` hint (hashtags for Instagram, short for X),
+            // the composer just never sent one, so every caption came back generic.
+            const primaryPlatform: PlatformKey =
+                (["instagram", "x", "facebook", "whatsapp", "tiktok"] as PlatformKey[]).find(p => selectedPlatforms.has(p))
+                || "instagram";
+
             const res = await fetch("/api/seller/social-caption", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: authHeaders(),
                 body: JSON.stringify({
                     productName: selectedProduct.name,
                     price: selectedProduct.price,
                     description: selectedProduct.description,
+                    platform: primaryPlatform,
                 }),
             });
             const data = await res.json();
@@ -204,31 +284,37 @@ function SellerSocialComposerContent() {
 
     const publishToInstagram = async () => {
         if (!selectedProduct?.image_url) {
-            setError("This product has no image to publish.");
+            addResult({ platform: "instagram", ok: false, message: "This product has no image to publish." });
             return false;
         }
         try {
             const res = await fetch("/api/seller/instagram/publish", {
                 method: "POST",
                 headers: authHeaders(),
-                body: JSON.stringify({ imageUrl: selectedProduct.image_url, caption, productId: selectedProduct.id }),
+                body: JSON.stringify({
+                    imageUrl: selectedProduct.image_url,
+                    // Instagram hard-rejects captions over 2200 chars with a raw
+                    // Graph error; trim rather than let the publish fail.
+                    caption: truncateForPlatform(caption, "instagram"),
+                    productId: selectedProduct.id,
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
-                setError(data.error || "Couldn't publish to Instagram.");
+                addResult({ platform: "instagram", ok: false, message: data.error || "Couldn't publish to Instagram." });
                 return false;
             }
-            setPublishResult({ platform: "instagram", permalink: data.permalink || null });
+            addResult({ platform: "instagram", ok: true, permalink: data.permalink || null, message: "Posted to Instagram" });
             return true;
         } catch {
-            setError("Couldn't reach Instagram — check your connection and try again.");
+            addResult({ platform: "instagram", ok: false, message: "Couldn't reach Instagram — check your connection." });
             return false;
         }
     };
 
     const publishToFacebook = async () => {
         if (!selectedProduct?.image_url) {
-            setError("This product has no image to publish.");
+            addResult({ platform: "facebook", ok: false, message: "This product has no image to publish." });
             return false;
         }
         try {
@@ -239,20 +325,20 @@ function SellerSocialComposerContent() {
             });
             const data = await res.json();
             if (!res.ok) {
-                setError(data.error || "Couldn't publish to Facebook.");
+                addResult({ platform: "facebook", ok: false, message: data.error || "Couldn't publish to Facebook." });
                 return false;
             }
-            setPublishResult({ platform: "facebook", permalink: data.permalink || null });
+            addResult({ platform: "facebook", ok: true, permalink: data.permalink || null, message: "Posted to your Facebook Page" });
             return true;
         } catch {
-            setError("Couldn't reach Facebook — check your connection and try again.");
+            addResult({ platform: "facebook", ok: false, message: "Couldn't reach Facebook — check your connection." });
             return false;
         }
     };
 
     const publish = async () => {
         setError(null);
-        setPublishResult(null);
+        setResults([]);
         const multiplePlatforms = selectedPlatforms.size > 1;
 
         // Every window.open must fire in this same synchronous pass when more
@@ -260,31 +346,48 @@ function SellerSocialComposerContent() {
         if (selectedPlatforms.has("whatsapp")) {
             if (multiplePlatforms) shareToWhatsApp();
             else shareToWhatsAppRich();
+            addResult({ platform: "whatsapp", ok: true, message: "WhatsApp share opened" });
         }
         if (selectedPlatforms.has("x")) {
-            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(caption)}&url=${encodeURIComponent(productUrl)}`, "_blank");
+            const xText = truncateForPlatform(caption, "x", productUrl);
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(productUrl)}`, "_blank");
+            addResult({
+                platform: "x",
+                ok: true,
+                message: xText.length < caption.length ? "X opened (caption shortened to fit 280)" : "X post composer opened",
+            });
         }
         if (selectedPlatforms.has("tiktok")) {
             copyCaption();
+            addResult({ platform: "tiktok", ok: true, message: "Caption copied — paste it in the TikTok app" });
         }
+
+        // Both API publishes share one `publishing` flag around the whole block.
+        // Setting/clearing it separately per platform made the button flicker back
+        // to enabled in the gap between the Instagram and Facebook calls.
+        const needsApiPublish =
+            (selectedPlatforms.has("instagram") && igMode === "publish") ||
+            (selectedPlatforms.has("facebook") && fbMode === "publish");
+        if (needsApiPublish) setPublishing(true);
+
         if (selectedPlatforms.has("instagram")) {
             if (igMode === "publish") {
-                setPublishing(true);
                 await publishToInstagram();
-                setPublishing(false);
             } else {
                 copyCaption();
+                addResult({ platform: "instagram", ok: true, message: "Caption copied — paste it in the Instagram app" });
             }
         }
         if (selectedPlatforms.has("facebook")) {
             if (fbMode === "publish") {
-                setPublishing(true);
                 await publishToFacebook();
-                setPublishing(false);
             } else {
                 window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`, "_blank");
+                addResult({ platform: "facebook", ok: true, message: "Facebook share dialog opened" });
             }
         }
+
+        if (needsApiPublish) setPublishing(false);
     };
 
     return (
@@ -404,7 +507,27 @@ function SellerSocialComposerContent() {
                                     placeholder="Write your own caption, or generate one with AI — you can always edit it."
                                     className="min-h-[120px] rounded-2xl border-gray-200 bg-gray-50/60 focus:bg-white"
                                 />
+                                {/* Shows the TIGHTEST limit across the selected platforms, so
+                                    a seller posting to X + Instagram sees the 280 ceiling
+                                    before publishing rather than discovering the truncation
+                                    after the fact. */}
+                                {tightestLimit !== null && (
+                                    <p className={`text-[11px] font-bold text-right ${caption.length > tightestLimit ? "text-rose-600" : "text-gray-400"}`}>
+                                        {caption.length} / {tightestLimit}
+                                        {caption.length > tightestLimit && ` — will be shortened for ${tightestLimitPlatform}`}
+                                    </p>
+                                )}
                                 {error && <p className="text-xs text-rose-600 font-medium">{error}</p>}
+                                {/* A failed connection CHECK is different from being
+                                    disconnected — say so, rather than silently showing
+                                    "not connected" and sending them round the OAuth
+                                    flow again for what may be a transient 500. */}
+                                {connectionWarning && (
+                                    <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+                                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                        <span>Couldn&apos;t check your connection ({connectionWarning}). Auto-posting may be unavailable — reconnect under Integrations if this persists.</span>
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -455,16 +578,33 @@ function SellerSocialComposerContent() {
                                 </div>
                             </div>
 
-                            {publishResult && (
-                                publishResult.permalink ? (
-                                    <a href={publishResult.permalink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                                        <Check className="h-3.5 w-3.5" /> Published to {publishResult.platform === "instagram" ? "Instagram" : "Facebook"} — view live post <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                ) : (
-                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                                        <Check className="h-3.5 w-3.5" /> Published to {publishResult.platform === "instagram" ? "Instagram" : "Facebook"}
-                                    </div>
-                                )
+                            {/* One row per platform, so a mixed success/failure run reports
+                                both instead of the last result silently replacing the rest. */}
+                            {results.length > 0 && (
+                                <div className="space-y-2">
+                                    {results.map(r => {
+                                        const label = PLATFORMS.find(p => p.key === r.platform)?.label || r.platform;
+                                        const body = (
+                                            <>
+                                                {r.ok ? <Check className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+                                                <span className="flex-1 text-left">{label}: {r.message}</span>
+                                                {r.ok && r.permalink && <ExternalLink className="h-3 w-3 shrink-0" />}
+                                            </>
+                                        );
+                                        const cls = `flex items-center gap-2 text-xs font-bold rounded-xl px-3 py-2 border ${
+                                            r.ok
+                                                ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                                                : "text-red-700 bg-red-50 border-red-200"
+                                        }`;
+                                        return r.ok && r.permalink ? (
+                                            <a key={r.platform} href={r.permalink} target="_blank" rel="noopener noreferrer" className={cls}>
+                                                {body}
+                                            </a>
+                                        ) : (
+                                            <div key={r.platform} className={cls}>{body}</div>
+                                        );
+                                    })}
+                                </div>
                             )}
 
                             <div className="flex gap-3 pt-1">
