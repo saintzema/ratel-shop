@@ -335,7 +335,30 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
         });
 
         if (matchByName) {
-            product = matchByName;
+            // A fuzzy name hit in the local catalog is frequently a thinner record
+            // than the search-cache entry for this exact id — in particular it often
+            // has no resolved image, because the catalog copy was written before SRP
+            // image hydration finished. Taking it wholesale is exactly what made the
+            // PDP flash the correct photo (first render, cache hit) and then snap
+            // back to the placeholder bag once a re-render found this catalog entry.
+            // Prefer the catalog record for identity/price, but never let it downgrade
+            // an image we already resolved.
+            const isValidImg = (u?: string | null) =>
+                !!u && u.trim().length > 10 && !u.toLowerCase().includes('placeholder');
+
+            if (isValidImg(matchByName.image_url)) {
+                product = matchByName;
+            } else {
+                const cachedForImage = (mounted ? DataSyncService.getAllCachedProducts() : [])
+                    .find((p: any) => p.id === decodedId && isValidImg(p.image_url));
+                product = cachedForImage
+                    ? ({
+                        ...matchByName,
+                        image_url: cachedForImage.image_url,
+                        images: cachedForImage.images?.length ? cachedForImage.images : matchByName.images,
+                    } as any)
+                    : matchByName;
+            }
         } else {
             // Helper functions for description and specs generation
             const generateDescription = (n: string): string => {

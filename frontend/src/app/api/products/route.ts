@@ -85,6 +85,25 @@ export async function GET(req: Request) {
         // and fuzzy-match the whole catalog (the old SRP fetched 200 and filtered locally,
         // which breaks past 200 products). Match each whitespace-separated term against
         // name / category / tags. Case-insensitive.
+        // Explicit category browse (SRP category pills). Distinct from `q`, which
+        // fuzzy-matches name/category/tags — tapping "Cars" should return the Cars
+        // category, not every product whose name happens to contain "cars".
+        // Written into AND (not OR) so it composes with the `q` branch below —
+        // which also writes OR on its short-query path — instead of one silently
+        // clobbering the other when a category and a query are both present.
+        const categoryParam = (searchParams.get("category") || "").trim();
+        if (categoryParam && categoryParam.toLowerCase() !== "all") {
+            whereClause.AND = [
+                ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+                {
+                    OR: [
+                        { category: { equals: categoryParam, mode: "insensitive" } },
+                        { subcategory: { equals: categoryParam, mode: "insensitive" } },
+                    ],
+                },
+            ];
+        }
+
         if (q) {
             const terms = q.split(/\s+/).filter(t => t.length > 1).slice(0, 6);
             if (terms.length > 0) {

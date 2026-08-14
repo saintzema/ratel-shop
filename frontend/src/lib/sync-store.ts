@@ -2737,6 +2737,37 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
+    /**
+     * Write a background-resolved image back into the search cache.
+     *
+     * Search-result image hydration used to live only in the SRP component's
+     * in-memory imagePool, so the moment you navigated to a PDP (or came back
+     * to the same search later) every resolved photo was gone and the product
+     * fell back to the placeholder bag again. Persisting into the search cache
+     * means the image travels with the product on click and on promoteFromCache.
+     *
+     * Deliberately does NOT dispatch sync-store-update: this is called once per
+     * product from a concurrent hydration loop, and the caller already re-renders
+     * off its own imagePool state. Dispatching here would fan out a re-render
+     * storm across every mounted listener for no visual gain.
+     */
+    persistHydratedImage(productId: string, imageUrl: string, imageUrls?: string[]) {
+        if (typeof window === "undefined" || !productId || !imageUrl) return;
+        const cache = this._getSearchCache();
+        let touched = false;
+        Object.keys(cache).forEach(q => {
+            if (!Array.isArray(cache[q])) return;
+            cache[q] = cache[q].map((p: any) => {
+                if (p?.id !== productId) return p;
+                touched = true;
+                return { ...p, image_url: imageUrl, images: imageUrls?.length ? imageUrls : [imageUrl] };
+            });
+        });
+        if (touched) {
+            this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        }
+    }
+
     /** Promote a cached product into the main catalog */
     promoteFromCache(productId: string, persist: boolean = true): Product | null {
         const all = this.getAllCachedProducts();

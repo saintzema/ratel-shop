@@ -434,6 +434,18 @@ function SearchContent() {
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
+  // Category pill tap → browse FairPrice's own catalog for that category.
+  // Clears any stale global/AI results so the grid starts from real listings;
+  // expanding to global results is then an explicit choice ("See more results").
+  const browseCategory = (label: string) => {
+    const value = label.toLowerCase();
+    const isDeselect = selectedCategory?.toLowerCase() === value;
+    setShowGlobalResults(false);
+    setGlobalResults([]);
+    setPage(1);
+    updateFilters({ category: isDeselect ? null : value });
+  };
+
   const toggleAttributeFilter = (key: string, value: string) => {
     const current = attributeFilters[key] || [];
     const updated = current.includes(value)
@@ -611,10 +623,15 @@ function SearchContent() {
     // with no typed query is a valid "browse this area" search (Jiji-style), and
     // needs the server's location-tiered ranking too, not just the client's
     // most-recent-200 cache with no locality awareness at all.
-    if ((!effectiveQ || effectiveQ.length < 2) && !stateParam && !cityParam) return;
+    // A category pill alone is also a valid browse (no typed query, no location) —
+    // it should pull that category straight from the DB rather than leaving the
+    // grid on whatever the client happened to have cached.
+    const effectiveCat = selectedCategory && selectedCategory !== "All" ? selectedCategory : "";
+    if ((!effectiveQ || effectiveQ.length < 2) && !stateParam && !cityParam && !effectiveCat) return;
     let cancelled = false;
     const params = new URLSearchParams();
     if (effectiveQ) params.set("q", effectiveQ);
+    if (effectiveCat) params.set("category", effectiveCat);
     if (stateParam) params.set("state", stateParam);
     if (cityParam) params.set("city", cityParam);
     params.set("limit", "60");
@@ -629,11 +646,18 @@ function SearchContent() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [query, stateParam, cityParam]);
+  }, [query, stateParam, cityParam, selectedCategory]);
 
-  // Debounced global search for the search page
+  // Debounced global search for the search page.
+  //
+  // Deliberately keyed on the TYPED query only. This used to fall back to
+  // `selectedCategory`, which meant tapping a category pill (no text query at
+  // all) immediately spent a Gemini call inventing global results — so "Cars"
+  // showed AI-sourced listings instead of the cars FairPrice actually has.
+  // Category browsing now goes through browseCategory() against our own DB;
+  // the global search stays opt-in via "See more results".
   useEffect(() => {
-    const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
+    const effectiveQuery = (query || "").trim();
     if (!effectiveQuery || effectiveQuery.length <= 2) {
       setGlobalResults([]);
       setIsGlobalSearching(false);
@@ -726,11 +750,24 @@ function SearchContent() {
     }
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
     if (effectiveQuery && effectiveQuery.length > 2) {
+      // Fold the active refinements into the prompt so "expand my search" actually
+      // expands THIS search — previously the AI was asked for the bare query/category
+      // and happily returned Lagos results while the user was filtered to Kano, or
+      // petrol cars while they'd selected electric.
+      const refinements = [
+        ...Object.values(attributeFilters).flat(),
+        cityParam || "",
+        stateParam || "",
+      ].filter(Boolean);
+      const promptQuery = refinements.length
+        ? `${effectiveQuery} ${refinements.join(" ")}`.trim()
+        : effectiveQuery;
+
       setIsGlobalSearching(true);
       fetch("/api/gemini-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: effectiveQuery, mode: "search", offset: globalSearchCount + 1, category: detectedCategory }),
+        body: JSON.stringify({ productName: promptQuery, mode: "search", offset: globalSearchCount + 1, category: detectedCategory }),
       })
         .then(async (res) => {
           if (!res.ok) {
@@ -963,8 +1000,18 @@ function SearchContent() {
                 [normalizedName]: { url: imageUrl, urls: data.imageUrls || [imageUrl] }
               }));
 
-              // Persist the hydrated image to Postgres (image-only, no data overwrite)
+              // Persist into the search cache FIRST — imagePool is component-local
+              // state that dies on navigation, so without this the resolved photo
+              // never travels with the product to the PDP (or to promoteFromCache),
+              // and every global result snapped back to the placeholder bag the
+              // moment you clicked it.
               if (p.id) {
+                DataSyncService.persistHydratedImage(p.id, imageUrl, data.imageUrls);
+
+                // Also try Postgres (image-only, no data overwrite). This is a
+                // best-effort no-op for un-promoted global-* results, which don't
+                // exist as rows yet — the search-cache write above is what actually
+                // makes those stick.
                 fetch('/api/products', {
                    method: 'POST',
                    headers: { 'Content-Type': 'application/json' },
@@ -1298,34 +1345,12 @@ function SearchContent() {
 
         {/* Unified & Compact Filter Bar */}
         <div className="mb-4 w-full flex flex-col bg-white/95 pt-2 pb-0 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
-            {/* Unified Scrollable Row: Shortcuts + Filters */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
-                {/* Category Shortcuts */}
-                {[
-                    { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
-                    { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-                    { label: 'Smartphones', icon: <Phone className="h-3.5 w-3.5" />, color: 'bg-purple-50 text-purple-700 border-purple-100' },
-                    { label: 'Computing', icon: <Laptop className="h-3.5 w-3.5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
-                    { label: 'Appliances', icon: <Zap className="h-3.5 w-3.5" />, color: 'bg-amber-50 text-amber-700 border-amber-100' },
-                    { label: 'Fashion', icon: <Shirt className="h-3.5 w-3.5" />, color: 'bg-pink-50 text-pink-700 border-pink-100' }
-                ].map(pill => (
-                    <button
-                        key={pill.label}
-                        onClick={() => updateFilters({ category: pill.label.toLowerCase() })}
-                        className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer snap-start",
-                            pill.color,
-                            selectedCategory?.toLowerCase() === pill.label.toLowerCase() ? "ring-2 ring-offset-1 ring-current" : ""
-                        )}
-                    >
-                        {pill.icon}
-                        {pill.label}
-                    </button>
-                ))}
-
-                <div className="h-6 w-[1px] bg-gray-200 shrink-0 mx-1 snap-start" />
-
-                {/* Filters */}
+            {/* Row 1: Filters (Clear / location / sort / verified / filter panel).
+                These used to share a single horizontal scroll row with the category
+                pills below, which meant reaching Sort or Filters required scrolling
+                past six category pills on a phone. Separate rows: refine on top,
+                browse-by-category underneath. */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
                 <div className="flex items-center gap-2 shrink-0">
                     {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000 || stateParam || cityParam) && (
                         <button
@@ -1421,6 +1446,34 @@ function SearchContent() {
                       <ChevronDown className={cn("h-3 w-3 transition-transform", showFilterPanel && "rotate-180")} />
                     </button>
                 </div>
+            </div>
+
+            {/* Row 2: Category shortcuts. Tapping one browses FairPrice's own
+                catalog for that category (see browseCategory) — the AI/global
+                search is opt-in via "See more results" underneath the grid,
+                not something a single pill tap should spend a model call on. */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+                {[
+                    { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
+                    { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+                    { label: 'Smartphones', icon: <Phone className="h-3.5 w-3.5" />, color: 'bg-purple-50 text-purple-700 border-purple-100' },
+                    { label: 'Computing', icon: <Laptop className="h-3.5 w-3.5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+                    { label: 'Appliances', icon: <Zap className="h-3.5 w-3.5" />, color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { label: 'Fashion', icon: <Shirt className="h-3.5 w-3.5" />, color: 'bg-pink-50 text-pink-700 border-pink-100' }
+                ].map(pill => (
+                    <button
+                        key={pill.label}
+                        onClick={() => browseCategory(pill.label)}
+                        className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer snap-start",
+                            pill.color,
+                            selectedCategory?.toLowerCase() === pill.label.toLowerCase() ? "ring-2 ring-offset-1 ring-current" : ""
+                        )}
+                    >
+                        {pill.icon}
+                        {pill.label}
+                    </button>
+                ))}
             </div>
 
             {/* Category-aware filter panel. The filter groups (getFiltersForCategory),
@@ -1826,8 +1879,11 @@ function SearchContent() {
               )
             )}
 
-            {/* See more results Button — visible whenever there's a valid query */}
-            {query && query.trim().length > 2 && (
+            {/* Expand-to-global button. Also shows during a pure category browse
+                (no typed query) — that's exactly when it's needed, since a pill tap
+                now returns only FairPrice's own catalog and this is the opt-in to
+                widen the net beyond it. */}
+            {((query && query.trim().length > 2) || (selectedCategory && selectedCategory !== "All")) && (
                 <div className="flex justify-center my-10 relative">
                   <div
                     className="absolute inset-0 flex items-center"
@@ -1847,7 +1903,11 @@ function SearchContent() {
                     ) : (
                       <Sparkles className="h-5 w-5 animate-pulse" />
                     )}
-                    {isGlobalSearching ? 'Loading more...' : 'See more results'}
+                    {isGlobalSearching
+                      ? 'Loading more...'
+                      : (!query?.trim() && selectedCategory && selectedCategory !== "All")
+                        ? `Search wider for ${selectedCategory}`
+                        : 'See more results'}
                   </motion.button>
                 </div>
               )}
