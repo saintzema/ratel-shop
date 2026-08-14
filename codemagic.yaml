@@ -45,6 +45,22 @@ workflows:
           cp capacitor-www/index.html out/index.html
           npx cap sync ios
 
+      # Hard gate: a build whose generated config points at localhost installs
+      # fine, shows the splash, then hangs forever on a white screen because the
+      # phone has no server on its own localhost. That exact build shipped to
+      # TestFlight and Play before anyone caught it, so fail loudly here instead
+      # of uploading another dead binary.
+      - name: Verify app points at production (not localhost)
+        script: |
+          cd "$CM_BUILD_DIR/frontend"
+          CONFIG="ios/App/App/capacitor.config.json"
+          echo "Generated server config:"
+          grep '"url"' "$CONFIG"
+          if grep -q 'localhost' "$CONFIG"; then
+            echo "FATAL: capacitor.config.json points at localhost — this build would white-screen on device."
+            exit 1
+          fi
+
       - name: Set up iOS code signing
         script: |
           keychain initialize
@@ -130,6 +146,18 @@ workflows:
           mkdir -p out
           cp capacitor-www/index.html out/index.html
           npx cap sync android
+
+      # Same white-screen gate as the iOS workflow — see the note there.
+      - name: Verify app points at production (not localhost)
+        script: |
+          cd "$CM_BUILD_DIR/frontend"
+          CONFIG="android/app/src/main/assets/capacitor.config.json"
+          echo "Generated server config:"
+          grep '"url"' "$CONFIG"
+          if grep -q 'localhost' "$CONFIG"; then
+            echo "FATAL: capacitor.config.json points at localhost — this build would white-screen on device."
+            exit 1
+          fi
 
       # android_signing above (Codemagic > Team > Code signing identities >
       # Android keystores) auto-injects CM_KEYSTORE_PATH/PASSWORD/ALIAS env

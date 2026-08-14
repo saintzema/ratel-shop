@@ -8,7 +8,25 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // enabling native features (push notifications, haptics, etc.)
 // ────────────────────────────────────────────────────────────
 
-const IS_DEV = process.env.NODE_ENV !== "production";
+// Opt-IN dev server, not opt-out.
+//
+// This used to be `process.env.NODE_ENV !== "production"`, which is a trap for
+// native builds: `npx cap sync` runs as its own CLI invocation, and nothing in
+// CI (Codemagic) or a plain local `cap sync` sets NODE_ENV. So every release
+// build silently generated capacitor.config.json with url=http://localhost:3000,
+// and the shipped app booted the splash, asked WKWebView/WebView to load a
+// server on the *phone's* own localhost, found nothing, and sat on a white
+// screen forever. That shipped to both TestFlight and Play closed testing.
+//
+// Now the production URL is the default and you have to explicitly ask for the
+// dev server, so the worst case for a misconfigured build is "points at prod"
+// rather than "points at nothing".
+//
+// For local development against a device/simulator:
+//   CAP_DEV_SERVER=http://192.168.1.100:3000 npx cap sync ios
+//   (or CAP_DEV_SERVER=1 for the http://localhost:3000 default, simulator only)
+const DEV_SERVER = process.env.CAP_DEV_SERVER;
+const DEV_SERVER_URL = DEV_SERVER === "1" ? "http://localhost:3000" : DEV_SERVER;
 
 const config: CapacitorConfig = {
   // NOTE: iOS and Android now have DIFFERENT identifiers. iOS is
@@ -29,18 +47,11 @@ const config: CapacitorConfig = {
   webDir: "out", // Static fallback — used for offline/initial load
 
   server: {
-    // This was hardcoded to localhost:3000 for BOTH dev and "production"
-    // builds — IS_DEV was computed above but never actually applied here.
-    // Any release build made before this fix would install and show a blank/
-    // broken screen on a real device, since the device has nothing listening
-    // on its own localhost:3000. Now genuinely branches on IS_DEV.
-    //
-    // Local dev on a physical device/simulator: temporarily override this to
-    // your machine's LAN IP (e.g. http://192.168.1.100:3000) or
-    // http://localhost:3000 for the simulator only — never commit that
-    // override, it must always be the production URL by the time anyone
-    // runs a release build.
-    url: IS_DEV ? "http://localhost:3000" : "https://www.fairprice.ng",
+    // Defaults to production. See the DEV_SERVER note at the top of this file —
+    // pointing a release build at localhost is what caused the white-screen-
+    // after-splash on both TestFlight and Play, so that now requires explicitly
+    // setting CAP_DEV_SERVER rather than merely failing to set NODE_ENV.
+    url: DEV_SERVER_URL || "https://www.fairprice.ng",
     allowNavigation: [
       "www.fairprice.ng",
       "fairprice.ng",
@@ -68,7 +79,7 @@ const config: CapacitorConfig = {
     backgroundColor: "#FFFFFF",
     allowMixedContent: true, // Allow HTTP resources in WebView
     captureInput: true,      // Prevents keyboard issues
-    webContentsDebuggingEnabled: IS_DEV, // WebView debug in dev only
+    webContentsDebuggingEnabled: !!DEV_SERVER_URL, // WebView debug in dev only
     buildOptions: {
       // Real values live in android/keystore.properties (gitignored) and are read
       // directly by android/app/build.gradle for `./gradlew bundleRelease`. These
