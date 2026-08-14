@@ -379,13 +379,19 @@ export function Navbar() {
                 // preventing short words like "pro" from matching "professional" unrelated products.
                 .filter(s => {
                     // Was >55, which no partial match could ever reach — see the
-                    // scoring note in scoreProduct. The token-boundary guard below
-                    // is what actually keeps junk out for multi-word queries, so
-                    // this threshold only needs to exclude near-zero scores.
+                    // scoring note in scoreProduct.
                     if (s.score <= 38) return false;
                     if (words.length < 2) return true;
                     const name = (s.product.name || "").toLowerCase();
-                    return words.some(w => w.length <= 2 ? name.includes(w) : new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(name));
+                    // Match must rest on a word that actually identifies the product.
+                    // Otherwise "red corolla" surfaced anything merely containing
+                    // "red" while no Corolla existed — noise that reads as broken
+                    // search. With no distinctive word typed, fall back to any word.
+                    const distinctive = words.filter(w => w.length >= 4);
+                    const required = distinctive.length > 0 ? distinctive : words;
+                    return required.some(w => w.length <= 2
+                        ? name.includes(w)
+                        : new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(name));
                 })
                 .sort((a, b) => b.score - a.score)
                 .slice(0, 5);

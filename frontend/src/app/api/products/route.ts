@@ -116,19 +116,27 @@ export async function GET(req: Request) {
         if (q) {
             const terms = q.split(/\s+/).filter(t => t.length > 1).slice(0, 6);
             if (terms.length > 0) {
-                // ANY term may match, not EVERY term.
+                // ANY *distinctive* term may match — not EVERY term, and not just
+                // any term at all.
                 //
-                // This used to require every word, so "red corolla" returned an
-                // empty catalog unless a listing literally contained both "red"
-                // and "corolla" — a shopper searching two words got nothing at all,
-                // on a catalog full of Corollas. Matching broadly and letting the
-                // relevance ranking below sort it out means the closest listings
-                // still come first, and a near-miss shows something useful instead
-                // of a dead end while the global/AI results load underneath.
+                // Requiring every word meant "red corolla" returned nothing even
+                // where Corollas existed, because no listing contained both words.
+                // But matching on any word is just as bad in the other direction:
+                // "red" alone pulled up a screen protector and a lawn mower, which
+                // reads as broken search rather than an empty shelf.
+                //
+                // So: match on the words that actually identify the product (4+
+                // chars — "corolla", "toyota", "inverter") and ignore short filler
+                // ("red", "new", "hp") unless filler is all the shopper typed. A
+                // genuine near-miss then returns the right neighbours, and a query
+                // with no real local match returns nothing and correctly falls
+                // through to the global/AI search instead of padding with noise.
+                const distinctive = terms.filter(t => t.length >= 4);
+                const matchTerms = distinctive.length > 0 ? distinctive : terms;
                 whereClause.AND = [
                     ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
                     {
-                        OR: terms.flatMap(term => [
+                        OR: matchTerms.flatMap(term => [
                             { name: { contains: term, mode: "insensitive" } },
                             { category: { contains: term, mode: "insensitive" } },
                             { subcategory: { contains: term, mode: "insensitive" } },
