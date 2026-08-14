@@ -151,6 +151,9 @@ export async function GET(req: Request) {
             financingAvailable: true,
             createdAt: true,
             slug: true,
+            viewCount: true,
+            phoneViewCount: true,
+            chatCount: true,
             ...(hasLocation ? { seller: { select: { state: true, city: true } } } : {}),
         } as any;
 
@@ -230,6 +233,9 @@ export async function GET(req: Request) {
             avg_rating: p.avgRating,
             review_count: p.reviewCount,
             sold_count: p.soldCount,
+            view_count: p.viewCount ?? 0,
+            phone_view_count: p.phoneViewCount ?? 0,
+            chat_count: p.chatCount ?? 0,
             created_at: p.createdAt.toISOString(),
             slug: p.slug || undefined,
         }));

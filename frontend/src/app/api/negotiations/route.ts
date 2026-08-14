@@ -114,6 +114,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
         }
 
+        // A negotiation opening IS the "chat started" signal on this marketplace —
+        // it's the per-listing engagement number the seller sees next to views and
+        // phone reveals. Non-blocking: never fail the negotiation over a counter.
+        db.product
+            .update({ where: { id: body.product_id }, data: { chatCount: { increment: 1 } } })
+            .catch(() => { /* non-critical */ });
+
         // Ensure customer exists (to satisfy Foreign Key constraint)
         let resolvedCustomerId = body.customer_id || "guest";
         

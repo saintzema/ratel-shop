@@ -389,6 +389,14 @@ model Product {
   financingDepositPct  Float?             @map("financing_deposit_pct")
   isDirectPayment      Boolean            @default(false) @map("is_direct_payment")
   isTrending       Boolean              @default(false)
+  // Per-listing performance counters, surfaced to the seller on their Products
+  // page (Jiji shows impressions/visitors/phone views/chats per ad). Real
+  // columns rather than keys inside `specs` because these are incremented
+  // concurrently — a read-modify-write on a JSON blob loses counts under any
+  // real traffic, whereas `{ increment: 1 }` is atomic in the database.
+  viewCount        Int                  @default(0)
+  phoneViewCount   Int                  @default(0)
+  chatCount        Int                  @default(0)
   deals            Deal[]
   negotiations     NegotiationRequest[]
   orders           Order[]

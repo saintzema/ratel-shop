@@ -51,6 +51,14 @@ export async function GET(
         { type: "system", link: `/product/${id}` }
     ).catch(() => { /* non-critical */ });
 
+    // Same signal, counted for the seller: "phone views" is one of the few
+    // pre-order engagement numbers that means anything on a marketplace where
+    // plenty of deals finish over WhatsApp. Non-blocking — never fail the
+    // contact reveal because a counter didn't increment.
+    db.product
+        .update({ where: { id }, data: { phoneViewCount: { increment: 1 } } })
+        .catch(() => { /* non-critical */ });
+
     return NextResponse.json({
         business_name: product.seller.businessName,
         whatsapp_number: product.seller.whatsappNumber || null,

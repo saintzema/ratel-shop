@@ -220,6 +220,21 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
     const decodedId = id ? decodeURIComponent(id) : id;
 
+    // Count this view once per listing per session. Session-scoped rather than
+    // per-mount so a buyer flipping back and forth between the PDP and search
+    // doesn't inflate the seller's view count into a meaningless number.
+    useEffect(() => {
+        if (!decodedId || typeof window === "undefined") return;
+        const key = `fp_viewed_${decodedId}`;
+        if (sessionStorage.getItem(key)) return;
+        sessionStorage.setItem(key, "1");
+        fetch(`/api/products/${encodeURIComponent(decodedId)}/track`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "view" }),
+        }).catch(() => { /* non-critical */ });
+    }, [decodedId]);
+
     // 1. Initial lookup from all sources
     const cachedProduct = safeAllProducts.find((p) => p.id === decodedId) || safeAllProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
 

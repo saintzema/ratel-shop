@@ -36,9 +36,11 @@ import {
     X,
     CheckCircle2,
     Share2,
-    CopyPlus
+    CopyPlus,
+    Rocket
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
+import { BoostPackageModal } from "@/components/seller/BoostPackageModal";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import {
     Dialog,
@@ -55,6 +57,11 @@ function SellerProductsContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    // A listing can be perfectly fine and still invisible to buyers because the
+    // STORE hasn't been approved yet — getApprovedProducts() filters on seller
+    // status/KYC, not on the product. Sellers had no way to tell that apart from
+    // "my listing is broken", so surface it as an explicit Reviewing state.
+    const [storeAwaitingApproval, setStoreAwaitingApproval] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [sortBy, setSortBy] = useState<string>("newest");
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -62,6 +69,9 @@ function SellerProductsContent() {
     const [viewMode, setViewMode] = useState<"table" | "grid">("table");
     
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
+    // Tiered on-platform boost (Basic/Premium/VIP). Separate from the existing
+    // "Promote" flow above, which drives the Meta-ads path.
+    const [boostModal, setBoostModal] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [dealModalOpen, setDealModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [dealDiscount, setDealDiscount] = useState("15");
     const [dealDurationHours, setDealDurationHours] = useState("24");
@@ -86,6 +96,11 @@ function SellerProductsContent() {
         }
 
         setActiveDeals(DataSyncService.getDeals());
+        // Mirrors the visibility rule in getApprovedProducts().
+        setStoreAwaitingApproval(
+            !!sellerInfo &&
+            !(sellerInfo.status === "active" || sellerInfo.verified === true || (sellerInfo as any).kyc_status === "approved")
+        );
         setLoading(true);
         try {
             // Fetch products for this specific seller from global sync store first for better consistency
@@ -219,7 +234,14 @@ function SellerProductsContent() {
     const filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === "all" || p.category === selectedCategory;
-        const matchesStatus = statusFilter === "all" || (statusFilter === "live" && p.is_active) || (statusFilter === "sponsored" && p.is_sponsored);
+        const matchesStatus =
+            statusFilter === "all" ||
+            // "Live" now means genuinely visible to buyers: active AND the store
+            // itself is approved. Previously a pending store's listings all showed
+            // as Live while being invisible on the actual marketplace.
+            (statusFilter === "live" && p.is_active && !storeAwaitingApproval) ||
+            (statusFilter === "reviewing" && p.is_active && storeAwaitingApproval) ||
+            (statusFilter === "sponsored" && p.is_sponsored);
         return matchesSearch && matchesCategory && matchesStatus;
     }).sort((a, b) => {
         switch (sortBy) {
@@ -491,7 +513,7 @@ function SellerProductsContent() {
                     <div className="bg-white/40 backdrop-blur-xl p-6 rounded-[28px] border border-white/60">
                         <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 block">Market Status</Label>
                         <div className="flex bg-gray-100 p-1 rounded-2xl gap-1">
-                            {["all", "live", "sponsored"].map((s) => (
+                            {["all", "live", "reviewing", "sponsored"].map((s) => (
                                 <button
                                     key={s}
                                     onClick={() => setStatusFilter(s)}
@@ -591,6 +613,20 @@ function SellerProductsContent() {
                                                             <span className="text-[9px] font-black uppercase text-gray-400">{product.category}</span>
                                                             {product.is_sponsored && <Badge className="bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1.5 h-4">Ads Live</Badge>}
                                                         </div>
+                                                        {/* Per-listing engagement, so "is this ad working?" is answerable
+                                                            without leaving the page (and gives a boost something to be
+                                                            measured against). */}
+                                                        <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-gray-400">
+                                                            <span className="flex items-center gap-1" title="Views">
+                                                                <Eye className="h-3 w-3" />{product.view_count ?? 0}
+                                                            </span>
+                                                            <span className="flex items-center gap-1" title="Phone/contact reveals">
+                                                                <Megaphone className="h-3 w-3" />{product.phone_view_count ?? 0}
+                                                            </span>
+                                                            <span className="flex items-center gap-1" title="Chats started">
+                                                                <Share2 className="h-3 w-3" />{product.chat_count ?? 0}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -611,9 +647,21 @@ function SellerProductsContent() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-6 hidden lg:table-cell">
-                                                <Badge variant="outline" className="text-[9px] font-black bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-widest px-2.5">
-                                                    Active Live
-                                                </Badge>
+                                                {/* Was hardcoded "Active Live" for every row, including listings
+                                                    buyers genuinely can't see yet. */}
+                                                {!product.is_active ? (
+                                                    <Badge variant="outline" className="text-[9px] font-black bg-gray-100 text-gray-500 border-gray-200 uppercase tracking-widest px-2.5">
+                                                        Paused
+                                                    </Badge>
+                                                ) : storeAwaitingApproval ? (
+                                                    <Badge variant="outline" className="text-[9px] font-black bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-widest px-2.5" title="Your store is still being reviewed — listings go live once it's approved.">
+                                                        Reviewing
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-[9px] font-black bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-widest px-2.5">
+                                                        Active Live
+                                                    </Badge>
+                                                )}
                                             </td>
                                             <td className="px-6 py-6 text-right">
                                                 <div className="flex items-center justify-end gap-1">
@@ -659,6 +707,15 @@ function SellerProductsContent() {
                                                             <CopyPlus className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-10 w-10 rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                                                        onClick={() => setBoostModal({ isOpen: true, product })}
+                                                        title="Boost this listing (Basic / Premium / VIP)"
+                                                    >
+                                                        <Rocket className="h-4 w-4" />
+                                                    </Button>
                                                     <Button 
                                                         size="icon" 
                                                         variant="ghost" 
@@ -770,6 +827,15 @@ function SellerProductsContent() {
                                                 <CopyPlus className="h-4 w-4" />
                                             </Button>
                                         </Link>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-orange-50 hover:text-orange-600"
+                                            onClick={() => setBoostModal({ isOpen: true, product })}
+                                            title="Boost this listing (Basic / Premium / VIP)"
+                                        >
+                                            <Rocket className="h-4 w-4" />
+                                        </Button>
                                         <Button 
                                             size="icon" 
                                             variant="ghost" 
@@ -999,6 +1065,13 @@ function SellerProductsContent() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <BoostPackageModal
+                product={boostModal.product}
+                isOpen={boostModal.isOpen}
+                onClose={() => setBoostModal({ isOpen: false, product: null })}
+                onBoosted={loadProducts}
+            />
         </div>
     );
 }

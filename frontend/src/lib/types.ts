@@ -110,6 +110,10 @@ export interface Product {
     avg_rating: number;
     review_count: number;
     sold_count: number;
+    // Per-listing engagement counters shown to the seller (see /api/products/[id]/track).
+    view_count?: number;
+    phone_view_count?: number;
+    chat_count?: number;
     created_at: string;
     specs?: Record<string, string>;
     external_url?: string;
