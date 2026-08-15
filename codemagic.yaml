@@ -54,12 +54,17 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR/frontend"
           CONFIG="ios/App/App/capacitor.config.json"
-          echo "Generated server config:"
-          grep '"url"' "$CONFIG"
-          if grep -q 'localhost' "$CONFIG"; then
-            echo "FATAL: capacitor.config.json points at localhost — this build would white-screen on device."
-            exit 1
-          fi
+          # Check server.url specifically, NOT the whole file: allowNavigation
+          # legitimately allowlists "localhost:3000" for local dev, and a naive
+          # grep over the file matches that and fails every build.
+          SERVER_URL=$(python3 -c "import json;print(json.load(open('$CONFIG')).get('server',{}).get('url',''))")
+          echo "Generated server.url: $SERVER_URL"
+          case "$SERVER_URL" in
+            *localhost*|*127.0.0.1*|"")
+              echo "FATAL: server.url is '$SERVER_URL' — this build would white-screen on device."
+              exit 1
+              ;;
+          esac
 
       - name: Set up iOS code signing
         script: |
@@ -152,12 +157,17 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR/frontend"
           CONFIG="android/app/src/main/assets/capacitor.config.json"
-          echo "Generated server config:"
-          grep '"url"' "$CONFIG"
-          if grep -q 'localhost' "$CONFIG"; then
-            echo "FATAL: capacitor.config.json points at localhost — this build would white-screen on device."
-            exit 1
-          fi
+          # Check server.url specifically, NOT the whole file: allowNavigation
+          # legitimately allowlists "localhost:3000" for local dev, and a naive
+          # grep over the file matches that and fails every build.
+          SERVER_URL=$(python3 -c "import json;print(json.load(open('$CONFIG')).get('server',{}).get('url',''))")
+          echo "Generated server.url: $SERVER_URL"
+          case "$SERVER_URL" in
+            *localhost*|*127.0.0.1*|"")
+              echo "FATAL: server.url is '$SERVER_URL' — this build would white-screen on device."
+              exit 1
+              ;;
+          esac
 
       # android_signing above (Codemagic > Team > Code signing identities >
       # Android keystores) auto-injects CM_KEYSTORE_PATH/PASSWORD/ALIAS env
