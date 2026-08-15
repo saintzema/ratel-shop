@@ -277,14 +277,54 @@ export async function POST(req: Request) {
             }
         }
 
-        const seller = await db.seller.upsert({
-            where: { id: sellerData.id },
-            update: {
-                ...sellerData,
-                id: undefined,
-            },
-            create: sellerData,
-        });
+        // ─── WhatsApp number uniqueness ───
+        // Seller.whatsappNumber is @unique. If another store already holds this
+        // number, the upsert throws P2002 and the WHOLE save is lost — which is
+        // exactly what a seller saw as "I activated Ziva WhatsApp, came back, and
+        // the field is empty again", with no error explaining why. Check first and
+        // say something useful instead of silently discarding their settings.
+        const incomingWhatsapp = body.whatsapp || body.whatsapp_number;
+        if (incomingWhatsapp) {
+            const normalized = String(incomingWhatsapp).replace(/\D/g, "");
+            const holder = await db.seller.findFirst({
+                where: {
+                    whatsappNumber: { contains: normalized.slice(-10) },
+                    NOT: { id: sellerData.id },
+                },
+                select: { id: true, businessName: true },
+            });
+            if (holder) {
+                return NextResponse.json({
+                    error: "WhatsApp number already in use",
+                    message: `That WhatsApp number is already connected to "${holder.businessName}". Each store needs its own number — use a different one, or disconnect it from that store first.`,
+                    code: "WHATSAPP_NUMBER_TAKEN",
+                }, { status: 409 });
+            }
+        }
+
+        let seller;
+        try {
+            seller = await db.seller.upsert({
+                where: { id: sellerData.id },
+                update: {
+                    ...sellerData,
+                    id: undefined,
+                },
+                create: sellerData,
+            });
+        } catch (e: any) {
+            // Belt-and-braces for any other unique collision (e.g. storeUrl) — report
+            // which field clashed rather than dropping the seller's whole submission.
+            if (e?.code === "P2002") {
+                const field = Array.isArray(e?.meta?.target) ? e.meta.target.join(", ") : (e?.meta?.target || "a field");
+                return NextResponse.json({
+                    error: "Already in use",
+                    message: `Another store is already using this ${field}. Please choose a different value.`,
+                    code: "UNIQUE_CONSTRAINT",
+                }, { status: 409 });
+            }
+            throw e;
+        }
 
         broadcast({ type: "seller_updated", id: seller.id });
 

@@ -71,7 +71,13 @@ const config: CapacitorConfig = {
     preferredContentMode: "mobile",
     backgroundColor: "#FFFFFF", // White — prevents green flash while WebView loads
     allowsLinkPreview: true,
-    scrollEnabled: false, // Prevents iOS webview overscroll rubber-banding
+    // MUST stay true. This was false to suppress overscroll rubber-banding, but
+    // scrollEnabled governs the WKWebView's scroll view outright — with it off,
+    // the shipped app could not scroll vertically AT ALL (reported: "pages only
+    // move sideways"). Rubber-banding is a cosmetic nitpick; not being able to
+    // scroll makes the app unusable. If the bounce is worth removing later, do it
+    // in CSS (overscroll-behavior), never by disabling scrolling.
+    scrollEnabled: true,
   },
 
   // ─── Android Configuration ──────────────────────────────
@@ -96,14 +102,23 @@ const config: CapacitorConfig = {
   // ─── Plugin Configuration ──────────────────────────────
   plugins: {
     SplashScreen: {
+      // Mirrors the web loading screen: white ground, centred FairPrice mark, green
+      // spinner beneath. androidScaleType was CENTER_CROP, which zooms the splash
+      // image to fill and crops the logo's edges on tall phones — CENTER keeps the
+      // mark whole and centred, which is what the web loader looks like.
       launchAutoHide: true,
-      launchShowDuration: 3000,
-      backgroundColor: "#FFFFFF",       // White background to match app
+      // 3s was longer than the WebView needs and left the user staring at a static
+      // screen after the app was already ready underneath.
+      launchShowDuration: 1200,
+      launchFadeOutDuration: 300,
+      backgroundColor: "#FFFFFF",
       showSpinner: true,
-      spinnerColor: "#059669",          // Green spinner
-      androidScaleType: "CENTER_CROP",
-      splashFullScreen: true,
-      splashImmersive: true,
+      spinnerColor: "#059669",
+      androidSpinnerStyle: "large",
+      iosSpinnerStyle: "small",
+      androidScaleType: "CENTER",
+      splashFullScreen: false,
+      splashImmersive: false,
     },
     StatusBar: {
       style: "DARK",                    // Dark text on white bar

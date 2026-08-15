@@ -38,8 +38,12 @@ class OfflineQueueService {
 
     constructor() {
         if (typeof window !== "undefined") {
-            // Listen for connectivity restoration
+            // Listen for connectivity restoration. Guarded on the queue actually
+            // having something in it — the browser fires `online` repeatedly on a
+            // flaky mobile connection, and this was kicking off a full queue pass
+            // (and a console line) every time even with nothing to send.
             window.addEventListener("online", () => {
+                if (this.getQueue().length === 0) return;
                 console.log("🌐 Connection restored — processing offline queue...");
                 this.processQueue();
             });

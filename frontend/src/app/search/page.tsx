@@ -566,23 +566,33 @@ function SearchContent() {
     const purgeTarget = "2026-05-04"; // Targeted purge date
     
     if (lastPurge !== purgeTarget) {
+      // Mark the purge done FIRST. It used to be set at the end of the try block,
+      // so when the write below threw QuotaExceededError the marker never landed
+      // and the whole purge re-ran on every single page load — permanently, once
+      // storage was full. A purge that fails is not worth retrying forever.
+      try { localStorage.setItem('last_hallucination_purge', purgeTarget); } catch { /* full — proceed anyway */ }
+
       try {
         const SERVICE_KEYWORDS = /\b(service|moving|relocation|mover|relocator|management|waste|cleaning|consultancy|agency|hub|hire|program)\b/i;
-        
+
         // 1. Clear search cache completely to flush old Gemini hallucinations
         localStorage.removeItem('search_cache');
-        
+
         // 2. Filter out bad products from local catalogue
         const products = DataSyncService.getApprovedProducts();
         const cleaned = products.filter(p => p && p.price > 0 && !SERVICE_KEYWORDS.test(p.name || ""));
-        
+
         if (cleaned.length !== products.length) {
-            localStorage.setItem('frontend_products', JSON.stringify(cleaned));
+            // No localStorage write here any more. This wrote a full copy of the
+            // catalogue to 'frontend_products' — a key NOTHING reads (the real one
+            // is fairprice_demo_products, written via DataSyncService.safeSetItem
+            // which handles quota). So it duplicated megabytes of product JSON into
+            // a dead key, blew the storage quota, and took the seller's genuinely
+            // important writes down with it. Updating React state is enough.
             setAllProducts(cleaned.filter(p => p.is_active));
         }
-        
-        localStorage.setItem('last_hallucination_purge', purgeTarget);
-        console.log(`[Purge] Successfully removed ${products.length - cleaned.length} hallucinated entries.`);
+
+        console.log(`[Purge] Removed ${products.length - cleaned.length} hallucinated entries.`);
       } catch (e) {
         console.error("[Purge] Failed:", e);
       }

@@ -20,7 +20,10 @@ export interface QuotePdfData {
 // PDF. Embedding a Unicode-capable TTF just for one currency symbol is a lot
 // of weight for this; "NGN " reads perfectly fine on a Nigerian invoice and
 // is what every glyph-safe alternative in this codebase already falls back to.
-const fmt = (n: number) => `NGN ${n.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
+// No kobo. Nigerian invoices are quoted in whole naira — nobody prices in kobo,
+// and "NGN 920,000.00" just reads as noise next to "NGN 920,000". Fractions are
+// still rounded rather than truncated so totals can't drift from the line items.
+const fmt = (n: number) => `NGN ${Math.round(n).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 
 // Best-effort image fetch → data URL for jsPDF's addImage (which needs a
 // data URL, not a bare remote URL). Never throws — a logo that fails to load

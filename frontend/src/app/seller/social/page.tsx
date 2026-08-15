@@ -686,7 +686,14 @@ function SellerSocialComposerContent() {
                                                         </button>
                                                     )}
                                                 </div>
-                                                <Switch checked={active && !disabled} disabled={disabled} onCheckedChange={() => !disabled && togglePlatform(key)} />
+                                                {/* The row itself is clickable, so a tap landing on the
+                                                    Switch fired BOTH the switch's onCheckedChange AND the
+                                                    row's onClick — two toggles, net zero change. That's why
+                                                    the toggle appeared dead and only tapping the row worked.
+                                                    Swallow the bubble so the switch owns its own tap. */}
+                                                <span onClick={(e) => e.stopPropagation()}>
+                                                    <Switch checked={active && !disabled} disabled={disabled} onCheckedChange={() => !disabled && togglePlatform(key)} />
+                                                </span>
                                             </div>
                                         );
                                     })}

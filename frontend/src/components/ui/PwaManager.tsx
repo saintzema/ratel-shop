@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X, Share, PlusSquare, Download, ExternalLink, Apple, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Capacitor } from "@capacitor/core";
 
 export function PwaManager() {
     usePushNotifications(); // Initialize scheduled marketing & price drop alerts
@@ -15,12 +16,20 @@ export function PwaManager() {
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
 
     useEffect(() => {
+        // Already IN the native app — there is nothing to install. This banner was
+        // showing inside the iOS/Android app itself, telling someone to go download
+        // the app they were currently using, and eating screen space at the top.
+        if (Capacitor.isNativePlatform()) {
+            setShowInstallBanner(false);
+            return;
+        }
+
         // Detect environment
         const ua = window.navigator.userAgent;
         const isIOSDevice = /iPhone|iPad|iPod/.test(ua);
         const isInstagram = ua.includes('Instagram');
         const isFacebook = ua.includes('FBAN') || ua.includes('FBAV');
-        
+
         setIsIOS(isIOSDevice);
         setIsInAppBrowser(isInstagram || isFacebook);
 

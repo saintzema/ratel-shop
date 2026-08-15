@@ -1,4 +1,6 @@
-const CACHE_VERSION = 'fairprice-v4';
+// Bumped to v5 to force-purge the caches the previous strategies bloated (the
+// activate handler deletes every cache not matching the current version).
+const CACHE_VERSION = 'fairprice-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -101,11 +103,15 @@ self.addEventListener('fetch', event => {
                     if (response.ok) {
                         const clone = response.clone();
                         caches.open(IMAGE_CACHE).then(cache => {
-                            // Limit image cache size — evict oldest when > 100 entries
-                            cache.keys().then(keys => {
-                                if (keys.length > 100) cache.delete(keys[0]);
-                            });
                             cache.put(request, clone);
+                            // Evict down to the cap. The old version deleted exactly ONE
+                            // entry per miss regardless of how far over the limit it was,
+                            // so a browsing session that loaded hundreds of product images
+                            // grew the cache without bound — it could never catch up.
+                            cache.keys().then(keys => {
+                                const excess = keys.length - 100;
+                                for (let i = 0; i < excess; i++) cache.delete(keys[i]);
+                            });
                         });
                     }
                     return response;
@@ -126,9 +132,16 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             fetch(request)
                 .then(response => {
-                    // Cache the latest page response
-                    const clone = response.clone();
-                    caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
+                    // Only keep the app-shell entry point as an offline fallback.
+                    // This used to cache EVERY navigation — every product page, every
+                    // search permutation — into an unbounded cache, which is how a
+                    // browsing session accumulated ~111 MB of resources. Product pages
+                    // are re-fetched fresh anyway, so storing them bought nothing but
+                    // disk.
+                    if (url.pathname === '/') {
+                        const clone = response.clone();
+                        caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
+                    }
                     return response;
                 })
                 .catch(() => {
@@ -146,21 +159,29 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    // ─── Strategy 4: Static assets (JS, CSS, fonts) — Cache-first with network fallback ───
+    // ─── Strategy 4: Static assets (JS, CSS, fonts) — Cache-first, IMMUTABLE ───
+    //
+    // This was stale-while-revalidate: it served the cached copy AND re-fetched
+    // the asset over the network every single time, on every page load, forever.
+    // Next.js fingerprints these files (/_next/static/chunks/main-<hash>.js), so
+    // a given URL's contents can never change — a new build produces a new URL.
+    // Re-fetching them bought nothing and was the bulk of a measured 1548
+    // requests / 111 MB on a single homepage session, which on Nigerian mobile
+    // data is somebody's bundle gone.
+    //
+    // Now: if it's cached, serve it and stop. No network at all.
     if (request.destination === 'script' || request.destination === 'style' || request.destination === 'font' ||
         url.pathname.match(/\.(js|css|woff2?|ttf|eot)$/)) {
         event.respondWith(
             caches.match(request).then(cached => {
-                const fetchPromise = fetch(request).then(response => {
+                if (cached) return cached;
+                return fetch(request).then(response => {
                     if (response.ok) {
                         const clone = response.clone();
                         caches.open(STATIC_CACHE).then(cache => cache.put(request, clone));
                     }
                     return response;
-                }).catch(() => cached || respondOrFallback(request));
-
-                // Return cached immediately, update in background (stale-while-revalidate)
-                return cached || fetchPromise;
+                }).catch(() => respondOrFallback(request));
             })
         );
         return;

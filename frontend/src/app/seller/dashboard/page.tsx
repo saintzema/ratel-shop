@@ -46,6 +46,7 @@ import { useAuth } from "@/context/AuthContext";
 import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
 import { SocialComposerAlert } from "@/components/seller/SocialComposerAlert";
+import { CompleteOnboardingAlert } from "@/components/seller/CompleteOnboardingAlert";
 import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
 
 
@@ -68,6 +69,11 @@ export default function SellerDashboard() {
     const [payouts, setPayouts] = useState<any[]>([]);
     const [alertsExpanded, setAlertsExpanded] = useState(false);
     const hasAttemptedCreation = useRef(false);
+    // Throttles for the two network calls inside loadData. loadData is bound to
+    // sync-store-update, which fires on every store write — without these, each
+    // write triggered fresh fetches which triggered more writes.
+    const lastRemoteFetchRef = useRef(0);
+    const lastPayoutFetchRef = useRef(0);
 
     // Dynamic stats calculations
     const stats = {
@@ -127,9 +133,17 @@ export default function SellerDashboard() {
                 // Local storage cache misses anything created server-side (new orders,
                 // payment-received) on a device that hasn't personally seen it before —
                 // merge in the real DB feed so alerts don't silently lag behind reality.
-                if (seller.owner_email) {
+                // Rate-limited: loadData runs on EVERY sync-store-update, and
+                // autoSync/any store write dispatches that event — so this fetch was
+                // firing in a feedback loop (fetch → store write → event → loadData →
+                // fetch), which is how a single dashboard session accumulated
+                // thousands of requests and hundreds of MB. The local cache above
+                // already repainted instantly; the DB merge only needs to be
+                // occasional.
+                if (seller.owner_email && Date.now() - lastRemoteFetchRef.current > 60000) {
+                    lastRemoteFetchRef.current = Date.now();
                     fetch(`/api/notifications?user_email=${encodeURIComponent(seller.owner_email)}`)
-                        .then(r => r.json())
+                        .then(r => r.ok ? r.json() : null)
                         .then((dbNotifs: any[]) => {
                             if (!Array.isArray(dbNotifs)) return;
                             setSellerAlerts(prev => {
@@ -147,10 +161,22 @@ export default function SellerDashboard() {
 
                 // Real payout records (QR settlements bypass per-order payout_status
                 // entirely, so they never showed up here before).
-                fetch(`/api/payouts?sellerId=${seller.id}`)
-                    .then(r => r.json())
-                    .then((data: any) => { if (Array.isArray(data?.payouts)) setPayouts(data.payouts); })
-                    .catch(() => {});
+                // Was sent with NO Authorization header, so it 401'd on every
+                // dashboard load — repeatedly, since this runs on each sync tick.
+                // That's why payouts/settlement details read as empty: the request
+                // was rejected, not the data missing.
+                if (Date.now() - lastPayoutFetchRef.current > 60000) {
+                    lastPayoutFetchRef.current = Date.now();
+                    fetch(`/api/payouts?sellerId=${seller.id}`, {
+                        headers: ((): Record<string, string> => {
+                            const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+                            return tok ? { Authorization: `Bearer ${tok}` } : {};
+                        })(),
+                    })
+                        .then(r => r.ok ? r.json() : null)
+                        .then((data: any) => { if (Array.isArray(data?.payouts)) setPayouts(data.payouts); })
+                        .catch(() => {});
+                }
 
                 // Onboarding Verification Notification Logic
                 if (seller.verified) {
@@ -178,9 +204,18 @@ export default function SellerDashboard() {
         DataSyncService.syncWithDB("orders", true); // Proactive sync for latest orders
         DataSyncService.autoSync(); // Trigger initial DB sync immediately on mount
 
-        // Register listeners IMMEDIATELY to catch the first sync
-        window.addEventListener("storage", loadData);
-        window.addEventListener("sync-store-update", loadData);
+        // Register listeners IMMEDIATELY to catch the first sync.
+        // Debounced: a single autoSync pass dispatches sync-store-update many times
+        // (once per entity it writes), and loadData is not cheap — it re-reads and
+        // re-filters the whole local catalogue. Coalescing the burst into one run
+        // cut both the request storm and the main-thread churn behind it.
+        let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleReload = () => {
+            if (reloadTimer) clearTimeout(reloadTimer);
+            reloadTimer = setTimeout(() => { reloadTimer = null; loadData(); }, 400);
+        };
+        window.addEventListener("storage", scheduleReload);
+        window.addEventListener("sync-store-update", scheduleReload);
 
         // Periodically sync in the background (every 2 minutes)
         const syncInterval = setInterval(() => {
@@ -197,8 +232,9 @@ export default function SellerDashboard() {
         }, 2000);
 
         return () => {
-            window.removeEventListener("storage", loadData);
-            window.removeEventListener("sync-store-update", loadData);
+            window.removeEventListener("storage", scheduleReload);
+            window.removeEventListener("sync-store-update", scheduleReload);
+            if (reloadTimer) clearTimeout(reloadTimer);
             clearInterval(pollInterval);
             clearInterval(syncInterval);
         };
@@ -396,7 +432,7 @@ export default function SellerDashboard() {
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6 max-w-6xl pb-20"
+            className="flex flex-col space-y-6 max-w-6xl pb-20"
         >
             <SellerFeatureSpotlight sellerId={safeSeller.id} />
 
@@ -404,6 +440,10 @@ export default function SellerDashboard() {
                 seller can do and it was buried in the sidebar — surface it, and
                 make the first-run "connect your accounts" step explicit. */}
             <SocialComposerAlert />
+
+            {/* Sellers created by the Sell (+) quick-list flow never went through
+                onboarding — they have a placeholder store name and no payout account. */}
+            <CompleteOnboardingAlert seller={safeSeller} />
 
             {/* First alert: no WhatsApp on file yet — QR payments, WhatsApp product
                 uploads, and negotiation alerts all require it. Deep-links straight to
@@ -439,8 +479,12 @@ export default function SellerDashboard() {
                 </div>
             )}
 
-            {/* Welcome header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Welcome header.
+                order-first pulls this above the alert stack: a seller opening their
+                dashboard should see who they are and their store link first, not a
+                column of nudges. Done with flex ordering rather than moving the JSX
+                so the alert components keep their existing mount order. */}
+            <div className="order-first flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
                         Welcome back, {safeSeller.business_name} 
