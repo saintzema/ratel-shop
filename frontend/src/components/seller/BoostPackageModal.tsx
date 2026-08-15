@@ -119,7 +119,7 @@ export function BoostPackageModal({
                     </div>
 
                     <div className="p-6 space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {BOOST_TIERS.map(tier => (
                                 <button
                                     key={tier.id}
@@ -134,9 +134,18 @@ export function BoostPackageModal({
                                     <div className={cn("inline-block text-[9px] font-black uppercase tracking-widest text-white px-2 py-0.5 rounded-full bg-gradient-to-r mb-2", tier.accent)}>
                                         {tier.label}
                                     </div>
-                                    <p className="text-xl font-black text-gray-900">{formatPrice(tier.priceNaira)}</p>
-                                    <p className="text-[11px] font-bold text-gray-400 mb-2">{tier.days} days</p>
-                                    <p className="text-[11px] text-gray-600 leading-snug">{tier.tagline}</p>
+                                    <p className="text-lg font-black text-gray-900">{formatPrice(tier.priceNaira)}</p>
+                                    <p className="text-[11px] font-bold text-gray-400">
+                                        {tier.days} days · up to {tier.maxListings} listing{tier.maxListings === 1 ? "" : "s"}
+                                    </p>
+                                    {/* The whole pitch is that we're cheaper than Jiji for the
+                                        same job — say so with their real published number. */}
+                                    {tier.jijiComparisonLabel && (
+                                        <p className="text-[10px] font-bold text-emerald-600 mt-1.5 line-through decoration-gray-300 decoration-1">
+                                            <span className="no-underline">{tier.jijiComparisonLabel}</span>
+                                        </p>
+                                    )}
+                                    <p className="text-[11px] text-gray-600 leading-snug mt-1.5">{tier.tagline}</p>
                                 </button>
                             ))}
                         </div>

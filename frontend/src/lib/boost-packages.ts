@@ -8,41 +8,49 @@
  * no external account and is what a first-time seller can actually buy on day
  * one. The two are complementary and can both be active on one listing.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️  PRICING IS STILL PLACEHOLDER. Every naira figure below is a structural
- *     stand-in so the flow is testable end to end — NOT a commercial decision.
- *     This file is the single source of truth; nothing else hardcodes a price.
+ * ─── PRICING BASIS (real, observed August 2026) ──────────────────────────────
+ * Priced deliberately UNDER Jiji, read off their live logged-in Premium
+ * Services pages plus the entry offers they made directly to our own account:
  *
- *     We tried to price these competitively against Jiji and could not do it
- *     honestly: Jiji's price table sits behind a login (jiji.ng/sc/premium-services
- *     302-redirects to their login), and the only naira figures on the open web
- *     are from an April 2023 article — three years and a large devaluation out of
- *     date. Guessing from those would mean charging real money against numbers we
- *     know are wrong, so the placeholders stay until someone reads the real ones
- *     off a logged-in Jiji seller account (or asks their sales line).
+ *   Jiji entry offers (what a small seller is actually quoted):
+ *     ₦2,999  / 1 week
+ *     ₦6,499  / 1 month, up to 30 products
  *
- *     What IS verified from Jiji's live public FAQ (jiji.ng/faq/22, /faq/24):
- *       - Two product lines: TOP (single ad to top of search, 7 or 30 days) and
- *         Boost (lifts ALL your ads, 1/3/6/12 months, auto-renews on an interval
- *         that tightens as the tier rises).
- *       - Tiers ascend Start → Basic → Business → Premium → VIP → VIP Gold →
- *         VIP+ → Diamond → Enterprise.
- *       - Five category groups gate which packages you can buy: Cars, Property,
- *         Others, Others Lite, All-in-one. Cars/Property price highest.
- *       - "Pro Sales" (pay-per-click) is bundled into Boost, not sold separately.
- *     For a real market band, PropertyPro.ng publishes live agent plans at
- *     ₦15,900–₦169,900/month — a genuine current Nigerian data point.
+ *   Jiji published package prices (1 month):
+ *     Property  Basic ₦17,999 · Premium ₦27,499
+ *     Others    Premium ₦31,999
+ *     Cars      Premium ₦49,999
+ *     Others Lite  VIP Gold ₦57,999 · Diamond Gold ₦71,999
+ *     All-in-one   Diamond Gold ₦128,999 · Diamond Elite ₦154,999 ·
+ *                  Enterprise Gold ₦219,999
+ *
+ *   Jiji add-ons:
+ *     WhatsApp Button ₦5,500 (20 ads / 14 days)
+ *     Discounts       ₦3,700 (20 ads / 15 days)
+ *
+ * Everything above the entry offers is where FairPrice competes: a Nigerian
+ * seller with a handful of listings is not paying ₦31,999–₦49,999/month, and
+ * that gap is the wedge. Our tiers sit at or below Jiji's OWN entry pricing
+ * while covering more listings, and our add-ons roughly halve theirs.
+ *
+ * These are real, chargeable numbers. This file is the single source of truth —
+ * nothing else hardcodes a price. Revisit when Jiji's pricing moves (they
+ * discount 8–9% off list regularly, so treat their list price as a ceiling).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export interface BoostTier {
-    id: "basic" | "premium" | "vip";
+    id: "starter" | "basic" | "premium" | "vip";
     label: string;
-    /** PLACEHOLDER — see the warning above. */
     priceNaira: number;
     days: number;
+    /** How many of the seller's listings one purchase covers. */
+    maxListings: number;
     tagline: string;
     perks: string[];
+    /** What Jiji charges for the nearest equivalent — shown as the comparison. */
+    jijiComparisonNaira?: number;
+    jijiComparisonLabel?: string;
     /** Placement effects applied to the product while the boost is live. */
     effects: {
         sponsored: boolean;
@@ -73,46 +81,79 @@ export const META_ADS_ADDON_ID = "meta_ads";
 
 export const BOOST_TIERS: BoostTier[] = [
     {
-        id: "basic",
-        label: "Basic",
-        priceNaira: 1500,
+        id: "starter",
+        label: "Starter",
+        // Undercuts Jiji's ₦2,999/week entry offer and covers 3 listings, not 1.
+        priceNaira: 1999,
         days: 7,
-        tagline: "Get seen above free listings",
+        maxListings: 3,
+        tagline: "Try a boost for a week",
         perks: [
+            "Boost up to 3 listings for 7 days",
             "Ranked above non-boosted listings in search",
-            "7 days of higher placement",
-            "Performance stats on your dashboard",
+            "Full performance stats — views, contacts, chats",
         ],
+        jijiComparisonNaira: 2999,
+        jijiComparisonLabel: "Jiji: ₦2,999/week",
         effects: { sponsored: false, trending: false, searchRank: 10 },
         accent: "from-slate-500 to-slate-700",
     },
     {
+        id: "basic",
+        label: "Basic",
+        // Directly against Jiji's ₦6,499/month-for-30-products entry offer.
+        priceNaira: 4999,
+        days: 30,
+        maxListings: 10,
+        tagline: "A full month, sponsored",
+        perks: [
+            "Boost up to 10 listings for 30 days",
+            "Sponsored badge on every boosted listing",
+            "Ranked above non-boosted listings in search",
+            "Full performance stats",
+        ],
+        jijiComparisonNaira: 6499,
+        jijiComparisonLabel: "Jiji: ₦6,499/month",
+        effects: { sponsored: true, trending: false, searchRank: 40 },
+        accent: "from-indigo-500 to-violet-600",
+    },
+    {
         id: "premium",
         label: "Premium",
-        priceNaira: 4000,
-        days: 14,
-        tagline: "Sponsored placement + trending rail",
+        // Jiji's cheapest comparable monthly package is ₦17,999 (Property Basic);
+        // for Others it's ₦31,999. We sit far under both with more listings.
+        priceNaira: 9999,
+        days: 30,
+        maxListings: 30,
+        tagline: "Your whole shop, boosted",
         perks: [
-            "Everything in Basic",
-            "Sponsored badge on your listing",
-            "Appears in the Trending rail on the homepage",
-            "14 days of higher placement",
+            "Boost up to 30 listings for 30 days",
+            "Sponsored badge + Trending rail placement",
+            "Priority ranking above Basic boosts",
+            "Full performance stats",
         ],
-        effects: { sponsored: true, trending: false, searchRank: 50 },
-        accent: "from-indigo-500 to-violet-600",
+        jijiComparisonNaira: 17999,
+        jijiComparisonLabel: "Jiji: from ₦17,999/month",
+        effects: { sponsored: true, trending: true, searchRank: 70 },
+        accent: "from-fuchsia-500 to-purple-600",
     },
     {
         id: "vip",
         label: "VIP",
-        priceNaira: 9000,
+        // Against Jiji Cars Premium ₦49,999 and Others Lite VIP Gold ₦57,999.
+        priceNaira: 24999,
         days: 30,
-        tagline: "Top of search for a full month",
+        maxListings: 100,
+        tagline: "Top of search, everywhere",
         perks: [
-            "Everything in Premium",
-            "Top-of-search priority over other boosts",
+            "Boost up to 100 listings for 30 days",
+            "Top-of-search priority over every other boost",
             "Featured in the Trending rail",
-            "30 days of maximum visibility",
+            "Sponsored badge across your whole catalogue",
+            "Full performance stats",
         ],
+        jijiComparisonNaira: 49999,
+        jijiComparisonLabel: "Jiji: from ₦49,999/month",
         effects: { sponsored: true, trending: true, searchRank: 100 },
         accent: "from-amber-400 to-orange-500",
     },
@@ -124,28 +165,31 @@ export const BOOST_ADDONS: BoostAddOn[] = [
         label: "Advertise on Facebook & Instagram",
         description:
             "We post this product to your connected Facebook Page and Instagram, then run it as a real paid ad on Meta — reaching people who've never heard of FairPrice.",
-        // PLACEHOLDER pricing. adSpendNaira is what actually reaches Meta; the
-        // difference is FairPrice's cut for running it.
-        priceNaira: 6000,
+        // ₦5,000 of this is real Meta ad spend; ₦1,500 is FairPrice's cut for
+        // publishing the post and running the campaign. Split kept explicit so
+        // the seller can be told exactly what reaches Facebook.
+        priceNaira: 6500,
         adSpendNaira: 5000,
     },
     {
         id: "whatsapp_button",
         label: "WhatsApp Button",
-        description: "Show a one-tap WhatsApp button on this listing so buyers can reach you instantly.",
-        priceNaira: 1000,
+        // Jiji: ₦5,500 for 20 ads / 14 days. Ours covers the whole boost period.
+        description: "One-tap WhatsApp button on your boosted listings, for the full length of your package.",
+        priceNaira: 2500,
     },
     {
-        id: "extra_photos",
-        label: "Extra Photo Slots",
-        description: "Raise this listing's gallery limit so you can show the item from every angle.",
-        priceNaira: 500,
+        id: "discounts",
+        label: "Discount Badge",
+        // Jiji: ₦3,700 for 20 ads / 15 days.
+        description: "Show a strike-through discount badge on your boosted listings — the single biggest driver of clicks.",
+        priceNaira: 1800,
     },
     {
         id: "auto_renew",
         label: "Auto-Renew",
-        description: "Automatically re-boost this listing when the package expires, so it never goes quiet.",
-        priceNaira: 800,
+        description: "Automatically re-boost when the package expires, so your listings never go quiet.",
+        priceNaira: 1500,
     },
 ];
 

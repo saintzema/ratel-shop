@@ -103,28 +103,44 @@ export async function POST(req: NextRequest) {
     if (!seller) return NextResponse.json({ error: "No seller account" }, { status: 404 });
 
     const body = await req.json().catch(() => ({}));
-    const { productId, tierId, addOnIds = [], paystackReference } = body as {
-        productId?: string; tierId?: string; addOnIds?: string[]; paystackReference?: string;
+    const { productId, productIds, tierId, addOnIds = [], paystackReference } = body as {
+        productId?: string; productIds?: string[]; tierId?: string; addOnIds?: string[]; paystackReference?: string;
     };
 
-    if (!productId || !tierId || !paystackReference) {
-        return NextResponse.json({ error: "productId, tierId and paystackReference are required" }, { status: 400 });
+    // Packages cover multiple listings (that's the competitive point against
+    // Jiji's per-package ad allowances), so accept a list. Single productId is
+    // still honoured for the one-listing case.
+    const targetIds = Array.from(new Set((productIds?.length ? productIds : [productId]).filter(Boolean) as string[]));
+
+    if (targetIds.length === 0 || !tierId || !paystackReference) {
+        return NextResponse.json({ error: "productId(s), tierId and paystackReference are required" }, { status: 400 });
     }
 
     const tier = getTier(tierId);
     if (!tier) return NextResponse.json({ error: "Unknown boost package" }, { status: 400 });
 
+    if (targetIds.length > tier.maxListings) {
+        return NextResponse.json(
+            { error: `${tier.label} covers up to ${tier.maxListings} listing${tier.maxListings === 1 ? "" : "s"} — you selected ${targetIds.length}.` },
+            { status: 400 }
+        );
+    }
+
     const validAddOns = (addOnIds || []).filter(id => !!getAddOn(id));
 
-    // Ownership: a seller can only boost their own listing.
-    const product = await db.product.findUnique({
-        where: { id: productId },
-        select: { id: true, name: true, sellerId: true },
+    // Ownership: every listing in the purchase must belong to this seller.
+    const products = await db.product.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true, name: true, sellerId: true, imageUrl: true, price: true },
     });
-    if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
-    if (product.sellerId !== seller.id) {
+    if (products.length !== targetIds.length) {
+        return NextResponse.json({ error: "One or more products were not found." }, { status: 404 });
+    }
+    if (products.some(p => p.sellerId !== seller.id)) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    // The Meta add-on posts a single product; use the first selected.
+    const productId0 = targetIds[0];
 
     // Replay guard — a Paystack reference verifies as "success" on every check,
     // so without this one payment could be POSTed repeatedly for unlimited boosts.
@@ -154,24 +170,35 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const campaign = await db.adCampaign.create({
-        data: {
-            sellerId: seller.id,
-            productId,
-            platform: "onplatform",
-            postId: tierId,
-            budgetKobo: totalKobo,
-            markupPct: 0, // fixed-price package; no per-spend markup applies
-            totalChargedKobo: totalKobo,
-            days: tier.days,
-            paidReference: paystackReference,
-            status: "active",
-        },
-    });
+    // One campaign row per boosted listing, all sharing the payment reference —
+    // the expiry sweep and the per-listing stats both work per product. The
+    // replay guard above runs BEFORE this, so a second POST with the same
+    // reference finds these rows and is rejected.
+    const campaigns = await db.$transaction(
+        targetIds.map(pid =>
+            db.adCampaign.create({
+                data: {
+                    sellerId: seller.id,
+                    productId: pid,
+                    platform: "onplatform",
+                    postId: tierId,
+                    // Charge is recorded once on the first row; the rest are 0 so
+                    // revenue reporting doesn't multiply one payment by the listing count.
+                    budgetKobo: pid === targetIds[0] ? totalKobo : 0,
+                    markupPct: 0, // fixed-price package; no per-spend markup applies
+                    totalChargedKobo: pid === targetIds[0] ? totalKobo : 0,
+                    days: tier.days,
+                    paidReference: paystackReference,
+                    status: "active",
+                },
+            })
+        )
+    );
+    const campaign = campaigns[0];
 
-    // Apply the placement effects the seller just paid for.
-    await db.product.update({
-        where: { id: productId },
+    // Apply the placement effects the seller just paid for, to every listing.
+    await db.product.updateMany({
+        where: { id: { in: targetIds } },
         data: {
             isSponsored: tier.effects.sponsored,
             ...(tier.effects.trending ? { isTrending: true } : {}),
@@ -212,10 +239,7 @@ export async function POST(req: NextRequest) {
             } else {
                 // Publish the product to the seller's Page first: Meta boosts an
                 // existing post, it can't advertise a bare product URL this way.
-                const productForPost = await db.product.findUnique({
-                    where: { id: productId },
-                    select: { name: true, imageUrl: true, price: true },
-                });
+                const productForPost = products.find(p => p.id === productId0);
 
                 const fbRes = await fetch(
                     `https://graph.facebook.com/v21.0/${fullSeller.facebookPageId}/photos`,
@@ -224,7 +248,7 @@ export async function POST(req: NextRequest) {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             url: productForPost?.imageUrl,
-                            caption: `${productForPost?.name}\n\n₦${(productForPost?.price ?? 0).toLocaleString()}\n\nhttps://www.fairprice.ng/product/${productId}`,
+                            caption: `${productForPost?.name}\n\n₦${(productForPost?.price ?? 0).toLocaleString()}\n\nhttps://www.fairprice.ng/product/${productId0}`,
                             access_token: fullSeller.facebookPageAccessToken,
                         }),
                     }
@@ -253,7 +277,7 @@ export async function POST(req: NextRequest) {
                     await db.adCampaign.create({
                         data: {
                             sellerId: seller.id,
-                            productId,
+                            productId: productId0,
                             platform: "facebook",
                             postId: barePostId,
                             budgetKobo: Math.round(adSpendNaira * 100),
