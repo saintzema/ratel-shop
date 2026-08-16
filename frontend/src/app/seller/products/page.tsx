@@ -108,37 +108,42 @@ function SellerProductsContent() {
             const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
             setProducts(sellerProducts);
 
-            // Also fetch fresh product images from DB to pick up any admin-updated images
-            // (localStorage may have stale placeholder images if image was changed on another device)
+            // The DB is the source of truth for a seller's own product list.
+            //
+            // This fetch used to be image-patch-only: it pulled every product for the
+            // seller and then threw all of it away except the image URLs, so the list
+            // itself was whatever happened to be in this device's localStorage. Any
+            // product this browser had never personally seen — an Instagram catalog
+            // import, something created on another device, anything added after the
+            // cache was last written — simply didn't exist here. That's why imports
+            // "didn't appear in Products" and why the list looked empty after
+            // navigating back with a cold cache.
+            //
+            // Now the fresh rows are merged in (DB wins on conflicts, since it's
+            // authoritative) and written back to the local store so the rest of the
+            // app sees them too.
             fetch(`/api/products?sellerId=${sellerId}&all=true`)
                 .then(r => r.ok ? r.json() : null)
                 .then((data: any) => {
                     if (!data) return;
                     const fresh: any[] = Array.isArray(data) ? data : (data.products || []);
                     if (!fresh.length) return;
-                    // Build image map from fresh DB data
-                    const imageMap: Record<string, string> = {};
-                    fresh.forEach((p: any) => {
-                        const imgUrl = p.image_url || p.imageUrl;
-                        if (imgUrl && !imgUrl.includes("placeholder")) imageMap[p.id] = imgUrl;
-                    });
-                    if (Object.keys(imageMap).length === 0) return;
-                    setProducts(prev =>
-                        prev.map(p => imageMap[p.id] ? { ...p, image_url: imageMap[p.id] } : p)
-                    );
-                    // Also patch localStorage so NavSearch/catalog picks it up
-                    const stored = DataSyncService.getProducts({ includeInactiveSellers: true });
-                    let changed = false;
-                    const patched = stored.map((p: any) => {
-                        if (imageMap[p.id] && p.image_url !== imageMap[p.id]) {
-                            changed = true;
-                            return { ...p, image_url: imageMap[p.id] };
+
+                    setProducts(prev => {
+                        const byId = new Map<string, any>(prev.map((p: any) => [p.id, p]));
+                        for (const f of fresh) {
+                            const existing = byId.get(f.id);
+                            // Keep a locally-known good image if the DB row has none.
+                            const img = (f.image_url || f.imageUrl) || existing?.image_url;
+                            byId.set(f.id, { ...existing, ...f, image_url: img });
                         }
-                        return p;
+                        return Array.from(byId.values());
                     });
-                    if (changed) {
-                        try { localStorage.setItem("fp_products", JSON.stringify(patched)); } catch {}
-                    }
+
+                    // Persist through DataSyncService (quota-aware) rather than a raw
+                    // localStorage.setItem, which threw and lost the whole write once
+                    // storage filled up.
+                    try { DataSyncService.addRawProducts(fresh as any, false); } catch { /* non-critical */ }
                 })
                 .catch(() => {});
         } catch (error) {

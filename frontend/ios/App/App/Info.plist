@@ -53,6 +53,15 @@
 	     PUBLIC TEST App ID (safe, not a secret) — swap for the real AdMob App ID
 	     once that account exists; using the test ID unblocks launching in the
 	     meantime rather than leaving the app permanently broken. -->
+	<!-- Declares up front that the app uses only exempt encryption (standard
+	     HTTPS/TLS to our own API and Paystack — no proprietary or non-standard
+	     crypto). Without this key App Store Connect marks EVERY new build
+	     "Missing Compliance" and blocks TestFlight until someone answers the
+	     encryption questions by hand — which failed the last three CI uploads
+	     at the final step. Declaring it here answers it once, per build,
+	     automatically. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<!-- Required by Apple whenever an app can request App Tracking Transparency

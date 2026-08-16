@@ -433,7 +433,12 @@ export function InstagramCatalogImporter() {
 
             {/* Import Editor Modal */}
             <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-                <DialogContent className="max-w-3xl p-0 overflow-hidden rounded-3xl bg-gray-50">
+                {/* Was max-w-3xl with overflow-hidden and no height cap: on a phone the
+                    editor's own content (image + name + price/stock/category + caption)
+                    is taller than the viewport, so the bottom — including the Import
+                    button — was clipped off with no way to reach it. Now it fills the
+                    small screen, caps its height, and scrolls internally. */}
+                <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-auto max-w-3xl max-h-[90vh] p-0 overflow-y-auto overscroll-contain rounded-3xl bg-gray-50">
                     <DialogTitle className="sr-only">Edit & Import Instagram Products</DialogTitle>
 
                     {importResult ? (

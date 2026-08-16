@@ -17,6 +17,7 @@ export default function SellerQuoteDetailPage() {
     const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [duplicating, setDuplicating] = useState(false);
 
     const authHeaders = (): HeadersInit => {
         const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -58,6 +59,27 @@ export default function SellerQuoteDetailPage() {
     const shareWhatsApp = () => {
         const text = `Hi ${quote.clientName}, here's your quote for "${quote.title}": ${formatPrice(quote.total)}.\n\nView & pay: ${publicUrl}`;
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    };
+
+    const duplicateQuote = async () => {
+        setDuplicating(true);
+        try {
+            const res = await fetch(`/api/seller/quotes/${id}/duplicate`, {
+                method: "POST",
+                headers: authHeaders(),
+                body: JSON.stringify({}),
+            });
+            const data = await res.json();
+            if (res.ok && data.quote?.id) {
+                router.push(`/seller/quotes/${data.quote.id}`);
+            } else {
+                alert(data.error || "Couldn't duplicate this quote.");
+            }
+        } catch {
+            alert("Couldn't duplicate this quote. Please try again.");
+        } finally {
+            setDuplicating(false);
+        }
     };
 
     const downloadPdf = async () => {
@@ -137,6 +159,19 @@ export default function SellerQuoteDetailPage() {
                     {generatingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />} Download PDF
                 </Button>
             </div>
+            {/* Reuse this quote for another client. Editing the original would
+                rewrite a quote the first client may already have been sent — and
+                possibly paid against — so this copies the work into a fresh draft
+                instead of mutating history. */}
+            <Button
+                onClick={duplicateQuote}
+                disabled={duplicating}
+                variant="outline"
+                className="w-full h-11 rounded-2xl font-bold text-sm border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            >
+                {duplicating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Copy className="h-4 w-4 mr-2" />}
+                Duplicate for another client
+            </Button>
             <Button onClick={copyLink} variant="outline" className="w-full h-11 rounded-2xl font-bold text-sm">
                 {copied ? <Check className="h-4 w-4 mr-2 text-emerald-600" /> : <LinkIcon className="h-4 w-4 mr-2" />}
                 {copied ? "Link copied!" : "Copy payable link"}
