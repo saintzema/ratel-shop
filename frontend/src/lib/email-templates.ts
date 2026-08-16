@@ -1,7 +1,11 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'ORDER_COMPLETED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED' | 'ESCROW_RELEASED' | 'DISPUTE_RESOLVED' | 'SYSTEM_ALERT';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'ORDER_COMPLETED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED' | 'ESCROW_RELEASED' | 'DISPUTE_RESOLVED' | 'SYSTEM_ALERT' | 'QUOTE_PAYMENT_RECEIPT';
 
 interface EmailTemplatePayload {
     name?: string;
+    // Quote payment receipt (guest checkout on a seller's invoice link).
+    // `title` already exists further down this interface.
+    quoteUrl?: string;
+    balance?: string | null;
     code?: string;
     orderId?: string;
     productName?: string;
@@ -824,6 +828,22 @@ ${payload.daysRemaining === 0 ? `
     <a href="https://www.fairprice.ng/seller/settings/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Bank Details</a>
 </div>
             `);
+            break;
+
+        case 'QUOTE_PAYMENT_RECEIPT':
+            subject = `Payment received — ${payload.title || "your invoice"}`;
+            html = BaseTemplate("Payment received ✅", `
+<p style="margin:0 0 16px 0;">Thanks — your payment went through.</p>
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin:0 0 24px 0;">
+    <tr><td style="padding:20px;background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+        <p style="margin:0 0 8px 0;font-size:13px;color:#15803d;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Amount paid</p>
+        <p style="margin:0 0 16px 0;font-size:28px;font-weight:900;color:#14532d;">${payload.amount || ""}</p>
+        <p style="margin:0;font-size:14px;color:#166534;">For: <strong>${payload.title || "Invoice"}</strong><br/>Seller: <strong>${payload.sellerName || "Seller"}</strong></p>
+    </td></tr>
+</table>
+${payload.balance ? `<p style="margin:0 0 24px 0;font-size:15px;color:#86868b;">Balance still outstanding: <strong style="color:#b45309;">${payload.balance}</strong>. You can pay the rest any time from the same link.</p>` : `<p style="margin:0 0 24px 0;font-size:15px;color:#86868b;">This invoice is now fully paid. Nothing further is owed.</p>`}
+${payload.quoteUrl ? `<p style="margin:0;"><a href="${payload.quoteUrl}" style="display:inline-block;padding:14px 28px;background-color:#059669;color:#ffffff;text-decoration:none;border-radius:99px;font-weight:700;">View invoice</a></p>` : ""}
+`);
             break;
 
         case 'SYSTEM_ALERT':

@@ -37,7 +37,10 @@ export default function PublicQuotePage() {
         await fetch(`/api/quotes/${id}/pay`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reference }),
+            // The payer's email was collected on this page but never sent, so a
+            // guest payment created no customer record and neither the seller nor
+            // admin learned who paid. It travels with the payment now.
+            body: JSON.stringify({ reference, payerEmail: email.trim() || undefined }),
         }).catch(() => {});
         load();
     };
