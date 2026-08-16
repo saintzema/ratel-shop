@@ -52,6 +52,12 @@ export async function GET(req: NextRequest) {
         response_type: "code",
         scope: [
             "instagram_business_basic",
+            // Publishing was the ONE thing this scope list didn't ask for, so the
+            // composer connected fine and then failed every post with Instagram's
+            // opaque "Application does not have permission for this action".
+            // Sellers connected before this change hold a token without it and
+            // must reconnect once to grant it.
+            "instagram_business_content_publish",
             "instagram_business_manage_messages",
             "instagram_business_manage_comments",
         ].join(","),

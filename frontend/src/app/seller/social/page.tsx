@@ -408,7 +408,19 @@ function SellerSocialComposerContent() {
             });
             const data = await res.json();
             if (!res.ok) {
-                addResult({ platform: "instagram", ok: false, message: data.error || "Couldn't publish to Instagram." });
+                const raw = data.error || "Couldn't publish to Instagram.";
+                // Instagram returns a generic "Application does not have permission
+                // for this action" when the stored token predates our adding the
+                // publishing scope. Nothing the seller can infer from that — tell
+                // them the actual remedy.
+                const needsReconnect = /does not have permission|permission for this action|OAuth/i.test(raw);
+                addResult({
+                    platform: "instagram",
+                    ok: false,
+                    message: needsReconnect
+                        ? "Instagram needs reconnecting to allow posting — open Integrations and connect Instagram again, then retry."
+                        : raw,
+                });
                 return false;
             }
             addResult({ platform: "instagram", ok: true, permalink: data.permalink || null, message: "Posted to Instagram" });
@@ -757,7 +769,11 @@ function SellerSocialComposerContent() {
                                             <>
                                                 {r.ok ? <Check className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
                                                 <span className="flex-1 text-left">{label}: {r.message}</span>
-                                                {r.ok && r.permalink && <ExternalLink className="h-3 w-3 shrink-0" />}
+                                                {r.ok && r.permalink && (
+                                                    <span className="flex items-center gap-1 shrink-0 underline underline-offset-2">
+                                                        View post <ExternalLink className="h-3 w-3" />
+                                                    </span>
+                                                )}
                                             </>
                                         );
                                         const cls = `flex items-center gap-2 text-xs font-bold rounded-xl px-3 py-2 border ${
