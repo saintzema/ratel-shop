@@ -47,6 +47,7 @@ import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImpo
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
 import { SocialComposerAlert } from "@/components/seller/SocialComposerAlert";
 import { CompleteOnboardingAlert } from "@/components/seller/CompleteOnboardingAlert";
+import { FacebookConnectError } from "@/components/seller/FacebookConnectError";
 import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
 
 
@@ -439,6 +440,11 @@ export default function SellerDashboard() {
             {/* Social posting is one of the highest-leverage things a Nigerian
                 seller can do and it was buried in the sidebar — surface it, and
                 make the first-run "connect your accounts" step explicit. */}
+            {/* Facebook OAuth bounced us back with an error. Previously the
+                callback redirected here with ?fb_error=... and NOTHING rendered it,
+                so a failed connect looked identical to never having tried. */}
+            <FacebookConnectError />
+
             <SocialComposerAlert />
 
             {/* Sellers created by the Sell (+) quick-list flow never went through
