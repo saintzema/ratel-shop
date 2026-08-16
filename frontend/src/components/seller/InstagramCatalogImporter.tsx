@@ -363,7 +363,13 @@ export function InstagramCatalogImporter() {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-3 gap-2.5 max-h-[320px] overflow-y-auto pr-0.5">
+            {/* auto-rows-min is what stops the tiles shrinking as more posts load:
+                without an explicit row size, the grid distributes the container's
+                height across however many rows exist, so every "Load older posts"
+                squashed the images flatter. Rows now size to content and the box
+                scrolls instead. Taller on desktop so the squares are actually
+                legible. */}
+            <div className="grid grid-cols-3 auto-rows-min gap-2.5 max-h-[380px] sm:max-h-[520px] overflow-y-auto overscroll-contain pr-0.5">
                 {posts.map(post => {
                     const selected = selectedIds.includes(post.id);
                     return (

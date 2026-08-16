@@ -289,9 +289,26 @@ function HomeContent() {
         });
 
     return {
-      topPicks: pool
-        .sort((a, b) => (b?.sold_count || 0) - (a?.sold_count || 0))
-        .slice(0, 20),
+      // "Trending" must reflect the real catalogue, not whatever the shopper just
+      // searched. Global/AI results get promoted into the local catalogue when
+      // browsed, all with sold_count 0 — so after searching "macbook" the entire
+      // rail filled with MacBooks, which reads as broken merchandising.
+      //
+      // Real sellers' stock ranks first; global-sourced items only backfill if
+      // there genuinely isn't enough, and never more than a third of the rail so
+      // one search can't take it over.
+      topPicks: (() => {
+        const isGlobal = (p: any) =>
+          p?.seller_id === "global-partners" || String(p?.id || "").startsWith("global-");
+        const byPopularity = (a: any, b: any) =>
+          (b?.sold_count || 0) - (a?.sold_count || 0) ||
+          (b?.view_count || 0) - (a?.view_count || 0);
+
+        const local = pool.filter(p => !isGlobal(p)).sort(byPopularity);
+        const global = pool.filter(isGlobal).sort(byPopularity);
+        const globalCap = Math.max(0, 20 - local.length);
+        return [...local, ...global.slice(0, Math.min(globalCap, 7))].slice(0, 20);
+      })(),
       sponsoredProducts: pool.filter(p => p && p.is_sponsored).slice(0, 15),
       dealProducts,
       phonesProducts: getByCategory("Phones"),
@@ -342,6 +359,21 @@ function HomeContent() {
                         exit={{ x: "-100%" }}
                         transition={{ x: { type: "spring", stiffness: 300, damping: 30 } }}
                         className="absolute inset-0 w-full h-full"
+                        // Swipe to move between hero slides. Previously the only way
+                        // to reach another banner was to wait out the 6s timer, so a
+                        // slide someone wanted to look at (ZEMA 360 etc.) was
+                        // unreachable on demand.
+                        drag={banners.length > 1 ? "x" : false}
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.18}
+                        onDragEnd={(_e, info) => {
+                          const threshold = 60;
+                          if (info.offset.x < -threshold) {
+                            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+                          } else if (info.offset.x > threshold) {
+                            setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+                          }
+                        }}
                       >
                         {banners[currentBannerIndex]?.type === "component" ? (
                           banners[currentBannerIndex]?.componentId === "zema360" ? (
@@ -360,6 +392,35 @@ function HomeContent() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
 
+                  {/* Glassy prev/next arrows. Swipe covers touch, but on desktop
+                      there's no drag affordance at all — and discoverability of a
+                      swipe is poor even on mobile. Siblings of the dragging layer,
+                      so they hold still while the slide moves under them. */}
+                  {banners.length > 1 && (
+                    <>
+                      <button
+                        aria-label="Previous banner"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+                        }}
+                        className="absolute z-30 left-2 md:left-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90 shadow-lg"
+                      >
+                        <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+                      </button>
+                      <button
+                        aria-label="Next banner"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+                        }}
+                        className="absolute z-30 right-2 md:right-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90 shadow-lg"
+                      >
+                        <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+                      </button>
+                    </>
+                  )}
+
                   {/* Buttons Overlay — Centered Bottom on Mobile, Center-Right on Desktop (clear of right metrics column) */}
                   <div className="absolute z-30 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-3 bottom-4 md:bottom-auto left-0 right-0 md:left-auto md:right-44 md:top-1/2 md:-translate-y-1/2 px-4 md:px-0">
                     <Button
@@ -374,7 +435,10 @@ function HomeContent() {
                       }}
                     >
                       <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-black" />
-                      START SELLING
+                      {/* Routing already sent sellers to their dashboard, but the label
+                          still said START SELLING — confusing for someone who plainly
+                          already sells. "DASHBOARD" also keeps the pill short on mobile. */}
+                      {isSeller ? "DASHBOARD" : "START SELLING"}
                     </Button>
                     <Button
                       size="lg"
