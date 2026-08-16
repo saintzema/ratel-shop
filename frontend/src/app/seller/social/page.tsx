@@ -378,11 +378,28 @@ function SellerSocialComposerContent() {
             return false;
         }
         try {
+            // Instagram rejects anything outside 4:5–1.91:1, which fails a lot of
+            // ordinary phone photos (a 750×1000 shot is "too tall"). Rather than
+            // telling the seller to go crop and re-upload — a dead end for exactly
+            // the person this feature is for — pad it to a valid ratio server-side
+            // first. Falls through to the original URL if that step fails, so the
+            // publish still gets its normal, specific error.
+            let publishUrl = toPublicImageUrl(selectedProduct.image_url);
+            try {
+                const prep = await fetch("/api/seller/social-image", {
+                    method: "POST",
+                    headers: authHeaders(),
+                    body: JSON.stringify({ imageUrl: publishUrl }),
+                });
+                const prepData = await prep.json();
+                if (prep.ok && prepData.url) publishUrl = prepData.url;
+            } catch { /* keep the original URL */ }
+
             const res = await fetch("/api/seller/instagram/publish", {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify({
-                    imageUrl: toPublicImageUrl(selectedProduct.image_url),
+                    imageUrl: publishUrl,
                     // Formatted for Instagram (hashtags, link-in-bio) and trimmed to
                     // the 2200-char ceiling it hard-rejects past.
                     caption: captionFor("instagram"),
@@ -817,9 +834,13 @@ function SellerSocialComposerContent() {
                                 </Button>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 px-1">
-                            Connected Instagram and Facebook Page accounts publish for real — no copying, no leaving FairPrice. On your phone (when Instagram is your only selection), WhatsApp opens your native share sheet with the photo ready — tap WhatsApp, then My Status; with multiple platforms selected it uses the plain share link instead, so every platform's window can open together. X opens Twitter's own share window, pre-filled — one tap to confirm and it's posted. Facebook does the same until you connect a Page (link in its row above), after which it posts for real too. TikTok doesn't offer a way to publish directly from other apps without special platform approval, so that copies your caption for you to paste in manually.
-                        </p>
+                        <div className="text-xs text-gray-400 px-1 space-y-1.5">
+                            <p className="flex gap-2"><span className="text-gray-300">•</span><span><strong className="text-gray-500">Instagram &amp; Facebook</strong> publish for real once connected — no copying, no leaving FairPrice.</span></p>
+                            <p className="flex gap-2"><span className="text-gray-300">•</span><span><strong className="text-gray-500">WhatsApp</strong> opens your phone&apos;s share sheet with the photo attached — tap WhatsApp, then My Status. With several platforms selected it uses the plain share link instead, so every window can open together.</span></p>
+                            <p className="flex gap-2"><span className="text-gray-300">•</span><span><strong className="text-gray-500">X</strong> opens its own share window, pre-filled — one tap to confirm.</span></p>
+                            <p className="flex gap-2"><span className="text-gray-300">•</span><span><strong className="text-gray-500">Facebook</strong> does the same until you connect a Page (link in its row above), after which it posts for real too.</span></p>
+                            <p className="flex gap-2"><span className="text-gray-300">•</span><span><strong className="text-gray-500">TikTok</strong> has no API for posting from other apps without special approval, so we copy your caption for you to paste in.</span></p>
+                        </div>
                     </>
                 )}
             </div>

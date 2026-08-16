@@ -398,16 +398,10 @@ function HomeContent() {
                       so they hold still while the slide moves under them. */}
                   {banners.length > 1 && (
                     <>
-                      <button
-                        aria-label="Previous banner"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
-                        }}
-                        className="absolute z-30 left-2 md:left-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90 shadow-lg"
-                      >
-                        <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                      </button>
+                      {/* Right arrow only. The left one sat over the banner's own
+                          headline (covering the "A" in AUTONOMOUS on the ZEMA 360
+                          slide) — hero art has content on the left, so that side has
+                          to stay clear. Swiping still moves both directions. */}
                       <button
                         aria-label="Next banner"
                         onClick={(e) => {
