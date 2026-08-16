@@ -1402,7 +1402,7 @@ function SearchContent() {
                           className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white max-w-[110px]"
                         >
                           <option value="">Any city</option>
-                          {NIGERIAN_STATES.find(s => s.state === stateParam)?.cities.map(c => (
+                          {(NIGERIAN_STATES.find(s => s.state === stateParam)?.cities || []).map(c => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>

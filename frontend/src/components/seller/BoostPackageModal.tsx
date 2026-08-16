@@ -153,7 +153,7 @@ export function BoostPackageModal({
                         <div className="bg-gray-50 rounded-2xl p-4">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">What you get</p>
                             <ul className="space-y-2">
-                                {BOOST_TIERS.find(t => t.id === selectedTier)?.perks.map(perk => (
+                                {(BOOST_TIERS.find(t => t.id === selectedTier)?.perks || []).map(perk => (
                                     <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
                                         <Check className="h-4 w-4 text-brand-green-600 shrink-0 mt-0.5" />
                                         {perk}

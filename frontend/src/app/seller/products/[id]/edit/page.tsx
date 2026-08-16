@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
+import { subcategoriesForCategory } from "@/lib/taxonomy-subs";
 import { DataSyncService } from "@/lib/sync-store";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
@@ -701,11 +702,11 @@ function EditProductContent() {
                                     onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                                 >
                                     <option value="">Select Subcategory</option>
-                                    {taxonomy.find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.subcategories.map((sub: any) => (
-                                        <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                    {subcategoriesForCategory(taxonomy, formData.category).map((sub: any) => (
+                                        <option key={sub.id || sub.name} value={sub.name}>{sub.name}</option>
                                     ))}
                                     {/* Legacy fallback */}
-                                    {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
+                                    {(CATEGORIES.find(c => c.value === formData.category)?.subcategories || []).map(sub => (
                                         <option key={sub} value={sub}>{sub}</option>
                                     ))}
                                 </select>

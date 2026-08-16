@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CATEGORIES } from "@/lib/types";
+import { subcategoriesForCategory } from "@/lib/taxonomy-subs";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
@@ -852,11 +853,11 @@ function NewProductContent() {
                                         onChange={(e) => handleChange("subcategory", e.target.value)}
                                     >
                                         <option value="">Select Subcategory</option>
-                                        {taxonomy.find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.children.map((sub: any) => (
-                                            <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                        {subcategoriesForCategory(taxonomy, formData.category).map((sub: any) => (
+                                            <option key={sub.id || sub.name} value={sub.name}>{sub.name}</option>
                                         ))}
                                         {/* Fallback */}
-                                        {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
+                                        {(CATEGORIES.find(c => c.value === formData.category)?.subcategories || []).map(sub => (
                                             <option key={sub} value={sub}>{sub}</option>
                                         ))}
                                     </select>
@@ -896,7 +897,7 @@ function NewProductContent() {
                                         onChange={(e) => handleChange("location_city", e.target.value)}
                                     >
                                         <option value="">{formData.location_state ? "Any area" : "Pick a state first"}</option>
-                                        {NIGERIAN_STATES.find(s => s.state === formData.location_state)?.cities.map(c => (
+                                        {(NIGERIAN_STATES.find(s => s.state === formData.location_state)?.cities || []).map(c => (
                                             <option key={c} value={c}>{c}</option>
                                         ))}
                                     </select>

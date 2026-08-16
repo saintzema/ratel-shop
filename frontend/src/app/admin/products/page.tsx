@@ -1606,7 +1606,7 @@ export default function CatalogControl() {
                                                 <option key={sub.id} value={sub.name}>{sub.name}</option>
                                             ))}
                                             {/* Minimal Fallback: Only show hardcoded if DB is totally empty */}
-                                            {DataSyncService.getTaxonomy().length === 0 && CATEGORIES.find(c => c.label.toLowerCase() === editCategory.toLowerCase())?.subcategories.map(sub => (
+                                            {DataSyncService.getTaxonomy().length === 0 && (CATEGORIES.find(c => c.label.toLowerCase() === editCategory.toLowerCase())?.subcategories || []).map(sub => (
                                                 <option key={sub} value={sub}>{sub}</option>
                                             ))}
                                         </select>

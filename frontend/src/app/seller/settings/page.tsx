@@ -617,7 +617,7 @@ export default function SellerSettingsPage() {
                                     className="h-14 bg-gray-50 border border-gray-200 rounded-2xl px-4 font-bold text-sm disabled:opacity-80"
                                 >
                                     <option value="">Select City</option>
-                                    {NIGERIAN_STATES.find(s => s.state === formData.state)?.cities.map(c => (
+                                    {(NIGERIAN_STATES.find(s => s.state === formData.state)?.cities || []).map(c => (
                                         <option key={c} value={c}>{c}</option>
                                     ))}
                                 </select>

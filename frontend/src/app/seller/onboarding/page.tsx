@@ -685,7 +685,7 @@ export default function KYCOnboarding() {
                                                     disabled={!stateRegion}
                                                 >
                                                     <option value="">Select City</option>
-                                                    {stateRegion && NIGERIAN_STATES.find(s => s.state === stateRegion)?.cities.map((c) => (
+                                                    {stateRegion && (NIGERIAN_STATES.find(s => s.state === stateRegion)?.cities || []).map((c) => (
                                                         <option key={c} value={c}>{c}</option>
                                                     ))}
                                                 </select>
