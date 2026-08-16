@@ -64,7 +64,10 @@ CRITICAL RULES:
 - Sound like a real human wrote it in one take — NOT like AI marketing copy. No "Introducing...", no "Elevate your...", no corporate buzzwords.
 - Do NOT use emojis at all. None. Not even one.
 - Keep it 2-4 short sentences, casual Nigerian English is fine (e.g. "still available", "no wahala", "sharp sharp") but don't force it.
-- Mention the price naturally if given.
+- Mention the price naturally if given, and ALWAYS write it with the naira symbol
+  in front of the figure — "₦10,500,000". Never write it as the word "naira"
+  lowercase after the number ("10.5 million naira"), which reads as sloppy. If you
+  do spell it out for readability, capitalise it: "₦10.5 million".
 - End with a simple, direct call to action (e.g. "DM to order" or "WhatsApp me to grab yours").
 - Output ONLY the caption text. No quotes, no markdown, no labels like "Caption:".`;
 

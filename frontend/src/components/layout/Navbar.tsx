@@ -1622,16 +1622,18 @@ export function Navbar() {
                                 >
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
-                                            <Button 
-                                                className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2 cursor-pointer"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setIsAccountMenuOpen(false);
-                                                    router.push("/login");
-                                                }}
+                                            {/* A real <Link>, not a Button + router.push. The dropdown
+                                                closes on mouse-leave/click-outside, which was racing the
+                                                Button's onClick and swallowing it — the seller had to hit
+                                                "Start here" instead. An anchor navigates on its own and
+                                                can't be cancelled by the menu unmounting. */}
+                                            <Link
+                                                href="/login"
+                                                onClick={() => setIsAccountMenuOpen(false)}
+                                                className="flex items-center justify-center w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2 cursor-pointer hover:brightness-105 transition-all"
                                             >
                                                 Sign in
-                                            </Button>
+                                            </Link>
                                             <p className="text-[11px] text-gray-500">
                                                 New customer? <button 
                                                     className="text-blue-600 hover:underline cursor-pointer" 

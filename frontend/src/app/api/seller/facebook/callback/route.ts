@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { facebookRedirectUri, appBaseUrl } from "@/lib/meta-oauth-redirect";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
 const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
 const API_VERSION = "v21.0";
 
-function getBaseUrl(req: NextRequest): string {
-    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (envUrl) return envUrl.replace(/\/$/, "");
-    const host  = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") || "https";
-    return host ? `${proto}://${host}` : "https://www.fairprice.ng";
-}
+// Must resolve to the SAME string the auth route sent, or Facebook rejects the
+// code→token exchange even after the seller consents.
 
 /**
  * GET /api/seller/facebook/callback
@@ -25,8 +21,8 @@ export async function GET(req: NextRequest) {
     const state = req.nextUrl.searchParams.get("state");
     const error = req.nextUrl.searchParams.get("error");
 
-    const BASE_URL      = getBaseUrl(req);
-    const REDIRECT_URI  = `${BASE_URL}/api/seller/facebook/callback`;
+    const BASE_URL      = appBaseUrl(req);
+    const REDIRECT_URI  = facebookRedirectUri(req);
     const DASHBOARD_URL = `${BASE_URL}/seller/dashboard`;
 
     if (error || !code || !state) {

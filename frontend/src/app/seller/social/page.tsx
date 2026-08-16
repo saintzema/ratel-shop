@@ -96,6 +96,36 @@ function formatForPlatform(
     return truncateForPlatform(`${base}${url ? `\n\n${url}` : ""}`, "facebook");
 }
 
+
+/**
+ * Meta fetches the image from THEIR servers, so it must be an absolute, public
+ * https URL. Our stored value is often proxy-wrapped ("/api/image-cdn?url=...")
+ * or relative, which the publish routes reject with "A public image URL is
+ * required" even though the underlying Blob URL is perfectly valid — the exact
+ * failure seen when posting a car listing to Instagram.
+ *
+ * Unwrap the proxy to recover the original URL; otherwise resolve relative
+ * paths against our own origin.
+ */
+function toPublicImageUrl(url?: string | null): string {
+    if (!url) return "";
+    if (/^https?:\/\//i.test(url)) return url;
+
+    // "/api/image-cdn?url=<encoded original>" → the original.
+    const proxyMatch = url.match(/[?&]url=([^&]+)/);
+    if (url.includes("/api/image-cdn") && proxyMatch) {
+        try {
+            const decoded = decodeURIComponent(proxyMatch[1]);
+            if (/^https?:\/\//i.test(decoded)) return decoded;
+        } catch { /* fall through */ }
+    }
+
+    if (url.startsWith("/") && typeof window !== "undefined") {
+        return `${window.location.origin}${url}`;
+    }
+    return url;
+}
+
 function SellerSocialComposerContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -352,7 +382,7 @@ function SellerSocialComposerContent() {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify({
-                    imageUrl: selectedProduct.image_url,
+                    imageUrl: toPublicImageUrl(selectedProduct.image_url),
                     // Formatted for Instagram (hashtags, link-in-bio) and trimmed to
                     // the 2200-char ceiling it hard-rejects past.
                     caption: captionFor("instagram"),
@@ -382,7 +412,7 @@ function SellerSocialComposerContent() {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify({
-                    imageUrl: selectedProduct.image_url,
+                    imageUrl: toPublicImageUrl(selectedProduct.image_url),
                     caption: captionFor("facebook"),
                     productId: selectedProduct.id,
                 }),
@@ -425,7 +455,7 @@ function SellerSocialComposerContent() {
                     // Store the platform-formatted caption, so what's queued is exactly
                     // what will post — the worker doesn't re-derive it later.
                     caption: captionFor(schedulablePlatforms[0]),
-                    imageUrl: selectedProduct.image_url,
+                    imageUrl: toPublicImageUrl(selectedProduct.image_url),
                     productId: selectedProduct.id,
                     scheduledAt: new Date(scheduleAt).toISOString(),
                 }),

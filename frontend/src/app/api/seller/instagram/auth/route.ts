@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { instagramRedirectUri } from "@/lib/meta-oauth-redirect";
 
 // Instagram Business Login uses a separate App ID from the Facebook App ID.
 // Found in: Meta Developer Console → Your App → Use Cases → Instagram API → Instagram app ID
 const IG_APP_ID = process.env.INSTAGRAM_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
 
-// Build the OAuth redirect URI from the ACTUAL request host so it byte-matches
-// whichever domain the seller is on (www vs non-www).
-function getRedirectUri(req: NextRequest): string {
-    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (envUrl) return `${envUrl.replace(/\/$/, "")}/api/seller/instagram/callback`;
-    const host  = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") || "https";
-    const base  = host ? `${proto}://${host}` : "https://www.fairprice.ng";
-    return `${base}/api/seller/instagram/callback`;
-}
+// Pinned in production — see lib/meta-oauth-redirect.ts. Header-derived values
+// break on preview deployments and bare-domain hits.
 
 /**
  * GET /api/seller/instagram/auth
@@ -55,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const params = new URLSearchParams({
         client_id:     IG_APP_ID,
-        redirect_uri:  getRedirectUri(req),
+        redirect_uri:  instagramRedirectUri(req),
         response_type: "code",
         scope: [
             "instagram_business_basic",

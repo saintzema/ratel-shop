@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { facebookRedirectUri } from "@/lib/meta-oauth-redirect";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
 const API_VERSION = "v21.0";
 
-function getRedirectUri(req: NextRequest): string {
-    const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (envUrl) return `${envUrl.replace(/\/$/, "")}/api/seller/facebook/callback`;
-    const host  = req.headers.get("x-forwarded-host") || req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") || "https";
-    const base  = host ? `${proto}://${host}` : "https://www.fairprice.ng";
-    return `${base}/api/seller/facebook/callback`;
-}
+// Pinned, not header-derived — see lib/meta-oauth-redirect.ts. A mismatch here
+// is what produced Facebook's "URL Blocked" page.
 
 /**
  * GET /api/seller/facebook/auth
@@ -34,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const params = new URLSearchParams({
         client_id: FB_APP_ID,
-        redirect_uri: getRedirectUri(req),
+        redirect_uri: facebookRedirectUri(req),
         response_type: "code",
         scope: [
             "pages_show_list",
