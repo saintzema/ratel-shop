@@ -340,7 +340,13 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Restored Single Image) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[128px] md:pt-[130px] pb-5 md:pb-8">
+          {/* Padding tracks the header's measured height (--fp-header-h, published by
+              Navbar) plus the PWA banner. The old fixed 128px was tuned for desktop
+              web and left a band of empty grey above the hero in the native app. */}
+          <section
+            className="relative w-full bg-[#E3E6E6] pb-5 md:pb-8"
+            style={{ paddingTop: "calc(var(--pwa-banner-h, 0px) + var(--fp-header-h, 112px) + 8px)" }}
+          >
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
@@ -511,13 +517,8 @@ function HomeContent() {
             <div
                 id="category-pills-sticky-bar"
                 className="sticky z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1"
-                style={{ top: "calc(var(--pwa-banner-h, 0px) + 96px)" }}
+                style={{ top: "calc(var(--pwa-banner-h, 0px) + var(--fp-header-h, 96px))" }}
             >
-              <style jsx>{`
-                @media (min-width: 768px) {
-                  #category-pills-sticky-bar { top: calc(var(--pwa-banner-h, 0px) + 100px) !important; }
-                }
-              `}</style>
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {pills.map((cat) => {
                   const isActive = activeTab === cat;

@@ -273,6 +273,35 @@ export function Navbar() {
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const categoryRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLElement>(null);
+
+    /**
+     * Publish the real rendered header height as --fp-header-h.
+     *
+     * Pages used to hardcode this (hero `pt-[128px]`, pills `top: 96px`). Those
+     * numbers only ever matched one viewport: inside the native WebView the
+     * header measures differently, so the hero sat below a band of empty grey
+     * and the sticky pills bar pinned itself well below the header — it looked
+     * like the pills only started sticking partway down the page.
+     */
+    useEffect(() => {
+        const el = headerRef.current;
+        if (!el || typeof window === "undefined") return;
+
+        const publish = () => {
+            const h = Math.round(el.getBoundingClientRect().height);
+            if (h > 0) document.documentElement.style.setProperty("--fp-header-h", `${h}px`);
+        };
+
+        publish();
+        const ro = new ResizeObserver(publish);
+        ro.observe(el);
+        window.addEventListener("orientationchange", publish);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener("orientationchange", publish);
+        };
+    }, []);
     const hydratedProductIds = useRef<Set<string>>(new Set());
     const lastNavSyncRef = useRef<number>(0);
 
@@ -1049,7 +1078,7 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 'var(--pwa-banner-h, 0px)', zIndex: 100 }}>
+            <header ref={headerRef} className="fixed left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 'var(--pwa-banner-h, 0px)', zIndex: 100 }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
                     <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0 relative z-[10001]">

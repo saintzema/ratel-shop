@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'ORDER_COMPLETED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED' | 'ESCROW_RELEASED' | 'DISPUTE_RESOLVED' | 'SYSTEM_ALERT' | 'QUOTE_PAYMENT_RECEIPT';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'ORDER_COMPLETED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED' | 'ESCROW_RELEASED' | 'DISPUTE_RESOLVED' | 'SYSTEM_ALERT' | 'QUOTE_PAYMENT_RECEIPT' | 'TEAM_INVITE';
 
 interface EmailTemplatePayload {
     name?: string;
@@ -843,6 +843,22 @@ ${payload.daysRemaining === 0 ? `
 </table>
 ${payload.balance ? `<p style="margin:0 0 24px 0;font-size:15px;color:#86868b;">Balance still outstanding: <strong style="color:#b45309;">${payload.balance}</strong>. You can pay the rest any time from the same link.</p>` : `<p style="margin:0 0 24px 0;font-size:15px;color:#86868b;">This invoice is now fully paid. Nothing further is owed.</p>`}
 ${payload.quoteUrl ? `<p style="margin:0;"><a href="${payload.quoteUrl}" style="display:inline-block;padding:14px 28px;background-color:#059669;color:#ffffff;text-decoration:none;border-radius:99px;font-weight:700;">View invoice</a></p>` : ""}
+`);
+            break;
+
+        case 'TEAM_INVITE':
+            subject = `${payload.businessName || "A store"} invited you to their team on FairPrice`;
+            html = BaseTemplate("You've been invited 🤝", `
+<p style="margin:0 0 16px 0;"><strong>${payload.businessName || "A seller"}</strong> has invited you to help run their store on FairPrice.</p>
+${payload.promoContent ? `
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin:0 0 24px 0;">
+    <tr><td style="padding:20px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+        <p style="margin:0 0 12px 0;font-size:13px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">What you'll be able to do</p>
+        <p style="margin:0;font-size:15px;color:#334155;line-height:24px;">${payload.promoContent}</p>
+    </td></tr>
+</table>` : ""}
+<p style="margin:0 0 24px 0;font-size:15px;color:#86868b;">Sign in with this email address (<strong>${payload.ownerEmail || "this address"}</strong>) and the store will appear in your dashboard. If you don't have an account yet, create one with this same email and the invite activates automatically.</p>
+<p style="margin:0;"><a href="${payload.dashboardUrl || "https://www.fairprice.ng/signin"}" style="display:inline-block;padding:14px 28px;background-color:#059669;color:#ffffff;text-decoration:none;border-radius:99px;font-weight:700;">Accept invite</a></p>
 `);
             break;
 

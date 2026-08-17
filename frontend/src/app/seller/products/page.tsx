@@ -36,7 +36,6 @@ import {
     X,
     CheckCircle2,
     Share2,
-    CopyPlus,
     Rocket
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
@@ -674,10 +673,10 @@ function SellerProductsContent() {
                                                         <Button
                                                             variant="ghost"
                                                             className="h-10 px-4 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors gap-2 text-[10px] font-black uppercase tracking-widest"
-                                                            onClick={() => setPromoteModalOpen({ isOpen: true, product })}
-                                                            title="Promote Item"
+                                                            onClick={() => setBoostModal({ isOpen: true, product })}
+                                                            title="Promote this listing — pick a boost package"
                                                         >
-                                                            <Megaphone className="h-4 w-4" /> Promote
+                                                            <Rocket className="h-4 w-4" /> Promote
                                                         </Button>
                                                     ) : (
                                                         <div className="h-10 px-4 rounded-xl bg-amber-50 flex items-center justify-center gap-2 border border-amber-100" title="Promotion Active">
@@ -704,24 +703,7 @@ function SellerProductsContent() {
                                                             <Edit3 className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
-                                                    {/* Jiji-style "post ad like this" — prefills a brand-new
-                                                        listing from this one, for sellers listing near-identical
-                                                        stock repeatedly (same model, different colour/condition). */}
-                                                    <Link href={`/seller/products/new?like=${encodeURIComponent(product.id)}`}>
-                                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors" title="Post an ad like this">
-                                                            <CopyPlus className="h-4 w-4" />
-                                                        </Button>
-                                                    </Link>
                                                     <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-10 w-10 rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-colors"
-                                                        onClick={() => setBoostModal({ isOpen: true, product })}
-                                                        title="Boost this listing (Basic / Premium / VIP)"
-                                                    >
-                                                        <Rocket className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button 
                                                         size="icon" 
                                                         variant="ghost" 
                                                         className="h-10 w-10 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors"
@@ -797,10 +779,10 @@ function SellerProductsContent() {
                                                 size="icon"
                                                 variant="ghost"
                                                 className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-amber-50 hover:text-amber-600"
-                                                onClick={() => setPromoteModalOpen({ isOpen: true, product })}
-                                                title="Promote Item"
+                                                onClick={() => setBoostModal({ isOpen: true, product })}
+                                                title="Promote this listing — pick a boost package"
                                             >
-                                                <Megaphone className="h-4 w-4" />
+                                                <Rocket className="h-4 w-4" />
                                             </Button>
                                         ) : (
                                             <div className="h-9 px-3 rounded-xl bg-amber-50 flex items-center justify-center gap-1.5 border border-amber-100" title="Promotion Active">
@@ -827,20 +809,7 @@ function SellerProductsContent() {
                                                 <Edit3 className="h-4 w-4" />
                                             </Button>
                                         </Link>
-                                        <Link href={`/seller/products/new?like=${encodeURIComponent(product.id)}`}>
-                                            <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-amber-50 hover:text-amber-600" title="Post an ad like this">
-                                                <CopyPlus className="h-4 w-4" />
-                                            </Button>
-                                        </Link>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-orange-50 hover:text-orange-600"
-                                            onClick={() => setBoostModal({ isOpen: true, product })}
-                                            title="Boost this listing (Basic / Premium / VIP)"
-                                        >
-                                            <Rocket className="h-4 w-4" />
-                                        </Button>
+
                                         <Button 
                                             size="icon" 
                                             variant="ghost" 

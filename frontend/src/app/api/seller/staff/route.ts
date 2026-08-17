@@ -76,6 +76,34 @@ export async function POST(req: NextRequest) {
             },
         });
 
+    // Email the invite. This is the only channel that reaches someone who doesn't
+    // have a FairPrice account yet — the in-app notification below can't, so
+    // without this an invited teammate was never told anything at all.
+    const perms = [
+        body.canEditPrice && "edit prices",
+        body.canEditStock && "edit stock and inventory",
+        body.canManageDiscounts && "manage discounts",
+        body.canViewFinancials && "view payouts and financials",
+    ].filter(Boolean) as string[];
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.fairprice.ng";
+    fetch(`${appUrl}/api/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            to: email,
+            type: "TEAM_INVITE",
+            payload: {
+                businessName: seller.businessName,
+                ownerEmail: email,
+                dashboardUrl: `${appUrl}/signin?invited=1`,
+                promoContent: perms.length
+                    ? `You'll be able to ${perms.join(", ")}. Anything not listed stays owner-only.`
+                    : "You'll be able to help manage the store. Price, stock, discounts and financials stay owner-only until the owner grants them.",
+            },
+        }),
+    }).catch(e => console.error("[staff invite] email failed:", e));
+
     // In-app notification if this email already has an account — the invite still
     // works even if they don't (it activates on their first login, see issue-token).
     db.user.findUnique({ where: { email } }).then(invitedUser => {

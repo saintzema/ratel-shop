@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Instagram,
     CreditCard,
@@ -124,13 +124,67 @@ export default function IntegrationsPage() {
     const [isStarterPlan, setIsStarterPlan] = useState(true);
     const router = useRouter();
 
+    // Live status from the DB. The cached seller only gives us an instant first
+    // paint — it never carries the OAuth tokens the callback writes server-side,
+    // so on its own it reports a freshly-connected Instagram as "Not Connected".
+    const refreshStatus = useCallback(async () => {
+        try {
+            const token = localStorage.getItem("fp_token");
+            if (!token) return;
+            const res = await fetch("/api/seller/integrations/status", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            const live = data?.integrations || {};
+            setIntegrations(INTEGRATIONS.map(app => {
+                const state = live[app.id];
+                if (!state) return app;
+                return {
+                    ...app,
+                    status: state.connected ? "Connected" : "Disconnected",
+                    detail: state.detail || null,
+                    expired: !!state.expired,
+                };
+            }));
+        } catch { /* keep the cached view rather than flipping everything to disconnected */ }
+    }, []);
+
     useEffect(() => {
         const seller = DataSyncService.getCurrentSeller();
-        if (!seller) return;
-        setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
-        // Derive status from real seller data — never trust the localStorage toggle
-        setIntegrations(computeIntegrations(seller));
-    }, []);
+        if (seller) {
+            setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
+            setIntegrations(computeIntegrations(seller));
+        }
+        refreshStatus();
+        // Returning from an OAuth redirect re-shows this tab rather than remounting it.
+        const onVisible = () => { if (document.visibilityState === "visible") refreshStatus(); };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => document.removeEventListener("visibilitychange", onVisible);
+    }, [refreshStatus]);
+
+    // Disconnect is a genuinely different action from connect. Routing both
+    // through handleConnect meant the disconnect button relaunched OAuth.
+    const handleDisconnect = async (intId: string) => {
+        setConnecting(intId);
+        try {
+            const token = localStorage.getItem("fp_token");
+            const res = await fetch("/api/seller/integrations/disconnect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ provider: intId }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(err?.error || "Could not disconnect. Please try again.");
+            }
+        } catch {
+            alert("Could not disconnect. Please check your connection and try again.");
+        } finally {
+            await refreshStatus();
+            setConnecting(null);
+        }
+    };
 
     const handleConnect = async (intId: string, requiresPremium: boolean) => {
         if (requiresPremium && isStarterPlan) {
@@ -229,6 +283,10 @@ export default function IntegrationsPage() {
                                 <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
                                     <CheckCircle2 className="h-3 w-3" /> Connected
                                 </span>
+                            ) : (app as any).expired ? (
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
+                                    Reconnect
+                                </span>
                             ) : (
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
                                     Not Connected
@@ -238,7 +296,12 @@ export default function IntegrationsPage() {
 
                         <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
-                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">By {app.provider}</p>
+                            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                                By {app.provider}
+                                {(app as any).detail && app.status === 'Connected' && (
+                                    <span className="ml-2 normal-case tracking-normal text-gray-600 font-semibold">{(app as any).detail}</span>
+                                )}
+                            </p>
                             <p className="text-sm text-gray-500 leading-relaxed mb-6">{app.description}</p>
                         </div>
 
@@ -252,7 +315,16 @@ export default function IntegrationsPage() {
                                     </Link>
                                     <Button
                                         variant="outline"
-                                        onClick={() => handleConnect(app.id, app.requiresPremium)}
+                                        title={`Disconnect ${app.name}`}
+                                        onClick={() => {
+                                            // whatsapp/paystack/domain "disconnect" is really a settings
+                                            // change, so send those back through their own flow.
+                                            if (["instagram", "facebook", "whatsapp_direct"].includes(app.id)) {
+                                                if (confirm(`Disconnect ${app.name}? You can reconnect at any time.`)) handleDisconnect(app.id);
+                                            } else {
+                                                handleConnect(app.id, app.requiresPremium);
+                                            }
+                                        }}
                                         disabled={connecting === app.id}
                                         className="h-12 w-12 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
                                     >

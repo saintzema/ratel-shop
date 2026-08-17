@@ -138,13 +138,6 @@ export function BoostPackageModal({
                                     <p className="text-[11px] font-bold text-gray-400">
                                         {tier.days} days · up to {tier.maxListings} listing{tier.maxListings === 1 ? "" : "s"}
                                     </p>
-                                    {/* The whole pitch is that we're cheaper than Jiji for the
-                                        same job — say so with their real published number. */}
-                                    {tier.jijiComparisonLabel && (
-                                        <p className="text-[10px] font-bold text-emerald-600 mt-1.5 line-through decoration-gray-300 decoration-1">
-                                            <span className="no-underline">{tier.jijiComparisonLabel}</span>
-                                        </p>
-                                    )}
                                     <p className="text-[11px] text-gray-600 leading-snug mt-1.5">{tier.tagline}</p>
                                 </button>
                             ))}
