@@ -28,6 +28,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { PopupCloser } from "@/components/auth/PopupCloser";
 import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
 import { FloatingWhatsApp } from "@/components/ui/FloatingWhatsApp";
+import { FieldFocusWatcher } from "@/components/ui/FieldFocusWatcher";
 
 export const metadata: Metadata = {
   title: {
@@ -265,6 +266,7 @@ export default function RootLayout({
                         <NotificationProvider>
                           <CurrencyBanner />
                           {children}
+                          <FieldFocusWatcher />
                           <ZivaChat />
                           <FloatingWhatsApp />
                           <DynamicPillNotification />

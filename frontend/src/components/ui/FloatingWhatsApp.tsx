@@ -39,7 +39,7 @@ export function FloatingWhatsApp() {
           dragConstraints={{ top: -500, bottom: 50 }}
           dragElastic={0.1}
           dragMomentum={false}
-          className="fixed bottom-40 right-4 md:bottom-24 md:right-8 z-[1010] touch-none"
+          className="fp-floating-widget fixed bottom-40 right-4 md:bottom-24 md:right-8 z-[1010] touch-none"
         >
           <div className="relative group">
             {/* Automatic Tooltip */}

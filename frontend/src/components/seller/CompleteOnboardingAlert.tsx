@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, Store } from "lucide-react";
+import { useIntegrationStatus } from "@/lib/use-integration-status";
 
 /**
  * Nudge for sellers whose store was auto-drafted by the Sell (+) quick-list flow.
@@ -16,6 +17,7 @@ import { ChevronRight, Store } from "lucide-react";
  * never sees it.
  */
 export function CompleteOnboardingAlert({ seller }: { seller: any }) {
+    const { flags } = useIntegrationStatus();
     if (!seller) return null;
 
     const ownerName = (seller.owner_name || "").trim();
@@ -28,7 +30,11 @@ export function CompleteOnboardingAlert({ seller }: { seller: any }) {
         businessName === "My Store" ||
         (!!ownerName && businessName.toLowerCase() === `${ownerName.toLowerCase()}'s store`);
 
-    const missingPayout = !seller.bank_name || !seller.account_number;
+    // Payout status comes from the DB, never from the cached seller object —
+    // that snapshot is empty on a new device and after our localStorage quota
+    // purge, which is why sellers with a bank account on file were repeatedly
+    // told to add one. `null` means "not answered yet": assume nothing missing.
+    const missingPayout = flags === null ? false : !flags.paystack;
 
     if (!isPlaceholderName && !missingPayout) return null;
 

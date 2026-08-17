@@ -142,7 +142,11 @@ export function InstagramCatalogImporter() {
                 headers: { ...authHeaders(), accept: "application/json" },
             });
             if (res.status === 401) {
-                setErrorMsg("You must be logged in as a seller to connect Instagram.");
+                // A 401 here does not mean "not a seller" — it almost always means
+                // the stored JWT has expired while the UI still shows a signed-in
+                // user, which is why this fired for sellers sitting on their own
+                // dashboard. Say what actually needs to happen.
+                setErrorMsg("Your session has expired. Please sign out and sign back in, then reconnect Instagram.");
                 setStatus("error");
                 return;
             }

@@ -49,11 +49,16 @@ import { SocialComposerAlert } from "@/components/seller/SocialComposerAlert";
 import { CompleteOnboardingAlert } from "@/components/seller/CompleteOnboardingAlert";
 import { FacebookConnectError } from "@/components/seller/FacebookConnectError";
 import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
+import { useIntegrationStatus } from "@/lib/use-integration-status";
 
 
 export default function SellerDashboard() {
     const router = useRouter();
     const { user } = useAuth();
+    // Setup alerts ask the DB, not the localStorage snapshot. While this is
+    // null (still loading, or offline) every alert stays hidden — telling a
+    // seller to re-add a bank account they already have is worse than silence.
+    const { flags: integrationFlags } = useIntegrationStatus();
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -455,7 +460,7 @@ export default function SellerDashboard() {
                 uploads, and negotiation alerts all require it. Deep-links straight to
                 the activation control in Settings instead of just telling the seller
                 to go find it themselves. */}
-            {!((safeSeller as any).whatsapp_enabled && (safeSeller as any).whatsapp_number) && (
+            {integrationFlags?.whatsapp === false && (
                 <Link
                     href="/seller/settings#whatsapp-activate"
                     className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-3xl p-4 shadow-sm hover:bg-amber-100/70 transition-colors"

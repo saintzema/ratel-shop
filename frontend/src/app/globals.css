@@ -500,3 +500,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     /* Firefox */
   }
 }
+/* ── Floating widgets vs. the on-screen keyboard ──────────────────────────────
+   Ziva's avatar and the WhatsApp button sit fixed near the bottom of the
+   viewport. On phones the keyboard shrinks the visual viewport, pushing those
+   widgets up over whatever field the user is typing into — on the sign-in page
+   Ziva partly covered the input itself.
+
+   While any field is focused we fade them out and drop pointer events, so they
+   can never sit on top of an input or steal a tap meant for one. They come
+   straight back on blur. */
+body.fp-field-focused .fp-floating-widget {
+    opacity: 0;
+    pointer-events: none !important;
+    transform: translateY(12px);
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
