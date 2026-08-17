@@ -239,7 +239,11 @@ export function Zema360HeroBanner() {
           </a>
 
           {/* Tagline — mobile only (center column hidden on mobile). */}
-          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1.5 text-center" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch", marginLeft: "auto", marginRight: "auto" }}>
+          {/* Left-aligned, not centred: the hero's overlaid DASHBOARD / START
+              SELLING button sits over the middle-right of this banner and was
+              clipping the end of this line. Hugging the left edge keeps the
+              whole tagline clear of it. */}
+          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1.5 text-left" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch", marginLeft: 0, marginRight: "auto" }}>
             AI agents — fully hands-free.
           </p>
         </div>

@@ -18,3 +18,12 @@ dist/
 node_modules/
 venv/
 zemaai-service-account.json
+
+# Large local-only assets — a `git add -A` swept these into a commit and the
+# push failed with HTTP 400 (146 MB of decks and screenshots).
+pitch-deck/
+product-evidence/
+.DS_Store
+**/.DS_Store
+# Stray file created by a mistyped `git branch > main` style redirect.
+/main
