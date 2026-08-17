@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
+import { useHeaderOffset } from "@/lib/use-header-offset";
+
+/** Below this many showable products we refuse to trust the cache and hit the DB. */
+const MIN_HOMEPAGE_PRODUCTS = 12;
 import { ProductCard } from "@/components/product/ProductCard";
 import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard";
 import { Button } from "@/components/ui/button";
@@ -60,7 +64,15 @@ function HomeContent() {
   const productSectionRef = useRef<HTMLDivElement>(null);
 
   // Live products from DataSyncService — load only on client to avoid SSR hydration mismatch
+  // Measured header height in px. Used instead of the --fp-header-h custom
+  // property for the sticky pills bar and hero padding: on production that
+  // property failed to re-resolve for those elements, leaving them on the
+  // hardcoded fallback (see use-header-offset.ts).
+  const headerOffset = useHeaderOffset();
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  // True while the first real catalogue fetch is in flight, so the page shows
+  // skeletons instead of empty shelves.
+  const [productsLoading, setProductsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
@@ -188,9 +200,17 @@ function HomeContent() {
     loadLiveCategories();
     setMounted(true);
 
-    // If localStorage store is empty (first visit after seed-blob removal), fetch from DB immediately
-    // so the homepage isn't blank until the idle sync fires.
-    if (DataSyncService.getProducts().length === 0) {
+    // Pull from the DB whenever the cache can't actually fill the homepage.
+    //
+    // This used to test `getProducts().length === 0`, but the page renders
+    // getApprovedProducts().filter(is_active) — a strictly smaller set. A cache
+    // holding only stale, unapproved or deactivated rows is non-empty, so no
+    // fetch fired, yet nothing was displayable: an empty homepage that never
+    // corrected itself until the idle autoSync happened to run minutes later.
+    // Condition on what we can actually show, not on what happens to be stored.
+    const displayable = DataSyncService.getApprovedProducts().filter(p => p.is_active).length;
+    if (displayable < MIN_HOMEPAGE_PRODUCTS) {
+      setProductsLoading(true);
       fetch("/api/products?limit=200")
         .then(r => r.ok ? r.json() : null)
         .then(data => {
@@ -199,7 +219,8 @@ function HomeContent() {
             // addRawProducts dispatches sync-store-update → refresh() fires automatically
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setProductsLoading(false));
     }
 
     const handleStorageChange = (e: StorageEvent) => {
@@ -345,7 +366,7 @@ function HomeContent() {
               web and left a band of empty grey above the hero in the native app. */}
           <section
             className="relative w-full bg-[#E3E6E6] pb-5 md:pb-8"
-            style={{ paddingTop: "calc(var(--pwa-banner-h, 0px) + var(--fp-header-h, 112px) + 8px)" }}
+            style={{ paddingTop: `${headerOffset + 8}px` }}
           >
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
@@ -517,7 +538,7 @@ function HomeContent() {
             <div
                 id="category-pills-sticky-bar"
                 className="sticky z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1"
-                style={{ top: "calc(var(--pwa-banner-h, 0px) + var(--fp-header-h, 96px))" }}
+                style={{ top: `${headerOffset}px` }}
             >
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {pills.map((cat) => {
@@ -547,7 +568,7 @@ function HomeContent() {
             </div>
 
             {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
-            {(!mounted || !sections) && (
+            {(!mounted || !sections || (productsLoading && allProducts.length === 0)) && (
               <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
                 <ProductSlider title={`Trending in ${userGeo?.name ?? "Nigeria"}`} link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
@@ -572,7 +593,9 @@ function HomeContent() {
                   className="w-full"
                 >
                   {activeTab === "All" ? (
-                    mounted && sections && (
+                    // Don't paint a wall of empty shelves while the catalogue is
+                    // still arriving — the skeleton above covers that window.
+                    mounted && sections && !(productsLoading && allProducts.length === 0) && (
                       <>
                 <section className="container mx-auto px-1 md:px-2 mt-2 mb-1">
                   <RecentlyViewedHorizontal />
