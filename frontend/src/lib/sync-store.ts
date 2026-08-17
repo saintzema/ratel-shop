@@ -363,10 +363,42 @@ class DataSyncServiceService {
         this.seedDemoData();
     }
 
+    private _realtimeSource: EventSource | null = null;
+
     private startRealtimeSync() {
         if (typeof window === "undefined") return;
 
+        // Never open a second stream. Two concurrent /api/realtime connections
+        // were observed in production, doubling the problem below.
+        if (this._realtimeSource) return;
+
+        // /api/realtime is a long-lived SSE stream — it stays open for as long
+        // as the tab lives. Opening it during startup put a permanently-pending
+        // request into the browser's per-origin connection pool while the app's
+        // own JS chunks were still downloading, and starved them: measured on
+        // production, every route chunk took 35-37s to arrive and the page took
+        // 40s to reach load. That is the "products take minutes to appear" and
+        // "blank homepage" behaviour.
+        //
+        // Live updates are a background nicety; painting the page is not. Wait
+        // until the page has loaded (plus an idle beat) before connecting.
+        const connect = () => {
+            if (this._realtimeSource) return;
+            this.openRealtimeStream();
+        };
+
+        if (document.readyState === "complete") {
+            // Already loaded — still yield a frame so we never contend with a
+            // client-side navigation's chunk fetches.
+            setTimeout(connect, 1500);
+        } else {
+            window.addEventListener("load", () => setTimeout(connect, 1500), { once: true });
+        }
+    }
+
+    private openRealtimeStream() {
         const eventSource = new EventSource("/api/realtime");
+        this._realtimeSource = eventSource;
 
         eventSource.onmessage = (event) => {
             try {
