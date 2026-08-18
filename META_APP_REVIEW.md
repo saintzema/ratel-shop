@@ -289,3 +289,96 @@ Facebook posting has been confirmed live since.
 https://www.fairprice.ng/api/seller/instagram/deauthorize
 https://www.fairprice.ng/api/seller/instagram/data-deletion
 ```
+
+---
+
+## 7. Phase 2 — the paid "Promote" / Meta-ads optimisation feature
+
+### First, the thing that changes the whole answer
+
+`frontend/src/lib/meta-ads.ts` creates campaigns against **our own ad account
+using a System User token**:
+
+```ts
+const adAccountId = settings?.metaAdAccountId || process.env.META_AD_ACCOUNT_ID;
+const accessToken = settings?.metaAdsAccessToken || process.env.META_ADS_ACCESS_TOKEN;
+const adAccount = `act_${adAccountId}`;
+await metaPost(`${adAccount}/campaigns`, { ... });
+```
+
+We are **not** spending from the seller's ad account with the seller's OAuth
+token. That matters, because most `ads_management` App Review pain exists to
+police apps that touch *other businesses'* ad accounts.
+
+**A System User in your own Business Manager, holding `ads_management` on an ad
+account your business owns, does not need those permissions granted through App
+Review.** You assign them in Business Settings. So the ads permissions sitting
+in your submission are largely solving a problem you don't have.
+
+What you *do* need for the current architecture:
+
+| Requirement | Where it comes from | Status |
+|---|---|---|
+| **Marketing API Standard Access** | App Review — the *access tier*, not a permission. The Basic tier can only touch ad accounts in dev mode; Standard is required to actually spend. | ⬜ Needed before the first live ad |
+| **`ads_management` on our own ad account** | Business Settings → System User → assign ad account. No App Review. | ⬜ Assign the System User |
+| **Business verification** | Already have the `FairPrice Merchants LLC` portfolio | ✅ |
+| **`pages_manage_ads` from the seller** | Seller OAuth — required to use *their* Page as the ad's identity | ⬜ Phase 2 |
+
+`pages_manage_ads` is the one genuinely seller-granted ads permission: an ad
+promoting a seller's product should run under the seller's Page, and using
+someone else's Page as an ad identity requires it. (The alternative is adding
+each seller's Page to your Business Manager as a partner asset, which does not
+scale to self-serve.)
+
+### Permissions for the "optimise using best metrics" part
+
+**None of this is built yet** — there is not a single `/insights` call anywhere
+in the codebase. `meta-ads.ts` creates campaigns and ad sets and then never
+reads back how they performed. So "auto-optimise using the best metrics" is
+currently a campaign launcher, not an optimiser.
+
+When you build it, the reads you'll need:
+
+| Permission | Reads | Whose token |
+|---|---|---|
+| `ads_read` | Campaign spend, impressions, CPC, CPA, ROAS — the numbers the optimiser acts on | Our System User (no App Review, own account) |
+| `read_insights` | Page-level organic reach/engagement, for comparing paid vs organic lift | Seller OAuth — **App Review** |
+| `instagram_business_manage_insights` | Per-post IG reach, saves, profile visits — which creative to put money behind | Seller OAuth — **App Review** |
+
+**`instagram_business_manage_insights` is in your queue and I did not classify it
+in §0 — that was an omission.** Verdict: **remove it for now, keep it for Phase 2.**
+The code never requests it in the Instagram OAuth scope list, so there is nothing
+to record a screencast of, and an unusable permission is a rejection risk. It
+becomes the *right* permission to request the moment the optimiser ships, because
+"which of this seller's posts earned engagement" is exactly what decides where ad
+spend goes.
+
+### SEO — no Meta permission exists for this
+
+Worth stating plainly: **SEO has nothing to do with Meta App Review.** Organic
+search visibility is Google/Bing crawling fairprice.ng — structured data, sitemaps,
+page titles, canonical URLs, storefront page speed. No Meta permission affects it,
+and mentioning SEO in a Meta permission justification would read as unfocused to a
+reviewer. Keep it out of the submission entirely; it's our own site's work.
+
+### Phase 2 submission (after the first real campaign runs)
+
+```
+pages_manage_ads
+ads_read
+read_insights
+instagram_business_manage_insights
+Marketing API — Standard Access tier
+```
+
+Sequence, because the test-call gate is the blocker:
+
+1. Assign the System User `ads_management` on the FairPrice ad account (Business Settings — no review).
+2. Request **Marketing API Standard Access** on its own. This is a tier, not a permission, and can be requested without screencasts of seller flows.
+3. Run **one real campaign** end to end through the Promote add-on and let it spend. This registers the required API test calls.
+4. Build the insights read-back so the optimiser is real.
+5. *Then* submit the five above, with a screencast showing a seller paying for Promote, the campaign going live, and the performance panel reading back real numbers.
+
+Do not attach any of this to the Phase 1 submission. Phase 1 approves posting and
+messaging — features that work today and can be demoed today. Bundling an
+unbuildable ads demo alongside them risks the whole thing.
