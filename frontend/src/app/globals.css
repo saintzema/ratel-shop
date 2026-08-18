@@ -29,7 +29,12 @@
   --card-foreground: #000000;
 
   --border: #d5d9d9;
-  --input: #ffffff;
+  /* The border colour for form fields (Tailwind's `border-input`), NOT a
+     background — nothing in the app uses `bg-input`. This was #ffffff, which
+     drew a white border on a white card: every Input looked borderless until
+     focus added a ring, so fields like "Invite by email" read as plain text
+     until you clicked them. Matches --border so fields have a visible edge. */
+  --input: #d5d9d9;
 
   --radius: 0.5rem;
 }

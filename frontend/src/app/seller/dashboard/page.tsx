@@ -478,17 +478,9 @@ export default function SellerDashboard() {
                 </Link>
             )}
 
-            {/* Enhanced Banner: Tier Level Progress */}
-            {safeSeller.verified && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-3 md:p-4 flex items-center justify-between shadow-sm">
-                    <div className="flex flex-col">
-                        <span className="text-emerald-800 font-black text-lg md:text-xl tracking-tight flex items-center gap-2">
-                            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                            {safeSeller.business_name} - Verified Partner
-                        </span>
-                    </div>
-                </div>
-            )}
+            {/* The "<store> - Verified Partner" banner used to sit here. Removed:
+                it restated the store name already in the welcome header directly
+                above it, and the verified badge is shown in the sidebar. */}
 
             {/* Welcome header.
                 order-first pulls this above the alert stack: a seller opening their

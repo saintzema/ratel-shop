@@ -11,7 +11,37 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DataSyncService } from "@/lib/sync-store";
 
-const CATEGORIES = ["Fashion", "Electronics", "Home", "Beauty", "Gaming", "Sports", "Food", "Accessories", "Health", "Uncategorized"];
+/**
+ * Fallback only. The importer used to hardcode this list, which is why a seller
+ * importing car photos had no Vehicles option and everything landed under
+ * Fashion. The real list comes from the live taxonomy (see useImportCategories)
+ * so it matches what the rest of the app offers; this is what we fall back to
+ * before the taxonomy has synced.
+ */
+const FALLBACK_CATEGORIES = ["Fashion", "Electronics", "Home", "Beauty", "Gaming", "Sports", "Food", "Accessories", "Health", "Uncategorized"];
+
+/** The seller-selectable categories, taken from the synced DB taxonomy. */
+function useImportCategories(): string[] {
+    const [cats, setCats] = useState<string[]>(FALLBACK_CATEGORIES);
+
+    useEffect(() => {
+        const read = () => {
+            const taxonomy = DataSyncService.getTaxonomy();
+            if (!Array.isArray(taxonomy) || taxonomy.length === 0) return;
+            const names = taxonomy
+                .map((c: any) => String(c?.name || "").trim())
+                .filter(Boolean)
+                // Admin-curated rails aren't real product categories.
+                .filter(n => !["trending", "best-selling", "best_selling", "price drop", "price-drop"].includes(n.toLowerCase()));
+            if (names.length) setCats([...names, "Uncategorized"]);
+        };
+        read();
+        window.addEventListener("sync-store-update", read);
+        return () => window.removeEventListener("sync-store-update", read);
+    }, []);
+
+    return cats;
+}
 
 interface IgPost {
     id: string;
@@ -36,6 +66,7 @@ export function InstagramCatalogImporter() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
+    const importCategories = useImportCategories();
 
     const [status, setStatus] = useState<"idle" | "loading" | "connected" | "error">("idle");
     const [username, setUsername] = useState<string | null>(null);
@@ -540,7 +571,7 @@ export function InstagramCatalogImporter() {
                                                         onChange={e => updateProd("category", e.target.value)}
                                                         className="w-full px-3 h-10 rounded-xl border border-gray-200 focus:border-pink-400 outline-none text-sm font-bold text-gray-900 bg-white"
                                                     >
-                                                        {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                                                        {importCategories.map(c => <option key={c}>{c}</option>)}
                                                     </select>
                                                 </div>
                                             </div>
