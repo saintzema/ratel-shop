@@ -35,13 +35,27 @@ export function useHeaderOffset(fallback = 96): number {
 
         read();
 
-        const el = document.querySelector("header");
-        const ro = el ? new ResizeObserver(read) : null;
-        if (el && ro) ro.observe(el);
+        // Observe <body>, not <header>. This page can take seconds to hydrate,
+        // so on the first run the header often isn't in the DOM yet: querying it
+        // returned null, we skipped the update AND never attached an observer,
+        // leaving the offset pinned to the fallback forever. Watching body means
+        // we re-measure when the header finally mounts. read() re-queries the
+        // header each time, so it self-heals.
+        const ro = new ResizeObserver(read);
+        ro.observe(document.body);
+
+        // Body resizes cover layout shifts, but not a header that mounts at the
+        // same size the body already had — watch the tree for it appearing too.
+        const mo = new MutationObserver(() => {
+            if (document.querySelector("header")) read();
+        });
+        mo.observe(document.body, { childList: true, subtree: true });
+
         window.addEventListener("resize", read);
         window.addEventListener("orientationchange", read);
         return () => {
-            ro?.disconnect();
+            ro.disconnect();
+            mo.disconnect();
             window.removeEventListener("resize", read);
             window.removeEventListener("orientationchange", read);
         };
