@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useLayoutEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
@@ -152,9 +152,14 @@ function SellerProductsContent() {
         }
     };
 
-    useEffect(() => {
+    // useLayoutEffect: this page remounts every time the seller navigates back
+    // to it. The DataSyncService.getProducts() read inside loadProducts is
+    // synchronous — only the DB-merge fetch after it is async — but useEffect
+    // fires after paint, so the empty initial `products` state showed for one
+    // frame on every return trip. useLayoutEffect commits before paint.
+    useLayoutEffect(() => {
         loadProducts();
-        
+
         // Restore view mode preference
         const savedMode = localStorage.getItem("seller_products_view_mode");
         if (savedMode === "grid" || savedMode === "table") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     TrendingUp,
@@ -150,7 +150,12 @@ export default function AdminDashboard() {
         loadData(); // refresh the rest of the dashboard's stats/lists
     };
 
-    useEffect(() => {
+    // useLayoutEffect: this page remounts on every return trip. stats starts null
+    // and the page renders nothing at all (`if (!stats) return null`) until this
+    // fires — with useEffect that's one blank frame after every navigation back,
+    // even though DataSyncService.getAdminStats() below is a synchronous cache
+    // read. useLayoutEffect commits before paint, so a warm cache never flashes.
+    useLayoutEffect(() => {
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);

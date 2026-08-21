@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { DEMO_SELLER_STATS } from "@/lib/data";
@@ -91,7 +91,13 @@ export default function SellerDashboard() {
         revenueTrend: "+14.2%" // Mock trend
     };
 
-    useEffect(() => {
+    // useLayoutEffect: this page remounts every time the seller navigates away
+    // and back. loadData's cache reads are synchronous, but useEffect commits
+    // after the browser paints — so on every return trip the empty initial
+    // state (0 orders, 0 products, no seller) painted for one visible frame
+    // before this filled it back in, which read as "my data disappeared."
+    // useLayoutEffect commits before paint, so a warm cache never flashes empty.
+    useLayoutEffect(() => {
         const loadData = () => {
             const sellerId = DataSyncService.getCurrentSellerId();
             if (!sellerId) return;

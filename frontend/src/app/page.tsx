@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
 import { useHeaderOffset } from "@/lib/use-header-offset";
@@ -132,7 +132,16 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
+  // useLayoutEffect, not useEffect: this component remounts every time client-side
+  // navigation brings the user back to "/" (visiting another page and returning).
+  // The cache read inside refresh() is synchronous, but useEffect fires AFTER the
+  // browser paints — so on every return trip the empty initial state painted
+  // first, showing empty product rails / the skeleton for one visible frame
+  // before refresh() filled them in. useLayoutEffect commits before paint, so a
+  // warm cache never flashes empty. (No SSR hydration risk: this is a "use client"
+  // page and the effect still runs after the same hydration commit either way —
+  // only the timing of the *next* paint changes.)
+  useLayoutEffect(() => {
     const refresh = () => {
       setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
       
