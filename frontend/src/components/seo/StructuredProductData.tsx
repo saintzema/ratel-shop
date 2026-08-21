@@ -51,10 +51,22 @@ export function StructuredProductData({ product, fallbackPrice }: { product: Pro
 
     const brand = extractBrand();
     const sku = generateSku();
-    const avgRating = product?.avg_rating || 4.5;
-    const reviewCount = product?.review_count || 10;
+    // Real values only — `avg_rating || 4.5` treated a genuine 0 (no reviews
+    // yet) as falsy and substituted a fabricated 4.5-star / 10-review rating on
+    // EVERY unreviewed product. Google's structured-data guidelines require
+    // aggregateRating to reflect real first-party reviews; emitting an invented
+    // score risks a manual action, and it's worse than the "missing field"
+    // warning it was quietly avoiding. Omit the block entirely when there's
+    // nothing real to report — that's the compliant behaviour, not a gap.
+    const hasRealRating = !!(product?.review_count && product.review_count > 0 && product?.avg_rating);
+    const avgRating = product?.avg_rating;
+    const reviewCount = product?.review_count;
     const productUrl = typeof window !== 'undefined' ? window.location.href : '';
     const productImages = [product?.image_url, ...(product?.images || [])].filter(Boolean);
+    // Search Console flagged offers missing "validFrom" (Merchant listings).
+    // Use the product's own listing date — falls back to "now" only for the
+    // (should-never-happen) case where a product has neither.
+    const validFrom = product?.created_at || new Date().toISOString();
 
     // ─── High-intent Product + Offer schema ───
     const schemaData: Record<string, any> = {
@@ -72,20 +84,25 @@ export function StructuredProductData({ product, fallbackPrice }: { product: Pro
             "priceCurrency": "NGN",
             "offerCount": count.toString(),
             "availability": "https://schema.org/InStock",
+            "validFrom": validFrom,
             "url": productUrl || undefined,
             "seller": {
                 "@type": "Organization",
                 "name": product?.seller_name || "FairPrice Nigeria"
             }
-        },
-        "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": avgRating.toFixed(1),
-            "bestRating": "5",
-            "worstRating": "1",
-            "reviewCount": reviewCount.toString()
         }
     };
+
+    // Only when there's a genuine rating to report — see hasRealRating above.
+    if (hasRealRating) {
+        schemaData["aggregateRating"] = {
+            "@type": "AggregateRating",
+            "ratingValue": avgRating!.toFixed(1),
+            "bestRating": "5",
+            "worstRating": "1",
+            "reviewCount": reviewCount!.toString()
+        };
+    }
 
     // Conditionally add brand
     if (brand) {

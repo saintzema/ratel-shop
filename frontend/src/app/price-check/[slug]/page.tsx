@@ -101,10 +101,11 @@ export default async function PriceCheckPage({ params }: Props) {
             "highPrice": maxPrice,
             "priceCurrency": "NGN",
             "offerCount": matches.length + 3, // Inclusion of external tracked merchants
+            "validFrom": new Date().toISOString(),
             "offers": [
-                { "@type": "Offer", "price": comparisonData.jumia, "priceCurrency": "NGN", "seller": { "@type": "Organization", "name": "Jumia" } },
-                { "@type": "Offer", "price": comparisonData.konga, "priceCurrency": "NGN", "seller": { "@type": "Organization", "name": "Konga" } },
-                { "@type": "Offer", "price": comparisonData.fairPrice, "priceCurrency": "NGN", "seller": { "@type": "Organization", "name": "FairPrice Verified" } }
+                { "@type": "Offer", "price": comparisonData.jumia, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "Jumia" } },
+                { "@type": "Offer", "price": comparisonData.konga, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "Konga" } },
+                { "@type": "Offer", "price": comparisonData.fairPrice, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "FairPrice Verified" } }
             ]
         }
     };
