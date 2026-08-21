@@ -28,7 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { slug } = await params;
     const name = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const title = `${name} Price in Nigeria (Verified Market Rate) | FairPrice.ng`;
-    const description = `Verify the current real market price of ${name} in Nigeria. See the 30-day price trend, compare Jumia vs Konga vs Jiji rates, and find verified FairPrice deals. Avoid overpaying today.`;
+    // No "compare Jumia vs Konga vs Jiji rates" claim — we don't carry their
+    // prices, and the page no longer pretends to (see comparisonData removal).
+    const description = `Verify the current real market price of ${name} in Nigeria against verified FairPrice listings. See the price range, the 30-day trend, and find verified deals. Avoid overpaying today.`;
 
     return {
         title,
@@ -79,14 +81,15 @@ export default async function PriceCheckPage({ params }: Props) {
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     
-    // Mock comparison data for SEO relevance
-    const comparisonData = {
-        jumia: avgPrice * 1.12,
-        konga: avgPrice * 1.08,
-        jiji: avgPrice * 0.95, // Jiji often has lower listed but unverified prices
-        fairPrice: avgPrice
-    };
-
+    // Real marketplace data only.
+    //
+    // This used to carry a `comparisonData` object deriving "Jumia"/"Konga"/"Jiji"
+    // prices arithmetically from our own average (avgPrice * 1.12 etc.) and
+    // publish them — both on-page and as schema.org Offers attributed to those
+    // companies by name. Nobody ever scraped those sites; the numbers were
+    // invented. Publishing fabricated prices under real competitors' names is a
+    // structured-data policy violation and a straightforward misrepresentation,
+    // so it is gone rather than patched. Reinstate only behind a real price feed.
     const fairPrice = matches[0];
 
     // 4. Schema.org AggregateOffer
@@ -94,19 +97,17 @@ export default async function PriceCheckPage({ params }: Props) {
         "@context": "https://schema.org",
         "@type": "Product",
         "name": query.replace(/\b\w/g, l => l.toUpperCase()),
-        "description": `Market price verification for ${query} in Nigeria. Aggregate data from Jumia, Konga, Jiji, and Verified Sellers.`,
+        "description": `Market price verification for ${query} in Nigeria, based on ${matches.length} verified FairPrice listing${matches.length === 1 ? "" : "s"}.`,
         "offers": {
             "@type": "AggregateOffer",
             "lowPrice": minPrice,
             "highPrice": maxPrice,
             "priceCurrency": "NGN",
-            "offerCount": matches.length + 3, // Inclusion of external tracked merchants
+            // Real listings only — this was `matches.length + 3` to account for
+            // three "external tracked merchants" that were never tracked.
+            "offerCount": matches.length,
             "validFrom": new Date().toISOString(),
-            "offers": [
-                { "@type": "Offer", "price": comparisonData.jumia, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "Jumia" } },
-                { "@type": "Offer", "price": comparisonData.konga, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "Konga" } },
-                { "@type": "Offer", "price": comparisonData.fairPrice, "priceCurrency": "NGN", "validFrom": new Date().toISOString(), "seller": { "@type": "Organization", "name": "FairPrice Verified" } }
-            ]
+            "availability": "https://schema.org/InStock"
         }
     };
 
@@ -182,22 +183,26 @@ export default async function PriceCheckPage({ params }: Props) {
                                     </div>
                                 </div>
 
+                                {/* Real figures from our own verified listings. This block
+                                    previously showed "Jumia Estimate" / "Konga Estimate" /
+                                    "Jiji" numbers that were computed from this same average
+                                    (× 1.12, × 1.08, × 0.95) — invented, not scraped. */}
                                 <div className="mt-12 pt-8 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-6">
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Jumia Estimate</p>
-                                        <p className="font-bold text-gray-700">{formatPrice(comparisonData.jumia)}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Verified Listings</p>
+                                        <p className="font-bold text-gray-700">{matches.length}</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Konga Estimate</p>
-                                        <p className="font-bold text-gray-700">{formatPrice(comparisonData.konga)}</p>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Lowest Verified</p>
+                                        <p className="font-bold text-gray-700">{formatPrice(minPrice)}</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Jiji (Used/Classified)</p>
-                                        <p className="font-bold text-gray-700">{formatPrice(comparisonData.jiji)}+</p>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Highest Verified</p>
+                                        <p className="font-bold text-gray-700">{formatPrice(maxPrice)}</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-bold text-red-600 uppercase">FairPrice Official</p>
-                                        <p className="font-black text-red-600">{formatPrice(comparisonData.fairPrice)}</p>
+                                        <p className="text-[10px] font-bold text-red-600 uppercase">FairPrice Average</p>
+                                        <p className="font-black text-red-600">{formatPrice(avgPrice)}</p>
                                     </div>
                                 </div>
                             </div>

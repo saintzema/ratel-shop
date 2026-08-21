@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NegotiationRequest, Product } from "@/lib/types";
@@ -36,6 +36,10 @@ export default function NegotiationsPage() {
     const { user } = useAuth();
     const router = useRouter();
     const { openMessageBox } = useMessages();
+    /** Product ids we've already tried to backfill this session — see loadData. */
+    const attemptedRef = useRef<Set<string>>(new Set());
+    /** Products fetched by that backfill, kept out of the capped shared cache. */
+    const backfilledRef = useRef<Map<string, Product>>(new Map());
 
     useEffect(() => {
         const userId = user?.id || user?.email || "";
@@ -45,7 +49,65 @@ export default function NegotiationsPage() {
             // Sort by most recent activity first
             all.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
             setNegotiations(all);
-            setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }));
+
+            const cached = DataSyncService.getProducts({ includeInactiveSellers: true });
+            // Always re-apply anything we've backfilled. The shared product cache
+            // is capped (leanProductsForStorage, 180), so a product we fetched for
+            // this page can be evicted by an unrelated sync — and since we only
+            // attempt each id once, losing it here would bring the stub back for
+            // good. Holding them separately keeps the row correct regardless.
+            const mergeBackfilled = (list: Product[]): Product[] => {
+                if (backfilledRef.current.size === 0) return list;
+                const byId = new Map(list.map((p: any) => [String(p.id), p]));
+                backfilledRef.current.forEach((p, id) => { if (!byId.has(id)) byId.set(id, p); });
+                return Array.from(byId.values()) as Product[];
+            };
+            setProducts(mergeBackfilled(cached));
+
+            // Backfill any product this device has never cached.
+            //
+            // The row renders products.find(p => p.id === neg.product_id), and the
+            // list above is *only* the local cache. A negotiation on a product this
+            // browser never personally saw — offered from another device, or cached
+            // before our localStorage quota purge — found nothing and rendered the
+            // "Product Info Unavailable" / "Unknown Seller" / LISTED ₦0 stub, even
+            // though the product exists and the offer is perfectly valid.
+            const cachedIds = new Set(cached.map(p => String(p.id)));
+            const missing = Array.from(new Set(
+                all.map(n => String(n.product_id)).filter(id =>
+                    id && !cachedIds.has(id) && !attemptedRef.current.has(id)
+                )
+            ));
+            if (missing.length > 0) {
+                // Mark attempted BEFORE fetching. addRawProducts always dispatches
+                // sync-store-update, which re-enters loadData — and the product
+                // cache is capped (leanProductsForStorage, 180), so a backfilled
+                // product can be evicted immediately and look "missing" again.
+                // Without this guard those two facts form an endless fetch loop,
+                // the same shape as the request storm that once cost this app
+                // thousands of requests in a single session. One attempt per id
+                // per session; a genuine 404 also stops here rather than retrying.
+                missing.forEach(id => attemptedRef.current.add(id));
+                Promise.all(missing.map(id =>
+                    fetch(`/api/products/${encodeURIComponent(id)}`)
+                        .then(r => r.ok ? r.json() : null)
+                        .catch(() => null)
+                )).then(results => {
+                    const fetched = results
+                        .map((r: any) => r?.product || r)
+                        .filter((p: any) => p && p.id);
+                    if (fetched.length === 0) return;
+                    for (const p of fetched) backfilledRef.current.set(String(p.id), p);
+                    // Persist through DataSyncService so the rest of the app sees
+                    // them too, then merge into local state for an immediate repaint.
+                    try { DataSyncService.addRawProducts(fetched as any, false); } catch { /* non-critical */ }
+                    setProducts(prev => {
+                        const byId = new Map(prev.map((p: any) => [String(p.id), p]));
+                        for (const p of fetched) byId.set(String(p.id), p);
+                        return Array.from(byId.values()) as Product[];
+                    });
+                });
+            }
         };
 
         loadData();
