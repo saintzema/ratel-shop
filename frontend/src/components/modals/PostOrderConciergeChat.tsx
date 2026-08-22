@@ -292,15 +292,27 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 DataSyncService.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
             }
 
-            let zivaText = "I've noted your concern and notified the merchant. Our support team is also monitoring this request and will step in shortly if needed.";
+            // Neutral fallback. This used to read "I've noted your concern and
+            // notified the merchant. Our support team is also monitoring this
+            // request..." — which is the branch a message hits when it matched
+            // NOTHING, so no merchant was notified and no support team was
+            // watching. It told the buyer an action had been taken that hadn't,
+            // and it answered a plain "hello" as though a complaint were filed.
+            // Say what is actually true and offer a way forward instead.
+            let zivaText = `I'm here to help with order **${trackingId}** — tracking, returns, cancellations, or getting photos of your item from the seller. What do you need?`;
 
             const lowerText = text.toLowerCase();
+
+            // A greeting is not a complaint. Answer it like a person would.
+            const isGreeting = /^\s*(hi|hey|hello|good\s*(morning|afternoon|evening|day)|yo|howdy|hola)\b[\s!.,]*$/i.test(text.trim());
 
             const isCancelIntent = mode === "cancel" || lowerText.includes("cancel order") || lowerText === "cancel" || lowerText === "cancel it" || lowerText.includes("yes cancel");
 
             const isHumanRequest = /\b(human|person|agent|support|manager|escalate|real|live)\b/i.test(lowerText);
 
-            if (isHumanRequest) {
+            if (isGreeting) {
+                zivaText = `Hi 👋 I'm Ziva. I can help with order **${trackingId}** — where it is, returning it, cancelling it, or asking the seller for photos of the actual item. What would you like to do?`;
+            } else if (isHumanRequest) {
                 // Save escalation to admin inbox
                 const currentUser = DataSyncService.getCurrentUser();
                 const userIdLog = currentUser?.id || "guest_session";

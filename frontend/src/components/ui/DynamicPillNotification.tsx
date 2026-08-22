@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useBottomChromeOffset } from "@/lib/use-bottom-chrome";
 import { 
     MessageCircle, 
     ShoppingCart, 
@@ -40,6 +41,9 @@ const ackDeal = (key: string) => {
 };
 
 export function DynamicPillNotification() {
+    /** Keeps the pill clear of the bottom nav and any message composer. */
+    const bottomOffset = useBottomChromeOffset(96);
+
     const { pendingNotification, pendingConversationId, dismissNotification, openMessageBox } = useMessages();
     const { addToCart } = useCart();
     const { showNotification } = useNotification();
@@ -422,7 +426,13 @@ export function DynamicPillNotification() {
     return (
         <AnimatePresence>
             {visible && (
-                <div className="fixed bottom-32 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pb-[env(safe-area-inset-bottom,0px)]">
+                <div
+                    // Sits above whatever bottom chrome this page actually has
+                    // (nav, message composer) instead of a hardcoded bottom-32,
+                    // which covered the reply box on message threads.
+                    style={{ bottom: bottomOffset }}
+                    className="fixed left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pb-[env(safe-area-inset-bottom,0px)]"
+                >
                     <motion.div
                         layout
                         initial={{ opacity: 0, y: 100, scale: 0.6, filter: "blur(20px)" }}

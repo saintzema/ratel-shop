@@ -335,7 +335,7 @@ export default function MessagesPage() {
                                 </div>
 
                                 {/* Input */}
-                                <div className="px-4 py-3 border-t border-gray-100 bg-white">
+                                <div data-bottom-chrome className="px-4 py-3 border-t border-gray-100 bg-white">
                                     <div className="flex items-end gap-2">
                                         <textarea
                                             value={inputText}
