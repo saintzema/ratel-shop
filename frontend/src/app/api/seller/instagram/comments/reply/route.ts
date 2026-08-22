@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { resolveSellerForUser } from "@/lib/resolve-seller";
 
 /**
  * POST /api/seller/instagram/comments/reply  { commentId, message }
@@ -11,10 +12,7 @@ export async function POST(req: NextRequest) {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const seller = await db.seller.findFirst({
-        where: { OR: [{ userId: user.userId }, ...(user.email ? [{ ownerEmail: user.email }] : [])] },
-        select: { id: true, instagramAccessToken: true },
-    });
+    const seller = await resolveSellerForUser(user, { id: true, instagramAccessToken: true });
     if (!seller?.instagramAccessToken) {
         return NextResponse.json({ error: "Instagram not connected" }, { status: 400 });
     }

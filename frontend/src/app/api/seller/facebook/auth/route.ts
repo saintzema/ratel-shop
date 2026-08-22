@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { resolveSellerForUser } from "@/lib/resolve-seller";
 import { facebookRedirectUri } from "@/lib/meta-oauth-redirect";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
@@ -19,10 +20,7 @@ export async function GET(req: NextRequest) {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const seller = await db.seller.findFirst({
-        where: { OR: [{ userId: user.userId }, ...(user.email ? [{ ownerEmail: user.email }] : [])] },
-        select: { id: true },
-    });
+    const seller = await resolveSellerForUser(user, { id: true });
     if (!seller) {
         return NextResponse.json({ error: "No seller account found. Complete seller onboarding first." }, { status: 404 });
     }

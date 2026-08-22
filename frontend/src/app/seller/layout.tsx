@@ -137,7 +137,11 @@ export default function SellerLayout({
                 try {
                     const user = JSON.parse(userStr);
                     const allSellers = DataSyncService.getSellers();
-                    const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
+                    // Deterministic: a placeholder store from the quick-list flow must never
+                    // win over the store this seller actually trades under.
+                    const myStore = DataSyncService.pickPrimarySeller(
+                        DataSyncService.findSellersForUser(user.id, user.email)
+                    );
                     if (myStore) {
                         // User owns a store, auto-login to seller session
                         DataSyncService.loginSeller(myStore.id);
@@ -161,12 +165,35 @@ export default function SellerLayout({
                             if (dbSellers === null) return; // Skipped due to offline
                             
                             if (Array.isArray(dbSellers)) {
-                                const dbStore = dbSellers.find((s: any) => 
-                                    s.user_id === user.id || 
-                                    s.owner_email === user.email || 
-                                    s.userId === user.id || 
+                                // This .find() returned an arbitrary row, and it is the
+                                // path that writes fp_current_seller. A user can own
+                                // several seller rows (the quick-list flow drafts a
+                                // placeholder "<Name>'s Shop"), so picking the wrong one
+                                // here poisons the whole session: bank/WhatsApp read as
+                                // missing, the product list comes back empty, and the
+                                // placeholder's name triggers the onboarding redirect.
+                                // Rank the same way the server resolver does, tolerating
+                                // both API casings.
+                                const mine = dbSellers.filter((s: any) =>
+                                    s.user_id === user.id ||
+                                    s.owner_email === user.email ||
+                                    s.userId === user.id ||
                                     s.ownerEmail === user.email
                                 );
+                                const rank = (s: any) => {
+                                    let n = 0;
+                                    if ((s.bank_name || s.bankName) && (s.account_number || s.accountNumber)) n += 8;
+                                    if (s.verified === true) n += 4;
+                                    if (s.status === "active") n += 2;
+                                    if (s.whatsapp_number || s.whatsappNumber) n += 1;
+                                    return n;
+                                };
+                                const dbStore = mine.sort((a: any, b: any) => {
+                                    const d = rank(b) - rank(a);
+                                    if (d !== 0) return d;
+                                    return new Date(a.joined_at || a.joinedAt || 0).getTime()
+                                         - new Date(b.joined_at || b.joinedAt || 0).getTime();
+                                })[0];
                                 if (dbStore) {
                                     // Found it in the backend!
                                     // Make sure it's seeded locally so DataSyncService functions work

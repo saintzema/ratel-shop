@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { resolveSellerForUser } from "@/lib/resolve-seller";
 
 export const dynamic = "force-dynamic";
 
@@ -19,22 +20,20 @@ export async function GET(req: NextRequest) {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const seller = await db.seller.findFirst({
-        where: { OR: [{ userId: user.userId }, ...(user.email ? [{ ownerEmail: user.email }] : [])] },
-        select: {
-            id: true,
-            bankName: true,
-            accountNumber: true,
-            storeUrl: true,
-            whatsappNumber: true,
-            whatsappEnabled: true,
-            whatsappDirectDM: true,
-            instagramAccessToken: true,
-            instagramUsername: true,
-            instagramTokenExpiry: true,
-            facebookPageId: true,
-            facebookPageName: true,
-        },
+    // Deterministic pick — a user can own several seller rows (the quick-list
+    // flow drafts a placeholder store), and an unordered findFirst here returned
+    // whichever one Postgres felt like. When a bank-less placeholder won, this
+    // endpoint reported paystack/whatsapp as "not connected" for a seller who
+    // had both on file, which is what kept the setup alerts on screen.
+    const seller: any = await resolveSellerForUser(user, {
+        storeUrl: true,
+        whatsappEnabled: true,
+        whatsappDirectDM: true,
+        instagramAccessToken: true,
+        instagramUsername: true,
+        instagramTokenExpiry: true,
+        facebookPageId: true,
+        facebookPageName: true,
     });
 
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });

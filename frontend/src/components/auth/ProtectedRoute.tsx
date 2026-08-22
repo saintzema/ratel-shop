@@ -35,7 +35,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                 // Self-healing check for legacy customers who already own a store but the DB missed their role upgrade
                 if (!isRoleAllowed && allowedRoles?.includes("seller") && user.role === "customer") {
                     const allSellers = DataSyncService.getSellers();
-                    const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
+                    const myStore = DataSyncService.pickPrimarySeller(
+                        DataSyncService.findSellersForUser(user.id, user.email)
+                    );
                     if (myStore) {
                         if (process.env.NODE_ENV === 'development') {
                             console.log("ProtectedRoute: Auto-healing legacy customer to seller role");

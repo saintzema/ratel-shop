@@ -2113,6 +2113,51 @@ class DataSyncServiceService {
         return localStorage.getItem(this.STORAGE_KEYS.CURRENT_SELLER);
     }
 
+    /**
+     * Pick THE real store when a user owns more than one seller row.
+     *
+     * The Sell (+) quick-list flow drafts a placeholder store ("<Name>'s Shop")
+     * alongside whatever store the seller actually trades under, so `.find()`
+     * on user_id/owner_email returns an arbitrary match. One owner in production
+     * had three rows: the real store held the bank account, WhatsApp number and
+     * 300 products, while two placeholders held nothing. When a placeholder won,
+     * the seller was told to re-add details they had already saved, saw "0 items"
+     * on a full catalogue, and got bounced into onboarding.
+     *
+     * Same ranking as the server-side resolver in lib/resolve-seller.ts — the two
+     * must agree, or client and server disagree about who the seller is.
+     */
+    pickPrimarySeller(candidates: Seller[]): Seller | undefined {
+        if (!Array.isArray(candidates) || candidates.length === 0) return undefined;
+        if (candidates.length === 1) return candidates[0];
+
+        const score = (s: any) => {
+            let n = 0;
+            if (s.bank_name && s.account_number) n += 8;
+            if (s.verified === true) n += 4;
+            if (s.status === "active") n += 2;
+            if (s.whatsapp_number) n += 1;
+            return n;
+        };
+
+        return [...candidates].sort((a: any, b: any) => {
+            const d = score(b) - score(a);
+            if (d !== 0) return d;
+            return new Date(a.joined_at || 0).getTime() - new Date(b.joined_at || 0).getTime();
+        })[0];
+    }
+
+    /** Every seller row owned by this user id / email, best match first. */
+    findSellersForUser(userId?: string, email?: string): Seller[] {
+        const uid = (userId || "").toLowerCase();
+        const mail = (email || "").toLowerCase();
+        if (!uid && !mail) return [];
+        return this.getSellers().filter((s: any) =>
+            (uid && (String(s.user_id || "").toLowerCase() === uid || String(s.id || "").toLowerCase() === uid)) ||
+            (mail && String(s.owner_email || "").toLowerCase() === mail)
+        );
+    }
+
     getCurrentSeller(): Seller | undefined {
         const id = this.getCurrentSellerId();
         if (!id) return undefined;
@@ -2124,7 +2169,7 @@ class DataSyncServiceService {
         // Try matching by user_id and auto-heal the stored key.
         const userId = this._getCurrentUserId();
         if (userId) {
-            const byUser = sellers.find(s => s.user_id === userId);
+            const byUser = this.pickPrimarySeller(sellers.filter(s => s.user_id === userId));
             if (byUser) {
                 // Auto-heal: update the stored seller ID to the canonical DB ID
                 this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { resolveSellerForUser } from "@/lib/resolve-seller";
 import { validateMediaForPlatform } from "@/lib/social-media-validate";
 
 const API_VERSION = "v21.0";
@@ -14,10 +15,7 @@ export async function POST(req: NextRequest) {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const seller = await db.seller.findFirst({
-        where: { OR: [{ userId: user.userId }, ...(user.email ? [{ ownerEmail: user.email }] : [])] },
-        select: { id: true, facebookPageId: true, facebookPageAccessToken: true },
-    });
+    const seller = await resolveSellerForUser(user, { id: true, facebookPageId: true, facebookPageAccessToken: true });
     if (!seller?.facebookPageId || !seller.facebookPageAccessToken) {
         return NextResponse.json({ error: "Facebook Page not connected — connect it under Integrations first." }, { status: 400 });
     }

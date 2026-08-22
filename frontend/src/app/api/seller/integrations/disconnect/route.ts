@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { resolveSellerForUser } from "@/lib/resolve-seller";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const provider = String(body?.provider || "").toLowerCase();
 
-    const seller = await db.seller.findFirst({
-        where: { OR: [{ userId: user.userId }, ...(user.email ? [{ ownerEmail: user.email }] : [])] },
-        select: { id: true },
-    });
+    const seller = await resolveSellerForUser(user, { id: true });
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
     let data: Record<string, null | boolean>;
