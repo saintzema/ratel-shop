@@ -4937,7 +4937,7 @@ class DataSyncServiceService {
             { admin: "FairPrice Admin", [actualUserId]: targetName },
             { type: "admin_dm" }
         );
-        this.sendChatMessage(conv.id, "admin", "FairPrice Admin", subject ? `**${subject}**\n${message}` : message);
+        this.sendChatMessage(conv?.id, "admin", "FairPrice Admin", subject ? `**${subject}**\n${message}` : message);
 
         // 3) Also create support message for backward compat
         this.addSupportMessage({
@@ -6442,7 +6442,22 @@ class DataSyncServiceService {
 
     getConversations(userId?: string): any[] {
         if (typeof window === "undefined") return [];
-        const convs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CONVERSATIONS) || "[]");
+        const stored = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CONVERSATIONS) || "[]");
+
+        // Drop threads whose two participants are the same person. Creation is
+        // now blocked (see getOrCreateConversation), but self-threads already
+        // written to localStorage would otherwise keep rendering forever — this
+        // is what showed as "Global Stores · CUSTOMER: GLOBAL_PARTNER", a store
+        // in conversation with itself. Filtering on read heals existing devices
+        // without needing a migration.
+        const sellersCache = this.getSellers();
+        const convs = (Array.isArray(stored) ? stored : []).filter((c: any) => {
+            const p = Array.isArray(c?.participants) ? c.participants.filter(Boolean) : [];
+            if (p.length < 2) return false;
+            const [a, b] = p;
+            return !this.isSameParty(String(a), String(b), sellersCache);
+        });
+
         if (!userId) return convs;
         
         // Build a set of all known IDs for this user (handles seller ID mismatches)
@@ -6460,6 +6475,53 @@ class DataSyncServiceService {
         return convs.filter((c: any) => c.participants.some((p: string) => matchIds.has(p)));
     }
 
+    /**
+     * True when two conversation participant ids resolve to the same human.
+     *
+     * A seller is addressed by their STORE id in buyer↔seller threads, but is
+     * logged in under their USER id — two different strings for one person
+     * (e.g. "global-partners" and "global_partner"). Without resolving that,
+     * a seller who opened a chat on their own listing created a thread with
+     * themselves, which then rendered as "Global Stores · CUSTOMER: …".
+     */
+    isSameParty(a: string, b: string, sellersCache?: Seller[]): boolean {
+        if (!a || !b) return false;
+        if (a === b) return true;
+
+        // Callers filtering a whole list pass the seller array in, so we read
+        // and JSON.parse localStorage once for the list rather than twice per
+        // comparison — that adds up fast on a frequently-called read path.
+        const sellers = sellersCache || this.getSellers();
+
+        const identitiesFor = (id: string): Set<string> => {
+            const out = new Set<string>([String(id).toLowerCase()]);
+
+            // id is a store → add its owner's user id / email
+            const asStore = sellers.find(s => s.id === id);
+            if (asStore) {
+                if (asStore.user_id) out.add(String(asStore.user_id).toLowerCase());
+                if ((asStore as any).owner_email) out.add(String((asStore as any).owner_email).toLowerCase());
+            }
+
+            // id is a user/email → add every store that user owns
+            for (const s of sellers) {
+                const ownerId = s.user_id ? String(s.user_id).toLowerCase() : "";
+                const ownerEmail = (s as any).owner_email ? String((s as any).owner_email).toLowerCase() : "";
+                if (ownerId === String(id).toLowerCase() || (ownerEmail && ownerEmail === String(id).toLowerCase())) {
+                    out.add(String(s.id).toLowerCase());
+                    if (ownerId) out.add(ownerId);
+                    if (ownerEmail) out.add(ownerEmail);
+                }
+            }
+            return out;
+        };
+
+        const setA = identitiesFor(a);
+        const setB = identitiesFor(b);
+        for (const v of setA) if (setB.has(v)) return true;
+        return false;
+    }
+
     getOrCreateConversation(
         participant1: string,
         participant2: string,
@@ -6467,6 +6529,27 @@ class DataSyncServiceService {
         context?: { type: "admin_dm" | "buyer_seller" | "ziva_escalation"; product_id?: string; order_id?: string }
     ): any {
         if (typeof window === "undefined") return null;
+
+        // A conversation needs two different people.
+        //
+        // Nothing stopped participant1 === participant2, which produced the
+        // "Global Stores → CUSTOMER: GLOBAL_PARTNER" thread: a store messaging
+        // itself. It also made the lookup below actively dangerous, because
+        // `includes(X) && includes(X)` is just `includes(X)` — it matches the
+        // FIRST conversation X appears in, so a self-chat would silently attach
+        // to, and render, an unrelated thread belonging to a real counterparty.
+        if (!participant1 || !participant2 || participant1 === participant2) {
+            return null;
+        }
+
+        // Same person, different identifiers. A seller's user id and their store
+        // id are different strings (e.g. "global_partner" vs "global-partners"),
+        // so the equality check above cannot catch a seller opening a buyer chat
+        // on their own listing — which is exactly how that thread was created.
+        if (this.isSameParty(participant1, participant2)) {
+            return null;
+        }
+
         const conversations = this.getConversations();
 
         // Find existing conversation between these two participants
@@ -6500,6 +6583,11 @@ class DataSyncServiceService {
 
     sendChatMessage(conversationId: string, senderId: string, senderName: string, text: string, replyTo?: { sender: string; text: string }): any {
         if (typeof window === "undefined") return null;
+        // getOrCreateConversation now returns null when the two participants are
+        // the same person, so callers can pass an undefined id here. Drop the
+        // message rather than filing it against a conversation that doesn't
+        // exist — an orphaned message would never be readable by anyone.
+        if (!conversationId) return null;
 
         const msg = {
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,

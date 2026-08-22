@@ -489,7 +489,7 @@ export function ZivaChat() {
                     { type: "ziva_escalation" }
                 );
                 DataSyncService.sendChatMessage(
-                    conv.id,
+                    conv?.id,
                     currentUserId,
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: ${data.escalationReason || "Customer Requested Support"}]\n\nTranscript:\n${messages.map(m => `${m.role}: ${m.content}`).join("\n")}`
@@ -636,7 +636,7 @@ export function ZivaChat() {
                         { type: "buyer_seller", product_id: product.id }
                     );
                     DataSyncService.sendChatMessage(
-                        conv.id,
+                        conv?.id,
                         buyerEmail,
                         buyerName,
                         `📸 Image Request: ${product.name}\n\nHi, I'm ${buyerName} and I'm interested in "${product.name}" but there's no product image available. Could you please upload a photo of this product? It would really help me make a purchase decision. Thank you!`
@@ -892,7 +892,7 @@ export function ZivaChat() {
                     { type: "ziva_escalation" }
                 );
                 DataSyncService.sendChatMessage(
-                    conv.id,
+                    conv?.id,
                     userIdLog,
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}\n\nGuest Contact Context: ${hasStoredContact || 'None'}`
@@ -947,7 +947,7 @@ export function ZivaChat() {
                     { type: "buyer_seller", product_id: currentProduct.id }
                 );
                 DataSyncService.sendChatMessage(
-                    conv.id,
+                    conv?.id,
                     buyerEmailLocal,
                     user?.name || "Customer",
                     `📷 Image Request: ${currentProduct.name}\n\nHi, I'm requesting real product images for "${currentProduct.name}" (₦${currentProduct.price.toLocaleString()}).\nMessage: "${resolvedText}"\n\nPlease upload clear product photos to respond to this request.`

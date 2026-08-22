@@ -322,7 +322,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     { type: "ziva_escalation", order_id: trackingId }
                 );
                 DataSyncService.sendChatMessage(
-                    conv.id,
+                    conv?.id,
                     userIdLog,
                     currentUser?.name || "Customer",
                     `[ORDER ESCALATION: Customer Requested Human Support for Order ${trackingId}]\n\nCustomer said: "${text}"`
@@ -410,7 +410,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         );
                         if (conv) {
                             DataSyncService.sendChatMessage(
-                                conv.id,
+                                conv?.id,
                                 currentUser?.id || "guest",
                                 buyerName,
                                 `📸 Hi, I'd like to request real-time photos of the "${product.name}" before it ships. Can you upload images of the actual unit from your warehouse? (Order: ${trackingId})`

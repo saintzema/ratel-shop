@@ -508,8 +508,8 @@ export default function UniversalMessagesPage() {
         } else if (activeConvo.id.startsWith("chat-")) {
             // New direct chat created from stub
             const newConv = DataSyncService.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
-            DataSyncService.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (hasImages ? "[Image Uploaded]" : ""), replyingTo || undefined);
-            setSelectedId(newConv.id);
+            DataSyncService.sendChatMessage(newConv?.id, sellerId, sellerName, chatMessage || (hasImages ? "[Image Uploaded]" : ""), replyingTo || undefined);
+            setSelectedId(newConv?.id);
         } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
             DataSyncService.sendChatMessage(

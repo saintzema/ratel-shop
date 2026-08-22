@@ -80,7 +80,7 @@ function AdminInboxContent() {
                 { type: "admin_dm" }
             );
             setActiveConv(conv);
-            loadMessages(conv.id);
+            loadMessages(conv?.id);
             setMobileShowChat(true);
         }
 
@@ -99,7 +99,7 @@ function AdminInboxContent() {
 
     const openConversation = (conv: any) => {
         setActiveConv(conv);
-        loadMessages(conv.id);
+        loadMessages(conv?.id);
         setMobileShowChat(true);
     };
 
@@ -160,7 +160,7 @@ function AdminInboxContent() {
             { type: "admin_dm" }
         );
         setActiveConv(conv);
-        loadMessages(conv.id);
+        loadMessages(conv?.id);
         setShowCompose(false);
         setComposeTo("");
         setMobileShowChat(true);
@@ -278,11 +278,11 @@ function AdminInboxContent() {
                             filteredConvs.map(conv => {
                                 const other = getOtherParticipant(conv);
                                 const unread = conv.unread_count?.[ADMIN_ID] || 0;
-                                const isActive = activeConv?.id === conv.id;
+                                const isActive = activeConv?.id === conv?.id;
 
                                 return (
                                     <button
-                                        key={conv.id}
+                                        key={conv?.id}
                                         onClick={() => openConversation(conv)}
                                         className={cn(
                                             "w-full text-left px-4 py-3.5 flex items-center gap-3 transition-all border-l-2",
@@ -315,7 +315,7 @@ function AdminInboxContent() {
                                                         </span>
                                                     )}
                                                     <button 
-                                                        onClick={(e) => handleDeleteConversation(conv.id, e)}
+                                                        onClick={(e) => handleDeleteConversation(conv?.id, e)}
                                                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-500 transition-all"
                                                         title="Delete conversation"
                                                     >
