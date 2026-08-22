@@ -6450,12 +6450,19 @@ class DataSyncServiceService {
         // is what showed as "Global Stores · CUSTOMER: GLOBAL_PARTNER", a store
         // in conversation with itself. Filtering on read heals existing devices
         // without needing a migration.
-        const sellersCache = this.getSellers();
+        // ONLY drop threads whose two participant ids are literally identical.
+        //
+        // This previously ran isSameParty() here, resolving store ids to owner
+        // user ids/emails before comparing. That was too aggressive for a read
+        // path: any over-match silently hides a real conversation, and it did —
+        // sellers reported their entire inbox emptying. Hiding a user's messages
+        // is far worse than showing one malformed thread, so identity resolution
+        // now only gates CREATION (getOrCreateConversation), where the intent is
+        // unambiguous and nothing existing can be destroyed.
         const convs = (Array.isArray(stored) ? stored : []).filter((c: any) => {
             const p = Array.isArray(c?.participants) ? c.participants.filter(Boolean) : [];
-            if (p.length < 2) return false;
-            const [a, b] = p;
-            return !this.isSameParty(String(a), String(b), sellersCache);
+            if (p.length < 2) return true; // malformed — leave it visible, don't hide data
+            return String(p[0]) !== String(p[1]);
         });
 
         if (!userId) return convs;

@@ -1493,10 +1493,31 @@ export function ZivaChat() {
 
     return (
         <div
-            className="fp-floating-widget fixed left-6 lg:left-12 z-[1020] w-fit h-fit pointer-events-none transition-all duration-300 ease-out"
-            style={{
-                bottom: containerBottom
-            }}
+            className={cn(
+                "fp-floating-widget fixed z-[1020] pointer-events-none transition-all duration-300 ease-out",
+                // With the keyboard open the panel inside switches to a full-screen
+                // `fixed` layout. But it is a framer-motion child, and motion writes
+                // a `transform` — a transformed ancestor becomes the containing block
+                // for `position: fixed`, so that panel resolved against THIS box
+                // instead of the viewport. This box is `w-fit h-fit` and, because the
+                // bottom offset below adds --kb-height on top of the base inset, was
+                // shoved ~456px up on a ~476px-tall visible area. The panel landed
+                // off-screen: tapping the input made the whole Ziva UI vanish.
+                //
+                // Making the container itself fill the screen while the keyboard is
+                // open means the child resolves correctly whether or not motion has
+                // left a transform on it.
+                kbOpen ? "inset-0 w-full h-full" : "left-6 lg:left-12 w-fit h-fit"
+            )}
+            style={
+                kbOpen
+                    // Don't add --kb-height here as well: the panel docks itself to
+                    // the keyboard, and iOS positions fixed elements against the
+                    // layout viewport, which does not shrink. Adding it twice is
+                    // what produced the off-screen offset.
+                    ? undefined
+                    : { bottom: containerBottom }
+            }
         >
             {/* Click-outside overlay to close chat */}
             {isOpen && (

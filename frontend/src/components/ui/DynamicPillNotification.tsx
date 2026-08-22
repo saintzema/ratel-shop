@@ -24,6 +24,29 @@ import { playDingSound } from "@/lib/audio";
 // Premium Apple-like glass chime notification sound — calming, rich, ~2.5s
 // Migrated to src/lib/audio.ts for global use
 
+// Dedup key for a negotiation pill.
+//
+// These keys used to lead with the negotiation's `id`. Local negotiations are
+// re-created by sync with fresh ids, so the key changed on every pass, the
+// acknowledged-set never matched, and the same "Your offer was ACCEPTED!" pill
+// reappeared forever. Keying on the deal's CONTENT — product, parties, state and
+// price — makes the identity stable across re-syncs, which is the same rule the
+// notification engine already follows: reconcile by content signature, never by
+// id alone.
+function negKey(prefix: string, neg: any): string {
+    if (!neg) return `${prefix}_unknown`;
+    const parts = [
+        prefix,
+        neg.product_id ?? "noprod",
+        neg.customer_id ?? "nocust",
+        neg.seller_id ?? "noseller",
+        neg.status ?? "nostatus",
+        neg.counter_status ?? "none",
+        neg.counter_price ?? neg.proposed_price ?? "noprice",
+    ];
+    return parts.map(String).join("_");
+}
+
 // Persistent "already shown" set so a deal pill (e.g. an accepted negotiation)
 // doesn't re-pop on every page reload. Keyed by negotiation id + status, so a
 // genuinely NEW status change still surfaces. In-memory dedup alone resets on
@@ -126,7 +149,7 @@ export function DynamicPillNotification() {
                     const ageMs = Date.now() - updatedAt;
                     
                     const isNewOffer = n.status === "pending" && !n.counter_status && !n.counter_price;
-                    const notifyKey = `seller_${n.id}_${n.proposed_price}`;
+                    const notifyKey = negKey("seller", n);
                     const lastTime = notifiedHistory.current.get(notifyKey) || 0;
 
                     const isRecent = ageMs < 12000;
@@ -137,7 +160,7 @@ export function DynamicPillNotification() {
 
                 if (recentNeg) {
                     const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
-                    const notifyKey = `seller_${recentNeg.id}_${recentNeg.proposed_price}`;
+                    const notifyKey = negKey("seller", recentNeg);
                     notifiedHistory.current.set(notifyKey, Date.now());
                     
                     setCustomNotification({
@@ -167,7 +190,7 @@ export function DynamicPillNotification() {
                     if (ageMs > 12000) return false;
                     
                     const isSignificantChange = (n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending");
-                    const notifyKey = `buyer_${n.id}_${n.status}_${(n as any).counter_status || 'none'}`;
+                    const notifyKey = negKey("buyer", n);
                     const lastTime = notifiedHistory.current.get(notifyKey) || 0;
 
                     // Skip if this exact deal-state was already acknowledged on a prior
@@ -178,7 +201,7 @@ export function DynamicPillNotification() {
 
                 if (recentBuyerNeg) {
                     const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
-                    const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status || 'none'}`;
+                    const notifyKey = negKey("buyer", recentBuyerNeg);
                     notifiedHistory.current.set(notifyKey, Date.now());
                     ackDeal(notifyKey); // remember across reloads
                     triggerBuyerNotification(recentBuyerNeg, product);
@@ -201,7 +224,7 @@ export function DynamicPillNotification() {
                 // negotiation update on reconnect or page navigation, so without this check
                 // an already-acknowledged "offer accepted" pill would keep reappearing
                 // indefinitely — exactly the stuck-notification bug reported.
-                const notifyKey = `buyer_${neg.id}_${neg.status}_${neg.counter_status || 'none'}`;
+                const notifyKey = negKey("buyer", neg);
                 if (getDealAckSet().has(notifyKey)) return;
                 ackDeal(notifyKey);
                 const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
@@ -212,7 +235,7 @@ export function DynamicPillNotification() {
                 // no dedup at all, so a redelivered SSE event (reconnect, navigation) kept
                 // re-showing an already-seen pill indefinitely. An admin account that also
                 // owns a seller identity (e.g. Global Stores) hits this path routinely.
-                const notifyKey = `seller_${neg.id}_${neg.proposed_price}_${neg.status}`;
+                const notifyKey = negKey("seller", neg);
                 if (getDealAckSet().has(notifyKey)) return;
                 ackDeal(notifyKey);
                 const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);

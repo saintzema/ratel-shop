@@ -143,7 +143,12 @@ function HomeContent() {
   // only the timing of the *next* paint changes.)
   useLayoutEffect(() => {
     const refresh = () => {
-      setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
+      // Same "never clobber with empty" rule as the seller product list: refresh()
+      // fires on every sync-store-update, and a mid-write or evicted cache returns
+      // [] — which blanked the shelves and left only the category boxes showing.
+      // Keep the last good catalogue until a non-empty read replaces it.
+      const showable = DataSyncService.getApprovedProducts().filter(p => p.is_active);
+      setAllProducts(prev => (showable.length === 0 && prev.length > 0 ? prev : showable));
       
       let hasSellerRole = false;
       try {

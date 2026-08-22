@@ -90,7 +90,16 @@ function SellerProductsContent() {
         const sellerId = DataSyncService.getCurrentSellerId();
         const sellerInfo = DataSyncService.getCurrentSeller();
         if (!sellerId) {
-            router.push("/seller/login");
+            // Do NOT navigate away here.
+            //
+            // getCurrentSellerId() reads localStorage, and it is transiently null
+            // on a cold start before the seller layout's auto-login has resolved
+            // the store. Redirecting on that race is what made tapping "Products"
+            // paint the page and then immediately bounce back to Overview — and
+            // what sent the payout alert to onboarding for a fully registered
+            // seller. The layout owns the auth decision and will redirect for a
+            // genuinely signed-out user; this page just waits for the session.
+            setLoading(false);
             return;
         }
 
@@ -105,7 +114,16 @@ function SellerProductsContent() {
             // Fetch products for this specific seller from global sync store first for better consistency
             const all = DataSyncService.getProducts({ includeInactiveSellers: true });
             const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
-            setProducts(sellerProducts);
+            // Never replace a populated list with an empty one.
+            //
+            // loadProducts re-runs on every sync-store-update, and the shared
+            // product cache is capped and can be evicted or written mid-sync. When
+            // that happened this filter returned [] and wiped a good list — the
+            // "166 items, then 0 items" flash. An empty local result is far more
+            // likely to mean "cache not ready" than "this seller has no products",
+            // so keep what we have and let the authoritative DB fetch below settle
+            // it. It clears legitimately via the explicit delete path.
+            setProducts(prev => (sellerProducts.length === 0 && prev.length > 0 ? prev : sellerProducts));
 
             // The DB is the source of truth for a seller's own product list.
             //
