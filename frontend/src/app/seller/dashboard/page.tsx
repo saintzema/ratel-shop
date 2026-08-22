@@ -60,6 +60,10 @@ export default function SellerDashboard() {
     // seller to re-add a bank account they already have is worse than silence.
     const { flags: integrationFlags } = useIntegrationStatus();
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
+    /** Which accept/reject is in flight, so the buttons can show it and block double-taps. */
+    const [negActionPending, setNegActionPending] = useState<{ id: string; status: string } | null>(null);
+    /** Outcome of the last accept/reject, shown inline so the action is never silent. */
+    const [negActionResult, setNegActionResult] = useState<{ id: string; ok: boolean; message: string } | null>(null);
     const [orders, setOrders] = useState<Order[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
@@ -253,21 +257,55 @@ export default function SellerDashboard() {
     }, [router, user?.id, user?.email]); // Added user.email for better detection
 
     const handleNegAction = async (id: string, status: "accepted" | "rejected") => {
-        // 1. Update local state immediately for fast UI
+        if (negActionPending) return; // guard double-taps while a request is in flight
+        setNegActionPending({ id, status });
+        setNegActionResult(null);
+
+        const reloadList = () => {
+            const sellerId = DataSyncService.getCurrentSellerId();
+            if (sellerId) setNegotiations(DataSyncService.getNegotiations(sellerId));
+        };
+
+        // 1. Optimistic local update so the row responds instantly.
         DataSyncService.updateNegotiationStatus(id, status, "seller");
-        const sellerId = DataSyncService.getCurrentSellerId();
-        if (sellerId) {
-            setNegotiations(DataSyncService.getNegotiations(sellerId));
-        }
-        // 2. Sync to PostgreSQL database
+        reloadList();
+
+        // 2. Persist. This previously only console.warn'd on failure: the offer
+        //    disappeared from the seller's list, the buyer was never told, and the
+        //    row reappeared on the next refresh with no explanation. A write that
+        //    didn't happen must not look like one that did.
         try {
-            await fetch("/api/negotiations", {
+            const res = await fetch("/api/negotiations", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id, status }),
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            // Says only what is guaranteed. The buyer notification lives in
+            // updateNegotiationStatus and is gated on the product being resolvable
+            // from the local cache, so it can silently not fire — claiming "the
+            // buyer has been notified" would be the same false assurance Ziva used
+            // to give. The status change itself is what we can vouch for.
+            setNegActionResult({
+                id,
+                ok: true,
+                message: status === "accepted"
+                    ? "Offer accepted. The buyer can now check out at the agreed price."
+                    : "Offer declined.",
+            });
         } catch (e) {
-            console.warn("DB sync for negotiation failed — will retry on next refresh", e);
+            console.warn("DB sync for negotiation failed", e);
+            // Put it back exactly as it was, so the list matches the server.
+            DataSyncService.updateNegotiationStatus(id, "pending", "seller");
+            reloadList();
+            setNegActionResult({
+                id,
+                ok: false,
+                message: "Couldn't save that — check your connection and try again. The offer is still pending.",
+            });
+        } finally {
+            setNegActionPending(null);
         }
     };
 
@@ -1002,6 +1040,34 @@ export default function SellerDashboard() {
                         </Link>
                     </div>
 
+                    {/* Outcome of the last accept/reject. Lives outside the list on
+                        purpose: acting on an offer removes it from pendingNegs, so a
+                        message rendered inside the row would unmount the instant it
+                        became relevant — which is exactly why these buttons felt like
+                        they did nothing. */}
+                    {negActionResult && (
+                        <div
+                            role="status"
+                            className={`mx-5 mt-4 flex items-start gap-2 rounded-2xl border px-4 py-3 text-xs font-semibold ${
+                                negActionResult.ok
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                    : "bg-rose-50 border-rose-200 text-rose-800"
+                            }`}
+                        >
+                            {negActionResult.ok
+                                ? <CheckCircle className="h-4 w-4 shrink-0 mt-px" />
+                                : <XCircle className="h-4 w-4 shrink-0 mt-px" />}
+                            <span className="flex-1">{negActionResult.message}</span>
+                            <button
+                                onClick={() => setNegActionResult(null)}
+                                className="shrink-0 opacity-60 hover:opacity-100"
+                                aria-label="Dismiss"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    )}
+
                     <div className="divide-y divide-gray-100 flex-1">
                         {pendingNegs.length === 0 ? (
                             <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations</div>
@@ -1032,11 +1098,30 @@ export default function SellerDashboard() {
                                                 </div>
                                             </div>
                                             <div className="flex flex-col gap-2 shrink-0">
-                                                <Button size="sm" onClick={() => handleNegAction(neg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-8 px-4 text-xs font-bold shadow-sm">
-                                                    <CheckCircle className="h-4 w-4 mr-1.5" /> Accept
+                                                <Button
+                                                    size="sm"
+                                                    disabled={!!negActionPending}
+                                                    onClick={() => handleNegAction(neg.id, "accepted")}
+                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-8 px-4 text-xs font-bold shadow-sm disabled:opacity-60"
+                                                >
+                                                    {negActionPending?.id === neg.id && negActionPending.status === "accepted" ? (
+                                                        <><span className="h-3.5 w-3.5 mr-1.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Accepting…</>
+                                                    ) : (
+                                                        <><CheckCircle className="h-4 w-4 mr-1.5" /> Accept</>
+                                                    )}
                                                 </Button>
-                                                <Button size="sm" variant="outline" onClick={() => handleNegAction(neg.id, "rejected")} className="border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl h-8 px-4 text-xs font-bold bg-white shadow-sm transition-colors">
-                                                    <XCircle className="h-4 w-4 mr-1.5" /> Reject
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={!!negActionPending}
+                                                    onClick={() => handleNegAction(neg.id, "rejected")}
+                                                    className="border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl h-8 px-4 text-xs font-bold bg-white shadow-sm transition-colors disabled:opacity-60"
+                                                >
+                                                    {negActionPending?.id === neg.id && negActionPending.status === "rejected" ? (
+                                                        <><span className="h-3.5 w-3.5 mr-1.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> Declining…</>
+                                                    ) : (
+                                                        <><XCircle className="h-4 w-4 mr-1.5" /> Reject</>
+                                                    )}
                                                 </Button>
                                             </div>
                                         </div>
@@ -1076,13 +1161,17 @@ export default function SellerDashboard() {
                                                 </div>
                                                 <div className="min-w-0">
                                                     <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
-                                                    <div className="flex items-center gap-3 mt-1 5">
+                                                    <div className="flex items-center gap-3 mt-1.5">
                                                         <span className="text-sm font-black text-emerald-600">{formatPrice(order.amount)}</span>
                                                     </div>
                                                     <p className="text-[11px] text-gray-500 mt-1 font-medium bg-gray-100 inline-block px-2 py-0.5 rounded-md">#{order.id.split('-')[1] || order.id.substring(0, 8)}</p>
                                                 </div>
                                             </div>
-                                            <Link href={`/seller/orders`}>
+                                            {/* Deep-link to THIS order. It used to point at the bare
+                                                /seller/orders list, so tapping Process just dropped you
+                                                on an unchanged page — indistinguishable from a dead
+                                                button. The orders page already auto-expands ?id=. */}
+                                            <Link href={`/seller/orders?id=${encodeURIComponent(order.id)}`}>
                                                 <Button size="sm" className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-xl h-8 px-3 text-xs font-bold shadow-sm transition-colors border">
                                                     Process
                                                 </Button>

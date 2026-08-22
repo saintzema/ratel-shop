@@ -1539,7 +1539,13 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased", actor: "buyer" | "seller" = "seller") {
+    /**
+     * `pending` is accepted so a failed accept/reject can be rolled back to the
+     * state the server still holds. The notification and email branches below are
+     * keyed on "accepted"/"rejected", so reverting stays silent — it must not
+     * fire a second round of buyer messages for an action that never landed.
+     */
+    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased" | "pending", actor: "buyer" | "seller" = "seller") {
         const current = this.getNegotiations();
         const negotiation = current.find(n => n.id === id);
         if (!negotiation) return;
