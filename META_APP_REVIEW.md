@@ -627,3 +627,107 @@ correct.
 
 The legitimate way to earn those stars is to collect real reviews — the
 post-delivery review prompt already exists in the order flow.
+
+---
+
+## 11. "Something Went Wrong" when uploading a screencast
+
+Meta's uploader fails with a generic dialog and no detail. Refreshing rarely
+helps because the cause is usually the file or the browser, not the page.
+
+Work through these in order.
+
+### a) Re-encode the video — the most common fix
+
+Meta's uploader is fussy about codecs. A `.mp4` container can still hold HEVC/
+H.265 (everything QuickTime and iPhone screen recordings produce by default),
+which the uploader rejects without saying so. Force **H.264 + AAC**:
+
+```bash
+ffmpeg -i input.mov \
+  -vcodec libx264 -profile:v baseline -level 3.1 -pix_fmt yuv420p \
+  -acodec aac -b:a 128k \
+  -vf "scale=1280:-2" -r 30 \
+  -movflags +faststart \
+  screencast-ready.mp4
+```
+
+`-pix_fmt yuv420p` and `-profile:v baseline` matter most — they force the widely
+compatible encoding. `+faststart` moves the index to the front of the file, which
+some uploaders require to begin processing.
+
+Check the result is genuinely H.264:
+
+```bash
+ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 screencast-ready.mp4
+# must print: h264
+```
+
+### b) Get the file under ~50 MB
+
+Long recordings from a Mac are frequently 300 MB+. Add `-crf 28` to shrink hard:
+
+```bash
+ffmpeg -i input.mov -vcodec libx264 -crf 28 -preset slow -pix_fmt yuv420p \
+  -acodec aac -b:a 96k -vf "scale=1280:-2" -movflags +faststart small.mp4
+ls -lh small.mp4
+```
+
+Keep each recording to **2–4 minutes**. One permission per file.
+
+### c) Disable extensions / use a clean browser profile
+
+Your screenshots show a customised browser with extensions loaded. Ad blockers,
+privacy extensions and script blockers routinely break Meta's chunked upload XHR —
+and the failure surfaces as exactly this dialog.
+
+Open `developers.facebook.com` in a **clean profile or private window with all
+extensions disabled**, or try a different browser entirely. This alone resolves it
+a large share of the time.
+
+### d) The form session goes stale
+
+The Allowed Usage page is marked "Auto-saved" and holds a session token that
+expires. If the tab has been open a long while, the upload posts against a dead
+token and fails generically.
+
+Close every `developers.facebook.com` tab, sign out, sign back in, go straight to
+the permission, and upload as the first thing you do.
+
+### e) Last resort — a hosted link
+
+If the uploader will not cooperate, some permission forms accept a URL in the
+description field instead. Upload the recording as an **unlisted YouTube video**
+or a public Google Drive link (set to "anyone with the link"), and add to the
+description:
+
+> Screencast: https://…  (uploader repeatedly failed; link provided instead)
+
+Not ideal, and not accepted on every form, but better than a stalled submission.
+
+---
+
+## 12. Check your permission descriptions before submitting
+
+A description that references a permission you are **not** requesting is a
+rejection risk on its own — it tells the reviewer the submission and the product
+disagree.
+
+Currently in the `instagram_business_content_publish` description:
+
+> "…instagram_manage_contents (delete) lets a seller remove a post FairPrice made
+> for them if they change their mind, directly from the same dashboard."
+
+`instagram_manage_contents` is a **legacy Graph API permission that this app does
+not request and the code never calls** (see §0). Remove that sentence. Describe
+only what `instagram_business_content_publish` does: creating the post.
+
+Suggested replacement for that final sentence:
+
+> Publishing happens only when the seller presses "Post now" or schedules a post
+> for a time they explicitly chose. We never publish without an explicit seller
+> action.
+
+Read every description with the same question: **does this mention any permission
+that is not in this submission, or any feature a reviewer cannot reproduce in the
+live product?** If yes, cut it.
