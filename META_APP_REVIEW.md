@@ -731,3 +731,167 @@ Suggested replacement for that final sentence:
 Read every description with the same question: **does this mention any permission
 that is not in this submission, or any feature a reviewer cannot reproduce in the
 live product?** If yes, cut it.
+
+---
+
+## 13. Descriptions for the ads permissions
+
+**Read §9 before pasting these.** All three descriptions are truthful about what
+the code does — campaign creation and insights read-back are both implemented and
+in production. What is *not* true yet is that a campaign has ever delivered, which
+is what the test-call gate and the screencast requirement actually measure.
+
+`ads_read` is now genuinely satisfiable: the seller dashboard's Promotion
+Performance panel issues real `/insights` reads on every load. `ads_management` and
+`pages_manage_ads` are not, until you run one real campaign.
+
+---
+
+### `ads_read`
+
+> FairPrice.ng is a Nigerian marketplace. Sellers can pay us to promote a product listing, and we run that promotion as a real Meta ad from FairPrice's own ad account — the seller never needs their own Ads Manager, which is the entire point for a small trader who has never bought an ad.
+>
+> We use ads_read to fetch performance for the campaigns we created on that seller's behalf: impressions, reach, link clicks, spend, CPM, CPC and CTR, read from the /insights edge. Those figures are shown to the seller in the "Promotion Performance" panel on their FairPrice dashboard, alongside what happened on our own platform afterwards — how many people opened the product page, revealed the seller's phone number, or started a WhatsApp conversation.
+>
+> This is necessary because a seller who pays for promotion is entitled to see what their money produced. Without ads_read we can spend a seller's money and show them nothing, which we are not willing to do. We read only campaigns our own app created, in our own ad account. We never read any other advertiser's data.
+
+**Screencast — `screencast-ads-read.mp4`:**
+1. Signed out at `https://www.fairprice.ng` → sign in as the seller.
+2. Go to **Seller Dashboard**.
+3. Scroll to **Promotion Performance**.
+4. Press the **refresh** control on that panel — this issues the live `/insights` read.
+5. Let the numbers fill in: reach, clicks, CTR, contacts, cost per contact.
+6. Hold on the panel long enough to read it.
+
+> This requires at least one campaign that has delivered. A campaign with zero
+> delivery renders "Not delivering yet", which does not demonstrate the permission.
+
+---
+
+### `pages_manage_ads`
+
+> When a FairPrice seller pays to promote a product, the resulting Meta ad must run under the seller's own Facebook Page identity, not under FairPrice's — buyers should see the shop they are actually buying from. We use pages_manage_ads on the Page the seller explicitly connected so that Page can be used as the ad's identity when we build the ad creative.
+>
+> The flow is: the seller connects their Page (pages_show_list), publishes a product post to it (pages_manage_posts), then chooses a paid boost package and pays. We then create a campaign, ad set, creative and ad in FairPrice's ad account, where the creative's object_story_id points at that seller's Page post. pages_manage_ads is what authorises using their Page in that ad.
+>
+> This is necessary because the alternative — adding every seller's Page into FairPrice's Business Manager as a partner asset — does not scale to a self-serve marketplace, and would require far broader access to each seller's assets than this permission does. We use it only for Pages the seller connected, and only to run promotions they paid for.
+
+**Screencast — `screencast-ads-management.mp4`** (covers `pages_manage_ads` and `ads_management`):
+1. Signed out → sign in as the seller → **App Integrations**, show Facebook **Connected**.
+2. Go to **Products**, pick a product, press **Promote**.
+3. Show the boost packages and the **Advertise on Facebook & Instagram** add-on.
+4. Complete payment.
+5. Show the confirmation that the campaign was created.
+6. Cut to **Meta Ads Manager** and show the campaign existing, with the seller's Page as the ad identity.
+7. Return to the FairPrice dashboard and show **Promotion Performance** listing it.
+
+---
+
+### `ads_management`
+
+> FairPrice.ng sells promotion as a paid add-on to Nigerian marketplace sellers. When a seller buys one, we use ads_management to create the campaign, ad set, ad creative and ad in FairPrice's own ad account, targeting Nigeria, promoting the product post the seller already published to their connected Page or Instagram account.
+>
+> Every object is created paused and only activated once the full set has been built successfully; if any step fails we delete what was already created rather than leave an orphaned half-built campaign in the account. Budget and duration come from the package the seller purchased, and the campaign is created only after their payment has been verified server-side.
+>
+> This is necessary because our sellers are small businesses who do not have, and do not want, their own Ads Manager. FairPrice operates the advertising on their behalf as a service they pay for. All objects are created in an ad account FairPrice owns. We never create, modify or read campaigns in any advertiser's account but our own.
+
+**Screencast:** same file as `pages_manage_ads`.
+
+---
+
+### Marketing API Access Tier (Standard Access)
+
+> FairPrice.ng operates paid promotion on behalf of Nigerian marketplace sellers. Sellers buy a boost package, and we create and run the corresponding Meta ad campaign from FairPrice's own ad account, then report performance back to them in their dashboard.
+>
+> We are requesting Standard Access because Basic Access only permits calls against ad accounts in development mode, which cannot spend. Standard Access is required for us to run campaigns that actually deliver for paying customers.
+>
+> Expected call volume is low and directly proportional to purchases: a handful of campaign-creation calls per boost sold, and periodic /insights reads to populate each seller's performance panel. All calls are made against a single ad account owned by FairPrice, using a System User token, never against any third party's ad account.
+
+**No screencast required** for the access tier — it asks only for a description and
+the API test calls.
+
+---
+
+## 14. `instagram_business_manage_comments` — Meta's extra requirements
+
+This permission has stricter screencast rules than the others, spelled out in the
+form itself. Read them carefully:
+
+- Show a real Instagram user **commenting on a post** from the connected professional account.
+- Show the account **replying within 30 seconds**.
+- In the description, **provide a public link to the post** that has automation set up.
+- In the description, **state the keyword or phrase** the reviewer should comment.
+- **Do not provide Instagram credentials.**
+
+Your current description is accurate but does not satisfy the last three. Append
+this to it:
+
+> **Testing instructions for the reviewer:**
+> Please comment on this post from our connected Instagram professional account:
+> `https://www.instagram.com/p/[[POST_SHORTCODE]]/`
+>
+> Use any of these phrases, which are the purchase-intent keywords our dashboard surfaces: **"how much"**, **"is this available"**, or **"price?"**
+>
+> The comment appears in the seller's FairPrice dashboard under Messages → Instagram comments. A seller then replies from that dashboard, and the reply is published to the post via the Comments API. We do not use the Private Replies API.
+>
+> No Instagram credentials are needed to observe this — the reply appears publicly under your comment.
+
+**Replace `[[POST_SHORTCODE]]` with a real, public post** on `@zema_tech_chief`.
+It must stay public and un-deleted throughout the review, which can take weeks.
+
+**Also note:** this permission shows **"0 of 1 API call(s) required"**. Reply to
+one real comment from the dashboard — or run the curl in §8 — and it will clear.
+
+---
+
+## 15. Reviewer instructions — the web form
+
+Site URL is accepted, so the form is unlocked. Paste this into
+**"Provide instructions for accessing the app so we may complete our review"**:
+
+> **What FairPrice.ng is**
+> FairPrice.ng is a Nigerian online marketplace with escrow-protected payments. Sellers run a storefront, list products, and manage orders. The Meta integration lets a seller connect their own Facebook Page and Instagram professional account so they can publish their product listings to those accounts, handle buyer enquiries, and optionally pay to promote a listing as a Meta ad.
+>
+> **Confirmation of Facebook Login usage**
+> Yes, this app uses Facebook Login for Business, and separately Instagram Business Login. Facebook Login for Business is used solely to let a seller connect the Facebook Page they administer, so we can publish their product posts to it and use it as the identity for promotions they pay for. We request only pages_show_list, pages_read_engagement and pages_manage_posts through it. We do not use Facebook Login as a sign-in method for FairPrice accounts — FairPrice accounts use their own email/password authentication.
+>
+> **Test account**
+> Email: [[REVIEWER EMAIL]]
+> Password: [[REVIEWER PASSWORD]]
+> This account already has a Facebook Page and an Instagram professional account connected, and several products listed.
+>
+> **How to test**
+> 1. Go to https://www.fairprice.ng and sign in with the test account above.
+> 2. Open https://www.fairprice.ng/seller/dashboard.
+> 3. Click **App Integrations** in the left sidebar. The Facebook and Instagram cards show as Connected, with the connected account name displayed. To see the connection flow itself, press the disconnect icon and then **Connect App** again.
+> 4. Click **Social Composer** in the left sidebar. Select any product, tick Facebook and/or Instagram, and press **Post now**. On success a **View post** link to the live post appears.
+> 5. Instagram comments and direct messages on the connected account appear under **Messages**, and can be replied to from there.
+> 6. Paid promotion: open **Products**, press **Promote** on any listing, and choose a package. Results appear in the **Promotion Performance** panel on the dashboard.
+>
+> **Geographic availability**
+> FairPrice.ng is available worldwide and is not geo-blocked. The marketplace serves Nigeria, so prices are in Nigerian Naira (₦) and delivery options are Nigerian.
+>
+> **Nothing is posted automatically.** Every publish, reply and promotion is initiated by an explicit seller action.
+
+**Under "supporting documentation"** upload the same screencasts — that field
+accepts up to 2 GB per file and is far more forgiving than the per-permission
+uploader that has been failing (§11).
+
+---
+
+## 16. Still to remove from this submission
+
+Four permissions in the current list cannot be honestly described or demonstrated:
+
+| Permission | Why it must go |
+|---|---|
+| `whatsapp_business_messaging` | No WhatsApp Business API integration exists. Ziva uses `wa.me` deep links, which require no permission at all. There is no flow to record. |
+| `whatsapp_business_management` | Same. We manage no WhatsApp Business Account through the API. |
+| `instagram_business_manage_insights` | Not in the Instagram OAuth scope list, so the token cannot exercise it. Nothing to record, and the test call cannot be made. |
+| `pages_manage_ads` + `ads_management` | Honest descriptions exist above, but **no campaign has ever delivered** — so the required API test calls cannot complete and the screencast has nothing real to show. |
+
+`ads_read` and the Marketing API tier are the two ads items that *can* be
+satisfied today, because the Promotion Performance panel makes real `/insights`
+calls. But `ads_read` on its own is of limited use without the campaign-creation
+permissions, so the cleanest sequence remains: **ship Phase 1 with the 7 core
+permissions, run one real campaign, then submit the ads set together.**
