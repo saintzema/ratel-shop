@@ -1483,6 +1483,22 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             const msg = `Hi! I'd like to order:\n\n*${product?.name || 'Product'}*\nPrice: ₦${(product?.price || 0).toLocaleString()}\n\n${productUrl}\n\nPlease confirm availability and delivery details.`;
                                             window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`, '_blank');
 
+                                            // Count this as a contact on the product.
+                                            //
+                                            // This is the conversion that actually matters to a seller: not
+                                            // "how many people saw the ad" but "how many people messaged me".
+                                            // The button previously only alerted admin, so chatCount never
+                                            // moved and the ads insights panel reported zero contacts even
+                                            // when a boost was working — making paid promotion impossible to
+                                            // evaluate, and cost-per-contact impossible to compute.
+                                            if (product?.id) {
+                                                fetch(`/api/products/${encodeURIComponent(product.id)}/track`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ type: 'chat' }),
+                                                }).catch(() => { /* never block the WhatsApp handoff */ });
+                                            }
+
                                             // Admin (and the seller, if they weren't the recipient above) always
                                             // gets an in-app + email alert so FairPrice can follow up and make
                                             // sure the order actually gets fulfilled, even when it went straight
@@ -1529,6 +1545,16 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     const data = await res.json();
                                                     if (!res.ok) throw new Error(data.error || "Could not load contact info.");
                                                     setRevealedContact(data);
+                                                    // Revealing the seller's number is a buying signal — record
+                                                    // it so paid promotion can be judged on contacts, not just
+                                                    // impressions. Fire-and-forget; never block the reveal.
+                                                    if (product?.id) {
+                                                        fetch(`/api/products/${encodeURIComponent(product.id)}/track`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ type: 'phone' }),
+                                                        }).catch(() => { /* non-critical */ });
+                                                    }
                                                 } catch (err: any) {
                                                     setContactError(err.message || "Could not load contact info.");
                                                 } finally {

@@ -152,3 +152,137 @@ export async function createBoostCampaign(params: CreateBoostParams): Promise<Cr
         return { success: false, error: err?.message || "Ad campaign creation failed." };
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Insights read-back
+//
+// Until this existed, meta-ads.ts created campaigns and never asked how any of
+// them performed — so the "Promote" product was a campaign launcher, not an
+// optimiser, and there was no `ads_read` call anywhere in the codebase to
+// satisfy Meta's required-API-test-call gate.
+//
+// These run under OUR System User token against OUR ad account, so they need
+// `ads_read` assigned in Business Settings — not App Review.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function metaGet(path: string, params: Record<string, string>, token: string): Promise<any> {
+    const qs = new URLSearchParams({ ...params, access_token: token }).toString();
+    const res = await fetch(`https://graph.facebook.com/${API_VERSION}/${path}?${qs}`);
+    return res.json();
+}
+
+/** Normalised performance for one campaign. All money in the ad account currency. */
+export interface CampaignInsights {
+    campaignId: string;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    spend: number;
+    /** Cost per 1,000 impressions. */
+    cpm: number;
+    /** Cost per link click. */
+    cpc: number;
+    /** Click-through rate, percent. */
+    ctr: number;
+    /** Link clicks specifically — the ones that reached the product page. */
+    linkClicks: number;
+    /** Meta's own dateStart/dateStop for the window returned. */
+    dateStart?: string;
+    dateStop?: string;
+    error?: string;
+}
+
+const num = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * Reads performance for a single campaign.
+ *
+ * `date_preset: maximum` covers the campaign's whole life, which is what a
+ * seller wants to see for a boost that ran for a fixed number of days. Meta
+ * returns an empty data array (not an error) for a campaign that has not yet
+ * delivered — treated here as all-zeros rather than a failure, because a
+ * freshly-created campaign legitimately has no numbers for the first while.
+ */
+export async function fetchCampaignInsights(
+    campaignId: string,
+    credentials: MetaAdsCredentials
+): Promise<CampaignInsights> {
+    const empty: CampaignInsights = {
+        campaignId, impressions: 0, reach: 0, clicks: 0, spend: 0,
+        cpm: 0, cpc: 0, ctr: 0, linkClicks: 0,
+    };
+
+    try {
+        const json = await metaGet(
+            `${campaignId}/insights`,
+            {
+                fields: "impressions,reach,clicks,spend,cpm,cpc,ctr,actions,date_start,date_stop",
+                date_preset: "maximum",
+            },
+            credentials.accessToken
+        );
+
+        if (json?.error) return { ...empty, error: json.error.message || "Meta API error" };
+
+        const row = Array.isArray(json?.data) ? json.data[0] : null;
+        if (!row) return empty; // no delivery yet — not an error
+
+        // Link clicks live inside the `actions` breakdown, not as a top-level field.
+        const linkClicks = Array.isArray(row.actions)
+            ? num(row.actions.find((a: any) => a.action_type === "link_click")?.value)
+            : 0;
+
+        return {
+            campaignId,
+            impressions: num(row.impressions),
+            reach: num(row.reach),
+            clicks: num(row.clicks),
+            spend: num(row.spend),
+            cpm: num(row.cpm),
+            cpc: num(row.cpc),
+            ctr: num(row.ctr),
+            linkClicks,
+            dateStart: row.date_start,
+            dateStop: row.date_stop,
+        };
+    } catch (e: any) {
+        return { ...empty, error: e?.message || "Failed to reach Meta" };
+    }
+}
+
+/** Reads several campaigns at once, tolerating individual failures. */
+export async function fetchManyCampaignInsights(
+    campaignIds: string[],
+    credentials: MetaAdsCredentials
+): Promise<Record<string, CampaignInsights>> {
+    const unique = Array.from(new Set(campaignIds.filter(Boolean)));
+    const results = await Promise.all(unique.map(id => fetchCampaignInsights(id, credentials)));
+    const out: Record<string, CampaignInsights> = {};
+    for (const r of results) out[r.campaignId] = r;
+    return out;
+}
+
+/**
+ * Verifies the configured ad account is reachable and the token has ads_read.
+ *
+ * Doubles as the deliberate `ads_read` test call for Meta's App Review gate:
+ * hitting this endpoint once registers the call against the app.
+ */
+export async function verifyAdsReadAccess(
+    credentials: MetaAdsCredentials
+): Promise<{ ok: boolean; accountName?: string; currency?: string; error?: string }> {
+    try {
+        const json = await metaGet(
+            `act_${credentials.adAccountId}`,
+            { fields: "name,currency,account_status,amount_spent" },
+            credentials.accessToken
+        );
+        if (json?.error) return { ok: false, error: json.error.message };
+        return { ok: true, accountName: json?.name, currency: json?.currency };
+    } catch (e: any) {
+        return { ok: false, error: e?.message || "Failed to reach Meta" };
+    }
+}
