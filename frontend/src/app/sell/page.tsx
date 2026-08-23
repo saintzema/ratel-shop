@@ -28,12 +28,69 @@ export default function SellEntryPage() {
         }
 
         started.current = true;
+        // Narrowed once here: the draft helper below is a nested function, and TS
+        // cannot carry the null-check for `user` across that boundary.
+        const currentUser = user;
 
-        const existingSeller = DataSyncService.getCurrentSeller();
-        if (existingSeller) {
+        // Does this user ALREADY own a store? Answer that properly before drafting.
+        //
+        // This used to ask getCurrentSeller(), which reads the localStorage
+        // CURRENT_SELLER key. That key is absent on a new device and after our
+        // quota purge, so an established seller looked brand new and this flow
+        // drafted a second store at `s_${user.id}`. That is precisely how the
+        // duplicate rows in production were created — one owner ended up with a
+        // real store (bank details, WhatsApp, 300 products) plus two empty
+        // placeholders, and every "which seller is this?" lookup could then pick
+        // the wrong one. Check what the user actually owns, locally first, then
+        // the database, and only draft when there genuinely is nothing.
+        const resume = (sellerId: string) => {
+            DataSyncService.loginSeller(sellerId);
             router.replace("/seller/products/new");
+        };
+
+        const localStore = DataSyncService.pickPrimarySeller(
+            DataSyncService.findSellersForUser(user.id, user.email)
+        );
+        if (localStore) {
+            resume(localStore.id);
             return;
         }
+
+        // Nothing locally — the store may simply not be synced to this device yet.
+        (async () => {
+            try {
+                const res = await fetch("/api/sellers?all=true");
+                if (res.ok) {
+                    const rows = await res.json();
+                    if (Array.isArray(rows)) {
+                        const mine = rows.filter((s: any) =>
+                            s.user_id === user.id || s.userId === user.id ||
+                            s.owner_email === user.email || s.ownerEmail === user.email
+                        );
+                        if (mine.length > 0) {
+                            const rank = (s: any) => {
+                                let n = 0;
+                                if ((s.bank_name || s.bankName) && (s.account_number || s.accountNumber)) n += 8;
+                                if (s.verified === true) n += 4;
+                                if (s.status === "active") n += 2;
+                                if (s.whatsapp_number || s.whatsappNumber) n += 1;
+                                return n;
+                            };
+                            const best = mine.sort((a: any, b: any) => rank(b) - rank(a))[0];
+                            try { DataSyncService.addSeller(best); } catch { /* already present */ }
+                            updateUser({ role: "seller" });
+                            resume(best.id);
+                            return;
+                        }
+                    }
+                }
+            } catch {
+                // Offline: fall through and draft. Worst case is a placeholder the
+                // resolver will rank below the real store once sync catches up.
+            }
+            createDraftStore();
+        })();
+        return;
 
         // First time selling — auto-draft a minimal seller record so product
         // creation has a store to attach to, without forcing the full
@@ -41,12 +98,13 @@ export default function SellEntryPage() {
         // what they're selling. Status stays "pending" until they finish
         // onboarding right after creating the product (see the quickSell
         // branch in seller/products/new and seller/onboarding).
+        function createDraftStore() {
         const draftSeller = {
-            id: `s_${user.id}`,
-            user_id: user.id,
-            business_name: user.name ? `${user.name}'s Store` : "My Store",
-            owner_name: user.name,
-            owner_email: user.email,
+            id: `s_${currentUser.id}`,
+            user_id: currentUser.id,
+            business_name: currentUser.name ? `${currentUser.name}'s Store` : "My Store",
+            owner_name: currentUser.name,
+            owner_email: currentUser.email,
             description: "",
             category: "other",
             verified: false,
@@ -64,6 +122,7 @@ export default function SellEntryPage() {
         setTimeout(() => {
             router.replace("/seller/products/new?quickSell=1");
         }, 300);
+        }
     }, [user, isLoading, router, updateUser]);
 
     return (

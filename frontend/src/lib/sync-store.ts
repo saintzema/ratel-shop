@@ -1617,8 +1617,23 @@ class DataSyncServiceService {
         }
 
         if (negotiation && (status === "accepted" || status === "rejected")) {
-            const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
-            if (product) {
+            // Fall back rather than bail when the product isn't cached.
+            //
+            // This whole block used to sit behind `if (product)`, where `product`
+            // came from THIS device's product cache. That cache is capped and
+            // purged, so a seller acting on an offer for a product their browser
+            // hadn't cached notified nobody: the buyer never learned their offer
+            // was accepted or rejected, silently, with no error anywhere. The
+            // negotiation row itself carries the ids we actually need, and the
+            // product name is only used for display text.
+            const cached = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
+            const product: any = cached || {
+                id: negotiation.product_id,
+                name: (negotiation as any).product_name || "your item",
+                seller_id: (negotiation as any).seller_id,
+                price: (negotiation as any).original_price ?? 0,
+            };
+            if (product.seller_id || product.id) {
                 const buyerUser = this.getUser(negotiation.customer_id);
                 const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
                 const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
@@ -2114,9 +2129,37 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("storage"));
     }
 
+    /** Guards the one-time session heal in getCurrentSellerId(). */
+    private _sellerIdHealed = false;
+
     getCurrentSellerId(): string | null {
         if (typeof window === "undefined") return null;
-        return localStorage.getItem(this.STORAGE_KEYS.CURRENT_SELLER);
+        const stored = localStorage.getItem(this.STORAGE_KEYS.CURRENT_SELLER);
+        if (!stored) return null;
+
+        // Most callers read this id directly rather than going through
+        // getCurrentSeller(), so the heal has to live here too — otherwise a
+        // session pinned to a placeholder store keeps every product/order/customer
+        // query pointed at an empty row. Done at most once per page load: this is
+        // a hot path and the heal parses the seller list.
+        if (!this._sellerIdHealed) {
+            this._sellerIdHealed = true;
+            try {
+                const sellers = this.getSellers();
+                const current: any = sellers.find(s => s.id === stored);
+                if (current) {
+                    const better = this.pickPrimarySeller(
+                        this.findSellersForUser(current.user_id, current.owner_email)
+                    );
+                    if (better && better.id !== current.id) {
+                        this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, better.id);
+                        return better.id;
+                    }
+                }
+            } catch { /* never let a heal attempt break session resolution */ }
+        }
+
+        return stored;
     }
 
     /**
@@ -2169,7 +2212,29 @@ class DataSyncServiceService {
         if (!id) return undefined;
         const sellers = this.getSellers();
         const exact = sellers.find(s => s.id === id);
-        if (exact) return exact;
+        if (exact) {
+            // Self-heal a session pinned to the WRONG store.
+            //
+            // Returning `exact` unconditionally was the last hole in the duplicate
+            // -seller fix. Ranking only ran when logging in fresh, so a browser
+            // whose fp_current_seller already held a placeholder (written before
+            // the fix, or by an older build) kept using it forever — which is why
+            // one session could show the dashboard's real 16 negotiations and
+            // ₦7m balance while Orders and Customers, resolving through this key,
+            // reported nothing at all.
+            //
+            // If this user owns a strictly better store, switch to it and rewrite
+            // the key. Only ever moves toward the better-ranked row, so it cannot
+            // fight a deliberate store switch between equally-real stores.
+            const better = this.pickPrimarySeller(
+                this.findSellersForUser(exact.user_id, (exact as any).owner_email)
+            );
+            if (better && better.id !== exact.id) {
+                this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, better.id);
+                return better;
+            }
+            return exact;
+        }
 
         // Fallback: the DB may have a different ID for this seller.
         // Try matching by user_id and auto-heal the stored key.
