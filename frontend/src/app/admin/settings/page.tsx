@@ -212,13 +212,22 @@ export default function AdminSettings() {
                 localStorage.setItem('fp_admin_settings', JSON.stringify({ ...current, ...payload }));
             } catch { /* ignore */ }
 
+            // The write endpoint is admin-gated now, so the token has to go with it.
+            const adminToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
             const res = await fetch("/api/admin/settings", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+                },
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
                 setStatusMsg("✅ Section saved successfully!");
+            } else if (res.status === 401 || res.status === 403) {
+                // Don't claim a local save on an auth failure — the change did NOT
+                // reach the platform, and "Saved locally" reads as success.
+                setStatusMsg("⚠️ Not saved — sign in as an admin and try again.");
             } else {
                 // Return success anyway since we saved to local storage
                 setStatusMsg("✅ Saved locally (Offline Demo Mode)");

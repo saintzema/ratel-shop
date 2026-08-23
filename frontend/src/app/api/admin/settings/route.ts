@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db as prisma } from "@/lib/db";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
@@ -66,6 +67,24 @@ export async function GET() {
 
 export async function POST(req: Request) {
     try {
+        // ADMIN ONLY.
+        //
+        // This had no authentication whatsoever, while spreading arbitrary body
+        // fields straight into SystemSetting. Anyone on the internet could POST
+        // here and rewrite platform configuration — set standardCommission to 0
+        // so the platform earned nothing on every sale, or overwrite
+        // metaAdAccountId / metaAdsAccessToken to point our ad spend at their own
+        // Meta ad account. Verified exploitable against production (HTTP 200 with
+        // no credentials) before this fix.
+        //
+        // The GET above is deliberately public — checkout, the navbar and seller
+        // onboarding all read ordinary config from it, and it already redacts the
+        // Meta token. Only writes are gated.
+        const user = getUserFromRequest(req);
+        if (!user || user.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
         const body = await req.json();
         const { id, createdAt, updatedAt, ...updatableFields } = body; // Destructure to exclude fields we shouldn't update directly if they are sent
 
