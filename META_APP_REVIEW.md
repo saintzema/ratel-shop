@@ -382,3 +382,248 @@ Sequence, because the test-call gate is the blocker:
 Do not attach any of this to the Phase 1 submission. Phase 1 approves posting and
 messaging — features that work today and can be demoed today. Bundling an
 unbuildable ads demo alongside them risks the whole thing.
+
+---
+
+## 8. Running the required API test calls from the terminal
+
+Meta's *"Ensure you have performed required API test calls"* gate is satisfied by
+the app making a real call with the permission. Using the live feature does this
+for you, but when a feature is awkward to trigger on demand — or you want the call
+registered *now* rather than waiting for a buyer — run it directly.
+
+Calls take **up to 24 hours** to appear under **App Review → Testing**.
+
+### Set up your shell once
+
+```bash
+export FB_APP_ID="1000061022523807"
+export FB_APP_SECRET="<Settings → Basic → App Secret>"
+export PAGE_TOKEN="<Graph API Explorer → your Page → Generate Token>"
+export IG_TOKEN="<the seller's Instagram Business token>"
+export SYS_TOKEN="<Business Settings → System Users → Generate Token>"
+export AD_ACCOUNT_ID="<Ads Manager account id, digits only, no act_ prefix>"
+export PAGE_ID="<your Facebook Page id>"
+export IG_USER_ID="<your Instagram Business account id>"
+export GRAPH="https://graph.facebook.com/v21.0"
+```
+
+> Never commit these. `FB_APP_SECRET` and `SYS_TOKEN` grant full control of the app
+> and the ad account respectively.
+
+### Phase 1 permissions
+
+**`pages_show_list`** — list the Pages this user administers:
+
+```bash
+curl -s "$GRAPH/me/accounts?fields=id,name,access_token&access_token=$PAGE_TOKEN" | head -c 800
+```
+
+**`pages_read_engagement`** — read Page metadata:
+
+```bash
+curl -s "$GRAPH/$PAGE_ID?fields=id,name,fan_count,link&access_token=$PAGE_TOKEN"
+```
+
+**`pages_manage_posts`** — publish a post (this posts publicly; use a real product):
+
+```bash
+curl -s -X POST "$GRAPH/$PAGE_ID/feed" \
+  -d "message=Now available on FairPrice.ng — check the verified market price before you buy." \
+  -d "link=https://www.fairprice.ng/store/global-stores" \
+  -d "access_token=$PAGE_TOKEN"
+```
+
+**`instagram_business_basic`** — read the connected account:
+
+```bash
+curl -s "$GRAPH/$IG_USER_ID?fields=id,username,media_count&access_token=$IG_TOKEN"
+```
+
+**`instagram_business_content_publish`** — two steps, container then publish:
+
+```bash
+# 1. Create the media container (image must be a public URL, 4:5–1.91:1)
+CREATION_ID=$(curl -s -X POST "$GRAPH/$IG_USER_ID/media" \
+  -d "image_url=https://www.fairprice.ng/<a-real-product-image>.jpg" \
+  -d "caption=Verified fair price on FairPrice.ng" \
+  -d "access_token=$IG_TOKEN" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))")
+echo "container: $CREATION_ID"
+
+# 2. Publish it
+curl -s -X POST "$GRAPH/$IG_USER_ID/media_publish" \
+  -d "creation_id=$CREATION_ID" -d "access_token=$IG_TOKEN"
+```
+
+**`instagram_business_manage_comments`** — read comments, then reply:
+
+```bash
+MEDIA_ID=$(curl -s "$GRAPH/$IG_USER_ID/media?fields=id&limit=1&access_token=$IG_TOKEN" \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['data'][0]['id'])")
+
+curl -s "$GRAPH/$MEDIA_ID/comments?fields=id,text,username&access_token=$IG_TOKEN"
+
+# Reply (needs a real comment id from above)
+curl -s -X POST "$GRAPH/<COMMENT_ID>/replies" \
+  -d "message=Thanks for asking — full price and details are on our FairPrice store." \
+  -d "access_token=$IG_TOKEN"
+```
+
+**`instagram_business_manage_messages`** — read conversations, then reply:
+
+```bash
+curl -s "$GRAPH/$IG_USER_ID/conversations?platform=instagram&access_token=$IG_TOKEN"
+
+curl -s -X POST "$GRAPH/$IG_USER_ID/messages" \
+  -H "Content-Type: application/json" \
+  -d '{"recipient":{"id":"<IGSID_FROM_ABOVE>"},"message":{"text":"Hi! Yes, it is still available."}}' \
+  -d "access_token=$IG_TOKEN"
+```
+
+> A DM reply only works inside the 24-hour window after the user messaged you.
+> Send yourself a DM from a second account first.
+
+### Phase 2 — ads permissions
+
+`ads_read` and `ads_management` run against **our own** ad account with the System
+User token, so they need the permission assigned in **Business Settings → System
+Users**, not App Review. These calls register them.
+
+**`ads_read`** — the app now makes this call itself via `verifyAdsReadAccess()` in
+`frontend/src/lib/meta-ads.ts`, and every load of `/api/seller/ads/insights`
+issues real `/insights` reads. To fire it manually:
+
+```bash
+# Account reachable + token has ads_read
+curl -s "$GRAPH/act_$AD_ACCOUNT_ID?fields=name,currency,account_status,amount_spent&access_token=$SYS_TOKEN"
+
+# Campaign-level performance — the call the insights panel makes
+curl -s "$GRAPH/act_$AD_ACCOUNT_ID/insights?fields=impressions,reach,clicks,spend,cpm,cpc,ctr,actions&date_preset=maximum&access_token=$SYS_TOKEN"
+```
+
+**`ads_management`** — creating a campaign. `createBoostCampaign()` does this for
+real when a seller buys the Meta-ads add-on. Manually, and **note this spends
+money** once the ad set is activated:
+
+```bash
+curl -s -X POST "$GRAPH/act_$AD_ACCOUNT_ID/campaigns" \
+  -d "name=FairPrice Test Campaign" \
+  -d "objective=OUTCOME_TRAFFIC" \
+  -d "status=PAUSED" \
+  -d "special_ad_categories=[]" \
+  -d "access_token=$SYS_TOKEN"
+```
+
+Leave it `PAUSED` if you only need the call registered. A **paused campaign still
+counts as an API call** but will not satisfy anyone reviewing whether the feature
+genuinely works — for that you need a real campaign that actually delivers.
+
+**`pages_manage_ads`** — this one *is* seller-granted and does need App Review. It
+authorises using the seller's Page as the ad's identity. There is no useful manual
+call: it is exercised when `createBoostCampaign()` builds an ad creative whose
+`object_story_id` belongs to the seller's Page.
+
+### Verifying what a token can actually do
+
+Before recording anything, confirm the token carries the scopes you think it does:
+
+```bash
+curl -s "$GRAPH/debug_token?input_token=$PAGE_TOKEN&access_token=$FB_APP_ID|$FB_APP_SECRET" \
+  | python3 -m json.tool
+```
+
+The `scopes` array in the response is the definitive answer. If a permission is
+missing there, no amount of re-recording will help — reconnect the account with
+the correct scope requested first. This is exactly how the Instagram publishing
+failure was diagnosed: the token simply never carried
+`instagram_business_content_publish`.
+
+---
+
+## 9. The ads product — what now exists, and what still doesn't
+
+For the Phase 2 submission you will be asked to demonstrate a working ads feature.
+Here is the honest state of it.
+
+### Built
+
+| Piece | File | Status |
+|---|---|---|
+| Campaign creation (Campaign → AdSet → Creative → Ad, with rollback on partial failure) | `lib/meta-ads.ts` → `createBoostCampaign()` | Built, never run live |
+| Insights read-back (impressions, reach, clicks, spend, CPM, CPC, CTR, link clicks) | `lib/meta-ads.ts` → `fetchCampaignInsights()` | **New** |
+| Seller-facing performance API, joined to on-platform conversions | `api/seller/ads/insights` | **New** |
+| Contact attribution — WhatsApp click and phone reveal now recorded | `ProductClient.tsx` → `/track` | **New** |
+| Boost packages and pricing | `lib/boost-packages.ts` | Built |
+| Payment before campaign creation (Paystack, reference verified server-side) | `api/seller/facebook/promote` | Built |
+
+### The metric that makes this a real product
+
+Meta reports impressions and clicks. It cannot tell a Nigerian seller the only
+thing they actually care about: **did anyone message me?**
+
+`/api/seller/ads/insights` now closes that loop, returning per campaign:
+
+- `contacts` — phone reveals + WhatsApp chats started on the boosted product
+- `contactRatePct` — contacts ÷ link clicks
+- `costPerContactNaira` — what the seller paid ÷ contacts
+
+That is the number to put on screen, and the number to sell the add-on on. "₦6,500
+produced 23 people who messaged you, at ₦283 each" is a proposition a market
+trader understands immediately. "₦6,500 produced 14,000 impressions" is not.
+
+### Still missing before Phase 2 is honest
+
+1. **No campaign has ever run.** Everything above is untested against live
+   delivery. Run one real campaign end to end before submitting.
+2. **No optimiser.** The insights are read but nothing acts on them. "Auto-optimise
+   using the best metrics" would require: pause underperformers, shift budget to
+   the best creative, and a rule engine deciding when. Do not claim this to Meta
+   or to an investor until it exists.
+3. **No UI panel yet.** The API returns the data; nothing renders it. A seller
+   cannot see any of this in the dashboard.
+4. **`read_insights` / `instagram_business_manage_insights` not requested.** The
+   OAuth scope lists don't ask for them, so organic-vs-paid comparison is
+   impossible today.
+
+### Sequence
+
+1. Assign `ads_management` + `ads_read` to the System User in Business Settings.
+2. Run `verifyAdsReadAccess()` — or the curl above — to register `ads_read`.
+3. Request **Marketing API Standard Access** on its own (a tier, not a permission;
+   needs no seller screencast).
+4. Run **one real campaign** that actually delivers. This registers the
+   `ads_management` calls and gives you real insight numbers.
+5. Build the seller-facing panel so the screencast has something to show.
+6. Only then submit `pages_manage_ads`, `ads_read`, `read_insights`,
+   `instagram_business_manage_insights`.
+
+---
+
+## 10. SEO — separate from Meta, and worth doing properly
+
+No Meta permission affects organic search. Keep SEO out of the App Review
+submission entirely. It matters for the same goal — putting sellers' products in
+front of buyers with purchase intent — so it is tracked here, separately.
+
+Google Search Console currently reports on `fairprice.ng`:
+
+| Issue | Type | Status |
+|---|---|---|
+| Missing field `validFrom` in `offers` | Merchant listings, non-critical | Fixed — `validFrom` added to Offer schema |
+| Missing field `review` | Product snippets, non-critical | **Correctly absent** — see below |
+| Missing field `aggregateRating` | Product snippets, non-critical | **Correctly absent** — see below |
+
+**On `review` and `aggregateRating`:** Google flags these as missing because a
+product with ratings gets stars in search results, which lifts click-through
+substantially. The temptation is to emit a rating for every product regardless.
+
+**Do not.** Structured data must reflect what is on the page. Emitting invented or
+default ratings is a
+[structured data policy violation](https://developers.google.com/search/docs/appearance/structured-data/sd-policies)
+and risks a manual action against the whole domain — losing far more traffic than
+stars would ever gain. These fields should appear **only** for products with real
+reviews, and stay absent otherwise. That is the current behaviour, and it is
+correct.
+
+The legitimate way to earn those stars is to collect real reviews — the
+post-delivery review prompt already exists in the order flow.
