@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { mapDbProductToClient } from '@/lib/product-mapper';
 
 export const revalidate = 3600;
-import { SEED_PRODUCTS, DEMO_REVIEWS } from '@/lib/data';
+import { SEED_PRODUCTS } from '@/lib/data';
 import Script from 'next/script';
 
 type Props = {
@@ -144,8 +144,36 @@ export default async function ProductPage({ params }: Props) {
         notFound();
     }
 
-    // Filter reviews for this product for schema
-    const productReviews = DEMO_REVIEWS.filter(r => r.product_id === decodedId || r.product_id === resolvedParams.id);
+    // REAL reviews only, straight from the database.
+    //
+    // This used to read DEMO_REVIEWS — seed data with invented authors
+    // ("Chidi O."), invented bodies, and verified_purchase: true — and published
+    // it to Google as genuine Review structured data on every product page.
+    // Fabricated reviews are a structured-data policy violation that risks a
+    // manual action against the whole domain, and they are worse than the
+    // fabricated ratingValue below because they attribute made-up words to
+    // named people. Products with no reviews now emit no review markup at all,
+    // which is the correct and compliant state.
+    let productReviews: Array<{ user_name: string; rating: number; body: string; title: string; created_at: string }> = [];
+    try {
+        const rows = await db.review.findMany({
+            where: { productId: decodedId },
+            orderBy: { createdAt: "desc" },
+            take: 20,
+            select: { userName: true, rating: true, body: true, title: true, createdAt: true },
+        });
+        productReviews = rows.map(r => ({
+            user_name: r.userName,
+            rating: r.rating,
+            body: r.body,
+            title: r.title,
+            created_at: r.createdAt.toISOString(),
+        }));
+    } catch {
+        // DB unreachable — emit no review markup rather than falling back to
+        // anything invented.
+        productReviews = [];
+    }
 
     // Canonical URL (must match generateMetadata's canonical + getProductUrl + the sitemap slug)
     const canonicalSlug = ((productDetails as any)?.slug && String((productDetails as any).slug).trim())
@@ -295,11 +323,16 @@ export default async function ProductPage({ params }: Props) {
         // Only emit aggregateRating/review when REAL review data exists. Fabricated
         // ratings (the old hardcoded 4.5 / 128) are flagged by Google as spammy structured
         // data and hurt indexing — this keeps the markup honest and policy-compliant.
-        ...((((productDetails as any)?.review_count || 0) > 0 || productReviews.length > 0) ? {
+        // Gate on ACTUAL reviews we hold, not on a review_count column that can be
+        // non-zero while we have no reviews to show. The old ratingValue ended in
+        // `|| 4.5`, so that mismatch published an invented 4.5-star rating.
+        ...(productReviews.length > 0 ? {
             aggregateRating: {
                 '@type': 'AggregateRating',
-                ratingValue: (productDetails as any)?.avg_rating || (productReviews.length ? (productReviews.reduce((s, r) => s + r.rating, 0) / productReviews.length).toFixed(1) : 4.5),
-                reviewCount: (productDetails as any)?.review_count || productReviews.length,
+                ratingValue: (productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length).toFixed(1),
+                reviewCount: productReviews.length,
+                bestRating: 5,
+                worstRating: 1,
             },
             review: productReviews.map(r => ({
                 '@type': 'Review',

@@ -46,6 +46,7 @@ import { useAuth } from "@/context/AuthContext";
 import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
 import { InstagramCatalogImporter } from "@/components/seller/InstagramCatalogImporter";
 import { SocialComposerAlert } from "@/components/seller/SocialComposerAlert";
+import { AdsPerformancePanel } from "@/components/seller/AdsPerformancePanel";
 import { CompleteOnboardingAlert } from "@/components/seller/CompleteOnboardingAlert";
 import { FacebookConnectError } from "@/components/seller/FacebookConnectError";
 import { SellerFeatureSpotlight } from "@/components/seller/SellerFeatureSpotlight";
@@ -989,6 +990,10 @@ export default function SellerDashboard() {
                         </div>
                     );
                 })()}
+
+                {/* Paid promotion results. Renders nothing until the seller has
+                    actually bought a boost, so it never shows an empty chart. */}
+                <AdsPerformancePanel />
 
                 {/* WhatsApp Sync Card */}
                 <WhatsAppCatalogImporter />
