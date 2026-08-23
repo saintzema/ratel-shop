@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
 import { UserRole } from "@prisma/client";
 import { WhatsAppService } from "@/lib/whatsapp-service";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export async function POST(req: Request) {
     try {
@@ -17,12 +18,18 @@ export async function POST(req: Request) {
             role: body.role
         };
 
-        // Handle password hashing if provided
-        if (body.password) {
-            const bcryptStr = await import("bcryptjs");
-            const bcrypt = 'default' in bcryptStr ? bcryptStr.default : bcryptStr;
-            updateData.password = await bcrypt.hash(body.password, 12);
-        }
+        // PASSWORDS ARE NOT SETTABLE HERE.
+        //
+        // This endpoint is unauthenticated by necessity (guest checkout creates an
+        // account before the buyer has one), and it used to hash body.password
+        // into the record. Combined with the `where: { id: body.id }` update
+        // below, that meant an unauthenticated POST of
+        //   { id: "<any user id>", password: "chosen" }
+        // overwrote that account's password — total takeover of any account on
+        // the platform, admin included.
+        //
+        // Password creation belongs to /api/auth/register and password changes to
+        // the authenticated reset flow. Anything sent here is ignored.
 
         // To handle addresses, you must use 'connect' or 'create'
         if (body.address) {
@@ -86,7 +93,6 @@ export async function POST(req: Request) {
             avatarUrl: body.avatar_url,
             location: body.location,
             birthday: body.birthday,
-            password: updateData.password,
             whatsappNumber: waNumber || undefined,
             // Handle the Address relation correctly
             addresses: body.address ? {
@@ -104,8 +110,26 @@ export async function POST(req: Request) {
         // wa_...@fairprice.ng placeholder is being replaced with the buyer's real email at
         // first checkout). Upserting by the NEW email here used to create a second,
         // duplicate user instead, leaving the WA account stuck on its placeholder forever.
+        // Updating an EXISTING account requires being that account (or an admin).
+        // Creating a brand-new one stays open, because guest checkout has to be
+        // able to register a buyer who does not yet have credentials.
+        const caller = getUserFromRequest(req);
+        const isAdmin = caller?.role === "admin";
+
         let user;
         const targetById = body.id ? await db.user.findUnique({ where: { id: body.id }, select: { id: true } }) : null;
+        const targetByEmail = !targetById && body.email
+            ? await db.user.findUnique({ where: { email: body.email }, select: { id: true } })
+            : null;
+        const existingTargetId = targetById?.id || targetByEmail?.id;
+
+        if (existingTargetId && !isAdmin && caller?.userId !== existingTargetId) {
+            return NextResponse.json(
+                { error: "You can only update your own profile" },
+                { status: 403 }
+            );
+        }
+
         if (targetById) {
             if (body.email) {
                 const emailTaken = await db.user.findUnique({ where: { email: body.email }, select: { id: true } });

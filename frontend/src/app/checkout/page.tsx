@@ -1598,7 +1598,15 @@ function CheckoutContent() {
                 // They will be prompted to secure their account after the order is finalized.
                 setIsGuestCheckout(true);
 
-                // Sync guest user to DB with a default password so they can log in later if they skip (though we'll force setup)
+                // Sync the guest to the DB so the order has a real customer record.
+                //
+                // This used to send password: "fairprice123" — the SAME hardcoded
+                // password on every guest account ever created, sitting in the
+                // client bundle for anyone to read. Any guest account could then be
+                // logged into by whoever knew the buyer's email. The account is now
+                // created without a password; the buyer sets one through the
+                // "secure your account" prompt after the order, or via password
+                // reset. /api/users ignores password entirely now.
                 fetch("/api/users", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1607,7 +1615,6 @@ function CheckoutContent() {
                         email: address.email,
                         name: fullName || "Guest User",
                         role: "customer",
-                        password: "fairprice123", // Default password — user will be prompted to change
                         phone: `${countryCode} ${address.phone}`,
                         whatsapp: showWhatsappField ? `${whatsappCountryCode}${whatsappPhone.replace(/\D/g,'')}` : undefined,
                         address: deliveryMethod === "doorstep"
