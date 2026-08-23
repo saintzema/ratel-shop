@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
-import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
+import { SEED_PRODUCTS, SEED_SELLERS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, getProxiedImageUrl, getProductUrl, cn, isVideoUrl, copyToClipboard } from "@/lib/utils";
 import { QRCodeCanvas } from "qrcode.react";
@@ -172,7 +172,6 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     const [storeVersion, setStoreVersion] = useState(0);
     const [fetchedProduct, setFetchedProduct] = useState<any>(null);
     const [isFetchingFull, setIsFetchingFull] = useState(false);
-    const [aiReviews, setAiReviews] = useState<any[]>([]);
     const [showQrModal, setShowQrModal] = useState(false);
     const [isDeferredReady, setIsDeferredReady] = useState(false);
     const [fetchedSellerLogoUrl, setFetchedSellerLogoUrl] = useState<string | null>(null);
@@ -688,94 +687,28 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     // Fetch Real Reviews from DataSyncService
     const realReviews = DataSyncService.getReviews(product?.id);
 
-    // Always generate deterministic seeded reviews for UI bulk
-    const pName = product?.name || "this item";
-    const pCatDisplay = (product?.category) ? product.category : pName;
+    // The deterministic seeded-review generator lived here: a fixed list of
+    // Nigerian names and enthusiastic review bodies, hashed off the product id so
+    // each product got a stable set of invented five-star reviews. Removed along
+    // with the AI generator — see below.
 
-    const seed: number = Array.from((product as any)?.id || "default").reduce((acc: number, char: any) => acc + char.charCodeAt(0), 0);
-
-    const allNames = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
-
-    const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
-    const bodies5 = [
-        `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.`,
-        `I was skeptical at first about buying the ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
-        `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find anywhere online.`,
-        `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind throughout the process.`,
-        `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
-        `Seriously impressed with the delivery service. For the price, you can't get anything better. Tested and trusted.`,
-        `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase all round.`,
-        `My people, if you need a reliable ${pCatDisplay} product, just buy it. You won't regret it. The quality shock me.`,
-        `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly. Big ups to FairPrice.`
-    ];
-
-    const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
-    const bodies4 = [
-        `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
-        `It's a very solid ${pCatDisplay} item. Does everything the description says. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
-        `This ${pName} is good, nice features and all. Just wish the accessories were a bit more durable. Still a good buy for the price.`,
-        `Working fine so far. The product is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
-        `The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
-    ];
-
-    const getPseudoRandom = (index: number, max: number) => {
-        const scatter = Math.abs(Math.sin((seed as number) + index)) * 10000;
-        return Math.floor(scatter) % max;
-    };
-
-    // Shuffle names deterministically based on seed to guarantee uniqueness
-    const shuffledNames = [...allNames].sort((a, b) => {
-        const ha = Math.abs(Math.sin((seed as number) + a.charCodeAt(0)));
-        const hb = Math.abs(Math.sin((seed as number) + b.charCodeAt(0)));
-        return ha - hb;
-    });
-
-    // Generate seeded array
-    const seededReviews = [];
-    const usedBodyIndices5 = new Set<number>();
-    const usedBodyIndices4 = new Set<number>();
-    const usedTitleIndices5 = new Set<number>();
-    const usedTitleIndices4 = new Set<number>();
-
-    for (let i = 0; i < 5; i++) {
-        const isFiveStar = getPseudoRandom(i, 10) > 3; // 70% chance of 5 stars
-        const rating = isFiveStar ? 5 : 4;
-        // Unique name: pick from shuffled array by index (guaranteed unique for 5 reviews)
-        const name = shuffledNames[i % shuffledNames.length];
-
-        const titleList = isFiveStar ? titles5 : titles4;
-        const bodyList = isFiveStar ? bodies5 : bodies4;
-        const usedTitles = isFiveStar ? usedTitleIndices5 : usedTitleIndices4;
-        const usedBodies = isFiveStar ? usedBodyIndices5 : usedBodyIndices4;
-
-        // Pick unique title
-        let titleIdx = getPseudoRandom(i + 20, titleList.length);
-        while (usedTitles.has(titleIdx) && usedTitles.size < titleList.length) { titleIdx = (titleIdx + 1) % titleList.length; }
-        usedTitles.add(titleIdx);
-
-        // Pick unique body
-        let bodyIdx = getPseudoRandom(i + 30, bodyList.length);
-        while (usedBodies.has(bodyIdx) && usedBodies.size < bodyList.length) { bodyIdx = (bodyIdx + 1) % bodyList.length; }
-        usedBodies.add(bodyIdx);
-
-        seededReviews.push({
-            id: `gen_r${seed}_${i}`,
-            product_id: product?.id || "",
-            user_id: `u${getPseudoRandom(i, 1000)}`,
-            user_name: name,
-            rating,
-            title: titleList[titleIdx],
-            body: bodyList[bodyIdx],
-            verified_purchase: true,
-            helpful_count: getPseudoRandom(i + 40, 50),
-            images: [],
-            created_at: new Date(1741700000000 - 86400000 * (getPseudoRandom(i + 50, 30) + 1)).toISOString()
-        });
-    }
-
-    // Combine real reviews with AI seeded ones (real ones first)
-    // Use Gemini generated AI reviews if available, otherwise fallback to local deterministic seeded ones
-    const productReviews = [...realReviews, ...(aiReviews.length > 0 ? aiReviews : seededReviews)];
+    // REAL reviews only.
+    //
+    // This used to be [...realReviews, ...(aiReviews.length ? aiReviews : seededReviews)]
+    // — every product page padded its review list with invented Nigerian names
+    // ("Chukwudi Amaechi"), invented enthusiastic copy ("Omo, this thing make
+    // sense die!"), or AI-written reviews from Gemini, rendered identically to
+    // genuine ones and folded into the star rating and review count.
+    //
+    // That is fabricated social proof shown to people deciding whether to spend
+    // money, on a platform whose entire proposition is verified pricing and
+    // trust. It is the same class of problem as the invented Jumia/Konga prices
+    // and the demo reviews in the structured data, and the most consequential of
+    // the three because it directly influences a purchase.
+    //
+    // Most products will now show "no reviews yet". That is the honest state, and
+    // the post-delivery review prompt is the route out of it.
+    const productReviews = realReviews;
 
     const canUserReview = useMemo(() => {
         if (!user) return false;
@@ -879,43 +812,15 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 }
             }
 
-            // Hydrate Gemini Reviews
-            try {
-                const cachedContent = localStorage.getItem('fp_ai_reviews');
-                const allCache = cachedContent ? JSON.parse(cachedContent) : {};
-                if (allCache[product.id]) {
-                    setAiReviews(allCache[product.id]);
-                } else {
-                    // Fetch real synthetic reviews from Gemini!
-                    fetch('/api/gemini-reviews', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ productName: product.name, category: product.category })
-                    }).then(res => res.json()).then(data => {
-                        if (data.reviews && Array.isArray(data.reviews)) {
-                            const mapped = data.reviews.map((r: any, i: number) => ({
-                                id: `ai_${product.id}_${Date.now()}_${i}`,
-                                product_id: product.id,
-                                user_id: `ai_u_${Date.now()}_${i}`,
-                                user_name: r.user_name || "Verified Customer",
-                                rating: r.rating || 5,
-                                title: r.title || "Standard item",
-                                body: r.body,
-                                verified_purchase: r.verified_purchase !== false,
-                                helpful_count: Math.floor(Math.random() * 50),
-                                created_at: r.created_at || new Date().toISOString()
-                            }));
-                            setAiReviews(mapped);
-                            
-                            const freshCache = JSON.parse(localStorage.getItem('fp_ai_reviews') || '{}');
-                            freshCache[product.id] = mapped;
-                            localStorage.setItem('fp_ai_reviews', JSON.stringify(freshCache));
-                        }
-                    }).catch(e => {
-                        console.error("Failed to fetch AI reviews", e);
-                    });
-                }
-            } catch(e) { }
+            // The Gemini review generator lived here.
+            //
+            // It fired an AI call on EVERY product page view to invent reviews —
+            // complete with verified_purchase: true and a random helpful_count —
+            // cached them in localStorage, and rendered them beside genuine ones.
+            // Removed with the fabricated review display: it manufactured social
+            // proof for people deciding whether to spend money, and once nothing
+            // rendered it, it was also paying for an AI call per page view to
+            // produce content no one would ever see.
 
         } else {
             const timer = setTimeout(() => { }, 800);
@@ -1268,9 +1173,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
     // Compute actual rating stats from reviews
     const actualReviewCount = productReviews.length;
+    // No fallback to product.avg_rating: that column was populated from the
+    // fabricated reviews above, so falling back to it would keep showing an
+    // invented score on products with no real reviews.
     let actualAvgRating = actualReviewCount > 0
         ? Math.round((productReviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / actualReviewCount) * 10) / 10
-        : product?.avg_rating || 0;
+        : 0;
 
     if (Number.isNaN(actualAvgRating)) actualAvgRating = 0;
 
