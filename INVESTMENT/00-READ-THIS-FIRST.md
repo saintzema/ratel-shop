@@ -6,82 +6,136 @@ to the investor as final, until counsel has reviewed them.
 
 ---
 
-## 1. Three blanks only you can fill
+## Status of the three blockers
 
-Every document here has `[[LIKE THIS]]` placeholders. Three of them are not
-details — they decide whether the deal is even valid.
+| # | Question | Status |
+|---|---|---|
+| 1 | Which entity sells the equity? | ⚠️ **Still open — and it changed shape. Read below.** |
+| 2 | Is the investor foreign? | ✅ **Resolved.** Investor is Nigerian, so **no Certificate of Capital Importation is required.** |
+| 3 | What is the existing share capital? | ⚠️ Partly resolved — see §1 |
 
-### a) Which company is selling the equity?
-
-Your own records show at least two entities:
-
-| Entity | Where it appears |
-|---|---|
-| **FairPrice Merchants LLC** | Meta Business portfolio |
-| **ZEMA IT SOLUTIONS LTD** | The bank account receiving seller settlements (UBA 1028017979) |
-
-**You cannot sell 10% of "FairPrice.ng".** A brand is not a legal person. You can
-only sell shares in an incorporated company that owns the FairPrice assets. Before
-anything else, confirm with your lawyer:
-
-- Which entity is registered with the **CAC**, and what is its RC number?
-- Does that entity actually **own the IP** — the codebase, the domain, the brand?
-  If the code was written by you personally and never assigned to the company, the
-  investor is buying shares in a company that owns nothing. This is the single most
-  common way early Nigerian deals fall apart in diligence. An **IP assignment** from
-  you to the company usually needs to be executed alongside this investment.
-- Is it a **company limited by shares**? An LLC-style entity or a business name
-  registration cannot issue shares at all.
-
-### b) Is the investor Nigerian or foreign?
-
-If foreign, the money must come in through an authorised dealer bank and you must
-obtain a **Certificate of Capital Importation (CCI)** within 24 hours of inflow.
-Without a CCI the investor legally **cannot repatriate** dividends or exit proceeds
-out of Nigeria. Investors who know this will ask. Investors who don't will be
-extremely unhappy later. Either way it is your job to raise it.
-
-### c) What is the existing share capital?
-
-The cap table cannot be completed without the current issued share count. Get it
-from your CAC filings / share register.
+You have chosen the **SAFE / convertible route** (`05-SAFE-AGREEMENT.md`). That is
+the option I would have suggested, and it means you do not have to fix a $55,000
+price on the company today.
 
 ---
 
-## 2. The valuation, stated plainly
+## 1. The entity question is now the whole deal
 
-**$5,500 for 10% implies a $55,000 post-money valuation** ($49,500 pre-money).
-In Naira at roughly ₦1,550/$: about **₦8.5m post-money** for **₦8.5m** — sorry,
-about **₦85.25m post-money** for an **₦8.53m** cheque. Confirm the rate on the day.
+You told me:
 
-I am not going to tell you whether that is a good deal — that is your call and a
-licensed adviser's. But three consequences you should decide on deliberately:
+- **FairPrice Merchants LLC** is a company *under* **ZEMA IT SOLUTIONS LTD**
+- **ZEMA IT SOLUTIONS LTD** is the one with the CAC registration
+- FairPrice is **100% yours**
+- ZEMA IT is **80% yours**
 
-1. **It sets your price.** The next investor will start from this number. Pricing
-   low now is not free; it anchors the round after it.
-2. **10% is a large first bite** for $5,500. Founders who sell 10% per small cheque
-   are frequently below 50% before reaching a priced seed round.
-3. **There is an alternative structure.** A **SAFE or convertible note** lets the
-   investor put money in now and convert at the *next* round's valuation, often with
-   a discount and/or cap. It avoids fixing a price today, on a company with the
-   traction shown below. Many early investors accept this readily. It is worth
-   asking before you sell equity outright.
+That combination raises a problem worth solving before you sign anything.
 
-`01-TERM-SHEET.md` covers the straight equity deal you described.
-`04-SAFE-ALTERNATIVE.md` is the same money on convertible terms, so you can put
-both in front of the investor.
+### "LLC" is not a Nigerian company form
+
+Nigeria has no "LLC". Under CAMA 2020 you have private companies limited by
+shares (**Ltd**), public companies (**Plc**), companies limited by guarantee, and
+business names. If **FairPrice Merchants LLC** is a *business name*, a trading
+style, or a US-registered entity rather than a Nigerian company limited by shares,
+then **it cannot issue shares at all** — there is no share capital to sell 10% of.
+
+Your own description points that way: you say ZEMA IT is "the one which has a
+registered CAC".
+
+**Ask your lawyer one question first:** *is FairPrice Merchants LLC separately
+incorporated at the CAC as a company limited by shares, with its own RC number and
+issued share capital?*
+
+### The answer decides everything downstream
+
+**If YES — FairPrice Merchants Ltd is its own CAC company:**
+This is the clean path. You own 100%, so you can issue to the investor without
+anyone else's consent, and the investor's money and risk both sit on FairPrice
+alone. Use that entity in `05-SAFE-AGREEMENT.md` and stop here.
+
+**If NO — the only real company is ZEMA IT SOLUTIONS LTD:**
+Then the SAFE has to be issued by ZEMA IT, and three consequences follow that you
+should not discover after signing:
+
+1. **You own 80% of ZEMA IT, not 100%.** Someone holds the other 20%. Issuing new
+   shares dilutes them, and your Articles and CAMA 2020 pre-emption rules almost
+   certainly give them a right to be offered those shares first, or at least to
+   consent. **Talk to them before you talk to the investor.**
+
+2. **The investor gets exposure to all of ZEMA IT, not to FairPrice.** Every other
+   line of business ZEMA IT runs comes along with it — good and bad. And 10% of
+   ZEMA IT is *not* 10% of FairPrice.
+
+3. **You may be selling a stake in the wrong thing.** If FairPrice becomes the
+   valuable asset, an investor holding ZEMA IT shares owns a slice of the holding
+   company. That is workable, but it must be deliberate and it must be what both
+   sides understood.
+
+### If the answer is NO, the usual fix
+
+Incorporate **FairPrice Merchants Ltd** as a Nigerian company limited by shares,
+assign the FairPrice IP into it (Schedule 3 of the subscription agreement, reusable
+here), and have that company issue the SAFE. Costs a little in CAC fees and a few
+weeks. It gives the investor exactly what they think they are buying, keeps ZEMA
+IT's other business out of the deal, and keeps your 20% co-owner out of a dilution
+conversation they may not welcome.
+
+**Do not paper this deal against "FairPrice.ng".** A brand is not a legal person
+and cannot issue equity.
 
 ---
 
-## 3. The traction numbers are real — do not inflate them
+## 2. Who owns the code?
 
-`03-BUSINESS-MODEL-AND-METRICS.md` uses figures I queried directly from the
+Unchanged and still important: if you wrote the FairPrice codebase personally and
+never assigned it to a company, the investor would be funding an entity that owns
+nothing. The **IP Assignment** in `02-SHARE-SUBSCRIPTION-AGREEMENT.md` Schedule 3
+transfers the domain, brand, source code and databases to the issuing company, and
+should be executed at the same time as the SAFE.
+
+This is the most common way early Nigerian deals fall apart in diligence.
+
+---
+
+## 3. Why the SAFE is the right call here
+
+You are pricing a company that has built a great deal and sold relatively little.
+Fixing $55,000 today would anchor every future round to that number.
+
+Illustration at the terms drafted (cap $150,000, 20% discount):
+
+| Next round values the company at | Straight equity | SAFE |
+|---|---|---|
+| $150,000 | 10% | ~4.6% |
+| $500,000 | 10% | ~3.7% |
+
+At a $500,000 round that difference is roughly **$31,500 of founder equity** —
+about six times the cheque. If the investor prefers straight equity after seeing
+this, that is a legitimate position and `01-TERM-SHEET.md` is ready.
+
+**Ask your lawyer about the wrapper.** A SAFE is US venture practice, not a
+Nigerian statutory instrument. Counsel may prefer a **convertible note under CAMA
+2020**, which achieves identical economics with firmer local footing — especially
+around recording the conversion at the CAC. Either is fine; the numbers do not
+change.
+
+---
+
+## 4. The traction numbers are real — do not inflate them
+
+`03-BUSINESS-MODEL-AND-METRICS.md` uses figures queried directly from the
 production database. Some are weak. **Send them anyway.**
 
-An investor who discovers inflated numbers during diligence will walk, and word
-travels in a market as small as Lagos tech. The honest version of these numbers
-still tells a real story: the platform is built, it works end to end, and it has
-processed genuine money. That is more than most pre-seed pitches can show.
+The number that gets asked about first: **zero orders in the last 30 days.** Have a
+straight answer ready before the meeting.
 
-The number that will get asked about first: **zero orders in the last 30 days.**
-Have a straight answer ready. Prepare it before the meeting, not during it.
+Worth saying plainly, because it is now a selling point: during this build we found
+and removed several things that would have failed technical diligence — fabricated
+competitor prices attributed to Jumia and Konga, AI-generated customer reviews
+shown to shoppers, demo reviews published to Google as real ones, and two
+authentication holes (an open admin-settings write endpoint, and an unauthenticated
+password overwrite that allowed takeover of any account). All fixed and verified in
+production.
+
+An investor's technical adviser looks for exactly these. Finding and fixing them
+yourself is a far stronger position than having them found for you.
