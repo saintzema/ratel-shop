@@ -338,8 +338,11 @@ export default async function ProductPage({ params }: Props) {
                 '@type': 'Review',
                 author: { '@type': 'Person', name: r.user_name },
                 datePublished: r.created_at,
-                reviewBody: r.body,
-                reviewRating: { '@type': 'Rating', ratingValue: r.rating }
+                // Omitted when empty — a star-only rating (left via the Ziva
+                // post-delivery prompt) is a valid Review with just a
+                // reviewRating, and an empty reviewBody string is not.
+                ...(r.body ? { reviewBody: r.body } : {}),
+                reviewRating: { '@type': 'Rating', ratingValue: r.rating, bestRating: 5, worstRating: 1 }
             }))
         } : {})
     };

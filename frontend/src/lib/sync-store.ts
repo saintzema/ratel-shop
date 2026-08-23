@@ -6512,17 +6512,21 @@ class DataSyncServiceService {
         // Was previously local-only — the review never reached the DB, so anywhere that
         // fetches reviews from /api/reviews (the actual source of truth for the PDP's
         // review list) never saw it, even though it "succeeded" from the shopper's POV.
+        // The endpoint authenticates and derives identity + verified-purchase
+        // status server-side, so user_id / user_name / verified_purchase are no
+        // longer sent — they were client-controlled and therefore forgeable.
+        const reviewToken = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         fetch("/api/reviews", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...(reviewToken ? { Authorization: `Bearer ${reviewToken}` } : {}),
+            },
             body: JSON.stringify({
-                user_id: review.user_id,
-                user_name: review.user_name,
                 product_id: review.product_id,
                 rating: review.rating,
                 title: review.title,
                 body: review.body,
-                verified_purchase: review.verified_purchase,
             }),
         }).catch(() => { /* stays visible locally even if the server write fails */ });
 
