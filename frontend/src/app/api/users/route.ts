@@ -64,7 +64,12 @@ export async function POST(req: Request) {
         // Prevent unauthorized role escalation. 
         // Only allow 'admin' role if the requester is already an admin.
         // For 'seller' role, allow if it's a legitimate transition or new user.
-        const existingUser = await db.user.findUnique({ where: { email: body.email } });
+        // Guarded: Prisma throws on findUnique with an undefined `where` value, so
+        // this 500'd on any request that omitted email — including a legitimate
+        // profile update addressed by id alone.
+        const existingUser = body.email
+            ? await db.user.findUnique({ where: { email: body.email } })
+            : (body.id ? await db.user.findUnique({ where: { id: body.id } }) : null);
         if (body.role !== undefined) {
              if (body.role === 'admin') {
                  // In a real app, check session permissions here. 
