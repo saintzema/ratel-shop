@@ -44,18 +44,44 @@ export function useHeaderOffset(fallback = 96): number {
         const ro = new ResizeObserver(read);
         ro.observe(document.body);
 
-        // Body resizes cover layout shifts, but not a header that mounts at the
-        // same size the body already had — watch the tree for it appearing too.
+        // ALSO observe the header itself once it exists.
+        //
+        // Body alone is not enough: the header changes its own height (the
+        // sub-navigation row collapses on scroll), and that does not change the
+        // body's size, so the body observer never fired. The offset stayed at
+        // whatever the header measured on mount — verified on production at
+        // mobile width, where a 120px header left the pills bar pinned 22px too
+        // high, tucked behind it.
+        let headerRO: ResizeObserver | null = null;
+        const attachHeader = () => {
+            const el = document.querySelector("header");
+            if (!el || headerRO) return;
+            headerRO = new ResizeObserver(read);
+            headerRO.observe(el);
+            read();
+        };
+        attachHeader();
+
+        // The header mounts after hydration, so watch for it appearing and
+        // attach the observer then. Also covers a header that is replaced.
         const mo = new MutationObserver(() => {
-            if (document.querySelector("header")) read();
+            if (!headerRO) attachHeader();
+            else read();
         });
         mo.observe(document.body, { childList: true, subtree: true });
 
+        // A collapsing header is driven by scroll, and a ResizeObserver reports
+        // the change a frame late. Re-reading on scroll keeps the sticky offset
+        // in step with a header that is mid-transition.
+        const onScroll = () => read();
+        window.addEventListener("scroll", onScroll, { passive: true });
         window.addEventListener("resize", read);
         window.addEventListener("orientationchange", read);
         return () => {
             ro.disconnect();
+            headerRO?.disconnect();
             mo.disconnect();
+            window.removeEventListener("scroll", onScroll);
             window.removeEventListener("resize", read);
             window.removeEventListener("orientationchange", read);
         };
