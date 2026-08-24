@@ -76,6 +76,47 @@ Investor has no right to demand repayment at any other time.
 It is not a loan. It continues until it converts under 2.1, or terminates under
 2.2 or 2.3.
 
+**2.5 Substitution of the issuing company (the "FairPrice Newco" clause).**
+
+The parties acknowledge that the FairPrice.ng business is presently operated under
+the Company, and that the Company intends to incorporate a dedicated Nigerian
+company limited by shares (working name **FairPrice Merchants Ltd**, the
+**"Newco"**) to hold that business.
+
+(a) If the Newco is incorporated **before** this Agreement converts, and the
+FairPrice intellectual property and business are assigned to it, then on written
+notice from the Company to the Investor this Agreement is **novated to the Newco**:
+the Newco assumes all the Company's obligations under this Agreement as if it had
+been the original party, and the Company is released.
+
+(b) After such novation, every reference in this Agreement to "the Company" means
+the Newco, and conversion under clause 2.1 delivers shares in the **Newco**, not in
+the Company.
+
+(c) The Valuation Cap, Discount Rate and Purchase Amount are **unchanged** by the
+novation. The Investor gives up nothing and pays nothing further.
+
+(d) The Company will give the Investor at least **10 Business Days'** written
+notice before the novation takes effect, together with the Newco's certificate of
+incorporation and evidence of the intellectual property assignment.
+
+(e) If the Newco is **not** incorporated before conversion is triggered, this
+Agreement converts into shares of the Company under clause 2.1 as written.
+
+> **Why this clause exists.** The dedicated FairPrice company does not exist yet.
+> Without this, the parties would either have to wait for incorporation before
+> taking the investment, or the Investor would end up permanently holding shares in
+> the parent rather than in the FairPrice business they are backing. A SAFE suits
+> this situation precisely because it issues no shares today — the question of
+> *which company* only has to be answered at conversion.
+>
+> **This clause must be reviewed by counsel.** Novation to an entity that does not
+> yet exist needs careful drafting under Nigerian law, and the Investor's consent
+> to it is being given in advance here. Some investors will want a consent right at
+> the time instead of an advance agreement — that is a reasonable ask, and easily
+> accommodated by making 2.5(a) require the Investor's written consent, not to be
+> unreasonably withheld.
+
 ---
 
 ## 3. COMPANY UNDERTAKINGS

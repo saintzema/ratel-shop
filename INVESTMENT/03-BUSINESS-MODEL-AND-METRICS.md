@@ -70,6 +70,49 @@ strongest number in this document.
 | Payouts processed to sellers | **5** |
 | Quotes/invoices created | **3** |
 
+### The WhatsApp channel — real demand the order table does not capture
+
+Sales also happen over WhatsApp. A buyer taps the WhatsApp button on a product
+page, the conversation moves to WhatsApp, and the deal is often concluded there.
+
+| Metric | Value |
+|---|---|
+| WhatsApp order-intent events logged | **30** |
+| Recorded orders in the database | 14 |
+| Sellers with a WhatsApp number on file | 3 of 17 |
+| Product page views | 315 |
+
+**Be precise about what 30 means.** An order intent is a buyer tapping through to
+WhatsApp with a product in hand — it is *demand*, not a confirmed sale. We do not
+know how many closed, because the conversation and the payment happen off-platform.
+Do not present 30 as 30 sales; an investor who asks one follow-up question will
+find that out, and it will cost you more than the number gains.
+
+What it does legitimately show: **buyer intent is roughly double what the order
+table records**, and only 3 of 17 sellers have WhatsApp enabled at all.
+
+### This is also a revenue leak — say so before the investor finds it
+
+Every sale that completes inside a WhatsApp conversation pays FairPrice **nothing**.
+No escrow, no 2.5% commission, no record. The platform carries the acquisition cost
+and the seller keeps 100% of the sale.
+
+That is not a small accounting detail — it is the difference between a marketplace
+and a free lead-generation service. An investor's first question about the WhatsApp
+channel will be "so how do you monetise it?", and the honest answer today is "we
+don't."
+
+Two credible answers to have ready:
+
+1. **QR payments already exist** — sellers can generate a payment link or QR for a
+   WhatsApp buyer, which settles through FairPrice and earns commission. It is
+   built. Current usage: **0 direct-payment orders.** The work is adoption, not
+   engineering.
+2. **The tracking now exists.** Contact events on the product page (WhatsApp taps,
+   phone reveals) are recorded as of this build, so the funnel from view → contact →
+   order becomes measurable rather than assumed. Before this, the number above could
+   only be inferred from notification logs.
+
 ### Growth — the weak numbers, stated plainly
 | Metric | Value |
 |---|---|

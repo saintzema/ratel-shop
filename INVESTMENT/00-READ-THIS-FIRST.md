@@ -71,17 +71,47 @@ should not discover after signing:
    company. That is workable, but it must be deliberate and it must be what both
    sides understood.
 
-### If the answer is NO, the usual fix
+### Your position: Newco comes later — so the SAFE carries a substitution clause
 
-Incorporate **FairPrice Merchants Ltd** as a Nigerian company limited by shares,
-assign the FairPrice IP into it (Schedule 3 of the subscription agreement, reusable
-here), and have that company issue the SAFE. Costs a little in CAC fees and a few
-weeks. It gives the investor exactly what they think they are buying, keeps ZEMA
-IT's other business out of the deal, and keeps your 20% co-owner out of a dilution
-conversation they may not welcome.
+You have said FairPrice Merchants Ltd will be incorporated, and the IP assigned to
+it, **in future** rather than before this investment.
+
+That is workable, and it is a genuine argument *for* the SAFE over straight equity:
+**a SAFE issues no shares today**, so the question of which company issues them
+only has to be answered at conversion — by which time the Newco can exist.
+
+`05-SAFE-AGREEMENT.md` clause **2.5** handles it. In short:
+
+- **ZEMA IT SOLUTIONS LTD signs the SAFE now** (it is the company that exists).
+- If **FairPrice Merchants Ltd** is incorporated and the IP assigned to it before
+  conversion, the SAFE is **novated** to that company — it assumes the obligations,
+  ZEMA IT is released, and the Investor converts into the FairPrice company instead.
+- **Cap, discount and amount are unchanged.** The Investor gives up nothing.
+- If the Newco never happens, the SAFE converts into ZEMA IT as written.
+
+### Two things this does not solve — raise both before signing
+
+1. **You own 80% of ZEMA IT.** If conversion happens before the Newco exists, new
+   shares are issued in ZEMA IT and your 20% co-owner is diluted. CAMA 2020 and your
+   Articles very likely give them pre-emption rights or a consent right.
+   **Speak to them before you sign, not at conversion.** A SAFE that cannot legally
+   convert is worse than no SAFE.
+
+2. **Tell the investor plainly which company they are signing with, and why.** They
+   are signing with ZEMA IT and relying on clause 2.5 to move them to FairPrice
+   later. Investors accept this routinely — but only when it is explained upfront.
+   Discovering it later reads as concealment and will cost you the relationship.
 
 **Do not paper this deal against "FairPrice.ng".** A brand is not a legal person
 and cannot issue equity.
+
+### The cleaner alternative, if you can afford the delay
+
+Incorporate FairPrice Merchants Ltd first, assign the IP (Schedule 3 of the
+subscription agreement is reusable), and have that company issue the SAFE directly.
+A few weeks and some CAC fees. It removes clause 2.5, removes the co-owner
+question, and gives the investor exactly what they think they are buying. If the
+investor is not in a hurry, this is the better path.
 
 ---
 
