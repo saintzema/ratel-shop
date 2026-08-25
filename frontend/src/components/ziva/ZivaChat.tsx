@@ -1410,17 +1410,41 @@ export function ZivaChat() {
     // hooks called conditionally (only once mounted=true) corrupt React's hook
     // order between renders and cause error #310 ("too many re-renders").
     const [kbHeight, setKbHeight] = useState(0);
+    /**
+     * The visual viewport's own box, so the open-keyboard panel can be pinned to
+     * what is actually on screen.
+     *
+     * capacitor.config sets KeyboardResize.None, so the WebView does NOT shrink
+     * when the keyboard opens — window.innerHeight stays at full height and only
+     * visualViewport.height shrinks. iOS then scrolls the LAYOUT viewport to
+     * reveal the focused input, and `position: fixed` resolves against that
+     * layout viewport, so a panel pinned to top:0/bottom:kbHeight rides the scroll
+     * straight off the screen. That is why tapping Ziva's input made the whole
+     * interface vanish while the keyboard stayed.
+     *
+     * offsetTop is how far the visual viewport has been scrolled down inside the
+     * layout viewport — adding it back keeps the panel where the user is looking.
+     */
+    const [vvTop, setVvTop] = useState(0);
+    const [vvHeight, setVvHeight] = useState(0);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.visualViewport) return;
         const update = () => {
             const vv = window.visualViewport!;
             setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+            setVvTop(vv.offsetTop);
+            setVvHeight(vv.height);
         };
+        update();
         window.visualViewport.addEventListener('resize', update, { passive: true });
         window.visualViewport.addEventListener('scroll', update, { passive: true });
+        // iOS fires neither reliably during the focus animation; a scroll on the
+        // window itself is the one signal that always arrives.
+        window.addEventListener('scroll', update, { passive: true });
         return () => {
             window.visualViewport!.removeEventListener('resize', update);
             window.visualViewport!.removeEventListener('scroll', update);
+            window.removeEventListener('scroll', update);
         };
     }, []);
 
@@ -1537,8 +1561,10 @@ export function ZivaChat() {
                         className={cn(
                             "flex flex-col overflow-hidden shadow-2xl pointer-events-auto",
                             kbOpen
-                                // Full-screen mode when keyboard is open on mobile — nothing squeezes
-                                ? "fixed inset-x-0 top-0 rounded-none border-0 z-[1022]"
+                                // Keyboard open on mobile: fill exactly the visible
+                                // area. Positioned from the visual viewport below,
+                                // NOT with top-0/bottom — see the vvTop comment.
+                                ? "fixed inset-x-0 rounded-none border-0 z-[1022]"
                                 : "absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none rounded-3xl border border-white/10 origin-bottom-left"
                         )}
                         style={{
@@ -1546,7 +1572,17 @@ export function ZivaChat() {
                             // Backdrop blur is GPU-intensive — only on desktop
                             backdropFilter: isDesktop ? "blur(20px)" : "none",
                             ...(kbOpen
-                                ? { bottom: kbHeight } // dock to top of keyboard
+                                ? {
+                                    // Pin to the VISUAL viewport. `top: 0` resolves
+                                    // against the layout viewport, which iOS scrolls
+                                    // away to reveal the focused input — taking this
+                                    // panel off-screen with it. offsetTop puts it back
+                                    // over the visible area, and an explicit height
+                                    // avoids relying on a `bottom` that is measured
+                                    // against the same scrolled-away box.
+                                    top: vvTop,
+                                    height: vvHeight || undefined,
+                                }
                                 : { height: availableHeightStr, maxHeight: '600px' })
                         }}
                     >
