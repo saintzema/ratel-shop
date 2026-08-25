@@ -320,6 +320,12 @@ export async function GET(req: Request) {
             view_count: p.viewCount ?? 0,
             phone_view_count: p.phoneViewCount ?? 0,
             chat_count: p.chatCount ?? 0,
+            // This list endpoint maps inline rather than going through
+            // mapDbProductToClient, so new fields have to be aliased here too.
+            // `condition` happens to survive the ...p spread because the column and
+            // the client field share a name; locationState/locationCity do not.
+            location_state: p.locationState ?? null,
+            location_city: p.locationCity ?? null,
             created_at: p.createdAt.toISOString(),
             slug: p.slug || undefined,
         }));
