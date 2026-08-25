@@ -123,6 +123,9 @@ export interface Product {
     financing_down_payment?: number;
     is_direct_payment?: boolean;
     condition?: "brand_new" | "used" | "refurbished";
+    /** Where the item physically is — drives search filters and location ranking. */
+    location_state?: string | null;
+    location_city?: string | null;
     colors?: string[];
     subcategory?: string;
     tags?: string[];

@@ -98,6 +98,45 @@ export async function GET(req: Request) {
         // while browse pills say "Cars"/"Smartphones". An equals-match between
         // those two vocabularies returns zero rows, which is exactly how browsing
         // Cars ended up showing an empty catalog on top of 27 real vehicles.
+        // ─── Condition filter (?condition=brand_new|used|refurbished) ───
+        // The column has always existed on Product but was never filterable, so a
+        // buyer looking specifically for a used phone had to open every listing.
+        const conditionParam = (searchParams.get("condition") || "").trim().toLowerCase();
+        const VALID_CONDITIONS = ["brand_new", "used", "refurbished"];
+        if (conditionParam) {
+            const wanted = conditionParam.split(",").map(c => c.trim()).filter(c => VALID_CONDITIONS.includes(c));
+            if (wanted.length > 0) {
+                whereClause.AND = [
+                    ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+                    { condition: { in: wanted } },
+                ];
+            }
+        }
+
+        // ─── Hard location filter (?locationState / ?locationCity) ───
+        // Distinct from the location RANKING further down. Ranking always runs and
+        // merely floats nearby stock to the top; this is for a buyer who has
+        // explicitly ticked a location filter and does not want anything else.
+        // Matches the product's own location OR its seller's, so the ~300 listings
+        // that predate the product-level column are not silently excluded.
+        const filterState = (searchParams.get("locationState") || "").trim();
+        const filterCity = (searchParams.get("locationCity") || "").trim();
+        if (filterState || filterCity) {
+            const clauses: any[] = [];
+            if (filterState) {
+                clauses.push({ locationState: { equals: filterState, mode: "insensitive" } });
+                clauses.push({ seller: { is: { state: { equals: filterState, mode: "insensitive" } } } });
+            }
+            if (filterCity) {
+                clauses.push({ locationCity: { equals: filterCity, mode: "insensitive" } });
+                clauses.push({ seller: { is: { city: { equals: filterCity, mode: "insensitive" } } } });
+            }
+            whereClause.AND = [
+                ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+                { OR: clauses },
+            ];
+        }
+
         const categoryParam = (searchParams.get("category") || "").trim();
         const catTerms = categoryMatchTerms(categoryParam);
         if (catTerms.length > 0) {
@@ -184,6 +223,9 @@ export async function GET(req: Request) {
             viewCount: true,
             phoneViewCount: true,
             chatCount: true,
+            condition: true,
+            locationState: true,
+            locationCity: true,
             ...(hasLocation ? { seller: { select: { state: true, city: true } } } : {}),
         } as any;
 
@@ -228,8 +270,20 @@ export async function GET(req: Request) {
             products = pool
                 .sort((a, b) => {
                     if (hasLocation) {
-                        const tierA = locationTier({ state: targetState, city: targetCity }, (a as any).seller?.state, (a as any).seller?.city);
-                        const tierB = locationTier({ state: targetState, city: targetCity }, (b as any).seller?.state, (b as any).seller?.city);
+                        // The PRODUCT's own location wins, the seller's is the
+                        // fallback. A seller in Lagos can list an item sitting in
+                        // Abuja, and ranking on the seller alone put that item above
+                        // genuinely-Lagos stock for a Lagos buyer.
+                        const tierA = locationTier(
+                            { state: targetState, city: targetCity },
+                            (a as any).locationState ?? (a as any).seller?.state,
+                            (a as any).locationCity ?? (a as any).seller?.city
+                        );
+                        const tierB = locationTier(
+                            { state: targetState, city: targetCity },
+                            (b as any).locationState ?? (b as any).seller?.state,
+                            (b as any).locationCity ?? (b as any).seller?.city
+                        );
                         if (tierA !== tierB) return tierA - tierB;
                     }
                     return relevance(b) - relevance(a);
@@ -508,6 +562,19 @@ export async function POST(req: Request) {
             externalUrl: body.external_url,
             slug: body.slug,
             isDirectPayment: body.is_direct_payment || false,
+            // Condition and location as REAL columns.
+            //
+            // The listing form has always collected location, but only ever wrote it
+            // into the specs JSON blob — so it could be displayed and nothing more.
+            // Buyers could not filter by it, and search could not rank by it, which
+            // is the single most important filter in a Nigerian marketplace. It is
+            // still mirrored into specs above for backwards compatibility with
+            // anything already reading it from there.
+            ...(["brand_new", "used", "refurbished"].includes(String(body.condition))
+                ? { condition: body.condition }
+                : {}),
+            locationState: body.location_state || rawSpecs.location_state || null,
+            locationCity: body.location_city || rawSpecs.location_city || null,
         } as any;
 
         // Build a SAFE update object that won't wipe heavy content fields if they're missing

@@ -57,6 +57,12 @@ export function mapDbProductToClient(product: DbProductLike) {
         financing_available: product.financingAvailable,
         avg_rating: product.avgRating,
         review_count: product.reviewCount,
+        // Condition has always been on the model but never reached the client, so
+        // no card, filter or PDP could show it. Location is new — both feed the
+        // search filters and the location-priority ranking.
+        condition: product.condition,
+        location_state: (product as any).locationState ?? null,
+        location_city: (product as any).locationCity ?? null,
         sold_count: product.soldCount,
         created_at: toIso(product.createdAt),
         updated_at: toIso(product.updatedAt),

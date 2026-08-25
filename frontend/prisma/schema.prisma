@@ -407,6 +407,13 @@ model Product {
   reviewCount      Int                  @default(0)
   soldCount        Int                  @default(0)
   condition        ProductCondition     @default(brand_new)
+  // Where the item physically is. Nigerian buyers filter on this before almost
+  // anything else — an item in Lagos is not a substitute for the same item in
+  // Kano when they have to collect it or pay inter-state delivery. Nullable so
+  // the 300-odd existing listings stay valid; sellers backfill as they edit.
+  // Indexed because search filters and location-priority ranking both hit it.
+  locationState    String?
+  locationCity     String?
   externalUrl      String?
   highlights       String[]
   specs            Json?
@@ -442,6 +449,8 @@ model Product {
   @@index([isTrending])
   @@index([isSponsored])
   @@index([slug])
+  // Location filtering and location-priority ranking both query on state.
+  @@index([locationState])
 }
 
 model MarketplaceCategory {
