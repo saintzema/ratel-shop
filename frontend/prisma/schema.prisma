@@ -407,6 +407,8 @@ model Product {
   reviewCount      Int                  @default(0)
   soldCount        Int                  @default(0)
   condition        ProductCondition     @default(brand_new)
+  // Defaults to `product` so every existing row keeps behaving exactly as before.
+  listingType      ListingType          @default(product)
   // Where the item physically is. Nigerian buyers filter on this before almost
   // anything else — an item in Lagos is not a substitute for the same item in
   // Kano when they have to collect it or pay inter-state delivery. Nullable so
@@ -451,6 +453,7 @@ model Product {
   @@index([slug])
   // Location filtering and location-priority ranking both query on state.
   @@index([locationState])
+  @@index([listingType])
 }
 
 model MarketplaceCategory {
@@ -855,6 +858,20 @@ enum PriceFlag {
   too_low
   none
   great_deal
+}
+
+/**
+ * Real Estate, Jobs and Services are different listing SHAPES, not categories:
+ * no stock, no cart, and no escrow on a vacancy. See lib/listing-types.ts for
+ * the per-type fields and commerce rules. Type-specific attributes live in
+ * `specs` (Json) — only the discriminator needs to be a real column, because
+ * search has to filter on it.
+ */
+enum ListingType {
+  product
+  property
+  job
+  service
 }
 
 enum ProductCondition {

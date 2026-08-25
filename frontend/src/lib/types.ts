@@ -123,6 +123,12 @@ export interface Product {
     financing_down_payment?: number;
     is_direct_payment?: boolean;
     condition?: "brand_new" | "used" | "refurbished";
+    /**
+     * What SHAPE of listing this is. Drives which form fields apply, whether the
+     * cart/escrow/stock exist for it, and which search facets show — see
+     * lib/listing-types.ts. Defaults to "product" everywhere it is absent.
+     */
+    listing_type?: "product" | "property" | "job" | "service";
     /** Where the item physically is — drives search filters and location ranking. */
     location_state?: string | null;
     location_city?: string | null;

@@ -17,6 +17,7 @@ import { StructuredProductData } from "@/components/seo/StructuredProductData";
 import { PriceGraphWidget } from "@/components/product/PriceGraphWidget";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
+import { isShoppable, getListingConfig } from "@/lib/listing-types";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -1976,7 +1977,24 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </div>
                                 <div className="space-y-3 pt-2">
-                                    {product.stock === 0 ? (
+                                    {/* Cart and stock only apply to physical goods. A vacancy
+                                        has no inventory and cannot be "out of stock"; a flat is
+                                        not added to a basket. Non-shoppable listings get a
+                                        contact CTA instead — see lib/listing-types.ts. */}
+                                    {!isShoppable(product.listing_type) ? (
+                                        <Button
+                                            className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all"
+                                            onClick={() => {
+                                                // Send the buyer to the seller-contact block; that is
+                                                // the whole point of a non-shoppable listing.
+                                                const el = document.getElementById("seller-contact-section")
+                                                    || document.getElementById("reviews-section");
+                                                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            }}
+                                        >
+                                            {getListingConfig(product.listing_type).commerce.primaryCta}
+                                        </Button>
+                                    ) : product.stock === 0 ? (
                                         <Button
                                             className="w-full rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 font-black py-6 text-lg transition-all cursor-not-allowed shadow-none"
                                             onClick={(e) => {

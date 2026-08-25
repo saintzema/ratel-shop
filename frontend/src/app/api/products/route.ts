@@ -137,6 +137,22 @@ export async function GET(req: Request) {
             ];
         }
 
+        // ─── Listing type filter (?listingType=property|job|service) ───
+        // Property, jobs and services are different listing shapes, not
+        // categories — a buyer browsing flats must not get phones mixed in, and
+        // the default marketplace view should not surface vacancies among goods.
+        const listingTypeParam = (searchParams.get("listingType") || "").trim().toLowerCase();
+        const VALID_LISTING_TYPES = ["product", "property", "job", "service"];
+        if (listingTypeParam) {
+            const wanted = listingTypeParam.split(",").map(t => t.trim()).filter(t => VALID_LISTING_TYPES.includes(t));
+            if (wanted.length > 0) {
+                whereClause.AND = [
+                    ...(Array.isArray(whereClause.AND) ? whereClause.AND : []),
+                    { listingType: { in: wanted } },
+                ];
+            }
+        }
+
         const categoryParam = (searchParams.get("category") || "").trim();
         const catTerms = categoryMatchTerms(categoryParam);
         if (catTerms.length > 0) {
@@ -224,6 +240,7 @@ export async function GET(req: Request) {
             phoneViewCount: true,
             chatCount: true,
             condition: true,
+            listingType: true,
             locationState: true,
             locationCity: true,
             ...(hasLocation ? { seller: { select: { state: true, city: true } } } : {}),
@@ -326,6 +343,7 @@ export async function GET(req: Request) {
             // the client field share a name; locationState/locationCity do not.
             location_state: p.locationState ?? null,
             location_city: p.locationCity ?? null,
+            listing_type: p.listingType ?? "product",
             created_at: p.createdAt.toISOString(),
             slug: p.slug || undefined,
         }));
@@ -581,6 +599,9 @@ export async function POST(req: Request) {
                 : {}),
             locationState: body.location_state || rawSpecs.location_state || null,
             locationCity: body.location_city || rawSpecs.location_city || null,
+            ...(["product", "property", "job", "service"].includes(String(body.listing_type))
+                ? { listingType: body.listing_type }
+                : {}),
         } as any;
 
         // Build a SAFE update object that won't wipe heavy content fields if they're missing

@@ -61,6 +61,7 @@ export function mapDbProductToClient(product: DbProductLike) {
         // no card, filter or PDP could show it. Location is new — both feed the
         // search filters and the location-priority ranking.
         condition: product.condition,
+        listing_type: (product as any).listingType ?? "product",
         location_state: (product as any).locationState ?? null,
         location_city: (product as any).locationCity ?? null,
         sold_count: product.soldCount,

@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CATEGORIES } from "@/lib/types";
+import { LISTING_TYPE_ORDER, LISTING_TYPES, getListingConfig, usesCondition } from "@/lib/listing-types";
 import { subcategoriesForCategory } from "@/lib/taxonomy-subs";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
@@ -59,6 +60,8 @@ function NewProductContent() {
         // where any individual item actually is. Persisted into `specs` rather than
         // new Product columns (schema adds are risky against the pooled connection)
         // — specs is already the field the category filter system matches on.
+        // Product | Property | Job | Service — see lib/listing-types.ts.
+        listing_type: "product" as "product" | "property" | "job" | "service",
         condition: "brand_new",
         location_state: "",
         location_city: "",
@@ -71,6 +74,10 @@ function NewProductContent() {
     // a seller fills in here is exactly what buyers can later filter by. Kept apart
     // from the freeform specs list so AI autofill can't clobber them.
     const [categoryAttrs, setCategoryAttrs] = useState<Record<string, string>>({});
+    /** Values for the fields that belong to the chosen listing type. Kept apart
+     *  from categoryAttrs so switching type cannot leak a bedrooms count onto a
+     *  phone listing. */
+    const [listingAttrs, setListingAttrs] = useState<Record<string, string>>({});
     const [categoryQuery, setCategoryQuery] = useState("");
     const [showCategoryList, setShowCategoryList] = useState(false);
 
@@ -622,6 +629,7 @@ function NewProductContent() {
                 specs: {
                     ...formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                     ...Object.fromEntries(Object.entries(categoryAttrs).filter(([, v]) => v)),
+                    ...Object.fromEntries(Object.entries(listingAttrs).filter(([, v]) => v)),
                     ...(formData.location_state ? { location_state: formData.location_state } : {}),
                     ...(formData.location_city ? { location_city: formData.location_city } : {}),
                     ...(formData.negotiable ? { negotiable: formData.negotiable } : {}),
@@ -631,6 +639,7 @@ function NewProductContent() {
                 // columns now precisely so search can filter and rank on them, which
                 // a JSON blob could not support. Kept in specs too for anything still
                 // reading it from there.
+                listing_type: formData.listing_type,
                 condition: formData.condition as "brand_new" | "used" | "refurbished",
                 location_state: formData.location_state || null,
                 location_city: formData.location_city || null,
@@ -787,7 +796,42 @@ function NewProductContent() {
                         transition={{ delay: 0.05 }}
                         className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
                     >
-                        <h2 className="text-lg font-semibold text-gray-900 mb-6">Product Details</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                            {getListingConfig(formData.listing_type).createVerb}
+                        </h2>
+
+                        {/* WHAT are you listing? This comes first because it changes
+                            everything after it — a job has no stock or condition, a
+                            property has bedrooms, a service has an hourly rate. */}
+                        <div className="mb-6">
+                            <label className="text-sm font-medium text-gray-700 mb-2 block">What are you listing?</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {LISTING_TYPE_ORDER.map(t => {
+                                    const cfg = LISTING_TYPES[t];
+                                    const active = formData.listing_type === t;
+                                    return (
+                                        <button
+                                            key={t}
+                                            type="button"
+                                            onClick={() => {
+                                                handleChange("listing_type" as any, t);
+                                                // Clear the previous type's answers — they are
+                                                // meaningless under the new shape.
+                                                setListingAttrs({});
+                                            }}
+                                            className={`rounded-xl border p-3 text-left transition-all ${
+                                                active
+                                                    ? "border-green-600 bg-green-50 ring-2 ring-green-600/15"
+                                                    : "border-gray-200 bg-gray-50 hover:border-gray-300"
+                                            }`}
+                                        >
+                                            <span className="text-xl block leading-none mb-1">{cfg.icon}</span>
+                                            <span className={`text-sm font-bold ${active ? "text-green-700" : "text-gray-700"}`}>{cfg.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
@@ -883,7 +927,7 @@ function NewProductContent() {
                                     with stock in more than one city can finally say which. */}
                                 {/* Condition sits alongside location: both are what a buyer
                                     filters on first, and neither was collected here. */}
-                                <div className="space-y-2">
+                                <div className="space-y-2" style={{ display: usesCondition(formData.listing_type) ? undefined : "none" }}>
                                     <label className="text-sm font-medium text-gray-700">Condition</label>
                                     <select
                                         className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
@@ -925,6 +969,44 @@ function NewProductContent() {
                                         ))}
                                     </select>
                                 </div>
+
+                                {/* Fields that belong to the chosen listing type. Property gets
+                                    bedrooms/furnishing, a job gets employment type and salary
+                                    period, a service gets its pricing model. Physical products
+                                    define none, so this renders nothing for them. */}
+                                {getListingConfig(formData.listing_type).fields.map(field => (
+                                    <div key={field.key} className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-700">
+                                            {field.label}{field.required && <span className="text-rose-500 ml-0.5">*</span>}
+                                        </label>
+                                        {field.type === "select" ? (
+                                            <select
+                                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/10 focus:border-green-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                                value={listingAttrs[field.key] || ""}
+                                                onChange={(e) => setListingAttrs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            >
+                                                <option value="">Select {field.label.toLowerCase()}</option>
+                                                {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                                            </select>
+                                        ) : field.type === "textarea" ? (
+                                            <textarea
+                                                rows={3}
+                                                placeholder={field.placeholder}
+                                                className="flex w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500/10 focus:border-green-500 transition-all text-gray-900"
+                                                value={listingAttrs[field.key] || ""}
+                                                onChange={(e) => setListingAttrs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            />
+                                        ) : (
+                                            <Input
+                                                type={field.type === "number" ? "number" : "text"}
+                                                placeholder={field.placeholder}
+                                                className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-green-500/10 focus:border-green-500"
+                                                value={listingAttrs[field.key] || ""}
+                                                onChange={(e) => setListingAttrs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
 
                                 <div className="space-y-2 col-span-1 md:col-span-2">
                                     <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
