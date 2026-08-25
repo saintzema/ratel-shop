@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { subcategoriesForCategory } from "@/lib/taxonomy-subs";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { DataSyncService } from "@/lib/sync-store";
 import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
 import { ProductSuggestion } from "@/lib/price-engine";
@@ -48,6 +49,11 @@ function EditProductContent() {
         name: "",
         category: "",
         subcategory: "",
+        // Condition and location — editable here so the existing catalogue can be
+        // backfilled; both are real, filterable columns on Product.
+        condition: "brand_new",
+        location_state: "",
+        location_city: "",
         tags: [] as string[],
         colors: "",
         price: "",
@@ -181,6 +187,9 @@ function EditProductContent() {
                         name: found.name,
                         category: (found.category || "").toLowerCase(),
                         subcategory: found.subcategory || "",
+                        condition: (found as any).condition || "brand_new",
+                        location_state: (found as any).location_state || "",
+                        location_city: (found as any).location_city || "",
                         tags: found.tags || [],
                         colors: found.colors ? found.colors.join(", ") : "",
                         price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
@@ -542,6 +551,9 @@ function EditProductContent() {
             external_url: formData.external_url,
             description: formData.description,
             subcategory: formData.subcategory,
+            condition: formData.condition as "brand_new" | "used" | "refurbished",
+            location_state: formData.location_state || null,
+            location_city: formData.location_city || null,
             tags: formData.tags,
             colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
             specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
@@ -724,6 +736,54 @@ function EditProductContent() {
                                 )}
                             </div>
                         </div>
+
+                        {/* Condition & Location.
+                            Neither was editable here, which is why the ~300 existing
+                            listings all carried the default condition and no location
+                            at all — leaving location filtering with nothing to match.
+                            This is the screen sellers use to backfill them. */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 col-span-1 md:col-span-2">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Condition</label>
+                                <select
+                                    className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                    value={formData.condition}
+                                    onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                                >
+                                    <option value="brand_new">Brand New</option>
+                                    <option value="used">Used</option>
+                                    <option value="refurbished">Refurbished</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">State</label>
+                                <select
+                                    className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                    value={formData.location_state}
+                                    onChange={(e) => setFormData({ ...formData, location_state: e.target.value, location_city: "" })}
+                                >
+                                    <option value="">Select state</option>
+                                    {NIGERIAN_STATES.map(s => (
+                                        <option key={s.state} value={s.state}>{s.state}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">City / Area</label>
+                                <select
+                                    className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900 disabled:opacity-50"
+                                    value={formData.location_city}
+                                    disabled={!formData.location_state}
+                                    onChange={(e) => setFormData({ ...formData, location_city: e.target.value })}
+                                >
+                                    <option value="">{formData.location_state ? "Any area" : "Pick a state first"}</option>
+                                    {(NIGERIAN_STATES.find(s => s.state === formData.location_state)?.cities || []).map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="space-y-2 col-span-1 md:col-span-2">
                             <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
                             <TagsInput 

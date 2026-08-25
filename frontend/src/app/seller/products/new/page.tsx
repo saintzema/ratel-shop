@@ -59,6 +59,7 @@ function NewProductContent() {
         // where any individual item actually is. Persisted into `specs` rather than
         // new Product columns (schema adds are risky against the pooled connection)
         // — specs is already the field the category filter system matches on.
+        condition: "brand_new",
         location_state: "",
         location_city: "",
         // Jiji-style price negotiability. "" = not specified.
@@ -625,6 +626,14 @@ function NewProductContent() {
                     ...(formData.location_city ? { location_city: formData.location_city } : {}),
                     ...(formData.negotiable ? { negotiable: formData.negotiable } : {}),
                 },
+                // Also sent as REAL columns, not just inside specs. The comment above
+                // predates locationState/locationCity existing on Product; they are
+                // columns now precisely so search can filter and rank on them, which
+                // a JSON blob could not support. Kept in specs too for anything still
+                // reading it from there.
+                condition: formData.condition as "brand_new" | "used" | "refurbished",
+                location_state: formData.location_state || null,
+                location_city: formData.location_city || null,
                 image_url: finalImageUrl,
                 images: finalImages,
                 stock: parseInt(formData.stock) || 0,
@@ -872,6 +881,20 @@ function NewProductContent() {
                                 {/* Per-listing location. Falls back to the seller's profile
                                     location when left blank, so this is additive — a seller
                                     with stock in more than one city can finally say which. */}
+                                {/* Condition sits alongside location: both are what a buyer
+                                    filters on first, and neither was collected here. */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Condition</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                        value={(formData as any).condition || "brand_new"}
+                                        onChange={(e) => handleChange("condition" as any, e.target.value)}
+                                    >
+                                        <option value="brand_new">Brand New</option>
+                                        <option value="used">Used</option>
+                                        <option value="refurbished">Refurbished</option>
+                                    </select>
+                                </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">State</label>
                                     <select
