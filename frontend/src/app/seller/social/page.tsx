@@ -131,6 +131,8 @@ function SellerSocialComposerContent() {
     const searchParams = useSearchParams();
     const preselectProductId = searchParams.get("product");
     const [products, setProducts] = useState<Product[]>([]);
+    /** True until the catalogue has actually been looked for — see the effect below. */
+    const [productsLoading, setProductsLoading] = useState(true);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [productSearch, setProductSearch] = useState("");
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -170,19 +172,65 @@ function SellerSocialComposerContent() {
     };
 
     useEffect(() => {
+        const cleanupFns: Array<() => void> = [];
         const sellerId = DataSyncService.getCurrentSellerId();
         const sellerInfo = DataSyncService.getCurrentSeller();
         if (!sellerId) {
-            router.push("/seller/login");
+            // Don't navigate away — getCurrentSellerId() is transiently null on a
+            // cold start until the seller layout resolves the store. The layout
+            // owns the auth redirect; bouncing from here fought it.
+            setProductsLoading(false);
             return;
         }
-        const all = DataSyncService.getProducts({ includeInactiveSellers: true });
-        const mine = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
-        setProducts(mine);
-        if (mine.length > 0) {
-            const preselect = preselectProductId ? mine.find(p => p.id === preselectProductId) : null;
-            setSelectedProduct(preselect || mine[0]);
-        }
+
+        const applyProducts = (list: Product[]) => {
+            setProducts(prev => {
+                // Never replace a populated list with an empty one: the shared
+                // cache is capped and can be mid-write, and an empty read means
+                // "not ready", not "this seller has no products".
+                const next = list.length === 0 && prev.length > 0 ? prev : list;
+                if (next.length > 0) {
+                    setSelectedProduct(sel => {
+                        if (sel && next.some(p => p.id === sel.id)) return sel;
+                        const preselect = preselectProductId ? next.find(p => p.id === preselectProductId) : null;
+                        return preselect || next[0];
+                    });
+                }
+                return next;
+            });
+        };
+
+        const readCache = () => {
+            const all = DataSyncService.getProducts({ includeInactiveSellers: true });
+            return all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)) as Product[];
+        };
+
+        applyProducts(readCache());
+
+        // Ask the DATABASE, don't just trust this device's cache.
+        //
+        // This effect used to read the cache once, synchronously, at mount — with
+        // no DB fetch, no sync-store-update listener and no loading state. On a
+        // cold cache (new device, after a quota purge, or simply arriving here
+        // before the catalogue had synced) a seller with 300 products was told
+        // "Add a product first", and it never corrected itself because nothing
+        // ever re-read. That is what made the dashboard's "Connect Facebook"
+        // alert appear to lead to an empty composer.
+        fetch(`/api/products?sellerId=${encodeURIComponent(sellerId)}&all=true`)
+            .then(r => r.ok ? r.json() : null)
+            .then((data: any) => {
+                if (!data) return;
+                const fresh: any[] = Array.isArray(data) ? data : (data.products || []);
+                if (!fresh.length) return;
+                try { DataSyncService.addRawProducts(fresh as any, false); } catch { /* non-critical */ }
+                applyProducts(fresh as Product[]);
+            })
+            .catch(() => { /* keep whatever the cache gave us */ })
+            .finally(() => setProductsLoading(false));
+
+        const onSync = () => applyProducts(readCache());
+        window.addEventListener("sync-store-update", onSync);
+        cleanupFns.push(() => window.removeEventListener("sync-store-update", onSync));
 
         // Reuses the same connection the Instagram catalog importer already
         // established under Integrations — a seller who connected there
@@ -222,6 +270,7 @@ function SellerSocialComposerContent() {
             });
         // preselectProductId is read on mount to pick the initial product; it was
         // missing from the dep list.
+        return () => { cleanupFns.forEach(fn => fn()); };
     }, [router, preselectProductId]);
 
     // Instagram/Facebook's real publish mode is only available once connected
@@ -589,7 +638,15 @@ function SellerSocialComposerContent() {
                     </div>
                 </div>
 
-                {products.length === 0 ? (
+                {productsLoading && products.length === 0 ? (
+                    // Say "loading", never "you have no products", until we have
+                    // actually looked. Telling a seller with 300 listings to add
+                    // their first one is worse than a spinner.
+                    <div className="text-center py-16 bg-white/70 backdrop-blur-xl rounded-3xl border border-gray-100 shadow-sm">
+                        <div className="h-6 w-6 mx-auto mb-3 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="text-gray-500 font-medium">Loading your products…</p>
+                    </div>
+                ) : products.length === 0 ? (
                     <div className="text-center py-16 bg-white/70 backdrop-blur-xl rounded-3xl border border-gray-100 shadow-sm">
                         <p className="text-gray-500 font-medium">Add a product first — then come back here to promote it.</p>
                     </div>

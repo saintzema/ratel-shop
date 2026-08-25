@@ -162,10 +162,16 @@ function SellerProductsContent() {
                     // storage filled up.
                     try { DataSyncService.addRawProducts(fresh as any, false); } catch { /* non-critical */ }
                 })
-                .catch(() => {});
+                .catch(() => {})
+                // Loading ends when the DATABASE has answered, not when the
+                // synchronous cache read finishes. The outer `finally` below ran
+                // immediately — this fetch is a promise chain, not awaited — so
+                // `loading` flipped false while the real list was still in flight
+                // and the "Zero Items Found" empty state flashed at sellers who
+                // have hundreds of products.
+                .finally(() => setLoading(false));
         } catch (error) {
             console.error("Failed to load products:", error);
-        } finally {
             setLoading(false);
         }
     };
@@ -571,7 +577,16 @@ function SellerProductsContent() {
                 "transition-all duration-500",
                 loading ? "opacity-50 grayscale" : "opacity-100"
             )}>
-                {paginatedProducts.length === 0 ? (
+                {loading && products.length === 0 ? (
+                    // "Zero Items Found" is a claim about the seller's catalogue, and
+                    // it must not be made before the catalogue has been fetched. On a
+                    // cold cache this flashed at a seller with 300 listings, and again
+                    // every time they returned from saving an edit.
+                    <div className="py-32 text-center bg-white/40 backdrop-blur-xl rounded-[40px] border border-dashed border-gray-200">
+                        <div className="h-10 w-10 mx-auto mb-5 border-2 border-gray-200 border-t-gray-700 rounded-full animate-spin" />
+                        <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest">Loading your products…</h2>
+                    </div>
+                ) : paginatedProducts.length === 0 ? (
                     <div className="py-32 text-center bg-white/40 backdrop-blur-xl rounded-[40px] border border-dashed border-gray-200">
                         <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-gray-100">
                             <Package className="h-10 w-10 text-gray-200" />
