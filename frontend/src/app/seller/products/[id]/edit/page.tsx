@@ -614,15 +614,6 @@ function EditProductContent() {
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Edit Product</h1>
                     <p className="text-base text-gray-500 mt-2">Update your listing details, images, and pricing.</p>
                 </div>
-                <Button
-                    variant="outline"
-                    className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-full text-sm font-semibold px-5 h-10"
-                    onClick={handleAIGenerate}
-                    disabled={isGenerating || !formData.name}
-                >
-                    <Sparkles className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
-                    {isGenerating ? "Generating..." : "Auto-Fill with AI"}
-                </Button>
             </motion.div>
 
             {/* Success Banner */}
@@ -670,6 +661,20 @@ function EditProductContent() {
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
                             />
+                            {/* Directly under the name it acts on, in brand green, matching
+                                the new-product page. It used to sit grey in the page header
+                                next to the title — far from the field it fills, and easy to
+                                miss entirely on a phone. */}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="gap-2 border-gray-200 bg-green-600 text-white hover:bg-green-700 rounded-xl text-sm font-semibold h-10 w-full mt-1"
+                                onClick={handleAIGenerate}
+                                disabled={isGenerating || !formData.name}
+                            >
+                                <Sparkles className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
+                                {isGenerating ? "Generating..." : "Auto-Fill with AI"}
+                            </Button>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Category</label>
