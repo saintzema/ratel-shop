@@ -1053,6 +1053,73 @@ class DataSyncServiceService {
     }
 
     private _syncFailedAt = 0;
+    /**
+     * Pull durable chat threads from the server into the local cache.
+     *
+     * Conversations used to exist ONLY in localStorage — there was no table for
+     * them, so a cleared cache or a new device lost every thread permanently.
+     * The server is now the source of truth (Conversation/ChatMessage, see
+     * /api/conversations/threads) and this keeps the local copy, which every
+     * inbox screen already reads, in step with it.
+     *
+     * Server rows are mapped into the EXISTING local shape (participants /
+     * participant_names / unread_count / context) so the seller inbox, buyer
+     * inbox and admin inbox all benefit without being rewritten.
+     */
+    public async syncConversations(): Promise<number> {
+        if (typeof window === "undefined") return 0;
+        const token = localStorage.getItem("fp_token");
+        if (!token) return 0;
+
+        try {
+            const res = await fetch("/api/conversations/threads", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return 0;
+            const data = await res.json();
+            const threads: any[] = Array.isArray(data?.threads) ? data.threads : [];
+            if (threads.length === 0) return 0;
+
+            const mapped = threads.map(t => ({
+                id: t.id,
+                participants: [t.buyerId, t.sellerId],
+                participant_names: {
+                    [t.buyerId]: t.buyerName || "Customer",
+                    [t.sellerId]: t.sellerName || "Seller",
+                },
+                last_message: t.lastMessage || "",
+                last_message_at: t.lastMessageAt,
+                unread_count: {
+                    [t.buyerId]: t.unreadForBuyer || 0,
+                    [t.sellerId]: t.unreadForSeller || 0,
+                },
+                // Product-scoped threads: the same buyer and seller can hold
+                // several, one per item, so the product is part of the identity
+                // rather than incidental metadata.
+                context: {
+                    type: "buyer_seller" as const,
+                    product_id: t.productId || undefined,
+                    product_name: t.productName || undefined,
+                    product_image: t.productImage || undefined,
+                },
+                _server: true,
+            }));
+
+            // Merge rather than replace: a thread created locally moments ago may
+            // not have round-tripped yet, and clobbering it would make the message
+            // the user just sent disappear.
+            const existing = this.getConversations();
+            const byId = new Map<string, any>(existing.map((c: any) => [c.id, c]));
+            for (const m of mapped) byId.set(m.id, { ...byId.get(m.id), ...m });
+
+            this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(byId.values())));
+            window.dispatchEvent(new Event("sync-store-update"));
+            return mapped.length;
+        } catch {
+            return 0; // offline: keep whatever is cached
+        }
+    }
+
     public async syncNegotiations() {
         if (typeof window === "undefined") return;
         // Circuit breaker: skip for 30s after a failure to avoid hammering a dead DB
@@ -4126,6 +4193,11 @@ class DataSyncServiceService {
         try {
             console.log(`🔄 AutoSync started for ${identity}...`);
             
+            // Durable chat threads. Fire-and-forget alongside the rest: the inbox
+            // screens read the local cache, and this is what keeps that cache
+            // backed by the server instead of being the only copy that exists.
+            this.syncConversations().catch(() => { /* offline: cached threads stand */ });
+
             const queries = [];
             if (sellerId) {
                 queries.push(
