@@ -666,6 +666,59 @@ model Notification {
   user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+/**
+ * Buyer↔seller chat, PERSISTED.
+ *
+ * These threads used to live only in browser localStorage — there was no table
+ * for them at all. Any cache purge, new device or cleared storage destroyed every
+ * conversation permanently, which is exactly what sellers hit: notifications
+ * survived (they are rows) while every message thread vanished.
+ *
+ * Threads are scoped to a PRODUCT, not just to a pair of people. The same buyer
+ * asking about a generator and a fridge from one seller gets two separate
+ * threads, so neither conversation turns into an unreadable mix of two
+ * negotiations. productId uses "" rather than NULL for the general
+ * (no-product) thread, because Postgres treats NULLs as distinct and the unique
+ * constraint would then allow unlimited duplicate general threads.
+ */
+model Conversation {
+  id            String   @id @default(cuid())
+  sellerId      String
+  buyerId       String
+  productId     String   @default("")
+  productName   String?
+  productImage  String?
+  sellerName    String?
+  buyerName     String?
+  lastMessage   String?
+  lastMessageAt DateTime @default(now())
+  unreadForSeller Int    @default(0)
+  unreadForBuyer  Int    @default(0)
+  createdAt     DateTime @default(now())
+  messages      ChatMessage[]
+
+  @@unique([sellerId, buyerId, productId])
+  @@index([sellerId, lastMessageAt])
+  @@index([buyerId, lastMessageAt])
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  senderName     String?
+  // "buyer" | "seller" — who this came from, independent of ids, so the UI can
+  // align bubbles without resolving identity on every render.
+  senderRole     String   @default("buyer")
+  text           String
+  imageUrl       String?
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
 model SupportMessage {
   id              String        @id @default(cuid())
   userName        String
