@@ -895,3 +895,96 @@ satisfied today, because the Promotion Performance panel makes real `/insights`
 calls. But `ads_read` on its own is of limited use without the campaign-creation
 permissions, so the cleanest sequence remains: **ship Phase 1 with the 7 core
 permissions, run one real campaign, then submit the ads set together.**
+
+---
+
+## 17. Unblocking `ads_management` — the exact sequence
+
+The gate says *"Ensure you have performed required API test calls."* For
+`ads_management` and `pages_manage_ads` that cannot be satisfied by reading —
+Meta wants to see the app **create** advertising objects. Nothing in the FairPrice
+ad account has ever been created, so the counter sits at zero.
+
+You do **not** need to spend a large amount to clear it. You need one real
+campaign that genuinely delivers.
+
+### Step 1 — Assign the System User (no App Review, ~5 minutes)
+
+Business Settings → **Users → System Users** → select (or **Add**) your system user:
+
+1. **Add Assets → Ad Accounts** → select the FairPrice ad account → enable
+   **Manage campaigns** (this is `ads_management`) and **View performance**
+   (`ads_read`).
+2. **Add Assets → Pages** → select your Page → enable **Manage Page**.
+3. **Generate New Token** → select the FairPrice app → tick `ads_management`,
+   `ads_read`, `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`.
+4. Copy the token. **It is shown once.**
+
+Put it in Vercel as `META_ADS_ACCESS_TOKEN`, and the ad account id (digits only,
+no `act_` prefix) as `META_AD_ACCOUNT_ID`. Or set both in Admin → Settings, which
+`resolveMetaAdsCredentials()` reads first.
+
+> A System User token does not expire the way a user token does. Treat it like a
+> password — it can spend money from that ad account.
+
+### Step 2 — Fund the ad account
+
+Ads Manager → **Billing → Payment settings** → add a card. A campaign cannot
+deliver on an unfunded account, and a campaign that never delivers does not
+register the calls.
+
+### Step 3 — Verify the credentials before spending anything
+
+```bash
+curl -s "$GRAPH/act_$AD_ACCOUNT_ID?fields=name,currency,account_status,funding_source_details&access_token=$SYS_TOKEN"
+```
+
+`account_status` must be **1** (active). Anything else and delivery will silently
+fail. This call also registers `ads_read`.
+
+### Step 4 — Run ONE real campaign through the product
+
+Do this through the FairPrice UI, not curl — the screencast needs to show your
+own flow:
+
+1. Sign in as the seller, open **Products**, press **Promote** on a real listing.
+2. Choose a package with the **Advertise on Facebook & Instagram** add-on.
+3. Pay. `createBoostCampaign()` then creates Campaign → AdSet → AdCreative → Ad
+   and activates them.
+4. **Budget: ₦5,000–₦10,000 over 2–3 days is enough.** The gate counts API calls,
+   not spend. A daily budget under roughly ₦1,000 often fails to deliver at all
+   in Nigerian auctions, which is the trap — an under-funded campaign creates the
+   objects but produces no impressions, and a reviewer sees a dead campaign.
+5. Confirm in Ads Manager that it moved to **Active** and started delivering.
+
+### Step 5 — Wait for delivery, then check the counter
+
+Give it **24–48 hours**. Then:
+
+- **App Review → Testing** should show `ads_management` and `pages_manage_ads`
+  satisfied.
+- The seller dashboard's **Promotion Performance** panel should show real
+  impressions, reach, clicks and cost-per-contact.
+
+If the panel still reads "Not delivering yet" after 48 hours, the campaign is not
+spending — check budget, targeting breadth, and `account_status` before assuming
+anything is wrong with the integration.
+
+### Step 6 — Record the screencast and submit
+
+`screencast-ads-management.mp4` per §13: sign in → Products → Promote → pay →
+campaign confirmation → cut to Ads Manager showing it live with the seller's Page
+as the ad identity → back to Promotion Performance showing real numbers.
+
+Submit `pages_manage_ads`, `ads_management`, `ads_read` and Marketing API
+Standard Access together, **after** Phase 1 is approved.
+
+### Why not just fake it with a paused campaign
+
+Creating a PAUSED campaign via curl does register an `ads_management` call, and
+that alone may flip the counter. It will not survive review: the screencast has to
+show the feature working, and a campaign that never delivered has no performance
+to display. You would pass the automated gate and fail the human one — with the
+whole submission, including the permissions you already earned.
+
+The ₦5,000 is the cheapest part of this process. Spend it.

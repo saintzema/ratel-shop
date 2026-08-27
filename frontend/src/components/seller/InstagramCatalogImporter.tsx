@@ -494,7 +494,13 @@ export function InstagramCatalogImporter() {
                             </Button>
                         </div>
                     ) : (
-                        <div className="flex h-[520px]">
+                        // Stacks on mobile. This was a fixed-height HORIZONTAL flex row:
+                        // the sidebar hides under md, but the editor kept desktop
+                        // proportions, so the fields and the Publish button sat off the
+                        // right edge and the sheet scrolled sideways. Height is capped by
+                        // viewport rather than a hard 520px so the editor stays reachable
+                        // on a short screen with the keyboard open.
+                        <div className="flex flex-col md:flex-row h-auto max-h-[78vh] md:h-[520px]">
                             {/* Sidebar */}
                             <div className="w-56 bg-white border-r border-gray-100 flex-col hidden md:flex">
                                 <div className="p-4 border-b border-gray-100">
@@ -526,11 +532,11 @@ export function InstagramCatalogImporter() {
 
                             {/* Editor */}
                             {editProducts[editIdx] && (
-                                <div className="flex-1 flex flex-col bg-white overflow-hidden">
-                                    <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                                        <div className="flex gap-5">
+                                <div className="flex-1 min-w-0 flex flex-col bg-white overflow-hidden">
+                                    <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                                        <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                                             {/* Image */}
-                                            <div className="w-36 h-36 shrink-0 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+                                            <div className="w-28 h-28 sm:w-36 sm:h-36 shrink-0 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img src={editProducts[editIdx].imageUrl} alt="" className="w-full h-full object-cover" />
                                             </div>
