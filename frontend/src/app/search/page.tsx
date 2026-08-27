@@ -31,6 +31,7 @@ import {
   detectCategoryFromQuery,
   type FilterGroup,
 } from "@/lib/category-filters";
+import { LISTING_TYPE_ORDER, LISTING_TYPES, facetsFor, usesCondition, type ListingType } from "@/lib/listing-types";
 import {
   Heart,
   ShoppingCart,
@@ -257,6 +258,10 @@ function SearchContent() {
   const minPriceParam = searchParams.get("minPrice");
   const maxPriceParam = searchParams.get("maxPrice");
   const pageParam = searchParams.get("page");
+  // Listing type drives which facets are even meaningful — bedrooms on a phone
+  // search is noise, and a job has no condition. See lib/listing-types.ts.
+  const listingTypeParam = (searchParams.get("listingType") || "") as "" | ListingType;
+  const conditionParam = searchParams.get("condition") || "";
   const stateParam = searchParams.get("state") || "";
   const cityParam = searchParams.get("city") || "";
   // A typed query can carry a location phrase ("cars in Maitama, Abuja") — parse it
@@ -645,6 +650,8 @@ function SearchContent() {
     if (effectiveCat) params.set("category", effectiveCat);
     if (stateParam) params.set("state", stateParam);
     if (cityParam) params.set("city", cityParam);
+    if (listingTypeParam) params.set("listingType", listingTypeParam);
+    if (conditionParam) params.set("condition", conditionParam);
     params.set("limit", "60");
     fetch(`/api/products?${params.toString()}`)
       .then(r => r.ok ? r.json() : null)
@@ -657,7 +664,7 @@ function SearchContent() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [query, stateParam, cityParam, selectedCategory]);
+  }, [query, stateParam, cityParam, selectedCategory, listingTypeParam, conditionParam]);
 
   // Debounced global search for the search page.
   //
@@ -1104,6 +1111,21 @@ function SearchContent() {
         // Products missing the spec entirely are intentionally NOT excluded:
         // spec coverage is patchy across a marketplace catalogue, and dropping
         // them would hide most real listings behind any filter.
+        // Listing type and condition are real columns, not specs, so they are
+        // filtered here rather than through the attribute loop below. Unlike
+        // specs, a missing value IS excluded: everything has a listingType (it
+        // defaults to "product"), so an absent one means it genuinely is not a
+        // match rather than patchy data.
+        if (listingTypeParam) {
+          const t = (product as any).listing_type || "product";
+          if (t !== listingTypeParam) return false;
+        }
+        if (conditionParam) {
+          const wanted = conditionParam.split(",").map(c => c.trim()).filter(Boolean);
+          const c = (product as any).condition || "brand_new";
+          if (wanted.length > 0 && !wanted.includes(c)) return false;
+        }
+
         const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
         for (const [key, values] of Object.entries(attributeFilters)) {
           if (values.length === 0) continue;
@@ -1379,6 +1401,75 @@ function SearchContent() {
                           <Filter className="h-3 w-3" /> Clear
                         </button>
                     )}
+
+                    {/* Listing type. First in the row because it changes which of the
+                        facets after it even apply — bedrooms are meaningless on a
+                        phone search, condition is meaningless on a job. */}
+                    <div className="relative shrink-0 snap-start">
+                      <select
+                        value={listingTypeParam}
+                        onChange={(e) => updateFilters({
+                          listingType: e.target.value || null,
+                          // Facets from the previous type would silently keep
+                          // filtering against specs the new type never sets.
+                          condition: null,
+                          ...Object.fromEntries(
+                            Array.from(searchParams.keys())
+                              .filter(k => k.startsWith("attr_"))
+                              .map(k => [k, null])
+                          ),
+                        })}
+                        className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white"
+                      >
+                        <option value="">All listings</option>
+                        {LISTING_TYPE_ORDER.map(t => (
+                          <option key={t} value={t}>{LISTING_TYPES[t].icon} {LISTING_TYPES[t].labelPlural}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                    </div>
+
+                    {/* Condition — hidden for jobs and services, where "Brand New"
+                        means nothing. */}
+                    {usesCondition(listingTypeParam || "product") && (
+                      <div className="relative shrink-0 snap-start">
+                        <select
+                          value={conditionParam}
+                          onChange={(e) => updateFilters({ condition: e.target.value || null })}
+                          className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white"
+                        >
+                          <option value="">Any condition</option>
+                          <option value="brand_new">Brand New</option>
+                          <option value="used">Used</option>
+                          <option value="refurbished">Refurbished</option>
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                      </div>
+                    )}
+
+                    {/* Facets that belong to the chosen listing type — bedrooms and
+                        furnishing for property, employment type and job field for
+                        jobs, pricing model for services. These write attr_<key>,
+                        which the existing spec-matching filter already understands,
+                        because listing-type fields are stored in specs. */}
+                    {listingTypeParam && facetsFor(listingTypeParam).map(f => (
+                      <div key={f.key} className="relative shrink-0 snap-start">
+                        <select
+                          value={(attributeFilters[f.key] || [])[0] || ""}
+                          onChange={(e) => {
+                            const params = new URLSearchParams(searchParams.toString());
+                            if (e.target.value) params.set(`attr_${f.key}`, e.target.value);
+                            else params.delete(`attr_${f.key}`);
+                            router.push(`/search?${params.toString()}`, { scroll: false });
+                          }}
+                          className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white max-w-[150px]"
+                        >
+                          <option value="">{f.label}</option>
+                          {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                      </div>
+                    ))}
 
                     {/* Location — Jiji-style: narrows to a state/city but never hides
                         results outside it, just ranks them after (see the server's
