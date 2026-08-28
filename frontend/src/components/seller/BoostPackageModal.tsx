@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, Rocket, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
-import { BOOST_TIERS, BOOST_ADDONS, calculateBoostTotal } from "@/lib/boost-packages";
+import { BOOST_TIERS, BOOST_ADDONS, calculateBoostTotal, tiersForListingType, pricingForListingType } from "@/lib/boost-packages";
 import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, cn } from "@/lib/utils";
 
@@ -33,7 +33,13 @@ export function BoostPackageModal({
 
     if (!isOpen || !product) return null;
 
-    const totalNaira = calculateBoostTotal(selectedTier, selectedAddOns);
+    // Property, jobs and services are priced differently from physical goods —
+    // different ticket size, different sales cycle. See LISTING_TYPE_PRICING.
+    const listingType = product.listing_type || "product";
+    const tiers = tiersForListingType(listingType);
+    const typePricing = pricingForListingType(listingType);
+
+    const totalNaira = calculateBoostTotal(selectedTier, selectedAddOns, listingType);
     const user = DataSyncService.getCurrentUser();
 
     const toggleAddOn = (id: string) =>
@@ -109,7 +115,7 @@ export function BoostPackageModal({
                     <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
                         <div>
                             <h2 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                                <Rocket className="h-5 w-5 text-brand-orange" /> Boost this listing
+                                <Rocket className="h-5 w-5 text-brand-orange" /> {typePricing.label}
                             </h2>
                             <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[260px] sm:max-w-none">{product.name}</p>
                         </div>
@@ -120,7 +126,7 @@ export function BoostPackageModal({
 
                     <div className="p-6 space-y-6">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {BOOST_TIERS.map(tier => (
+                            {tiers.map(tier => (
                                 <button
                                     key={tier.id}
                                     onClick={() => setSelectedTier(tier.id)}
@@ -146,7 +152,7 @@ export function BoostPackageModal({
                         <div className="bg-gray-50 rounded-2xl p-4">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">What you get</p>
                             <ul className="space-y-2">
-                                {(BOOST_TIERS.find(t => t.id === selectedTier)?.perks || []).map(perk => (
+                                {(tiers.find(t => t.id === selectedTier)?.perks || []).map(perk => (
                                     <li key={perk} className="flex items-start gap-2 text-sm text-gray-700">
                                         <Check className="h-4 w-4 text-brand-green-600 shrink-0 mt-0.5" />
                                         {perk}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 import { verifyPaystackTransaction } from "@/lib/paystack-verify";
-import { BOOST_TIERS, getTier, getAddOn, calculateBoostTotal, META_ADS_ADDON_ID } from "@/lib/boost-packages";
+import { BOOST_TIERS, getTier, getAddOn, calculateBoostTotal, tiersForListingType, META_ADS_ADDON_ID } from "@/lib/boost-packages";
 import { createBoostCampaign, resolveMetaAdsCredentials } from "@/lib/meta-ads";
 
 /**
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     // Ownership: every listing in the purchase must belong to this seller.
     const products = await db.product.findMany({
         where: { id: { in: targetIds } },
-        select: { id: true, name: true, sellerId: true, imageUrl: true, price: true },
+        select: { id: true, name: true, sellerId: true, imageUrl: true, price: true, listingType: true },
     });
     if (products.length !== targetIds.length) {
         return NextResponse.json({ error: "One or more products were not found." }, { status: 404 });
@@ -155,7 +155,28 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const totalNaira = calculateBoostTotal(tierId, validAddOns);
+    // Price against the LISTING TYPE, read from the database — never from the
+    // request. The client shows a scaled ladder for property/jobs/services, and
+    // if the server priced everything as a product a seller would be shown one
+    // amount and charged another. Taking the type from the product row also
+    // means a forged listing_type in the body cannot buy a property boost at
+    // product prices.
+    //
+    // Mixed selections price at the most expensive type present, so a property
+    // listing cannot be smuggled into a cheap multi-product boost.
+    const boostListingType = products.reduce((highest: string, p: any) => {
+        const rank: Record<string, number> = { product: 0, service: 1, job: 2, property: 3 };
+        const t = p.listingType || "product";
+        return (rank[t] ?? 0) > (rank[highest] ?? 0) ? t : highest;
+    }, "product");
+
+    const totalNaira = calculateBoostTotal(tierId, validAddOns, boostListingType);
+
+    // The SCALED tier, so duration matches what was paid for. Property and jobs
+    // carry a minimum flight length (a 7-day property boost expires before most
+    // buyers finish shortlisting), and using the base tier's `days` here would
+    // have charged the longer price and expired on the shorter schedule.
+    const effectiveTier = tiersForListingType(boostListingType).find(t => t.id === tierId) || tier;
     const totalKobo = Math.round(totalNaira * 100);
 
     // Verify BEFORE granting placement — never trust a client "I paid".
@@ -187,7 +208,7 @@ export async function POST(req: NextRequest) {
                     budgetKobo: pid === targetIds[0] ? totalKobo : 0,
                     markupPct: 0, // fixed-price package; no per-spend markup applies
                     totalChargedKobo: pid === targetIds[0] ? totalKobo : 0,
-                    days: tier.days,
+                    days: effectiveTier.days,
                     paidReference: paystackReference,
                     status: "active",
                 },
@@ -205,7 +226,7 @@ export async function POST(req: NextRequest) {
         },
     });
 
-    const expiresAt = new Date(campaign.createdAt.getTime() + tier.days * 86400000);
+    const expiresAt = new Date(campaign.createdAt.getTime() + effectiveTier.days * 86400000);
 
     // ─── Optional: extend the boost onto Facebook + Instagram ───
     // The on-platform placement above is already paid for and live at this point.
@@ -268,12 +289,12 @@ export async function POST(req: NextRequest) {
                     platform: "facebook",
                     igUserId: fullSeller.instagramUserId || undefined,
                     budgetKobo: Math.round(adSpendNaira * 100),
-                    days: tier.days,
+                    days: effectiveTier.days,
                     credentials,
                 });
 
                 if (boost.success) {
-                    metaResult = { attempted: true, ok: true, detail: `Live on Facebook${fullSeller.instagramUserId ? " and Instagram" : ""} for ${tier.days} days.` };
+                    metaResult = { attempted: true, ok: true, detail: `Live on Facebook${fullSeller.instagramUserId ? " and Instagram" : ""} for ${effectiveTier.days} days.` };
                     await db.adCampaign.create({
                         data: {
                             sellerId: seller.id,
@@ -283,7 +304,7 @@ export async function POST(req: NextRequest) {
                             budgetKobo: Math.round(adSpendNaira * 100),
                             markupPct: 0,
                             totalChargedKobo: Math.round((addOn?.priceNaira ?? 0) * 100),
-                            days: tier.days,
+                            days: effectiveTier.days,
                             // Same payment, distinct row — suffixed so the replay guard
                             // above still blocks a genuine second use of this reference.
                             paidReference: `${paystackReference}:meta`,
@@ -309,7 +330,7 @@ export async function POST(req: NextRequest) {
         expiresAt: expiresAt.toISOString(),
         meta: metaResult.attempted ? metaResult : undefined,
         message:
-            `Boost ${tier.label} ${tier.days}d has been activated successfully.` +
+            `Boost ${effectiveTier.label} ${effectiveTier.days}d has been activated successfully.` +
             (metaResult.attempted
                 ? metaResult.ok
                     ? ` ${metaResult.detail}`

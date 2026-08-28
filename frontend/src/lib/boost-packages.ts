@@ -197,8 +197,106 @@ export const getTier = (id: string) => BOOST_TIERS.find(t => t.id === id);
 export const getAddOn = (id: string) => BOOST_ADDONS.find(a => a.id === id);
 
 /** Total in naira for a tier plus any selected add-ons. */
-export function calculateBoostTotal(tierId: string, addOnIds: string[] = []): number {
-    const tier = getTier(tierId);
+export function calculateBoostTotal(tierId: string, addOnIds: string[] = [], listingType?: string | null): number {
+    // listingType is optional and defaults to product pricing, so every existing
+    // caller keeps its current behaviour. It MUST be passed wherever a scaled
+    // ladder is displayed, or the seller sees one price and is charged another.
+    const tier = (listingType ? tiersForListingType(listingType) : BOOST_TIERS).find(t => t.id === tierId);
     if (!tier) return 0;
+    // Add-ons are flat: a WhatsApp button costs the same to run whatever it is
+    // attached to, so only the tier scales.
     return addOnIds.reduce((sum, id) => sum + (getAddOn(id)?.priceNaira ?? 0), tier.priceNaira);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-listing-type pricing
+//
+// The tiers above are priced for physical goods, where a boost competes for a
+// ₦20k–₦2m sale. That is the wrong shape for the other listing types:
+//
+//   - PROPERTY sells a ₦20m–₦200m asset on a months-long cycle, and agents list
+//     in volume. A boost is worth far more per listing, and Jiji charges
+//     accordingly (their Property tiers run ₦17,999–₦481,000/month against
+//     ₦2,999/week for general goods). Pricing property like a phone leaves
+//     most of the value uncollected.
+//   - JOBS are posted by employers, not traders. One vacancy, filled once, and
+//     the posting is worth nothing the day it is filled — so duration matters
+//     more than listing count, and a 7-day boost is close to useless.
+//   - SERVICES sit between the two: recurring work, moderate ticket, and the
+//     provider wants sustained visibility rather than a burst.
+//
+// Rather than maintain four parallel tier ladders that drift apart, one ladder
+// is scaled per type. Multipliers are round numbers on purpose — they are a
+// starting position to test against real conversion, not a derived truth.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ListingTypePricing {
+    /** Applied to every tier's priceNaira. */
+    multiplier: number;
+    /** Heading shown above the packages for this type. */
+    label: string;
+    /** One line explaining to the seller why this costs what it costs. */
+    rationale: string;
+    /** Minimum flight length for this type, where a short boost is pointless. */
+    minDays?: number;
+}
+
+export const LISTING_TYPE_PRICING: Record<string, ListingTypePricing> = {
+    product: {
+        multiplier: 1,
+        label: "Promote your listing",
+        rationale: "Reach more buyers searching for what you sell.",
+    },
+    property: {
+        multiplier: 3,
+        label: "Premium Services for Property",
+        rationale: "Property buyers take weeks to decide. These packages keep your listing in front of them for the whole search — and one closed sale pays for a year of them.",
+        // A 7-day property boost expires before most buyers finish shortlisting.
+        minDays: 30,
+    },
+    job: {
+        multiplier: 1.5,
+        label: "Promote your vacancy",
+        rationale: "Reach qualified candidates in your state. A vacancy is worth nothing the day it is filled, so these run for a full hiring cycle rather than a week.",
+        minDays: 30,
+    },
+    service: {
+        multiplier: 1.2,
+        label: "Promote your service",
+        rationale: "Stay visible to people looking for your trade in your area, not just on the day you post.",
+        minDays: 14,
+    },
+};
+
+/** Pricing config for a listing type, defaulting to product. */
+export function pricingForListingType(type?: string | null): ListingTypePricing {
+    return LISTING_TYPE_PRICING[String(type || "product").toLowerCase()] || LISTING_TYPE_PRICING.product;
+}
+
+/**
+ * The boost tiers as they should be sold for a given listing type — scaled
+ * price, and a floor on duration where a short flight is pointless.
+ *
+ * Prices are rounded to the nearest ₦100 and end in 99, matching how the base
+ * tiers are already priced. Never mutates BOOST_TIERS.
+ */
+export function tiersForListingType(type?: string | null): BoostTier[] {
+    const cfg = pricingForListingType(type);
+    if (cfg.multiplier === 1 && !cfg.minDays) return BOOST_TIERS;
+
+    return BOOST_TIERS.map(tier => {
+        const scaled = tier.priceNaira * cfg.multiplier;
+        // Round to the nearest hundred, then land on x99 like the base ladder.
+        const priceNaira = Math.max(99, Math.round(scaled / 100) * 100 - 1);
+        return {
+            ...tier,
+            priceNaira,
+            days: cfg.minDays ? Math.max(tier.days, cfg.minDays) : tier.days,
+            // The Jiji comparison was researched against general-goods pricing and
+            // does not hold for property or jobs. Drop it rather than show a
+            // comparison that is not true for this type.
+            jijiComparisonNaira: cfg.multiplier === 1 ? tier.jijiComparisonNaira : undefined,
+            jijiComparisonLabel: cfg.multiplier === 1 ? tier.jijiComparisonLabel : undefined,
+        };
+    });
 }
