@@ -4175,6 +4175,12 @@ class DataSyncServiceService {
 
         if (!identity) return;
 
+        // Durable chat threads. Fire-and-forget so a slow or failing message sync
+        // can never hold up the rest of autoSync, and silent so it does not
+        // trigger a re-render storm on every pass — the UI already re-reads on
+        // sync-store-update at the end of this function.
+        this.syncConversationsFromServer(true).catch(() => { /* non-critical */ });
+
         if (forceRefresh) {
             console.log(`🧹 Clearing stale local cache for ${identity} before refresh...`);
             // We don't wipe everything, just items matching this identity to avoid affecting other accounts
@@ -6780,6 +6786,113 @@ class DataSyncServiceService {
         return allMsgs.filter((m: any) => m.conversation_id === conversationId);
     }
 
+    /**
+     * Pull durable buyer↔seller threads from the server into the local store.
+     *
+     * Chat used to exist ONLY in localStorage — there was no table for it — so a
+     * cleared cache or a new device destroyed every thread permanently. The
+     * threads now live in Postgres (see /api/conversations/threads); this hydrates
+     * the local store from them so every existing screen keeps reading
+     * getConversations() unchanged.
+     *
+     * Deliberately MERGES rather than replaces: order-concierge threads (conc-…)
+     * and Ziva escalations are still local-only, and a wholesale overwrite would
+     * wipe them. Server threads win for the ids they own; anything else is left
+     * exactly as it was.
+     */
+    async syncConversationsFromServer(silent = true): Promise<number> {
+        if (typeof window === "undefined") return 0;
+        const token = localStorage.getItem("fp_token");
+        if (!token) return 0;
+
+        try {
+            const res = await fetch("/api/conversations/threads", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return 0;
+            const data = await res.json();
+            const threads: any[] = Array.isArray(data?.threads) ? data.threads : [];
+            if (threads.length === 0) return 0;
+
+            const local = this.getConversations();
+            const byId = new Map<string, any>(local.map((c: any) => [c.id, c]));
+
+            for (const t of threads) {
+                byId.set(t.id, {
+                    id: t.id,
+                    participants: [t.buyerId, t.sellerId],
+                    participant_names: {
+                        [t.buyerId]: t.buyerName || "Customer",
+                        [t.sellerId]: t.sellerName || "Seller",
+                    },
+                    last_message: t.lastMessage || "",
+                    last_message_at: t.lastMessageAt,
+                    unread_count: {
+                        [t.buyerId]: t.unreadForBuyer || 0,
+                        [t.sellerId]: t.unreadForSeller || 0,
+                    },
+                    // productId is "" for the general thread — carry it through as
+                    // undefined so existing context checks behave as before.
+                    context: {
+                        type: "buyer_seller" as const,
+                        product_id: t.productId || undefined,
+                    },
+                    product_name: t.productName || undefined,
+                    product_image: t.productImage || undefined,
+                    _server: true,
+                });
+            }
+
+            this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(byId.values())));
+            if (!silent) window.dispatchEvent(new Event("sync-store-update"));
+            return threads.length;
+        } catch {
+            // Offline or a bad response: keep whatever is already local rather than
+            // blanking the inbox.
+            return 0;
+        }
+    }
+
+    /** Load one server thread's messages into the local message store. */
+    async syncThreadMessages(conversationId: string): Promise<number> {
+        if (typeof window === "undefined" || !conversationId) return 0;
+        const token = localStorage.getItem("fp_token");
+        if (!token) return 0;
+        try {
+            const res = await fetch(`/api/conversations/threads?id=${encodeURIComponent(conversationId)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return 0;
+            const data = await res.json();
+            const msgs: any[] = data?.conversation?.messages || [];
+
+            const all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+            const existing = new Set(all.map((m: any) => m.id));
+            let added = 0;
+            for (const m of msgs) {
+                if (existing.has(m.id)) continue;
+                all.push({
+                    id: m.id,
+                    conversation_id: conversationId,
+                    sender_id: m.senderId,
+                    sender_name: m.senderName || "",
+                    text: m.text,
+                    imageUrl: m.imageUrl || undefined,
+                    timestamp: m.createdAt,
+                    read_by: [m.senderId],
+                });
+                added++;
+            }
+            if (added > 0) {
+                this.safeSetItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(all));
+                window.dispatchEvent(new Event("sync-store-update"));
+            }
+            return added;
+        } catch {
+            return 0;
+        }
+    }
+
     sendChatMessage(conversationId: string, senderId: string, senderName: string, text: string, replyTo?: { sender: string; text: string }): any {
         if (typeof window === "undefined") return null;
         // getOrCreateConversation now returns null when the two participants are
@@ -6820,6 +6933,37 @@ class DataSyncServiceService {
             return c;
         });
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+
+        // Persist to the server so the thread survives a cache clear or a new
+        // device. Local-first: the message is already rendered above, and a
+        // failed write must not lose it from this screen. Skipped for the
+        // local-only thread kinds (order concierge "conc-…", Ziva escalations),
+        // which have no server counterpart.
+        if (conversation && !conversationId.startsWith("conc-")) {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            const isServerThread = (conversation as any)._server === true;
+            const otherId = (conversation.participants || []).find((p: string) => p !== senderId);
+            if (token && (isServerThread || otherId)) {
+                fetch("/api/conversations/threads", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(
+                        isServerThread
+                            ? { conversationId, text, senderName }
+                            : {
+                                // A thread created before this sync existed: address it
+                                // by its parties so the server can upsert the durable
+                                // equivalent rather than silently dropping the message.
+                                sellerId: otherId,
+                                productId: conversation.context?.product_id || "",
+                                productName: (conversation as any).product_name,
+                                senderName,
+                                text,
+                            }
+                    ),
+                }).catch(() => { /* stays visible locally; retried on next sync */ });
+            }
+        }
 
         // --- Notifications & Emails ---
         if (conversation) {
