@@ -81,6 +81,15 @@ export default function UniversalMessagesPage() {
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
+        // This inbox reads getConversations() purely from the local cache below —
+        // unlike the dashboard Overview, it never itself triggered a fetch. A
+        // durable per-product thread (see /api/conversations/threads) that this
+        // device hasn't synced yet — anything sent from another device, or before
+        // this tab was last open — simply never appeared, which is what "can't
+        // see previous messages" was: not deleted, just never fetched.
+        DataSyncService.autoSync();
+        DataSyncService.syncConversationsFromServer(false).catch(() => {});
+
         const loadData = () => {
             const allProds = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);

@@ -51,16 +51,43 @@ function negKey(prefix: string, neg: any): string {
 // doesn't re-pop on every page reload. Keyed by negotiation id + status, so a
 // genuinely NEW status change still surfaces. In-memory dedup alone resets on
 // reload — this survives it.
+//
+// A high-volume seller account (hundreds of products/orders/negotiations) can
+// sit chronically at the localStorage quota ceiling — the exact condition the
+// safeSetItem pruning elsewhere in this app exists for. This module's own
+// localStorage.setItem was NOT wrapped in that pruning: on a quota-full
+// device the ack write above threw, was swallowed by the bare catch, and
+// NEVER actually landed — so getDealAckSet() kept coming back without the key
+// and the "same offer accepted" pill re-fired on every single sync tick, even
+// though ackDeal() was being called every time. That's what "keeps coming
+// back every time" was, on the accounts big enough to hit it.
+//
+// moduleAckSet is a same-session fallback that can never fail to write (it's
+// just a Set, not storage) — worst case on a quota-full device the pill can
+// still show once after a fresh reload, but never repeats within a session.
 const DEAL_ACK_KEY = "fp_ack_deal_pills";
+const moduleAckSet = new Set<string>();
 const getDealAckSet = (): Set<string> => {
-    try { return new Set(JSON.parse(localStorage.getItem(DEAL_ACK_KEY) || "[]")); } catch { return new Set(); }
+    try {
+        const stored: string[] = JSON.parse(localStorage.getItem(DEAL_ACK_KEY) || "[]");
+        return new Set([...stored, ...moduleAckSet]);
+    } catch {
+        return new Set(moduleAckSet);
+    }
 };
 const ackDeal = (key: string) => {
+    moduleAckSet.add(key);
     try {
         const s = getDealAckSet();
         s.add(key);
         localStorage.setItem(DEAL_ACK_KEY, JSON.stringify([...s].slice(-200)));
-    } catch { }
+    } catch {
+        // Quota exceeded — the ack set doesn't need much room to do its job.
+        // Try again with a much smaller cap before giving up; moduleAckSet
+        // above already guarantees no repeat for the rest of this session
+        // even if this second attempt also fails.
+        try { localStorage.setItem(DEAL_ACK_KEY, JSON.stringify([...moduleAckSet].slice(-30))); } catch { }
+    }
 };
 
 export function DynamicPillNotification() {
