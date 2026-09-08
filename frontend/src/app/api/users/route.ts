@@ -9,6 +9,14 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // Every lookup below is by id-or-email; with neither, the upsert further
+        // down called Prisma with `where: { email: undefined }`, which Prisma
+        // rejects — and the catch-all handler turned that into a 500 with the raw
+        // Prisma error text (schema field names, engine details) in the response.
+        if (!body.id && !body.email) {
+            return NextResponse.json({ error: "id or email is required" }, { status: 400 });
+        }
+
         const updateData: any = {
             name: body.name,
             email: body.email,
@@ -168,9 +176,12 @@ export async function POST(req: Request) {
 
         return NextResponse.json(user);
     } catch (error: any) {
+        // error.message on a Prisma validation error includes the full query
+        // shape — schema field names, engine internals — which was being
+        // returned to the client as `details`. Log it server-side only.
         console.error("User creation error:", error);
         return NextResponse.json(
-            { error: "Database error or unreachable. Check your connection string.", details: error.message }, 
+            { error: "Could not save user. Please try again." },
             { status: 500 }
         );
     }
