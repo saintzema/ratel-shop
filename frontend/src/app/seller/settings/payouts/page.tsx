@@ -125,25 +125,45 @@ export default function PayoutsSettingsPage() {
     }, [bankData.account_number, bankData.bank_name]);
 
     useEffect(() => {
-        const s = DataSyncService.getCurrentSeller();
-        if (!s) {
-            router.push("/seller/login");
-            return;
-        }
-        setSeller(s);
-        setBankData({
-            bank_name: s.bank_name || "",
-            account_number: s.account_number || "",
-            account_name: s.account_name || "",
-        });
-        setAutoPayoutEnabled((s as any).auto_payout_enabled ?? false);
+        // This is the seller's bank/settlement account form — a seller landing
+        // here on a cold cache (the id pointer can resolve before the seller
+        // OBJECT syncs locally, same gap fixed on the dashboard Overview) used to
+        // get bounced to /seller/login immediately, or would have seen a blank
+        // form if it hadn't. Either reads as "asked to re-enter my settlement
+        // account despite already setting it up" — the data was never gone, this
+        // page just hadn't loaded it yet. Retry through autoSync before giving up.
+        let cancelled = false;
+        let attempts = 0;
 
-        // Get orders for this seller
-        const sellerOrders = DataSyncService.getOrders().filter(
-            (o) => o.seller_id === s.id
-        );
-        setOrders(sellerOrders);
-        setLoading(false);
+        const tryLoad = () => {
+            const s = DataSyncService.getCurrentSeller();
+            if (!s) {
+                attempts += 1;
+                if (attempts > 15) { if (!cancelled) router.push("/seller/login"); return; }
+                setTimeout(() => { if (!cancelled) { DataSyncService.autoSync(); tryLoad(); } }, 400);
+                return;
+            }
+            if (cancelled) return;
+            setSeller(s);
+            setBankData({
+                bank_name: s.bank_name || "",
+                account_number: s.account_number || "",
+                account_name: s.account_name || "",
+            });
+            setAutoPayoutEnabled((s as any).auto_payout_enabled ?? false);
+
+            // Get orders for this seller
+            const sellerOrders = DataSyncService.getOrders().filter(
+                (o) => o.seller_id === s.id
+            );
+            setOrders(sellerOrders);
+            setLoading(false);
+        };
+
+        DataSyncService.autoSync();
+        DataSyncService.syncWithDB("orders", true);
+        tryLoad();
+        return () => { cancelled = true; };
     }, [router]);
 
     const handleSave = async (e: React.FormEvent) => {

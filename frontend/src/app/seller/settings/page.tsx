@@ -71,11 +71,30 @@ export default function SellerSettingsPage() {
     });
 
     useEffect(() => {
-        const s = DataSyncService.getCurrentSeller();
-        if (!s) {
-            router.push("/seller/login");
-            return;
-        }
+        // Same cold-cache gap as the dashboard Overview and wallet pages: a seller
+        // id pointer can resolve before the seller OBJECT has synced locally, so
+        // treating the first empty read as "not logged in" is wrong. This page in
+        // particular pre-fills the WhatsApp number and bank fields from that
+        // object — redirecting (or worse, silently rendering a blank form instead
+        // of redirecting) on a false negative is exactly what "asked to re-enter
+        // my WhatsApp number / settlement account despite already setting it"
+        // looked like: the fields WERE set, this page just hadn't loaded them yet.
+        let cancelled = false;
+        let attempts = 0;
+
+        const tryLoad = () => {
+            const s = DataSyncService.getCurrentSeller();
+            if (!s) {
+                attempts += 1;
+                if (attempts > 15) { if (!cancelled) router.push("/seller/login"); return; }
+                setTimeout(() => { if (!cancelled) { DataSyncService.autoSync(); tryLoad(); } }, 400);
+                return;
+            }
+            if (cancelled) return;
+            loadFromSeller(s);
+        };
+
+        const loadFromSeller = (s: NonNullable<ReturnType<typeof DataSyncService.getCurrentSeller>>) => {
         setSeller(s);
         const storeUrl = (s as any).store_url || (s as any).storeUrl || (s as any).slug || s.business_name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || s.id;
         // Normalize camelCase DB fields → snake_case form fields (background sync may store either format)
@@ -103,6 +122,11 @@ export default function SellerSettingsPage() {
         });
         setWaActivationStep(waEnabled && waNumber ? "active" : "idle");
         setLoading(false);
+        };
+
+        DataSyncService.autoSync();
+        tryLoad();
+        return () => { cancelled = true; };
     }, [router]);
 
     const getAuthHeaders = (): Record<string, string> => {

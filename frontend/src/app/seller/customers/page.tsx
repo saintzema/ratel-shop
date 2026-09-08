@@ -64,6 +64,15 @@ export default function CustomersCRMPage() {
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
+        // This page computed its CRM list once, from whatever orders happened to
+        // already be in localStorage, and never refreshed — a seller landing here
+        // with a cold cache (new device, direct link, tab reopened after a while)
+        // saw an empty or stale customer list with nothing to correct it. Trigger
+        // a real sync and re-run on the same event every other seller page uses.
+        DataSyncService.autoSync();
+        DataSyncService.syncWithDB("orders", true);
+
+        const buildCustomerList = () => {
         // Aggregate orders by customer to create the CRM list
         const allOrders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
         const cusMap = new Map<string, Omit<Customer, 'tags'>>();
@@ -100,6 +109,11 @@ export default function CustomersCRMPage() {
         }));
 
         setCustomers(cList.sort((a, b) => b.totalSpend - a.totalSpend));
+        };
+
+        buildCustomerList();
+        window.addEventListener("sync-store-update", buildCustomerList);
+        return () => window.removeEventListener("sync-store-update", buildCustomerList);
     }, [user]);
 
     useEffect(() => {

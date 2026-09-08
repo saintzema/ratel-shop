@@ -40,6 +40,7 @@ export default function PromotionsPage() {
 
     useEffect(() => {
         loadData();
+        DataSyncService.autoSync();
         window.addEventListener("sync-store-update", loadData);
         window.addEventListener("storage", loadData);
         return () => {

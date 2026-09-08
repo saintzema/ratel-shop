@@ -34,21 +34,31 @@ export default function AnalyticsPage() {
         }
         if (!sellerId) return;
 
+        // Traffic and conversion were fabricated (Math.random() layered onto order
+        // count) and shown to the seller as if real — the same class of bug already
+        // removed from product reviews and competitor pricing elsewhere in this app.
+        // Product.viewCount is real, tracked on every product page visit — use it.
+        DataSyncService.autoSync();
+        DataSyncService.syncWithDB("orders", true);
+
         const loadData = () => {
             const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
+            const products = DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId);
             const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
             const totalOrders = orders.length;
-            const simulatedVisits = totalOrders === 0 ? 0 : totalOrders * 12 + Math.floor(Math.random() * 50);
-            const conversionRate = simulatedVisits === 0 ? 0 : (totalOrders / simulatedVisits) * 100;
+            const totalVisits = products.reduce((sum, p: any) => sum + (p.view_count || 0), 0);
+            const conversionRate = totalVisits === 0 ? 0 : (totalOrders / totalVisits) * 100;
 
             setStats({
                 revenue: totalRevenue,
                 orders: totalOrders,
                 conversion: conversionRate,
-                visits: simulatedVisits
+                visits: totalVisits
             });
         };
         loadData();
+        window.addEventListener("sync-store-update", loadData);
+        return () => window.removeEventListener("sync-store-update", loadData);
     }, []);
 
     const handleDownloadPDF = async (reportType: string) => {

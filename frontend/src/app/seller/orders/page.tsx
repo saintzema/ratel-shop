@@ -73,6 +73,15 @@ function SellerOrdersContent() {
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
+        // This page only ever read the local cache — a seller landing here
+        // directly (deep link, bookmark, fresh tab) with no prior page having
+        // triggered a sync saw whatever was already in localStorage, stale or
+        // empty, with nothing to correct it. The dashboard Overview already does
+        // this proactively; this page didn't. Same bug class as the messages
+        // inbox fix — sync-store-update below picks up the results once these land.
+        DataSyncService.autoSync();
+        DataSyncService.syncWithDB("orders", true);
+
         const loadOrders = () => {
             const allOrders = DataSyncService.getOrders();
             setOrders(allOrders.filter(o => o.seller_id === sellerId));

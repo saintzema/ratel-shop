@@ -50,12 +50,29 @@ export default function SellerBalancePage() {
     } as Seller;
 
     useEffect(() => {
+        // getCurrentSeller() returning nothing on the FIRST check is not proof the
+        // seller is logged out — it's the same cold-cache gap fixed on the
+        // dashboard Overview (a seller id pointer can resolve before the seller
+        // OBJECT has synced locally). This page used to redirect straight to
+        // /seller/login on that first empty read, which meant an already
+        // logged-in seller landing on their own wallet/balance page — with real
+        // money figures on it — could get bounced out entirely. Give autoSync a
+        // real chance before treating this as "not logged in".
+        let sellerFound = false;
+        let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
         const loadFinanceData = () => {
             const s = DataSyncService.getCurrentSeller();
             if (!s) {
-                router.push("/seller/login");
+                if (!sellerFound && !redirectTimer) {
+                    redirectTimer = setTimeout(() => {
+                        if (!sellerFound) router.push("/seller/login");
+                    }, 4000);
+                }
                 return;
             }
+            sellerFound = true;
+            if (redirectTimer) { clearTimeout(redirectTimer); redirectTimer = null; }
             setSeller(s);
             
             const allOrders = DataSyncService.getOrders();
@@ -79,10 +96,13 @@ export default function SellerBalancePage() {
         };
 
         loadFinanceData();
+        DataSyncService.autoSync();
+        DataSyncService.syncWithDB("orders", true);
         window.addEventListener("storage", loadFinanceData);
         window.addEventListener("sync-store-update", loadFinanceData);
 
         return () => {
+            if (redirectTimer) clearTimeout(redirectTimer);
             window.removeEventListener("storage", loadFinanceData);
             window.removeEventListener("sync-store-update", loadFinanceData);
         };
