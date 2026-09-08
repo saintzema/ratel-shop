@@ -16,6 +16,7 @@ import {
     Heart,
     Handshake,
     Sparkles,
+    Compass,
     Globe,
     History,
     TrendingUp,
@@ -1832,6 +1833,9 @@ export function Navbar() {
                         </Link>
                         <Link href="/search?sort=top_rated" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
+                        </Link>
+                        <Link href="/discover" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                            <Compass className="w-3 h-3 md:w-3.5 md:h-3.5" /> Discover
                         </Link>
                         <SlidingSubnavTexts />
                     </div >

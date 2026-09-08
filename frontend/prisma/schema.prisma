@@ -925,6 +925,10 @@ enum ListingType {
   property
   job
   service
+  // A Discover entry — a restaurant, chill spot, activity, or hiking/outdoor
+  // location a business pays to be listed under. Not a purchasable item:
+  // "commerce" for this type is directions + a phone call, not a cart.
+  spot
 }
 
 enum ProductCondition {

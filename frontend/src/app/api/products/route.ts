@@ -142,7 +142,7 @@ export async function GET(req: Request) {
         // categories — a buyer browsing flats must not get phones mixed in, and
         // the default marketplace view should not surface vacancies among goods.
         const listingTypeParam = (searchParams.get("listingType") || "").trim().toLowerCase();
-        const VALID_LISTING_TYPES = ["product", "property", "job", "service"];
+        const VALID_LISTING_TYPES = ["product", "property", "job", "service", "spot"];
         if (listingTypeParam) {
             const wanted = listingTypeParam.split(",").map(t => t.trim()).filter(t => VALID_LISTING_TYPES.includes(t));
             if (wanted.length > 0) {
@@ -243,7 +243,9 @@ export async function GET(req: Request) {
             listingType: true,
             locationState: true,
             locationCity: true,
-            ...(hasLocation ? { seller: { select: { state: true, city: true } } } : {}),
+            ...(hasLocation || listingTypeParam.includes("spot")
+                ? { seller: { select: { state: true, city: true, ...(listingTypeParam.includes("spot") ? { phoneNumber: true, whatsappNumber: true, businessName: true } : {}) } } }
+                : {}),
         } as any;
 
         // 2. Fetch the specific page/batch of products
@@ -599,7 +601,7 @@ export async function POST(req: Request) {
                 : {}),
             locationState: body.location_state || rawSpecs.location_state || null,
             locationCity: body.location_city || rawSpecs.location_city || null,
-            ...(["product", "property", "job", "service"].includes(String(body.listing_type))
+            ...(["product", "property", "job", "service", "spot"].includes(String(body.listing_type))
                 ? { listingType: body.listing_type }
                 : {}),
         } as any;

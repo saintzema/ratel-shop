@@ -18,7 +18,7 @@
  * listingType, locationState, locationCity — are real columns.
  */
 
-export type ListingType = "product" | "property" | "job" | "service";
+export type ListingType = "product" | "property" | "job" | "service" | "spot";
 
 export interface ListingField {
     /** Key inside Product.specs. */
@@ -55,7 +55,7 @@ export interface ListingTypeConfig {
     fields: ListingField[];
 }
 
-const CONDITION_FREE: ListingType[] = ["job", "service"];
+const CONDITION_FREE: ListingType[] = ["job", "service", "spot"];
 
 /** Physical goods — the original and still the default. */
 const PRODUCT: ListingTypeConfig = {
@@ -129,14 +129,33 @@ const SERVICE: ListingTypeConfig = {
     ],
 };
 
+const SPOT: ListingTypeConfig = {
+    type: "spot",
+    label: "Discover Spot",
+    labelPlural: "Discover Spots",
+    icon: "📍",
+    createVerb: "List a spot",
+    // Discover isn't a purchase flow at all — the destination action is
+    // showing up in person, so the primary CTA is directions, not a cart.
+    commerce: { cart: false, escrow: false, stock: false, primaryCta: "Get Directions", priceOptional: true },
+    fields: [
+        { key: "spot_type", label: "Spot type", type: "select", options: ["Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre", "Other"], required: true, facet: true },
+        { key: "maps_url", label: "Google Maps link", type: "text", placeholder: "Paste the Google Maps share link", required: true },
+        { key: "video_url", label: "Video URL (optional)", type: "text", placeholder: "A short video walkthrough, if you have one" },
+        { key: "price_hint", label: "What ₦ roughly covers", type: "text", placeholder: "e.g. Average spend per person" },
+        { key: "opening_hours", label: "Opening hours", type: "text", placeholder: "e.g. Mon–Sun, 10am–10pm" },
+    ],
+};
+
 export const LISTING_TYPES: Record<ListingType, ListingTypeConfig> = {
     product: PRODUCT,
     property: PROPERTY,
     job: JOB,
     service: SERVICE,
+    spot: SPOT,
 };
 
-export const LISTING_TYPE_ORDER: ListingType[] = ["product", "property", "job", "service"];
+export const LISTING_TYPE_ORDER: ListingType[] = ["product", "property", "job", "service", "spot"];
 
 /** Never throws — an unknown or missing type falls back to a physical product. */
 export function getListingConfig(type?: string | null): ListingTypeConfig {

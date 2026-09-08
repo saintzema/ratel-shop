@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
     // Mixed selections price at the most expensive type present, so a property
     // listing cannot be smuggled into a cheap multi-product boost.
     const boostListingType = products.reduce((highest: string, p: any) => {
-        const rank: Record<string, number> = { product: 0, service: 1, job: 2, property: 3 };
+        const rank: Record<string, number> = { product: 0, service: 1, spot: 1.5, job: 2, property: 3 };
         const t = p.listingType || "product";
         return (rank[t] ?? 0) > (rank[highest] ?? 0) ? t : highest;
     }, "product");

@@ -266,6 +266,12 @@ export const LISTING_TYPE_PRICING: Record<string, ListingTypePricing> = {
         rationale: "Stay visible to people looking for your trade in your area, not just on the day you post.",
         minDays: 14,
     },
+    spot: {
+        multiplier: 2,
+        label: "Feature your spot on Discover",
+        rationale: "A free Discover listing still shows up in its city and category. Featuring puts it at the top of Discover for that city for the whole run — the placement local businesses are actually paying for.",
+        minDays: 30,
+    },
 };
 
 /** Pricing config for a listing type, defaulting to product. */
