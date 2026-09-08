@@ -46,4 +46,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- FairPay QR Scan: getUserMedia in the WebView needs this declared, or the
+         WebView's camera permission grant silently fails even after the user taps Allow. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

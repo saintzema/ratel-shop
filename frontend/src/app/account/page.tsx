@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut } from "lucide-react";
+import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut, QrCode, Wallet, Megaphone, FileText } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
@@ -137,6 +137,32 @@ export default function AccountPage() {
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 leading-tight">Hello, {(user?.name || user?.email || "there").split(" ")[0]}</h1>
                 </div>
+
+                {/* Seller quick actions — Alipay-style row (Scan / Receive / Post
+                    Everywhere / AI Quote), shown only once a seller identity is
+                    confirmed since none of these mean anything for a buyer-only
+                    account. */}
+                {isSeller && (
+                    <div className="grid grid-cols-4 gap-2 mb-8">
+                        {[
+                            { icon: QrCode, label: "Scan", href: "/pay/scan" },
+                            { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments" },
+                            { icon: Megaphone, label: "Post Everywhere", href: "/seller/social" },
+                            { icon: FileText, label: "AI Quote", href: "/seller/quotes/new" },
+                        ].map((action) => (
+                            <Link
+                                key={action.label}
+                                href={action.href}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="h-14 w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-colors">
+                                    <action.icon className="h-6 w-6 text-brand-green-700" />
+                                </div>
+                                <span className="text-[11px] font-bold text-gray-700 text-center leading-tight">{action.label}</span>
+                            </Link>
+                        ))}
+                    </div>
+                )}
 
                 {/* Prominent Coupon & Referral Banner */}
                 <div className="mb-8 rounded-2xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 40%, #b8860b 100%)' }}>

@@ -20,6 +20,7 @@ import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
+import { PullToRefresh } from "@/components/ui/PullToRefresh";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
@@ -245,6 +246,7 @@ export default function RootLayout({
           <SplashDismiss />
           <KeyboardAware />
           <SwipeToBack />
+          <PullToRefresh />
           <ClientImageFallback />
           <PopupCloser />
           {/* If this ever actually suspends (slow streaming chunk, etc.), show

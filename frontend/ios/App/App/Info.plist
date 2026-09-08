@@ -69,5 +69,10 @@
 	     to the user the first time tracking permission is requested. -->
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This identifier will be used to deliver personalized ads and measure ad performance.</string>
+	<!-- Required for FairPay QR Scan (scanning a seller's payment QR code to pay
+	     them). Without this key, calling getUserMedia terminates the app
+	     immediately rather than showing a permission prompt. -->
+	<key>NSCameraUsageDescription</key>
+	<string>FairPrice needs camera access to scan FairPay QR codes so you can pay a seller instantly.</string>
 </dict>
 </plist>
