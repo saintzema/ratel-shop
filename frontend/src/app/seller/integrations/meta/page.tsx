@@ -27,9 +27,28 @@ function MetaBusinessSuiteContent() {
     const [waConnected, setWaConnected] = useState(false);
 
     useEffect(() => {
-        const seller = DataSyncService.getCurrentSeller();
-        setIgConnected(!!(seller as any)?.instagramAccessToken || !!(seller as any)?.instagram_access_token);
-        setWaConnected(!!(seller as any)?.whatsappNumber || !!(seller as any)?.whatsapp_number);
+        // The local seller cache never carries OAuth tokens — those are written
+        // server-side by the callback and only ever reach this device through a
+        // full seller re-sync. Reading it directly here (rather than the same
+        // authoritative /api/seller/integrations/status the Integrations page
+        // already uses) is why this exact screen showed "Not Connected" while the
+        // seller could already see their Instagram posts ready to import.
+        const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        if (!token) return;
+        fetch("/api/seller/integrations/status", { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                const i = data?.integrations;
+                if (!i) return;
+                setIgConnected(!!i.instagram?.connected);
+                setWaConnected(!!i.whatsapp?.connected);
+            })
+            .catch(() => {
+                // Fall back to the local snapshot rather than showing nothing.
+                const seller = DataSyncService.getCurrentSeller();
+                setIgConnected(!!(seller as any)?.instagramAccessToken || !!(seller as any)?.instagram_access_token);
+                setWaConnected(!!(seller as any)?.whatsappNumber || !!(seller as any)?.whatsapp_number);
+            });
     }, []);
 
     const authHeaders = () => {
