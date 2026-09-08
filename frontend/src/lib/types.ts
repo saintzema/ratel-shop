@@ -373,7 +373,7 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "all" | "trending" | "best_selling" | "solar" | "streaming_kits" | "phones" | "gaming" | "computers" | "fashion" | "cars" | "grocery" | "home_office" | "evs" | "industrial" | "health" | "automotive" | "bags" | "women" | "jewelry" | "household" | "toys" | "crafts" | "men" | "sports" | "kids" | "beauty" | "office" | "baby" | "garden" | "pets" | "musical" | "appliances" | "food" | "books" | "tablets" | "electronics" | "energy" | "machinery" | "agriculture" | "construction" | "medical" | "furniture" | "smartwatch" | "vehicles" | "home" | "fitness";
+export type ProductCategory = "all" | "trending" | "best_selling" | "solar" | "streaming_kits" | "phones" | "gaming" | "computers" | "fashion" | "cars" | "grocery" | "home_office" | "evs" | "industrial" | "health" | "automotive" | "bags" | "women" | "jewelry" | "household" | "toys" | "crafts" | "men" | "sports" | "kids" | "beauty" | "office" | "baby" | "garden" | "pets" | "musical" | "appliances" | "food" | "restaurants" | "books" | "tablets" | "electronics" | "energy" | "machinery" | "agriculture" | "construction" | "medical" | "furniture" | "smartwatch" | "vehicles" | "home" | "fitness";
 
 export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[], adminOnly?: boolean }[] = [
     { value: "trending", label: "Trending", subcategories: [], adminOnly: true },
@@ -408,6 +408,10 @@ export const CATEGORIES: { value: ProductCategory; label: string; subcategories:
     { value: "musical", label: "Musical", subcategories: ["Guitars", "Keyboards", "Drums", "Audio Interfaces"] },
     { value: "appliances", label: "Appliances", subcategories: ["Fans", "Generators", "Air Conditioning", "Refrigerators", "Microwaves"] },
     { value: "food", label: "Food", subcategories: ["Snacks", "Canned Goods", "Fresh Produce"] },
+    // Menu items for a restaurant/kitchen seller, not packaged goods — drives
+    // the sit-down/scan-to-order menu layout on the storefront (see
+    // RestaurantMenuView) instead of the standard product grid.
+    { value: "restaurants", label: "Restaurants & Food Spots", subcategories: ["Rice Dishes", "Soups & Swallow", "Grills & Suya", "Pastries & Snacks", "Small Chops", "Combo Meals", "Drinks & Beverages", "Desserts"] },
     { value: "books", label: "Books", subcategories: ["Fiction", "Non-Fiction", "Educational", "Comics"] },
     
     // Legacy mapping (kept for safety)

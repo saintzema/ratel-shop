@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { ContactSellerModal } from "@/components/modals/ContactSellerModal";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { RestaurantMenuView } from "@/components/store/RestaurantMenuView";
 
 export default function StoreProfile() {
     const params = useParams();
@@ -189,6 +190,8 @@ export default function StoreProfile() {
         setSeller(prev => prev ? { ...prev, location: locationInput } : null);
         setIsEditingLocation(false);
     };
+
+    const isRestaurant = seller?.category === "restaurants";
 
     // Calculate dynamic categories
     const categoriesMap = new Map<string, number>();
@@ -438,6 +441,9 @@ export default function StoreProfile() {
 
             {/* Tabs / Catalog Section */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-12">
+                {isRestaurant && activeTab === "products" ? (
+                    <RestaurantMenuView products={products} seller={seller} />
+                ) : (
                 <div className="flex flex-col md:flex-row gap-6">
                     {/* Sidebar Filters */}
                     <aside className="w-full md:w-60 space-y-6 hidden md:block">
@@ -806,6 +812,7 @@ export default function StoreProfile() {
                         )}
                     </div>
                 </div>
+                )}
             </div>
 
             {/* You May Also Like */}
