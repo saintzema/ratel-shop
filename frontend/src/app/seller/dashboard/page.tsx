@@ -85,6 +85,9 @@ export default function SellerDashboard() {
     // write triggered fresh fetches which triggered more writes.
     const lastRemoteFetchRef = useRef(0);
     const lastPayoutFetchRef = useRef(0);
+    // Tracks whether loadData has actually populated a seller object, as opposed
+    // to merely finding a seller ID — see the poll-retry fix below.
+    const sellerLoadedRef = useRef(false);
 
     // Dynamic stats calculations
     const stats = {
@@ -103,12 +106,14 @@ export default function SellerDashboard() {
     // before this filled it back in, which read as "my data disappeared."
     // useLayoutEffect commits before paint, so a warm cache never flashes empty.
     useLayoutEffect(() => {
+        sellerLoadedRef.current = false;
         const loadData = () => {
             const sellerId = DataSyncService.getCurrentSellerId();
             if (!sellerId) return;
 
             const seller = DataSyncService.getCurrentSeller();
             if (seller) {
+                sellerLoadedRef.current = true;
                 // Recalculate and persist dynamic trust score
                 const dynamicScore = DataSyncService.recalculateTrustScore(seller.id);
                 const enrichedSeller = { ...seller, trust_score: dynamicScore };
@@ -239,13 +244,27 @@ export default function SellerDashboard() {
             DataSyncService.autoSync();
         }, 120000);
 
-        // Polling fallback: If no seller is found, try again every 2 seconds for a bit
+        // Polling fallback while the dashboard is stuck on its skeleton loader.
+        //
+        // This used to stop as soon as getCurrentSellerId() returned anything —
+        // but a seller ID pointer existing is not the same as the seller OBJECT
+        // being loadable. On a cold cache, or right after the self-heal in
+        // getCurrentSellerId() rewrites the pointer to a better-ranked seller
+        // whose row hasn't synced into the local sellers cache yet, the id
+        // resolves immediately while getCurrentSeller() keeps returning
+        // undefined — so this stopped retrying on the very first tick and the
+        // dashboard sat on its skeleton forever. Poll on whether a seller
+        // OBJECT actually loaded, with a real ceiling so a genuinely
+        // seller-less visit doesn't poll forever.
+        let pollAttempts = 0;
         const pollInterval = setInterval(() => {
-            if (!DataSyncService.getCurrentSellerId()) {
-                loadData();
-            } else {
+            pollAttempts += 1;
+            if (sellerLoadedRef.current || pollAttempts > 30) {
                 clearInterval(pollInterval);
+                return;
             }
+            DataSyncService.autoSync();
+            loadData();
         }, 2000);
 
         return () => {

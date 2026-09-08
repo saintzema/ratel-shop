@@ -355,6 +355,12 @@ export default function IntegrationsPage() {
                                         <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />
                                     ) : app.requiresPremium && isStarterPlan ? (
                                         <>Upgrade Plan to Connect</>
+                                    ) : (app as any).expired ? (
+                                        // A token that expired (Instagram/Facebook tokens do, ~60 days)
+                                        // isn't "never connected" — the badge above already said
+                                        // "Reconnect", but this button still said "Connect App" right
+                                        // under it, which read as a second, contradictory prompt.
+                                        <>Reconnect <ArrowRight className="h-4 w-4" /></>
                                     ) : (
                                         <>Connect App <ArrowRight className="h-4 w-4" /></>
                                     )}
