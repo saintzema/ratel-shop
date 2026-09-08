@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
+import { nativeBridge } from "@/lib/native-bridge";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -206,7 +207,13 @@ export default function IntegrationsPage() {
                         },
                     });
                     const data = await res.json();
-                    if (data.url) { window.location.href = data.url; return; }
+                    if (data.url) {
+                        // openOAuthUrl resolves as soon as the sheet is presented (native)
+                        // or immediately falls through to navigation (web) — it does not
+                        // wait for the sheet to close, so falling through to the shared
+                        // `setConnecting(null)` below is correct on both platforms.
+                        await nativeBridge.openOAuthUrl(data.url, () => refreshStatus());
+                    }
                 } catch {}
                 break;
 

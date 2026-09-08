@@ -49,7 +49,29 @@ export async function POST(req: NextRequest) {
         }
 
         const postId: string | undefined = data.post_id || data.id;
-        const permalink = postId ? `https://www.facebook.com/${postId}` : null;
+
+        // `https://www.facebook.com/{page_id}_{post_id}` (the composite id Graph
+        // hands back) resolves fine on facebook.com but the FACEBOOK APP's own deep
+        // link handler doesn't parse that composite form — tapping "View post" from
+        // inside FairPrice opened the app to "This isn't available", even though the
+        // post is right there in the Page's feed. `permalink_url` is Graph's own
+        // canonical link for the post and is what the app actually resolves.
+        let permalink: string | null = postId ? `https://www.facebook.com/${postId}` : null;
+        if (postId) {
+            try {
+                const permRes = await fetch(
+                    `https://graph.facebook.com/${API_VERSION}/${postId}?fields=permalink_url&access_token=${encodeURIComponent(seller.facebookPageAccessToken)}`
+                );
+                const permData = await permRes.json();
+                if (permData?.permalink_url) {
+                    permalink = permData.permalink_url.startsWith("http")
+                        ? permData.permalink_url
+                        : `https://www.facebook.com${permData.permalink_url}`;
+                }
+            } catch {
+                // Non-fatal — the composite-id fallback above still opens on the web.
+            }
+        }
 
         // Facebook posts were never persisted, so a seller's post history showed
         // Instagram only and there was no record to attribute a boost or a sale to.

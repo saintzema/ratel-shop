@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DataSyncService } from "@/lib/sync-store";
+import { nativeBridge } from "@/lib/native-bridge";
 
 /**
  * Fallback only. The importer used to hardcode this list, which is why a seller
@@ -188,7 +189,11 @@ export function InstagramCatalogImporter() {
             }
             const data = await res.json();
             if (data.url) {
-                window.location.href = data.url;
+                // See native-bridge.openOAuthUrl: instagram.com's login wall blanks out
+                // inside the app's own WebView, which is what "reconnect -> white page"
+                // was. A Capacitor Browser popover is a real Safari view Instagram
+                // doesn't block; on native this also re-fetches posts once the sheet closes.
+                await nativeBridge.openOAuthUrl(data.url, () => fetchPosts());
             } else {
                 setErrorMsg("Could not generate Instagram login link. Please try again.");
                 setStatus("error");

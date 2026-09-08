@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
+import { nativeBridge } from "@/lib/native-bridge";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -385,7 +386,7 @@ function SellerSocialComposerContent() {
     // something any website can skip. Falls back to the wa.me chat-share link
     // (opens a chat, not Status) on desktop or browsers without file sharing.
     const shareToWhatsApp = async () => {
-        window.open(`https://wa.me/?text=${encodeURIComponent(captionFor("whatsapp"))}`, "_blank");
+        nativeBridge.openUrl(`https://wa.me/?text=${encodeURIComponent(captionFor("whatsapp"))}`);
     };
 
     // Same native-share-sheet upgrade as before (photo attached, reaches
@@ -409,7 +410,7 @@ function SellerSocialComposerContent() {
                 }
             } catch { /* fall through to chat-share link below */ }
         }
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+        nativeBridge.openUrl(`https://wa.me/?text=${encodeURIComponent(text)}`);
     };
 
     // One place that knows how to render the caption for a given platform.
@@ -573,7 +574,7 @@ function SellerSocialComposerContent() {
         }
         if (selectedPlatforms.has("x")) {
             const xText = captionFor("x");
-            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(productUrl)}`, "_blank");
+            nativeBridge.openUrl(`https://twitter.com/intent/tweet?text=${encodeURIComponent(xText)}&url=${encodeURIComponent(productUrl)}`);
             addResult({
                 platform: "x",
                 ok: true,
@@ -605,7 +606,7 @@ function SellerSocialComposerContent() {
             if (fbMode === "publish") {
                 await publishToFacebook();
             } else {
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`, "_blank");
+                nativeBridge.openUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`);
                 addResult({ platform: "facebook", ok: true, message: "Facebook share dialog opened" });
             }
         }

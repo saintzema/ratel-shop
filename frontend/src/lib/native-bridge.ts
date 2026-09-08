@@ -160,6 +160,38 @@ export const nativeBridge = {
         }
     },
 
+    /**
+     * For OAuth (Meta/Instagram/Google, etc.) specifically. Instagram's and
+     * Facebook's login walls actively detect embedded WebViews and either
+     * block them outright or render a blank page — which is what "reconnect
+     * leads to a white page" was. Navigating the app's own WKWebView to
+     * instagram.com is exactly that embedded case.
+     *
+     * A Capacitor Browser popover is Apple's blessed in-app browser
+     * (SFSafariViewController under the hood on iOS), which Meta's
+     * anti-webview detection does not block — the same mechanism already
+     * used for Google/Apple/X sign-in on the login page. On web this just
+     * navigates the current tab, unchanged from before.
+     */
+    async openOAuthUrl(url: string, onReturn?: () => void) {
+        if (!isNative) {
+            window.location.href = url;
+            return;
+        }
+        try {
+            const Browser = await getBrowser();
+            await Browser.open({ url, presentationStyle: "popover" as any });
+            if (onReturn) {
+                const listener = await Browser.addListener("browserFinished", async () => {
+                    await listener.remove();
+                    onReturn();
+                });
+            }
+        } catch {
+            window.location.href = url;
+        }
+    },
+
     // ─── App State ─────────────────────────────────────────
     async onAppStateChange(callback: (isActive: boolean) => void) {
         if (!isNative) return;
