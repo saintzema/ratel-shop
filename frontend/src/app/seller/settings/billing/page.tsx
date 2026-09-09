@@ -134,10 +134,18 @@ function BillingContent() {
     const [paystackPlan, setPaystackPlan] = useState("");
 
     useEffect(() => {
-        const seller = DataSyncService.getCurrentSeller();
-        if (seller?.subscription_plan) {
-            setCurrentPlan(seller.subscription_plan);
-        }
+        // A cold-cache miss here just left the page showing "Starter" — wrong,
+        // not blank, so a Pro/Growth seller landing here on a fresh device saw
+        // their own paid plan look downgraded. Retry via autoSync/sync-store-update
+        // instead of a single unconditional read.
+        const applyPlan = () => {
+            const seller = DataSyncService.getCurrentSeller();
+            if (seller?.subscription_plan) setCurrentPlan(seller.subscription_plan);
+        };
+        applyPlan();
+        DataSyncService.autoSync();
+        window.addEventListener("sync-store-update", applyPlan);
+        return () => window.removeEventListener("sync-store-update", applyPlan);
     }, []);
 
     const handleUpgrade = (planName: string, priceStr: string) => {
@@ -147,6 +155,9 @@ function BillingContent() {
                 DataSyncService.updateSeller(sellerId, { subscription_plan: planName as any });
                 setCurrentPlan(planName);
                 window.dispatchEvent(new Event("storage"));
+            } else {
+                DataSyncService.autoSync();
+                alert("Still loading your store — please wait a moment and try again.");
             }
             return;
         }
@@ -187,9 +198,33 @@ function BillingContent() {
         }
         setIsVerifyingUpgrade(false);
 
-        const sellerId = DataSyncService.getCurrentSellerId();
-        const seller = DataSyncService.getCurrentSeller();
-        if (sellerId) {
+        // Payment is ALREADY verified server-side against Paystack at this point —
+        // real money has moved. Everything below used to run inside a plain
+        // `if (sellerId)` with no retry and no failure path: on a cold local
+        // cache (new device, right after the storage-quota purge — the same gap
+        // behind several other "seller data looks missing" reports) getCurrentSeller
+        // could come back empty at this exact instant, and the entire upgrade —
+        // updateSeller, the notification, the emails — silently never ran. The
+        // seller was charged and got nothing, with no error telling them why.
+        // Retry through autoSync before accepting that as the outcome.
+        let sellerId = DataSyncService.getCurrentSellerId();
+        let seller = DataSyncService.getCurrentSeller();
+        for (let attempt = 0; !sellerId && attempt < 5; attempt++) {
+            await new Promise(r => setTimeout(r, 500));
+            DataSyncService.autoSync();
+            sellerId = DataSyncService.getCurrentSellerId();
+            seller = DataSyncService.getCurrentSeller();
+        }
+
+        if (!sellerId) {
+            alert(
+                `Your payment for the ${paystackPlan} plan was confirmed (reference ${reference}), but we couldn't apply the upgrade to your store on this device. ` +
+                `This is safe — nothing was lost. Please reload this page; if the ${paystackPlan} plan still isn't showing as active, contact support with this reference number.`
+            );
+            return;
+        }
+
+        {
             // Track seller plan upgraded
             if (typeof window !== "undefined" && (window as any).pendo) {
                 (window as any).pendo.track("seller_plan_upgraded", {

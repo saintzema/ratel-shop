@@ -29,12 +29,34 @@ export default function DomainSettingsPage() {
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        const seller = DataSyncService.getCurrentSeller();
-        if (!seller) return;
-        setSellerId(seller.id);
-        const current = (seller as any).store_url || (seller as any).storeUrl || "";
-        setSlug(current);
-        setInitialSlug(current);
+        // Same cold-cache gap fixed on Settings/Payouts/Wallet: getCurrentSeller()
+        // can come back empty on the first check (the seller id pointer resolves
+        // before the seller OBJECT has synced locally), and this effect ran once
+        // with no retry — so a seller landing here with a cold cache saw an
+        // unfillable form and, on Save, "We couldn't identify your store. Reload
+        // and try again," for a store that was set up just fine. Retry through
+        // autoSync before giving up.
+        let cancelled = false;
+        let attempts = 0;
+
+        const tryLoad = () => {
+            const seller = DataSyncService.getCurrentSeller();
+            if (!seller) {
+                attempts += 1;
+                if (attempts > 15) return;
+                setTimeout(() => { if (!cancelled) { DataSyncService.autoSync(); tryLoad(); } }, 400);
+                return;
+            }
+            if (cancelled) return;
+            setSellerId(seller.id);
+            const current = (seller as any).store_url || (seller as any).storeUrl || "";
+            setSlug(current);
+            setInitialSlug(current);
+        };
+
+        DataSyncService.autoSync();
+        tryLoad();
+        return () => { cancelled = true; };
     }, []);
 
     // Slugs land in a URL, so keep them to what a URL can carry losslessly.

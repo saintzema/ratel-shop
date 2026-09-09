@@ -566,7 +566,23 @@ function NewProductContent() {
 
     const handleSubmit = async () => {
         const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId || !formData.name || !formData.price || isSubmitting) return;
+        if (isSubmitting) return;
+        // This used to bail out completely silently on a missing sellerId — a
+        // seller on a cold cache (new device, just after the storage-quota
+        // purge) clicked Publish and nothing happened at all, with no error and
+        // no clue why. Trigger a sync so the next attempt has a real chance of
+        // resolving, and actually tell them what's wrong.
+        if (!sellerId) {
+            DataSyncService.autoSync();
+            setAiErrorMsg("Still loading your store — please wait a moment and try again.");
+            if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
+        if (!formData.name || !formData.price) {
+            setAiErrorMsg("Enter a product name and price before publishing.");
+            if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
 
         // At least one real photo. Listings with no image get almost no clicks and
         // look like spam in the grid, and the form previously let them through
