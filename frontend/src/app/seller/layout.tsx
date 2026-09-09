@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -61,6 +61,7 @@ export default function SellerLayout({
     const [pendingNegotiations, setPendingNegotiations] = useState(0);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+    const placeholderRetryCount = useRef(0);
     const pathname = usePathname();
     const router = useRouter();
 
@@ -82,6 +83,7 @@ export default function SellerLayout({
         const loadData = () => {
             const seller = DataSyncService.getCurrentSeller();
             if (seller) {
+                placeholderRetryCount.current = 0;
                 setCurrentSeller(seller);
                 const negs = DataSyncService.getNegotiations(seller.id);
                 setPendingNegotiations(negs.filter(n => n.status === "pending").length);
@@ -104,27 +106,32 @@ export default function SellerLayout({
                 // Check for plan expiry and send notifications/deactivate if needed
                 DataSyncService.checkPlanExpiry(seller.id);
             } else {
-                // If loadData is called but still no seller, let's gracefully handle it rather than hanging on "Loading..."
-                const userStr = localStorage.getItem("fp_user");
-                if (userStr) {
-                    try {
-                        const user = JSON.parse(userStr);
-                        if ((user.role === "seller" || user.role === "admin") && !isPublicRoute) {
-                            // Synthesize a placeholder store so they don't get locked out
-                            const minimalStore = {
-                                id: `s_${user.id || Math.random().toString(36).substr(2, 9)}`,
-                                user_id: user.id || "admin",
-                                business_name: user.name ? `${user.name}'s Shop` : "My Shop",
-                                owner_email: user.email || "",
-                                owner_name: user.name || "Owner",
-                                status: "pending",
-                                verified: false
-                            };
-                            DataSyncService.addSeller(minimalStore as any);
-                            DataSyncService.loginSeller(minimalStore.id);
-                            setCurrentSeller(minimalStore as any);
-                        }
-                    } catch(e) {}
+                // getCurrentSellerId() resolved a pointer (we only reach loadData()
+                // in the normal flow once that's confirmed truthy — see below), but
+                // the full seller OBJECT isn't in the local sellers[] cache yet. That
+                // is pure cache staleness, not "this seller doesn't exist" — it's the
+                // same gap fixed across Settings/Payouts/Wallet/Billing this session.
+                //
+                // This branch used to synthesize a BRAND NEW placeholder store
+                // (`s_${user.id}`, a different id from the real, already-resolved
+                // pointer) and immediately activate it via loginSeller() — on every
+                // seller page load, since this layout wraps all of /seller/*. That is
+                // the dominant source of the duplicate-seller saga this session kept
+                // finding: it didn't just create a placeholder once from the "Sell"
+                // button, it could silently swap the ACTIVE seller mid-session away
+                // from the real store to a fresh phantom one, any time the sellers
+                // list cache was momentarily empty (which is routine right after a
+                // cold load, before autoSync's own fetch has landed).
+                //
+                // Retry through autoSync a bounded number of times instead. Only if
+                // that's exhausted AND there is no seller id pointer at all (meaning
+                // this genuinely isn't an established seller) does the outer
+                // `if (!sellerId)` block's own DB-checked flow apply — never draft
+                // a same-session substitute for a pointer that already resolved.
+                if (placeholderRetryCount.current < 10) {
+                    placeholderRetryCount.current += 1;
+                    DataSyncService.autoSync();
+                    setTimeout(loadData, 400);
                 }
             }
         };
@@ -151,7 +158,20 @@ export default function SellerLayout({
 
                     // Store not found locally. It might be in the database but not synced yet.
                     // Let's do a direct check before redirecting.
-                    fetch('/api/sellers?all=true')
+                    //
+                    // No Authorization header meant this always hit the endpoint's
+                    // unauthenticated branch — active sellers only, and that branch's
+                    // select doesn't return owner_email — so a seller whose real store
+                    // was still "pending" (not yet active/verified) came back empty
+                    // here every time, same bug already fixed on /sell.
+                    fetch('/api/sellers?all=true', {
+                        headers: (() => {
+                            const tok = localStorage.getItem("fp_token");
+                            const h: Record<string, string> = {};
+                            if (tok) h.Authorization = `Bearer ${tok}`;
+                            return h;
+                        })(),
+                    })
                         .then(async (res) => {
                             // Check if DB is offline (Network/Access error)
                             if (res.headers.get("X-DB-Status") === "offline") {
@@ -237,6 +257,11 @@ export default function SellerLayout({
             return;
         }
 
+        // This effect otherwise only reacted to sync-store-update fired by
+        // something ELSE — it never actually triggered a sync itself, so a
+        // seller landing on any /seller/* page as their first action this
+        // session had nothing guaranteeing the retry above would ever resolve.
+        DataSyncService.autoSync();
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);
