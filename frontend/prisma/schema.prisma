@@ -42,6 +42,10 @@ model User {
   financingApplications FinancingApplication[]
   savedCards      SavedCard[]
   adRewardCredits AdRewardCredit[]
+  vehicles        Vehicle[]
+  ridesAsRider    RideRequest[]        @relation("RiderRides")
+  ridesAsDriver   RideRequest[]        @relation("DriverRides")
+  rideOffers      RideOffer[]
 }
 
 // A buyer-facing, platform-funded credit earned by watching a rewarded ad —
@@ -935,6 +939,136 @@ enum ProductCondition {
   brand_new
   used
   refurbished
+}
+
+// ─── Ride-hailing ────────────────────────────────────────────────
+//
+// Uber left the Nigerian conversation entirely at various points over fare
+// disputes, driver vetting, and payment friction. The design choices below are
+// direct responses:
+//   - No fabricated GPS/distance fare math. A fare is PROPOSED then AGREED
+//     between rider and driver before the ride starts — same negotiate-then-
+//     commit shape as the existing product negotiation flow — rather than
+//     inventing a per-km rate off data we don't have (which would be exactly
+//     the "surge pricing" opacity Nigerian riders distrusted Uber for).
+//   - Every vehicle is vetted before it can carry a paying rider: photos, VIN,
+//     and a driver's licence photo reviewed by an admin (mirrors the existing
+//     seller KYC flow) — not a driver self-certifying in an app.
+//   - Rider and driver talk through the SAME durable messaging system as
+//     everyone else on the platform (Conversation/ChatMessage), not a
+//     separate in-app call/chat stack.
+enum VehicleClass {
+  ev
+  newer
+  standard
+}
+
+enum VehicleStatus {
+  pending
+  approved
+  rejected
+}
+
+model Vehicle {
+  id              String        @id @default(cuid())
+  driverId        String
+  make            String
+  model           String
+  year            Int?
+  plateNumber     String
+  vin             String
+  vehicleClass    VehicleClass
+  // Where this driver actually operates — lets a ride request be filtered to
+  // drivers who could plausibly take it, same idea as Product.locationState.
+  operatingState  String?
+  photos          String[]
+  licensePhotoUrl String?
+  status          VehicleStatus @default(pending)
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  driver          User          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  rides           RideRequest[]
+  offers          RideOffer[]
+
+  @@index([driverId])
+  @@index([status])
+  @@index([operatingState])
+}
+
+enum RideStatus {
+  searching
+  matched
+  in_progress
+  completed
+  cancelled
+}
+
+/**
+ * inDrive-style price flexibility, not a fixed algorithmic fare: the rider
+ * names what they're willing to pay (proposedFare) when they post the
+ * request, any approved driver nearby can counter with their own price
+ * (RideOffer.offeredFare), and the RIDER picks whichever offer — or price —
+ * they want. agreedFare/driverId/vehicleId are only set once the rider
+ * accepts one specific offer.
+ */
+model RideRequest {
+  id               String        @id @default(cuid())
+  riderId          String
+  driverId         String?
+  vehicleId        String?
+  pickup           String
+  dropoff          String
+  // Best-effort proximity, not live GPS — see the state/city columns already
+  // used for product location filtering. A driver sees requests in their own
+  // state so an offer is at least geographically plausible.
+  pickupState      String?
+  pickupCity       String?
+  vehicleClassPref VehicleClass?
+  proposedFare     Float
+  // "Auto-accept an offer up to ₦X" — inDrive's actual highest-leverage UX
+  // detail: it removes the friction of a rider having to babysit the request
+  // once they've already decided their ceiling.
+  autoAcceptMax    Float?
+  agreedFare       Float?
+  status           RideStatus    @default(searching)
+  conversationId   String?
+  cancelReason     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  rider            User          @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
+  driver           User?         @relation("DriverRides", fields: [driverId], references: [id])
+  vehicle          Vehicle?      @relation(fields: [vehicleId], references: [id])
+  offers           RideOffer[]
+
+  @@index([riderId])
+  @@index([driverId])
+  @@index([status])
+  @@index([pickupState])
+}
+
+enum RideOfferStatus {
+  pending
+  accepted
+  declined
+}
+
+model RideOffer {
+  id            String          @id @default(cuid())
+  rideRequestId String
+  driverId      String
+  vehicleId     String
+  offeredFare   Float
+  message       String?
+  status        RideOfferStatus @default(pending)
+  createdAt     DateTime        @default(now())
+  rideRequest   RideRequest     @relation(fields: [rideRequestId], references: [id], onDelete: Cascade)
+  driver        User            @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle       Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([rideRequestId, driverId])
+  @@index([rideRequestId])
+  @@index([driverId])
 }
 
 enum DisputeReason {

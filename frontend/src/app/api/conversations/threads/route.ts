@@ -42,13 +42,16 @@ export async function GET(req: NextRequest) {
             include: { messages: { orderBy: { createdAt: "asc" }, take: 500 } },
         });
         if (!conv) return NextResponse.json({ error: "Not found" }, { status: 404 });
-        // Only the two parties may read a thread.
-        if (conv.buyerId !== userId && conv.sellerId !== sellerId) {
+        // Only the two parties may read a thread. sellerId is usually a resolved
+        // Seller.id, but a ride-hailing conversation (see /api/rides) stores the
+        // driver's raw User.id as sellerId directly — a driver has no Seller
+        // row — so also accept a direct match on the caller's own id.
+        if (conv.buyerId !== userId && conv.sellerId !== sellerId && conv.sellerId !== userId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         // Opening a thread clears that side's unread counter.
-        const isSeller = conv.sellerId === sellerId;
+        const isSeller = conv.sellerId === sellerId || conv.sellerId === userId;
         await db.conversation.update({
             where: { id: convId },
             data: isSeller ? { unreadForSeller: 0 } : { unreadForBuyer: 0 },
@@ -62,6 +65,7 @@ export async function GET(req: NextRequest) {
             OR: [
                 { buyerId: userId },
                 ...(sellerId ? [{ sellerId }] : []),
+                { sellerId: userId }, // ride-hailing threads — driverId stored directly as sellerId
             ],
         },
         orderBy: { lastMessageAt: "desc" },
@@ -71,8 +75,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
         threads: threads.map(t => ({
             ...t,
-            viewerRole: t.sellerId === sellerId ? "seller" : "buyer",
-            unread: t.sellerId === sellerId ? t.unreadForSeller : t.unreadForBuyer,
+            viewerRole: (t.sellerId === sellerId || t.sellerId === userId) ? "seller" : "buyer",
+            unread: (t.sellerId === sellerId || t.sellerId === userId) ? t.unreadForSeller : t.unreadForBuyer,
         })),
     });
 }
@@ -96,7 +100,7 @@ export async function POST(req: NextRequest) {
     if (body?.conversationId) {
         conv = await db.conversation.findUnique({ where: { id: String(body.conversationId) } });
         if (!conv) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
-        if (conv.buyerId !== userId && conv.sellerId !== mySellerId) {
+        if (conv.buyerId !== userId && conv.sellerId !== mySellerId && conv.sellerId !== userId) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
     } else {
@@ -126,7 +130,7 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    const senderRole = conv.sellerId === mySellerId ? "seller" : "buyer";
+    const senderRole = (conv.sellerId === mySellerId || conv.sellerId === userId) ? "seller" : "buyer";
 
     const [message] = await db.$transaction([
         db.chatMessage.create({

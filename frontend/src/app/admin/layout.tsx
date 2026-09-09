@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
     LayoutDashboard,
+    Car,
     Users,
     Package,
     FileText,
@@ -65,6 +66,7 @@ export default function AdminLayout({
         { label: "User Directory", href: "/admin/users", icon: Users },
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "QR Payments", href: "/admin/qr-payments", icon: QrCode },
+        { label: "Driver Inspections", href: "/admin/drivers", icon: Car },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
         { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
