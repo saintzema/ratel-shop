@@ -57,36 +57,67 @@ export default function SellEntryPage() {
         }
 
         // Nothing locally — the store may simply not be synced to this device yet.
-        (async () => {
+        //
+        // This fetch used to go out with NO Authorization header, which meant it
+        // always hit the endpoint's unauthenticated branch — public active
+        // sellers only, and that branch's select list doesn't even return
+        // owner_email — so a seller whose real store was merely "pending" (not
+        // yet active) or matched only by email came back empty here every time.
+        // Combined with "any fetch failure falls through to drafting a
+        // placeholder", that is exactly how a merged/deleted duplicate
+        // (s_<userId>) kept reappearing under this exact same deterministic id:
+        // one transient failure was all it took to recreate it. Retry with auth
+        // before ever concluding "this is genuinely a new seller".
+        const lookupMyStore = async (attempt = 1): Promise<any[] | null> => {
             try {
-                const res = await fetch("/api/sellers?all=true");
-                if (res.ok) {
-                    const rows = await res.json();
-                    if (Array.isArray(rows)) {
-                        const mine = rows.filter((s: any) =>
-                            s.user_id === user.id || s.userId === user.id ||
-                            s.owner_email === user.email || s.ownerEmail === user.email
-                        );
-                        if (mine.length > 0) {
-                            const rank = (s: any) => {
-                                let n = 0;
-                                if ((s.bank_name || s.bankName) && (s.account_number || s.accountNumber)) n += 8;
-                                if (s.verified === true) n += 4;
-                                if (s.status === "active") n += 2;
-                                if (s.whatsapp_number || s.whatsappNumber) n += 1;
-                                return n;
-                            };
-                            const best = mine.sort((a: any, b: any) => rank(b) - rank(a))[0];
-                            try { DataSyncService.addSeller(best); } catch { /* already present */ }
-                            updateUser({ role: "seller" });
-                            resume(best.id);
-                            return;
-                        }
-                    }
-                }
+                const token = localStorage.getItem("fp_token");
+                const res = await fetch("/api/sellers?all=true", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (!res.ok) throw new Error(`status ${res.status}`);
+                const rows = await res.json();
+                return Array.isArray(rows) ? rows : [];
             } catch {
-                // Offline: fall through and draft. Worst case is a placeholder the
-                // resolver will rank below the real store once sync catches up.
+                if (attempt < 3) {
+                    await new Promise(r => setTimeout(r, attempt * 700));
+                    return lookupMyStore(attempt + 1);
+                }
+                return null;
+            }
+        };
+
+        (async () => {
+            const rows = await lookupMyStore();
+            if (rows) {
+                const mine = rows.filter((s: any) =>
+                    s.user_id === user.id || s.userId === user.id ||
+                    s.owner_email === user.email || s.ownerEmail === user.email
+                );
+                if (mine.length > 0) {
+                    const rank = (s: any) => {
+                        let n = 0;
+                        if ((s.bank_name || s.bankName) && (s.account_number || s.accountNumber)) n += 8;
+                        if (s.verified === true) n += 4;
+                        if (s.status === "active") n += 2;
+                        if (s.whatsapp_number || s.whatsappNumber) n += 1;
+                        return n;
+                    };
+                    const best = mine.sort((a: any, b: any) => rank(b) - rank(a))[0];
+                    try { DataSyncService.addSeller(best); } catch { /* already present */ }
+                    updateUser({ role: "seller" });
+                    resume(best.id);
+                    return;
+                }
+            } else if (currentUser.role === "seller") {
+                // The lookup itself failed after retries (offline, DB blip) — but
+                // the JWT already says this account is a seller, which needs no
+                // network round-trip to trust. Drafting a placeholder here would
+                // silently orphan their real store rather than genuinely mean
+                // "first time selling". Send them to their dashboard instead,
+                // which has its own (more patient) retry/self-heal for exactly
+                // this situation — never draft over a known seller.
+                router.replace("/seller/dashboard");
+                return;
             }
             createDraftStore();
         })();
