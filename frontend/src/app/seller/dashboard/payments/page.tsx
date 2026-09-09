@@ -378,6 +378,12 @@ export default function QRPaymentsPage() {
             setSellerLoading(false);
         };
         load();
+        // This listened for sync-store-update but never actually triggered a
+        // sync itself — a seller landing here as their first action this
+        // session (exactly what the account page's "Receive" quick-action does)
+        // on a cold cache had nothing to wait for and could sit here
+        // indefinitely with no bank details showing.
+        DataSyncService.autoSync();
         window.addEventListener("sync-store-update", load);
         window.addEventListener("storage", load);
         return () => {
