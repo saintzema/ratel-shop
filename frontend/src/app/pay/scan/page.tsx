@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
-import { ArrowLeft, QrCode, AlertTriangle, ExternalLink } from "lucide-react";
+import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nativeBridge } from "@/lib/native-bridge";
 
@@ -35,6 +35,11 @@ export default function ScanToPayPage() {
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<{ raw: string; isFairPrice: boolean; url?: string } | null>(null);
     const [scanning, setScanning] = useState(true);
+    // Torch is a REAL device capability check, not a guess — iOS Safari/WKWebView
+    // doesn't expose MediaStreamTrack torch control to web content at all, so this
+    // button only appears where it can actually do something (mainly Android Chrome).
+    const [torchSupported, setTorchSupported] = useState(false);
+    const [torchOn, setTorchOn] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -42,7 +47,11 @@ export default function ScanToPayPage() {
         (async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
+                    // A higher-resolution feed gives jsQR more pixels to work with for
+                    // a QR that's small in frame or a bit further away — "ideal" so a
+                    // device that can't do 720p still gets whatever it has, not a hard
+                    // failure.
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: false,
                 });
                 if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -50,6 +59,10 @@ export default function ScanToPayPage() {
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                     await videoRef.current.play().catch(() => {});
+                }
+                const [track] = stream.getVideoTracks();
+                if (track && "torch" in (track.getCapabilities?.() || {})) {
+                    setTorchSupported(true);
                 }
                 tick();
             } catch (e: any) {
@@ -72,8 +85,14 @@ export default function ScanToPayPage() {
                 if (ctx) {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    // "dontInvert" only tried dark-on-light — a QR shown on a bright
+                    // phone screen, or under glare, can need the inverted read.
+                    // "attemptBoth" costs a bit more CPU per frame but this is the
+                    // single biggest lever for the "doesn't pick it up" complaint
+                    // that a pure-JS decoder actually has (native OS scanners use
+                    // hardware-accelerated detection this can't fully match).
                     const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                        inversionAttempts: "dontInvert",
+                        inversionAttempts: "attemptBoth",
                     });
                     if (code?.data) {
                         handleDecoded(code.data);
@@ -121,15 +140,38 @@ export default function ScanToPayPage() {
         window.location.reload();
     };
 
+    const toggleTorch = async () => {
+        const track = streamRef.current?.getVideoTracks()[0];
+        if (!track) return;
+        try {
+            const next = !torchOn;
+            await track.applyConstraints({ advanced: [{ torch: next } as any] });
+            setTorchOn(next);
+        } catch {
+            // Capability said yes but the device refused mid-session — leave state as-is.
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black flex flex-col">
-            <div className="flex items-center gap-3 px-4 py-4 text-white">
-                <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-white/10">
-                    <ArrowLeft className="h-5 w-5" />
-                </button>
-                <h1 className="text-base font-bold flex items-center gap-2">
-                    <QrCode className="h-4 w-4 text-brand-green-400" /> Scan to Pay
-                </h1>
+            <div className="flex items-center justify-between gap-3 px-4 py-4 text-white">
+                <div className="flex items-center gap-3">
+                    <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-white/10">
+                        <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <h1 className="text-base font-bold flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-brand-green-400" /> Scan to Pay
+                    </h1>
+                </div>
+                {torchSupported && scanning && (
+                    <button
+                        onClick={toggleTorch}
+                        className={`p-2.5 rounded-full transition-colors ${torchOn ? "bg-brand-green-500 text-black" : "bg-white/10 hover:bg-white/20"}`}
+                        aria-label="Toggle flashlight"
+                    >
+                        {torchOn ? <Flashlight className="h-4 w-4" /> : <FlashlightOff className="h-4 w-4" />}
+                    </button>
+                )}
             </div>
 
             <div className="relative flex-1 overflow-hidden">

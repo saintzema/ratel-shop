@@ -115,6 +115,19 @@ async function handleChargeSuccess(data: any) {
                 return;
             }
 
+            // Paystack delivers webhooks at-least-once — a retry (timeout, transient
+            // 5xx, or Paystack's own redelivery policy) sends the SAME charge.success
+            // event again. Nothing below this point was idempotent: a replay created
+            // a SECOND Payout row for the same underlying payment, and for an
+            // auto-payout seller that row goes straight into initiatePaystackTransfer
+            // further down — a real second bank transfer for one customer charge.
+            // Bail out before any of that if this reference was already processed.
+            const alreadyProcessed = await db.payout.findFirst({ where: { paymentReference: reference } });
+            if (alreadyProcessed) {
+                console.warn(`⚠️ Duplicate webhook delivery for reference ${reference} — payout ${alreadyProcessed.id} already exists, skipping.`);
+                return;
+            }
+
             console.log(`📱 QR Payment received: ₦${amountNaira} for seller ${sellerId} — "${label}"`);
 
             // 1. Fetch seller with bank details
@@ -178,22 +191,36 @@ async function handleChargeSuccess(data: any) {
             // approve a transfer that would double-pay the seller.
             const wasSplitBySubaccount = !!data?.subaccount?.subaccount_code;
             const platformFee = Math.round((amountNaira - netAmount) * 100) / 100;
-            const payout = await db.payout.create({
-                data: {
-                    sellerId: seller.id,
-                    amount: netAmount,
-                    grossAmount: amountNaira,
-                    platformFee,
-                    label: wasSplitBySubaccount ? `${label} (auto-settled via Paystack subaccount split)` : label,
-                    bankName: seller.bankName || "Unknown",
-                    accountNumber: seller.accountNumber || "",
-                    accountName: seller.accountName || seller.businessName,
-                    orderIds: qrOrderIds,
-                    paymentReference: reference,
-                    isAutoPayout: seller.autoPayoutEnabled,
-                    status: wasSplitBySubaccount ? "completed" : (seller.autoPayoutEnabled ? "processing" : "pending"),
+            let payout;
+            try {
+                payout = await db.payout.create({
+                    data: {
+                        sellerId: seller.id,
+                        amount: netAmount,
+                        grossAmount: amountNaira,
+                        platformFee,
+                        label: wasSplitBySubaccount ? `${label} (auto-settled via Paystack subaccount split)` : label,
+                        bankName: seller.bankName || "Unknown",
+                        accountNumber: seller.accountNumber || "",
+                        accountName: seller.accountName || seller.businessName,
+                        orderIds: qrOrderIds,
+                        paymentReference: reference,
+                        isAutoPayout: seller.autoPayoutEnabled,
+                        status: wasSplitBySubaccount ? "completed" : (seller.autoPayoutEnabled ? "processing" : "pending"),
+                    }
+                });
+            } catch (err: any) {
+                // P2002 = unique constraint hit on paymentReference — the app-level
+                // check above missed a genuine race between two near-simultaneous
+                // deliveries. This IS the successful outcome (exactly one payout
+                // exists for this reference); returning 500 here would make Paystack
+                // retry a webhook that has already been fully handled, forever.
+                if (err?.code === "P2002") {
+                    console.warn(`⚠️ Payout race caught by unique constraint for reference ${reference} — already handled.`);
+                    return;
                 }
-            });
+                throw err;
+            }
 
             console.log(`📝 Payout record created: ${payout.id} (auto: ${seller.autoPayoutEnabled}, subaccountSplit: ${wasSplitBySubaccount})`);
 

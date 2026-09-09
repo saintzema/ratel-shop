@@ -535,7 +535,12 @@ model Payout {
   accountNumber    String
   accountName      String
   orderIds         String[]
-  paymentReference String?  // Links to the original Paystack charge reference for audit
+  // Unique (nullable — Postgres allows any number of NULLs) so a replayed
+  // Paystack webhook for the same charge can never create a second Payout
+  // row for it. The application-level check in the webhook handler covers
+  // the realistic case (a sequential retry); this is the DB-level backstop
+  // against a genuine race between two near-simultaneous deliveries.
+  paymentReference String?  @unique // Links to the original Paystack charge reference for audit
   transferCode     String?  // Paystack transfer code for tracking
   isAutoPayout     Boolean  @default(false)
   createdAt        DateTime @default(now())

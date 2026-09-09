@@ -407,11 +407,20 @@ export default function QRPaymentsPage() {
     // regular Products list.
     const [qrUsage, setQrUsage] = useState<any[]>([]);
     const [qrUsageLoading, setQrUsageLoading] = useState(true);
+    // A restaurant/business generating one QR per transaction can accumulate
+    // hundreds to thousands of these — narrowing by date is the only way to
+    // find "last Tuesday's orders" instead of scrolling forever.
+    const [qrDateFrom, setQrDateFrom] = useState("");
+    const [qrDateTo, setQrDateTo] = useState("");
     useEffect(() => {
         const loadUsage = async () => {
+            setQrUsageLoading(true);
             try {
                 const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
-                const res = await fetch("/api/admin/qr-payments", {
+                const params = new URLSearchParams();
+                if (qrDateFrom) params.set("from", qrDateFrom);
+                if (qrDateTo) params.set("to", qrDateTo);
+                const res = await fetch(`/api/admin/qr-payments${params.toString() ? `?${params}` : ""}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (res.ok) {
@@ -422,7 +431,7 @@ export default function QRPaymentsPage() {
             finally { setQrUsageLoading(false); }
         };
         loadUsage();
-    }, []);
+    }, [qrDateFrom, qrDateTo]);
 
     const isPremium  = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
     const logoToUse  = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/logo.svg";
@@ -945,11 +954,39 @@ export default function QRPaymentsPage() {
                             <div className="p-6 pb-4">
                                 <p className="font-black text-gray-900 text-sm">QR Usage & Payout Tracking</p>
                                 <p className="text-xs font-medium text-gray-500 mt-1">Real scan/payment stats for every QR code you've generated — pulled straight from your orders.</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">From</label>
+                                    <input
+                                        type="date"
+                                        value={qrDateFrom}
+                                        onChange={e => setQrDateFrom(e.target.value)}
+                                        className="h-8 px-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"
+                                    />
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">To</label>
+                                    <input
+                                        type="date"
+                                        value={qrDateTo}
+                                        onChange={e => setQrDateTo(e.target.value)}
+                                        className="h-8 px-2 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700"
+                                    />
+                                    {(qrDateFrom || qrDateTo) && (
+                                        <button
+                                            onClick={() => { setQrDateFrom(""); setQrDateTo(""); }}
+                                            className="text-[11px] font-bold text-brand-green-700 hover:underline"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                            <div className="overflow-x-auto">
+                            {/* Bounded height + its own scroll — this table can realistically
+                                reach thousands of rows for a business generating one QR per
+                                transaction (a restaurant fulfilling orders, say), and it was
+                                pushing the whole page taller without limit. */}
+                            <div className="overflow-x-auto overflow-y-auto max-h-[480px]">
                                 <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-t border-gray-100 bg-gray-50/50">
+                                    <thead className="sticky top-0 z-10">
+                                        <tr className="border-t border-gray-100 bg-gray-50">
                                             <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Label</th>
                                             <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Amount</th>
                                             <th className="text-left px-6 py-3 font-black uppercase tracking-widest text-[10px] text-gray-400">Times Used</th>

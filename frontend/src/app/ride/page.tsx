@@ -14,6 +14,7 @@ import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { playDingSound } from "@/lib/audio";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 
 const CLASSES = [
     { value: "", label: "Any vehicle" },
@@ -45,6 +46,10 @@ export default function RidePage() {
 
     const [pickup, setPickup] = useState("");
     const [dropoff, setDropoff] = useState("");
+    // No-ops to plain typing if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set — see
+    // usePlacesAutocomplete's own comment for how to turn this on.
+    const pickupAutocomplete = usePlacesAutocomplete(setPickup);
+    const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
     const [fare, setFare] = useState(2000);
     const [autoAccept, setAutoAccept] = useState(false);
     const [vehicleClassPref, setVehicleClassPref] = useState("");
@@ -214,11 +219,11 @@ export default function RidePage() {
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
                     <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600" />
-                        <Input placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
+                        <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
                     </div>
                     <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
-                        <Input placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
+                        <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
                     </div>
 
                     <div className="relative">
@@ -295,16 +300,30 @@ export default function RidePage() {
                                                 : "No offers yet — nearby drivers will see this shortly"}
                                         </div>
 
-                                        {ride.offers?.filter((o: any) => o.status === "pending").map((offer: any) => (
-                                            <div key={offer.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-                                                <div>
-                                                    <p className="font-black text-gray-900">{formatPrice(offer.offeredFare)}</p>
-                                                    <p className="text-[11px] text-gray-500">{offer.driver?.name} · {offer.vehicle?.make} {offer.vehicle?.model} ({offer.vehicle?.vehicleClass})</p>
-                                                    {offer.message && <p className="text-[11px] text-gray-400 mt-0.5">"{offer.message}"</p>}
-                                                </div>
-                                                <Button size="sm" onClick={() => acceptOffer(ride.id, offer.id)} className="bg-brand-green-600 hover:bg-brand-green-700">Accept</Button>
-                                            </div>
-                                        ))}
+                                        {/* Each new counter-offer "floats up" into place — the same
+                                            surfacing moment inDrive's map-pin bubbles create, just in
+                                            our own list layout (no map to float over without a Maps
+                                            key — see the note on Google Maps below) and brand colors. */}
+                                        <AnimatePresence initial={false}>
+                                            {ride.offers?.filter((o: any) => o.status === "pending").map((offer: any) => (
+                                                <motion.div
+                                                    key={offer.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 24, scale: 0.92 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+                                                    transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                                                    className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-brand-green-100"
+                                                >
+                                                    <div>
+                                                        <p className="font-black text-gray-900">{formatPrice(offer.offeredFare)}</p>
+                                                        <p className="text-[11px] text-gray-500">{offer.driver?.name} · {offer.vehicle?.make} {offer.vehicle?.model} ({offer.vehicle?.vehicleClass})</p>
+                                                        {offer.message && <p className="text-[11px] text-gray-400 mt-0.5">"{offer.message}"</p>}
+                                                    </div>
+                                                    <Button size="sm" onClick={() => acceptOffer(ride.id, offer.id)} className="bg-brand-green-600 hover:bg-brand-green-700">Accept</Button>
+                                                </motion.div>
+                                            ))}
+                                        </AnimatePresence>
 
                                         <div className="flex items-center gap-2 pt-1">
                                             <Button size="sm" variant="outline" onClick={() => raiseFare(ride, FARE_STEP)} className="flex-1 text-xs">

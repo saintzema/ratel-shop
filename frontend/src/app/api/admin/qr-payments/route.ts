@@ -22,7 +22,18 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const { searchParams } = new URL(req.url);
+        const from = searchParams.get("from");
+        const to = searchParams.get("to");
+
         const whereClause: any = { isDirectPayment: true };
+        if (from || to) {
+            whereClause.createdAt = {
+                ...(from ? { gte: new Date(from) } : {}),
+                // End-of-day so a "to" date picked by a user includes that whole day.
+                ...(to ? { lte: new Date(new Date(to).setHours(23, 59, 59, 999)) } : {}),
+            };
+        }
         if (user.role !== "admin") {
             const sellers = await db.seller.findMany({ where: { userId: user.userId }, select: { id: true } });
             const sellerIds = sellers.map((s) => s.id);
@@ -46,7 +57,12 @@ export async function GET(req: Request) {
                 },
             },
             orderBy: { createdAt: "desc" },
-            take: 500,
+            // A restaurant/business generating a QR per transaction can pass the old
+            // 500 cap within weeks — older codes silently vanished from their own
+            // history with no filter available to even narrow down to them. The
+            // date-range filter above is the main relief for a huge history; this
+            // cap is now just a hard safety ceiling on one response payload.
+            take: 3000,
         });
 
         const result = products.map((p) => {

@@ -150,16 +150,45 @@ function HomeContent() {
       const showable = DataSyncService.getApprovedProducts().filter(p => p.is_active);
       setAllProducts(prev => (showable.length === 0 && prev.length > 0 ? prev : showable));
       
-      let hasSellerRole = false;
+      // This used to require role === "seller" exactly, OR'd with the local
+      // getCurrentSellerId() cache pointer. An admin account that ALSO owns a
+      // real, active store (role stays "admin" — it's the more privileged
+      // role, never downgraded) never matched the role check, and a cold
+      // local cache meant getCurrentSellerId() came back empty too — so the
+      // quick-action tiles sent an actual seller through onboarding instead
+      // of their own dashboard. Check real ownership (local, then DB),
+      // matching the resolution every other seller-aware page already uses.
+      let userObj: any = null;
       try {
         const userStr = localStorage.getItem("fp_user");
-        if (userStr) {
-          const userObj = JSON.parse(userStr);
-          hasSellerRole = userObj?.role === "seller";
-        }
+        if (userStr) userObj = JSON.parse(userStr);
       } catch (e) {}
 
-      setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
+      const localMatch = userObj
+        ? DataSyncService.pickPrimarySeller(DataSyncService.findSellersForUser(userObj.id, userObj.email))
+        : null;
+
+      if (!!DataSyncService.getCurrentSellerId() || !!localMatch || userObj?.role === "seller") {
+        setIsSeller(true);
+      } else if (userObj?.role === "admin") {
+        // Role alone doesn't prove store ownership either way — ask the DB
+        // rather than guessing, but keep the token header so a pending
+        // (not-yet-active) store still counts.
+        const token = localStorage.getItem("fp_token");
+        fetch("/api/sellers?all=true", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+          .then(r => r.ok ? r.json() : null)
+          .then(rows => {
+            const list = Array.isArray(rows) ? rows : [];
+            const owns = list.some((s: any) =>
+              s.user_id === userObj.id || s.userId === userObj.id ||
+              s.owner_email === userObj.email || s.ownerEmail === userObj.email
+            );
+            if (owns) setIsSeller(true);
+          })
+          .catch(() => {});
+      } else {
+        setIsSeller(false);
+      }
       
       // Load Banners — ZEMA360 promo always leads, admin banners follow
       try {
@@ -388,7 +417,7 @@ function HomeContent() {
                 {[
                   { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
                   { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
-                  { icon: Megaphone, label: "Post Everywhere", href: "/seller/social", sellerOnly: true },
+                  { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
                   { icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true },
                   { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
                 ].map((action) => (
@@ -397,7 +426,13 @@ function HomeContent() {
                     href={action.sellerOnly && !isSeller ? "/seller/onboarding" : action.href}
                     className="flex flex-col items-center gap-1.5 group"
                   >
-                    <div className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-colors">
+                    {/* Same soft green-glow treatment as the splash logo — a thin
+                        border-glow, not a spread halo, so the row reads as a
+                        distinct, tappable group of actions at a glance. */}
+                    <div
+                      className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-shadow"
+                      style={{ boxShadow: "0 0 0 1.5px rgba(16,185,129,0.55), 0 0 8px 1px rgba(16,185,129,0.3)" }}
+                    >
                       <action.icon className="h-5 w-5 md:h-6 md:w-6 text-brand-green-700" />
                     </div>
                     <span className="text-[9px] md:text-[11px] font-bold text-gray-700 text-center leading-tight">{action.label}</span>
