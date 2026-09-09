@@ -50,6 +50,7 @@ export default function RidePage() {
     const [vehicleClassPref, setVehicleClassPref] = useState("");
     const [posting, setPosting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [lastVisibleDrivers, setLastVisibleDrivers] = useState<number | null>(null);
 
     const [rides, setRides] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -101,6 +102,7 @@ export default function RidePage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || "Could not post ride");
             setPickup(""); setDropoff("");
+            setLastVisibleDrivers(typeof data.visibleDrivers === "number" ? data.visibleDrivers : null);
             loadRides();
         } catch (e: any) {
             setError(e.message);
@@ -253,6 +255,15 @@ export default function RidePage() {
                         {posting ? "Posting..." : "Find a Driver"}
                     </Button>
                 </div>
+
+                {lastVisibleDrivers !== null && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-6 -mt-4">
+                        <ShieldCheck className="h-3.5 w-3.5 text-brand-green-600" />
+                        {lastVisibleDrivers > 0
+                            ? `Visible to ${lastVisibleDrivers} verified driver${lastVisibleDrivers === 1 ? "" : "s"} in ${location}`
+                            : `No approved drivers in ${location} yet for this vehicle class — try "Any vehicle" or check back soon.`}
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="py-10 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-gray-400" /></div>

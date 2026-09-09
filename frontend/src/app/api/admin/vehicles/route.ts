@@ -15,9 +15,10 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
+    const validStatus = status && ["pending", "approved", "rejected"].includes(status) ? status : null;
 
     const vehicles = await db.vehicle.findMany({
-        where: status ? { status: status as any } : {},
+        where: validStatus ? { status: validStatus as any } : {},
         include: { driver: { select: { id: true, name: true, email: true, whatsappNumber: true } } },
         orderBy: { createdAt: "desc" },
     });
@@ -34,10 +35,15 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: "id and a valid status are required" }, { status: 400 });
     }
 
-    const vehicle = await db.vehicle.update({
-        where: { id },
-        data: { status, rejectionReason: status === "rejected" ? (rejectionReason || "Did not pass inspection") : null },
-    });
+    let vehicle;
+    try {
+        vehicle = await db.vehicle.update({
+            where: { id },
+            data: { status, rejectionReason: status === "rejected" ? (rejectionReason || "Did not pass inspection") : null },
+        });
+    } catch {
+        return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
+    }
 
     await notifyUser(vehicle.driverId,
         status === "approved"

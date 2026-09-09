@@ -27,6 +27,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!ride || ride.status !== "searching") {
         return NextResponse.json({ error: "This ride is no longer open for offers" }, { status: 400 });
     }
+    if (ride.riderId === user.userId) {
+        return NextResponse.json({ error: "You cannot offer on your own ride request" }, { status: 400 });
+    }
     if (!vehicle || vehicle.driverId !== user.userId || vehicle.status !== "approved") {
         return NextResponse.json({ error: "You need an approved vehicle to send offers" }, { status: 403 });
     }
@@ -45,6 +48,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (ride.autoAcceptMax && fare <= ride.autoAcceptMax) {
         try {
             const { conversationId } = await acceptRideOffer(rideId, offer.id);
+            // acceptRideOffer only notifies the driver (the rider is the one
+            // who clicks Accept in the manual flow, so they already know) —
+            // on auto-accept the rider isn't actively watching, so tell them too.
+            await notifyUser(ride.riderId,
+                `✅ Auto-accepted a ₦${fare.toLocaleString()} offer for your ride from ${ride.pickup} to ${ride.dropoff}.`,
+                { type: "system", link: "/ride" }
+            );
             return NextResponse.json({ success: true, offer, autoAccepted: true, conversationId });
         } catch {
             // Fall through to the normal pending-offer path if accept somehow failed.
