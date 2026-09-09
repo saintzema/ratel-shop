@@ -12,7 +12,7 @@ import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard"
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -374,13 +374,45 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
+          {/* ─── Quick Actions (Alipay-style) ───
+              Lives on Home, not tucked into Account — this is the default tab,
+              so it's the actually-discoverable spot for it. Visible to every
+              signed-in user, not just sellers: Scan and Book a Ride mean
+              something to a buyer-only account too. The three seller-only
+              actions (Receive/QR-Pay, Post Everywhere, AI Quote) send a
+              non-seller through onboarding first rather than hiding — clicking
+              "Receive" is exactly how someone decides to start selling. */}
+          <div className="w-full bg-[#E3E6E6]" style={{ paddingTop: `${headerOffset + 12}px` }}>
+            <div className="container mx-auto px-3 md:px-4">
+              <div className="grid grid-cols-5 gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3">
+                {[
+                  { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
+                  { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
+                  { icon: Megaphone, label: "Post Everywhere", href: "/seller/social", sellerOnly: true },
+                  { icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true },
+                  { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
+                ].map((action) => (
+                  <Link
+                    key={action.label}
+                    href={action.sellerOnly && !isSeller ? "/seller/onboarding" : action.href}
+                    className="flex flex-col items-center gap-1.5 group"
+                  >
+                    <div className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-colors">
+                      <action.icon className="h-5 w-5 md:h-6 md:w-6 text-brand-green-700" />
+                    </div>
+                    <span className="text-[9px] md:text-[11px] font-bold text-gray-700 text-center leading-tight">{action.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* ─── Hero Section (Restored Single Image) ─── */}
           {/* Padding tracks the header's measured height (--fp-header-h, published by
               Navbar) plus the PWA banner. The old fixed 128px was tuned for desktop
               web and left a band of empty grey above the hero in the native app. */}
           <section
             className="relative w-full bg-[#E3E6E6] pb-5 md:pb-8"
-            style={{ paddingTop: `${headerOffset + 8}px` }}
           >
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">

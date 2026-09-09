@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut, QrCode, Wallet, Megaphone, FileText, Car } from "lucide-react";
+import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
@@ -136,34 +136,6 @@ export default function AccountPage() {
             <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 leading-tight">Hello, {(user?.name || user?.email || "there").split(" ")[0]}</h1>
-                </div>
-
-                {/* Alipay-style quick-action row. Visible to every signed-in user, not
-                    just sellers — Scan and Book a Ride mean something to a buyer-only
-                    account too. The three seller-only actions (Receive/QR-Pay, Post
-                    Everywhere, AI Quote) send a non-seller through onboarding first
-                    rather than hiding — clicking "Receive" is exactly how someone
-                    decides to start selling, so the button should teach them that,
-                    not disappear. */}
-                <div className="grid grid-cols-5 gap-2 mb-8">
-                    {[
-                        { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
-                        { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
-                        { icon: Megaphone, label: "Post Everywhere", href: "/seller/social", sellerOnly: true },
-                        { icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true },
-                        { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
-                    ].map((action) => (
-                        <Link
-                            key={action.label}
-                            href={action.sellerOnly && !isSeller ? "/seller/onboarding" : action.href}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="h-14 w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-colors">
-                                <action.icon className="h-6 w-6 text-brand-green-700" />
-                            </div>
-                            <span className="text-[11px] font-bold text-gray-700 text-center leading-tight">{action.label}</span>
-                        </Link>
-                    ))}
                 </div>
 
                 {/* Prominent Coupon & Referral Banner */}
