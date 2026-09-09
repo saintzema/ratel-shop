@@ -437,6 +437,8 @@ function HomeContent() {
                         // slide someone wanted to look at (ZEMA 360 etc.) was
                         // unreachable on demand.
                         drag={banners.length > 1 ? "x" : false}
+                        dragDirectionLock
+                        style={{ touchAction: "pan-y" }}
                         dragConstraints={{ left: 0, right: 0 }}
                         dragElastic={0.18}
                         onDragEnd={(_e, info) => {
@@ -586,7 +588,7 @@ function HomeContent() {
                 className="sticky z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1"
                 style={{ top: `${headerOffset}px` }}
             >
-              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
+              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth" style={{ touchAction: 'pan-x' }}>
                 {pills.map((cat) => {
                   const isActive = activeTab === cat;
                   return (
@@ -633,10 +635,19 @@ function HomeContent() {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2, ease: "easeInOut" }}
                   drag="x"
+                  dragDirectionLock
                   dragConstraints={{ left: 0, right: 0 }}
                   dragElastic={0.2}
                   onDragEnd={handleDragEnd}
                   className="w-full"
+                  // This wraps the ENTIRE section grid below the pills bar (used to
+                  // detect a horizontal swipe for switching category tabs) — a touch
+                  // starting on any product card or section inside it was reported as
+                  // "can't scroll up unless I start from empty white space". Explicit
+                  // pan-y tells the browser to always let native vertical scroll
+                  // through and only treat the gesture as a drag once horizontal
+                  // intent is clear, instead of the ambiguity swallowing the touch.
+                  style={{ touchAction: "pan-y" }}
                 >
                   {activeTab === "All" ? (
                     // Don't paint a wall of empty shelves while the catalogue is

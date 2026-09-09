@@ -5,6 +5,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ZivaChat } from "@/components/ziva/ZivaChat";
 import { LocationProvider } from "@/context/LocationContext";
+import { CurrencyProvider } from "@/context/CurrencyContext";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
@@ -261,6 +262,7 @@ export default function RootLayout({
           }>
             <SessionWrapper>
               <LocationProvider>
+               <CurrencyProvider>
                 <AuthProvider>
                   <CartProvider>
                     <FavoritesProvider>
@@ -282,6 +284,7 @@ export default function RootLayout({
                     <WaitlistModal />
                   </CartProvider>
                 </AuthProvider>
+               </CurrencyProvider>
               </LocationProvider>
             </SessionWrapper>
           </Suspense>

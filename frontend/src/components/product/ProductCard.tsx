@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { nativeBridge } from "@/lib/native-bridge";
 import { DataSyncService } from "@/lib/sync-store";
 import { hasFinancing, getProductPaymentRange } from "@/lib/financing-utils";
+import { useCurrency } from "@/context/CurrencyContext";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 interface ProductCardProps {
@@ -27,6 +28,8 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
     const { user } = useAuth();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
+    const { convert } = useCurrency();
+    const convertedPrice = convert(product.price);
     const router = useRouter();
     const [showHeartBurst, setShowHeartBurst] = useState(false);
     const [addedToCart, setAddedToCart] = useState(false);
@@ -275,6 +278,13 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             </span>
                         )}
                     </div>
+                    {/* International-visitor estimate — the ₦ price above is what's
+                        actually charged (Paystack is NGN-only); this is a live-rate
+                        conversion for anyone not already thinking in Naira. Renders
+                        nothing for Nigerian visitors (the default/primary market). */}
+                    {convertedPrice && (
+                        <p className="text-[10px] text-gray-400 font-semibold leading-none mt-0.5">≈ {convertedPrice}</p>
+                    )}
                     
                     {/* Financing Payment Range */}
                     {hasFinancing(product) && (

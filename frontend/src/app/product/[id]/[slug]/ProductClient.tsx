@@ -17,6 +17,7 @@ import { StructuredProductData } from "@/components/seo/StructuredProductData";
 import { PriceGraphWidget } from "@/components/product/PriceGraphWidget";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import { isShoppable, getListingConfig } from "@/lib/listing-types";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
@@ -139,6 +140,7 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     const id = params?.id as string;
     const { location, setLocation } = useLocation();
     const { addToCart } = useCart();
+    const { convert } = useCurrency();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { user } = useAuth();
     const router = useRouter();
@@ -1871,6 +1873,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                             -{Math.round(((activeOriginalPrice - activePrice) / activeOriginalPrice) * 100)}% OFF
                                                         </span>
                                                     </div>
+                                                )}
+                                                {/* International-visitor estimate — actual charge is NGN via
+                                                    Paystack; this is a live-rate conversion only. */}
+                                                {convert(activePrice * quantity) && (
+                                                    <p className="text-xs text-gray-400 font-semibold mt-0.5">≈ {convert(activePrice * quantity)}</p>
                                                 )}
                                             </>
                                         );
