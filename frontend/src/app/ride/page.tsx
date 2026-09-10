@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Car, MapPin, ChevronDown, Loader2, CheckCircle2, Minus, Plus, X, ShieldCheck } from "lucide-react";
+import { Car, MapPin, ChevronDown, Loader2, CheckCircle2, Minus, Plus, X, ShieldCheck, Star } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "@/context/LocationContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
+import { RideMap } from "@/components/ride/RideMap";
+import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
@@ -121,6 +123,21 @@ export default function RidePage() {
         loadRides();
     };
 
+    const [ratingSubmitting, setRatingSubmitting] = useState<string | null>(null);
+    const rateRide = async (rideId: string, rating: number) => {
+        setRatingSubmitting(rideId);
+        try {
+            await fetch(`/api/rides/${rideId}/rate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ rating }),
+            });
+            loadRides();
+        } finally {
+            setRatingSubmitting(null);
+        }
+    };
+
     const raiseFare = async (ride: any, amount: number) => {
         const newFare = Math.max(FARE_STEP, ride.proposedFare + amount);
         setRides(prev => prev.map(r => r.id === ride.id ? { ...r, proposedFare: newFare } : r));
@@ -157,6 +174,11 @@ export default function RidePage() {
     }
 
     const activeRides = rides.filter(r => r.status !== "completed" && r.status !== "cancelled");
+    // Share MY position for whichever ride is actually matched, so the
+    // driver's map can show where I am too — inDrive/AMap both do this
+    // two-way, not just "watch the driver".
+    const matchedRide = activeRides.find(r => r.status === "matched" || r.status === "in_progress");
+    useLocationBroadcast(matchedRide?.id || null, !!matchedRide);
 
     return (
         <div className="min-h-screen bg-white font-sans">
@@ -287,12 +309,13 @@ export default function RidePage() {
                                         "text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full",
                                         ride.status === "searching" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
                                     )}>
-                                        {ride.status === "searching" ? "Waiting for offers" : ride.status}
+                                        {ride.status === "searching" ? "Waiting for offers" : ride.status === "in_progress" ? "In Progress" : ride.status}
                                     </span>
                                 </div>
 
                                 {ride.status === "searching" && (
                                     <div className="space-y-3">
+                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active={false} />
                                         <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                             <ShieldCheck className="h-3.5 w-3.5 text-brand-green-600" />
                                             {ride.offers?.length > 0
@@ -336,11 +359,13 @@ export default function RidePage() {
                                     </div>
                                 )}
 
-                                {ride.status === "matched" && ride.driver && (
+                                {(ride.status === "matched" || ride.status === "in_progress") && ride.driver && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
-                                            <CheckCircle2 className="h-4 w-4" /> Matched with {ride.driver.name} · {formatPrice(ride.agreedFare)}
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
                                         </div>
+                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active />
                                         {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
                                     </div>
                                 )}
@@ -348,6 +373,25 @@ export default function RidePage() {
                         ))}
                     </div>
                 )}
+
+                {rides.filter(r => r.status === "completed" && r.rating == null).map(ride => (
+                    <div key={ride.id} className="border border-amber-100 bg-amber-50/50 rounded-2xl p-5 mt-4 text-center">
+                        <p className="text-sm font-bold text-gray-900">How was your trip with {ride.driver?.name}?</p>
+                        <p className="text-xs text-gray-500 mt-0.5 mb-3">{ride.pickup} → {ride.dropoff}</p>
+                        <div className="flex items-center justify-center gap-1">
+                            {[1, 2, 3, 4, 5].map(n => (
+                                <button
+                                    key={n}
+                                    disabled={ratingSubmitting === ride.id}
+                                    onClick={() => rateRide(ride.id, n)}
+                                    className="p-1"
+                                >
+                                    <Star className="h-7 w-7 text-amber-400 hover:fill-amber-400 transition-colors" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
 
                 <p className="text-center text-xs text-gray-400 mt-10">
                     Have a car? <a href="/drive/onboarding" className="text-brand-green-600 font-bold underline">Register to drive</a> and start sending offers.

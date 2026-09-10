@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
-import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff } from "lucide-react";
+import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nativeBridge } from "@/lib/native-bridge";
 
@@ -24,6 +24,17 @@ import { nativeBridge } from "@/lib/native-bridge";
  * Anything else is shown as plain text with a manual confirm — a QR code is
  * untrusted input, and auto-navigating a WebView to an arbitrary scanned URL
  * is exactly the kind of thing a malicious sticker-swapped QR relies on.
+ *
+ * getUserMedia used to fire automatically on mount. iOS Safari/WKWebView in
+ * particular can silently refuse (or never even surface the permission
+ * prompt) for a camera request that isn't the direct result of a tap — which
+ * is exactly what "scan doesn't work on mobile, camera never even asks"
+ * was. Gating the first request behind an explicit "Enable Camera" tap fixes
+ * that AND is the normal QR-scanner pattern users already expect. Once
+ * granted, the browser's own permission grant persists for this origin —
+ * "ask once, remember it" needs no code of ours, that's just how permissions
+ * work; the old bug was that the ask was failing before it ever reached
+ * that point.
  */
 export default function ScanToPayPage() {
     const router = useRouter();
@@ -32,112 +43,129 @@ export default function ScanToPayPage() {
     const streamRef = useRef<MediaStream | null>(null);
     const rafRef = useRef<number | null>(null);
 
+    const [phase, setPhase] = useState<"idle" | "starting" | "scanning" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<{ raw: string; isFairPrice: boolean; url?: string } | null>(null);
-    const [scanning, setScanning] = useState(true);
     // Torch is a REAL device capability check, not a guess — iOS Safari/WKWebView
     // doesn't expose MediaStreamTrack torch control to web content at all, so this
     // button only appears where it can actually do something (mainly Android Chrome).
     const [torchSupported, setTorchSupported] = useState(false);
     const [torchOn, setTorchOn] = useState(false);
+    const cancelledRef = useRef(false);
+
+    const stopStream = () => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+    };
 
     useEffect(() => {
-        let cancelled = false;
+        cancelledRef.current = false;
+        return () => { cancelledRef.current = true; stopStream(); };
+    }, []);
 
-        (async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    // A higher-resolution feed gives jsQR more pixels to work with for
-                    // a QR that's small in frame or a bit further away — "ideal" so a
-                    // device that can't do 720p still gets whatever it has, not a hard
-                    // failure.
-                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false,
+    const startCamera = async () => {
+        setError(null);
+        setPhase("starting");
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            setPhase("error");
+            setError("This browser doesn't support camera access. Try updating it, or use a different browser.");
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                // A higher-resolution feed gives jsQR more pixels to work with for
+                // a QR that's small in frame or a bit further away — "ideal" so a
+                // device that can't do 720p still gets whatever it has, not a hard
+                // failure.
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false,
+            });
+            if (cancelledRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play().catch(() => {});
+            }
+            const [track] = stream.getVideoTracks();
+            if (track && "torch" in (track.getCapabilities?.() || {})) {
+                setTorchSupported(true);
+            }
+            setPhase("scanning");
+            tick();
+        } catch (e: any) {
+            setPhase("error");
+            const name = e?.name || "";
+            if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+                setError("Camera access was denied. Enable camera permission for FairPrice in your device settings, then try again.");
+            } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+                setError("No camera was found on this device.");
+            } else if (name === "NotReadableError" || name === "TrackStartError") {
+                setError("Your camera is being used by another app. Close it and try again.");
+            } else if (name === "SecurityError") {
+                setError("Camera access needs a secure (https) connection.");
+            } else {
+                setError(`Couldn't access the camera${name ? ` (${name})` : ""}. Please try again.`);
+            }
+        }
+    };
+
+    const tick = () => {
+        if (cancelledRef.current) return;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                // "dontInvert" only tried dark-on-light — a QR shown on a bright
+                // phone screen, or under glare, can need the inverted read.
+                // "attemptBoth" costs a bit more CPU per frame but this is the
+                // single biggest lever for the "doesn't pick it up" complaint
+                // that a pure-JS decoder actually has (native OS scanners use
+                // hardware-accelerated detection this can't fully match).
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "attemptBoth",
                 });
-                if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-                streamRef.current = stream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    await videoRef.current.play().catch(() => {});
+                if (code?.data) {
+                    handleDecoded(code.data);
+                    return;
                 }
-                const [track] = stream.getVideoTracks();
-                if (track && "torch" in (track.getCapabilities?.() || {})) {
-                    setTorchSupported(true);
-                }
-                tick();
-            } catch (e: any) {
-                setError(
-                    e?.name === "NotAllowedError"
-                        ? "Camera access was denied. Enable camera permission for FairPrice in your device settings to scan a QR code."
-                        : "Couldn't access the camera on this device."
-                );
-            }
-        })();
-
-        function tick() {
-            if (cancelled) return;
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-            if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext("2d");
-                if (ctx) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    // "dontInvert" only tried dark-on-light — a QR shown on a bright
-                    // phone screen, or under glare, can need the inverted read.
-                    // "attemptBoth" costs a bit more CPU per frame but this is the
-                    // single biggest lever for the "doesn't pick it up" complaint
-                    // that a pure-JS decoder actually has (native OS scanners use
-                    // hardware-accelerated detection this can't fully match).
-                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                        inversionAttempts: "attemptBoth",
-                    });
-                    if (code?.data) {
-                        handleDecoded(code.data);
-                        return;
-                    }
-                }
-            }
-            rafRef.current = requestAnimationFrame(tick);
-        }
-
-        function handleDecoded(raw: string) {
-            setScanning(false);
-            streamRef.current?.getTracks().forEach(t => t.stop());
-
-            let isFairPrice = false;
-            let url: string | undefined;
-            try {
-                const parsed = new URL(raw);
-                if (parsed.hostname === "www.fairprice.ng" || parsed.hostname === "fairprice.ng") {
-                    isFairPrice = true;
-                    url = parsed.toString();
-                }
-            } catch {
-                // Not a URL at all — show as plain text below.
-            }
-            setResult({ raw, isFairPrice, url });
-
-            if (isFairPrice && url) {
-                setTimeout(() => router.push(url!.replace(/^https?:\/\/[^/]+/, "")), 600);
             }
         }
+        rafRef.current = requestAnimationFrame(tick);
+    };
 
-        return () => {
-            cancelled = true;
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            streamRef.current?.getTracks().forEach(t => t.stop());
-        };
-    }, [router]);
+    const handleDecoded = (raw: string) => {
+        stopStream();
+
+        let isFairPrice = false;
+        let url: string | undefined;
+        try {
+            const parsed = new URL(raw);
+            if (parsed.hostname === "www.fairprice.ng" || parsed.hostname === "fairprice.ng") {
+                isFairPrice = true;
+                url = parsed.toString();
+            }
+        } catch {
+            // Not a URL at all — show as plain text below.
+        }
+        setResult({ raw, isFairPrice, url });
+
+        if (isFairPrice && url) {
+            setTimeout(() => router.push(url!.replace(/^https?:\/\/[^/]+/, "")), 600);
+        }
+    };
 
     const rescan = () => {
         setResult(null);
         setError(null);
-        setScanning(true);
-        router.refresh();
-        window.location.reload();
+        setPhase("idle");
     };
 
     const toggleTorch = async () => {
@@ -163,7 +191,7 @@ export default function ScanToPayPage() {
                         <QrCode className="h-4 w-4 text-brand-green-400" /> Scan to Pay
                     </h1>
                 </div>
-                {torchSupported && scanning && (
+                {torchSupported && phase === "scanning" && (
                     <button
                         onClick={toggleTorch}
                         className={`p-2.5 rounded-full transition-colors ${torchOn ? "bg-brand-green-500 text-black" : "bg-white/10 hover:bg-white/20"}`}
@@ -178,23 +206,43 @@ export default function ScanToPayPage() {
                 <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
                 <canvas ref={canvasRef} className="hidden" />
 
-                {scanning && !error && (
+                {phase === "idle" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
+                        <div className="h-16 w-16 rounded-full bg-brand-green-500/15 flex items-center justify-center">
+                            <Camera className="h-7 w-7 text-brand-green-400" />
+                        </div>
+                        <p className="text-white font-bold">Scan a FairPay QR code</p>
+                        <p className="text-white/60 text-sm max-w-xs">We'll ask for camera access once — your browser remembers it after that.</p>
+                        <Button onClick={startCamera} className="bg-brand-green-500 hover:bg-brand-green-600 text-black font-bold rounded-full px-8 h-12 mt-2">
+                            Enable Camera
+                        </Button>
+                    </div>
+                )}
+
+                {phase === "starting" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center">
+                        <div className="h-8 w-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <p className="text-white/70 text-sm">Requesting camera access…</p>
+                    </div>
+                )}
+
+                {phase === "scanning" && !error && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="h-64 w-64 rounded-3xl border-2 border-white/70" style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)" }} />
                     </div>
                 )}
 
-                {scanning && !error && (
+                {phase === "scanning" && !error && (
                     <p className="absolute bottom-8 inset-x-0 text-center text-white/80 text-sm font-semibold px-6">
                         Point your camera at a FairPay QR code
                     </p>
                 )}
 
-                {error && (
+                {phase === "error" && error && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
                         <AlertTriangle className="h-10 w-10 text-amber-400" />
                         <p className="text-white font-semibold">{error}</p>
-                        <Button onClick={rescan} className="bg-white text-black rounded-full">Try again</Button>
+                        <Button onClick={startCamera} className="bg-white text-black rounded-full">Try again</Button>
                     </div>
                 )}
 

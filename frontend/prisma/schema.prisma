@@ -1039,6 +1039,24 @@ model RideRequest {
   status           RideStatus    @default(searching)
   conversationId   String?
   cancelReason     String?
+  // Live tracking, once matched — updated by whichever side's device is
+  // actively broadcasting (see /api/rides/[id]/location). Nullable: a ride
+  // that's still "searching" has neither yet, and either party may have
+  // location sharing off (denied the browser permission) without breaking
+  // the ride itself — the map just shows what it actually has.
+  driverLat        Float?
+  driverLng        Float?
+  driverLocationAt DateTime?
+  riderLat         Float?
+  riderLng         Float?
+  riderLocationAt  DateTime?
+  // Rider rates the driver once the trip is completed — no payment collection
+  // built yet (fare is settled directly between rider and driver for now,
+  // e.g. cash), so this is scoped to trust/reputation only.
+  rating           Int?
+  ratingComment    String?
+  startedAt        DateTime?
+  completedAt      DateTime?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   rider            User          @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
