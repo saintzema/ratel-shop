@@ -146,6 +146,8 @@ export default function IntegrationsPage() {
                     status: state.connected ? "Connected" : "Disconnected",
                     detail: state.detail || null,
                     expired: !!state.expired,
+                    expiringSoon: !!state.expiringSoon,
+                    daysLeft: state.daysLeft ?? null,
                 };
             }));
         } catch { /* keep the cached view rather than flipping everything to disconnected */ }
@@ -286,7 +288,15 @@ export default function IntegrationsPage() {
                             <div className={`p-4 rounded-2xl ${app.color === 'pink' ? 'bg-pink-50' : app.color === 'cyan' ? 'bg-cyan-50' : app.color === 'indigo' ? 'bg-indigo-50' : app.color === 'amber' ? 'bg-amber-50' : app.color === 'emerald' ? 'bg-emerald-50' : 'bg-gray-50'}`}>
                                 {INTEGRATIONS.find(i => i.id === app.id)?.icon}
                             </div>
-                            {app.status === 'Connected' ? (
+                            {app.status === 'Connected' && (app as any).expiringSoon ? (
+                                // Meta's Instagram tokens expire on a fixed ~60-day clock no
+                                // matter what — warning here before it happens is the only
+                                // real fix for "why did this just stop working", since the
+                                // expiry itself can't be prevented from our side.
+                                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">
+                                    <CheckCircle2 className="h-3 w-3" /> Expires in {(app as any).daysLeft}d
+                                </span>
+                            ) : app.status === 'Connected' ? (
                                 <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
                                     <CheckCircle2 className="h-3 w-3" /> Connected
                                 </span>

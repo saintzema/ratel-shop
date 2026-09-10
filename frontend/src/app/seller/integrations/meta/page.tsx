@@ -25,6 +25,7 @@ function MetaBusinessSuiteContent() {
     const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "import" | "settings">(initialTab);
     const [igConnected, setIgConnected] = useState(false);
     const [waConnected, setWaConnected] = useState(false);
+    const [igExpiringSoon, setIgExpiringSoon] = useState<number | null>(null);
 
     useEffect(() => {
         // The local seller cache never carries OAuth tokens — those are written
@@ -42,6 +43,7 @@ function MetaBusinessSuiteContent() {
                 if (!i) return;
                 setIgConnected(!!i.instagram?.connected);
                 setWaConnected(!!i.whatsapp?.connected);
+                setIgExpiringSoon(i.instagram?.expiringSoon ? i.instagram.daysLeft : null);
             })
             .catch(() => {
                 // Fall back to the local snapshot rather than showing nothing.
@@ -156,6 +158,19 @@ function MetaBusinessSuiteContent() {
                         </Button>
                     </div>
                 </div>
+
+                {igExpiringSoon !== null && (
+                    // Instagram tokens expire on a fixed ~60-day clock set by Meta,
+                    // not by us — the only real mitigation is warning before it
+                    // happens instead of a seller finding out only once publishing
+                    // silently stops working.
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                        <p className="text-xs font-bold text-amber-800">
+                            Your Instagram connection expires in {igExpiringSoon} day{igExpiringSoon === 1 ? "" : "s"} — reconnect now to avoid an interruption.
+                        </p>
+                        <Link href="/seller/integrations" className="text-xs font-black text-amber-900 underline shrink-0">Reconnect</Link>
+                    </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 pb-0">
                     {[

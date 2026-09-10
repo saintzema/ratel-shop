@@ -41,6 +41,14 @@ export async function GET(req: NextRequest) {
     // A token that has already expired is not a working connection — say so
     // rather than showing "Connected" on something that will fail on publish.
     const igExpired = !!seller.instagramTokenExpiry && seller.instagramTokenExpiry.getTime() < Date.now();
+    // Meta's long-lived Instagram tokens expire on a fixed ~60-day clock no matter
+    // what we do on our end — this ISN'T a data-loss bug, it's an unavoidable OAuth
+    // lifecycle every third-party app hits. The best we can do is warn before it
+    // happens instead of a seller finding out only when publishing silently stops
+    // working, which is what "why did Instagram just disappear" always was.
+    const igDaysLeft = seller.instagramTokenExpiry && !igExpired
+        ? Math.ceil((seller.instagramTokenExpiry.getTime() - Date.now()) / 86400000)
+        : null;
 
     return NextResponse.json({
         sellerId: seller.id,
@@ -49,6 +57,8 @@ export async function GET(req: NextRequest) {
             instagram: {
                 connected: !!seller.instagramAccessToken && !igExpired,
                 expired: igExpired,
+                expiringSoon: igDaysLeft !== null && igDaysLeft <= 7,
+                daysLeft: igDaysLeft,
                 detail: seller.instagramUsername ? `@${seller.instagramUsername}` : null,
             },
             facebook: { connected: !!seller.facebookPageId, detail: seller.facebookPageName || null },
