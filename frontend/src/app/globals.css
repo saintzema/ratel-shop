@@ -520,3 +520,34 @@ body.fp-field-focused .fp-floating-widget {
     transform: translateY(12px);
     transition: opacity 0.15s ease-out, transform 0.15s ease-out;
 }
+
+/* ─── Google Places Autocomplete — brand-matched dropdown ───
+ * Google's own .pac-container is plain white with a system font, matching
+ * nothing about the rest of the app. This restyles the container/rows to
+ * FairPrice's own look while leaving the "powered by Google" attribution
+ * logo alone (Google's Terms require keeping it visible). */
+.pac-container {
+    border-radius: 16px !important;
+    margin-top: 6px !important;
+    border: 1px solid rgb(220 252 231) !important; /* brand-green-100 */
+    box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12) !important;
+    font-family: inherit !important;
+    overflow: hidden;
+}
+.pac-item {
+    padding: 10px 14px !important;
+    font-size: 13px !important;
+    border-top: 1px solid rgb(243 244 246) !important;
+    cursor: pointer;
+}
+.pac-item:first-child { border-top: none !important; }
+.pac-item:hover, .pac-item-selected {
+    background-color: rgb(240 253 244) !important; /* brand-green-50 */
+}
+.pac-icon { display: none !important; } /* Google's pin icon — the input already has its own */
+.pac-item-query {
+    font-weight: 700;
+    color: rgb(17 24 39);
+    font-size: 13px !important;
+}
+.pac-matched { color: rgb(5 150 105); } /* brand-green-600, highlights the typed fragment */

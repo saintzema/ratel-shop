@@ -424,13 +424,17 @@ function HomeContent() {
                   <Link
                     key={action.label}
                     href={action.sellerOnly && !isSeller ? "/seller/onboarding" : action.href}
-                    className="flex flex-col items-center gap-1.5 group"
+                    // active:scale-90 is the actual tactile feedback that was
+                    // missing — hover-only styling never fires on a touchscreen
+                    // tap, so a tap gave zero visual acknowledgment before the
+                    // page navigated, reported as "not immediately responsive".
+                    className="flex flex-col items-center gap-1.5 group active:scale-90 transition-transform duration-100"
                   >
                     {/* Same soft green-glow treatment as the splash logo — a thin
                         border-glow, not a spread halo, so the row reads as a
                         distinct, tappable group of actions at a glance. */}
                     <div
-                      className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 transition-shadow"
+                      className="h-11 w-11 md:h-14 md:w-14 rounded-2xl bg-brand-green-50 flex items-center justify-center group-hover:bg-brand-green-100 group-active:bg-brand-green-100 transition-colors"
                       style={{ boxShadow: "0 0 0 1.5px rgba(16,185,129,0.55), 0 0 8px 1px rgba(16,185,129,0.3)" }}
                     >
                       <action.icon className="h-5 w-5 md:h-6 md:w-6 text-brand-green-700" />
