@@ -46,6 +46,18 @@ model User {
   ridesAsRider    RideRequest[]        @relation("RiderRides")
   ridesAsDriver   RideRequest[]        @relation("DriverRides")
   rideOffers      RideOffer[]
+  // NIN-based identity verification — every user, not just drivers (the
+  // NaviaRide community feedback we reviewed calls this the actual load-
+  // bearing trust layer for ride-sharing in Nigeria). No NIMC/NIN API
+  // integration exists yet — that needs an official government
+  // data-sharing agreement, a business step, not a code one — so this
+  // starts in "not_submitted" and stays there until that partnership
+  // exists; the fields and admin review queue are ready for it.
+  ninNumber           String?
+  ninStatus           KYCStatus @default(not_submitted)
+  ninSubmittedAt      DateTime?
+  ninReviewedAt       DateTime?
+  ninRejectionReason  String?
 }
 
 // A buyer-facing, platform-funded credit earned by watching a rewarded ad —

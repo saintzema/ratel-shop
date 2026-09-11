@@ -67,6 +67,7 @@ export default function AdminLayout({
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "QR Payments", href: "/admin/qr-payments", icon: QrCode },
         { label: "Driver Inspections", href: "/admin/drivers", icon: Car },
+        { label: "Identity Verification", href: "/admin/identity", icon: ShieldCheck },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
         { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
