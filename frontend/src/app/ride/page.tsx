@@ -191,12 +191,19 @@ export default function RidePage() {
                 {confirmingCity && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center"
+                        className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center"
                         onClick={() => setConfirmingCity(false)}
                     >
                         <motion.div
                             initial={{ y: 60 }} animate={{ y: 0 }} exit={{ y: 60 }}
-                            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 text-center"
+                            className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 text-center"
+                            style={{
+                                background: "linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(240,253,244,0.9) 100%)",
+                                backdropFilter: "blur(40px) saturate(180%)",
+                                WebkitBackdropFilter: "blur(40px) saturate(180%)",
+                                border: "1px solid rgba(255,255,255,0.7)",
+                                boxShadow: "0 -8px 40px rgba(16,24,40,0.15)",
+                            }}
                             onClick={e => e.stopPropagation()}
                         >
                             <Car className="h-10 w-10 text-brand-green-600 mx-auto mb-3" />
@@ -403,12 +410,19 @@ export default function RidePage() {
                 {cancelTarget && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center"
+                        className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-end sm:items-center justify-center"
                         onClick={() => setCancelTarget(null)}
                     >
                         <motion.div
                             initial={{ y: 60 }} animate={{ y: 0 }} exit={{ y: 60 }}
-                            className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6"
+                            className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6"
+                            style={{
+                                background: "linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(240,253,244,0.9) 100%)",
+                                backdropFilter: "blur(40px) saturate(180%)",
+                                WebkitBackdropFilter: "blur(40px) saturate(180%)",
+                                border: "1px solid rgba(255,255,255,0.7)",
+                                boxShadow: "0 -8px 40px rgba(16,24,40,0.15)",
+                            }}
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="flex items-center justify-between mb-4">

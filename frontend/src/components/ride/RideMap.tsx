@@ -248,18 +248,37 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
     if (!hasGoogleMapsKey) return null;
 
     return (
-        <div className="rounded-2xl overflow-hidden border border-gray-100 relative">
+        <div
+            className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)]"
+            style={{ border: "1px solid rgba(255,255,255,0.6)" }}
+        >
             <div ref={mapDivRef} className="h-56 w-full bg-gray-100" />
             {mapError && (
-                <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-2 text-center px-6">
+                <div
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6"
+                    style={{
+                        background: "linear-gradient(145deg, rgba(255,255,255,0.85) 0%, rgba(248,250,252,0.9) 100%)",
+                        backdropFilter: "blur(24px) saturate(160%)",
+                        WebkitBackdropFilter: "blur(24px) saturate(160%)",
+                    }}
+                >
                     <MapPinned className="h-6 w-6 text-gray-300" />
                     <p className="text-xs text-gray-400">Couldn't map this address exactly — the ride still works, just without the live view.</p>
                 </div>
             )}
             {routeInfo && (
-                <div className="absolute top-2 left-2 right-2 bg-white/95 backdrop-blur rounded-xl px-3 py-2 flex items-center gap-4 text-xs font-bold text-gray-700 shadow-sm">
-                    <span className="flex items-center gap-1"><Navigation2 className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.distance}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.duration}</span>
+                <div
+                    className="absolute top-2.5 left-2.5 right-2.5 rounded-2xl px-3.5 py-2.5 flex items-center gap-4 text-xs font-bold text-gray-700"
+                    style={{
+                        background: "linear-gradient(145deg, rgba(255,255,255,0.75) 0%, rgba(240,253,244,0.65) 100%)",
+                        backdropFilter: "blur(20px) saturate(180%)",
+                        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                        border: "1px solid rgba(255,255,255,0.7)",
+                        boxShadow: "0 4px 16px rgba(16,24,40,0.08), inset 0 1px 0 rgba(255,255,255,0.8)",
+                    }}
+                >
+                    <span className="flex items-center gap-1.5"><Navigation2 className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.distance}</span>
+                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.duration}</span>
                 </div>
             )}
         </div>
