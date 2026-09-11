@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut, ShieldCheck } from "lucide-react";
+import { Package, Package2, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
@@ -79,6 +79,12 @@ export default function AccountPage() {
             title: "Identity Verification",
             desc: "Get a Verified badge with your NIN",
             href: "/account/identity"
+        },
+        {
+            icon: Package2,
+            title: "Send a Package",
+            desc: "Name your price, a courier picks it up",
+            href: "/send-package"
         },
         {
             icon: MapPin,

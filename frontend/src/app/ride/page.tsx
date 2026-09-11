@@ -444,6 +444,9 @@ export default function RidePage() {
                 <p className="text-center text-xs text-gray-400 mt-10">
                     Have a car? <a href="/drive/onboarding" className="text-brand-green-600 font-bold underline">Register to drive</a> and start sending offers.
                 </p>
+                <p className="text-center text-xs text-gray-400 mt-2">
+                    Need to send something instead? <a href="/send-package" className="text-brand-green-600 font-bold underline">Send a Package</a>.
+                </p>
             </div>
 
             {/* Cancel-with-reason */}

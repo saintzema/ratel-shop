@@ -46,6 +46,9 @@ model User {
   ridesAsRider    RideRequest[]        @relation("RiderRides")
   ridesAsDriver   RideRequest[]        @relation("DriverRides")
   rideOffers      RideOffer[]
+  deliveriesAsSender  DeliveryRequest[] @relation("SenderDeliveries")
+  deliveriesAsCourier DeliveryRequest[] @relation("CourierDeliveries")
+  deliveryOffers      DeliveryOffer[]
   // NIN-based identity verification — every user, not just drivers (the
   // NaviaRide community feedback we reviewed calls this the actual load-
   // bearing trust layer for ride-sharing in Nigeria). No NIMC/NIN API
@@ -1104,6 +1107,92 @@ model RideOffer {
   @@unique([rideRequestId, driverId])
   @@index([rideRequestId])
   @@index([driverId])
+}
+
+enum DeliveryStatus {
+  searching
+  matched
+  picked_up
+  delivered
+  cancelled
+}
+
+enum PackageSize {
+  small
+  medium
+  large
+}
+
+enum DeliveryOfferStatus {
+  pending
+  accepted
+  declined
+}
+
+/**
+ * The logistics/delivery side of the same inDrive-style marketplace as
+ * RideRequest: a sender names what they're willing to pay to move a
+ * package, any signed-in user can counter-offer as courier, the sender
+ * picks whichever offer they want. Deliberately no vehicle-inspection gate
+ * like driving does — moving a package carries a different risk profile
+ * than carrying a passenger, so anyone can become a courier without a
+ * separate approval flow, matching "anyone going that way can carry it and
+ * get paid."
+ */
+model DeliveryRequest {
+  id               String         @id @default(cuid())
+  senderId         String
+  courierId        String?
+  pickup           String
+  dropoff          String
+  pickupState      String?
+  pickupCity       String?
+  packageDescription String
+  packageSize      PackageSize    @default(small)
+  recipientName    String?
+  recipientPhone   String?
+  proposedFare     Float
+  autoAcceptMax    Float?
+  agreedFare       Float?
+  status           DeliveryStatus @default(searching)
+  conversationId   String?
+  cancelReason     String?
+  courierLat       Float?
+  courierLng       Float?
+  courierLocationAt DateTime?
+  senderLat        Float?
+  senderLng        Float?
+  senderLocationAt DateTime?
+  rating           Int?
+  ratingComment    String?
+  pickedUpAt       DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  sender           User           @relation("SenderDeliveries", fields: [senderId], references: [id], onDelete: Cascade)
+  courier          User?          @relation("CourierDeliveries", fields: [courierId], references: [id])
+  offers           DeliveryOffer[]
+
+  @@index([senderId])
+  @@index([courierId])
+  @@index([status])
+  @@index([pickupState])
+}
+
+model DeliveryOffer {
+  id                String              @id @default(cuid())
+  deliveryRequestId String
+  courierId         String
+  offeredFare       Float
+  message           String?
+  status            DeliveryOfferStatus @default(pending)
+  createdAt         DateTime            @default(now())
+  deliveryRequest   DeliveryRequest     @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  courier           User                @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@unique([deliveryRequestId, courierId])
+  @@index([deliveryRequestId])
+  @@index([courierId])
 }
 
 enum DisputeReason {
