@@ -4,42 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, MapPinned } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+import { bearingDegrees, distanceMeters } from "@/lib/geo-math";
 
 interface RideMapProps {
+    /** The ride or delivery id — used to build the /api/{kind}s/[id]/location poll URL. */
     rideId: string;
     pickup: string;
     dropoff: string;
     /** Which party's live pin to show — the OTHER side from whoever is viewing. */
-    trackRole: "driver" | "rider";
+    trackRole: "driver" | "rider" | "courier" | "sender";
     active: boolean;
     /** The driver's plate — shown as a floating label above their live pin so a rider can spot the right car. Only meaningful when trackRole === "driver". */
     plateNumber?: string;
+    /** "ride" (default) polls /api/rides/[id]/location; "delivery" polls /api/deliveries/[id]/location. */
+    kind?: "ride" | "delivery";
 }
 
 const POLL_MS = 4000;
 // Below this, two consecutive GPS fixes are noise (parked car, phone drift),
 // not real movement — recomputing bearing on noise makes the arrow twitch.
 const MIN_MOVEMENT_METERS = 3;
-
-/** Great-circle bearing from `from` to `to`, in degrees clockwise from north. */
-function bearingDegrees(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const toDeg = (r: number) => (r * 180) / Math.PI;
-    const lat1 = toRad(from.lat), lat2 = toRad(to.lat);
-    const dLng = toRad(to.lng - from.lng);
-    const y = Math.sin(dLng) * Math.cos(lat2);
-    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-    return (toDeg(Math.atan2(y, x)) + 360) % 360;
-}
-
-/** Rough distance in meters between two lat/lng points (haversine). */
-function distanceMeters(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
-    const R = 6371000;
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const dLat = toRad(to.lat - from.lat), dLng = toRad(to.lng - from.lng);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) * Math.sin(dLng / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 /** A big, legible plate-number pill, rendered as its own non-rotating marker floating above the live pin. */
 function buildPlateIcon(google: any, plateNumber: string) {
@@ -65,7 +49,10 @@ function buildPlateIcon(google: any, plateNumber: string) {
  * Renders nothing (the calling page falls back to its plain text summary)
  * if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set.
  */
-export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber }: RideMapProps) {
+export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber, kind = "ride" }: RideMapProps) {
+    const apiBase = kind === "delivery" ? "/api/deliveries" : "/api/rides";
+    // Rides key the location response as {driver, rider}; deliveries as {courier, sender}.
+    const primaryRoleKey = trackRole === "driver" || trackRole === "courier" ? (kind === "delivery" ? "courier" : "driver") : (kind === "delivery" ? "sender" : "rider");
     const mapDivRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const liveMarkerRef = useRef<any>(null);
@@ -168,10 +155,10 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         const google = window.google;
         const poll = async () => {
             try {
-                const res = await fetch(`/api/rides/${rideId}/location`, { headers: authHeaders() });
+                const res = await fetch(`${apiBase}/${rideId}/location`, { headers: authHeaders() });
                 if (!res.ok) return;
                 const data = await res.json();
-                const point = trackRole === "driver" ? data?.driver : data?.rider;
+                const point = data?.[primaryRoleKey];
                 if (!point) return;
 
                 const to = { lat: point.lat, lng: point.lng };
@@ -179,9 +166,10 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                 // A compact navigation-arrow icon (not a plain pin) so rotating it to
                 // face the direction of travel — AMap/inDrive-style — actually reads
                 // as "which way this car/person is facing" rather than a spinning pin.
+                const isPrimarySide = trackRole === "driver" || trackRole === "courier";
                 const arrowIcon = (rotation: number) => ({
                     path: "M12,2 L19,21 L12,17 L5,21 Z",
-                    fillColor: trackRole === "driver" ? "#16a34a" : "#f97316",
+                    fillColor: isPrimarySide ? "#16a34a" : "#f97316",
                     fillOpacity: 1,
                     strokeColor: "#fff",
                     strokeWeight: 1.5,
@@ -195,9 +183,9 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                         position: to,
                         map: mapRef.current,
                         icon: arrowIcon(headingRef.current),
-                        title: trackRole === "driver" ? "Your driver" : "Rider",
+                        title: isPrimarySide ? (kind === "delivery" ? "Your courier" : "Your driver") : (kind === "delivery" ? "Sender" : "Rider"),
                     });
-                    if (trackRole === "driver" && plateNumber) {
+                    if (isPrimarySide && plateNumber) {
                         plateMarkerRef.current = new google.maps.Marker({
                             position: to,
                             map: mapRef.current,

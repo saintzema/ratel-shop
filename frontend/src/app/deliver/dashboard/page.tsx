@@ -10,7 +10,15 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
+import { RideMap } from "@/components/ride/RideMap";
+import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
+
+/** One per active delivery, so useLocationBroadcast's hook call stays valid inside the .map() below. */
+function ActiveDeliveryMap({ deliveryId, pickup, dropoff }: { deliveryId: string; pickup: string; dropoff: string }) {
+    useLocationBroadcast(deliveryId, true, "delivery");
+    return <RideMap rideId={deliveryId} pickup={pickup} dropoff={dropoff} trackRole="sender" kind="delivery" active />;
+}
 
 /** A courier's open-request board — send a counter-offer on any delivery, no vehicle-approval gate. */
 export default function DeliverDashboardPage() {
@@ -162,6 +170,7 @@ export default function DeliverDashboardPage() {
                                             </Button>
                                         )}
                                     </div>
+                                    <ActiveDeliveryMap deliveryId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} />
                                     {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}
                                 </div>
                             ))}

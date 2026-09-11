@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
+import { RideMap } from "@/components/ride/RideMap";
+import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 
 const SIZES = [
@@ -147,6 +149,10 @@ export default function SendPackagePage() {
 
     const activeDeliveries = deliveries.filter(d => d.status !== "delivered" && d.status !== "cancelled");
     const pastDeliveries = deliveries.filter(d => d.status === "delivered" || d.status === "cancelled");
+    // Share MY position for whichever delivery is actually matched, so the
+    // courier's map can show where I am too — same two-way tracking as rides.
+    const matchedDelivery = activeDeliveries.find(d => d.status === "matched" || d.status === "picked_up");
+    useLocationBroadcast(matchedDelivery?.id || null, !!matchedDelivery, "delivery");
 
     return (
         <div className="min-h-screen bg-white font-sans">
@@ -323,6 +329,7 @@ export default function SendPackagePage() {
                                             <CheckCircle2 className="h-4 w-4" />
                                             {delivery.status === "picked_up" ? "Package picked up" : "Matched"} with {delivery.courier.name} · {formatPrice(delivery.agreedFare)}
                                         </div>
+                                        <RideMap rideId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} trackRole="courier" kind="delivery" active />
                                         {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}
                                     </div>
                                 )}

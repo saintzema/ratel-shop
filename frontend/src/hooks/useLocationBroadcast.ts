@@ -13,7 +13,7 @@ import { useEffect, useRef } from "react";
  * denied — the ride still works, the map on the other end just won't show
  * this side's live pin (never a hard failure over an optional feature).
  */
-export function useLocationBroadcast(rideId: string | null, active: boolean) {
+export function useLocationBroadcast(rideId: string | null, active: boolean, kind: "ride" | "delivery" = "ride") {
     const lastSentAt = useRef(0);
     const watchId = useRef<number | null>(null);
 
@@ -25,12 +25,13 @@ export function useLocationBroadcast(rideId: string | null, active: boolean) {
             return tok ? { Authorization: `Bearer ${tok}` } : {};
         };
 
+        const apiBase = kind === "delivery" ? "/api/deliveries" : "/api/rides";
         watchId.current = navigator.geolocation.watchPosition(
             (pos) => {
                 const now = Date.now();
                 if (now - lastSentAt.current < 4000) return;
                 lastSentAt.current = now;
-                fetch(`/api/rides/${rideId}/location`, {
+                fetch(`${apiBase}/${rideId}/location`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", ...authHeaders() },
                     body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
@@ -43,5 +44,5 @@ export function useLocationBroadcast(rideId: string | null, active: boolean) {
         return () => {
             if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
         };
-    }, [rideId, active]);
+    }, [rideId, active, kind]);
 }

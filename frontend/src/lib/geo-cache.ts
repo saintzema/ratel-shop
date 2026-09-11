@@ -61,6 +61,7 @@ export interface CachedRoute {
     encodedPolyline: string;
     distanceText: string;
     durationText: string;
+    distanceMeters: number;
     bounds: { north: number; south: number; east: number; west: number };
 }
 
@@ -95,6 +96,7 @@ export function cachedDirections(
                 encodedPolyline,
                 distanceText: leg?.distance?.text || "",
                 durationText: leg?.duration?.text || "",
+                distanceMeters: leg?.distance?.value || 0,
                 bounds: { north: b.getNorthEast().lat(), east: b.getNorthEast().lng(), south: b.getSouthWest().lat(), west: b.getSouthWest().lng() },
             };
             writeCache(key, cachedRoute, DIRECTIONS_TTL_MS);
