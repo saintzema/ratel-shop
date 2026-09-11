@@ -63,6 +63,10 @@ export default function RidePage() {
     const [loading, setLoading] = useState(true);
     const [cancelTarget, setCancelTarget] = useState<string | null>(null);
     const offerCountRef = useRef<Record<string, number>>({});
+    // Whether this account already has an approved vehicle — decides where the
+    // "Driver" side of the mode switch sends them: straight to the open-request
+    // board if they can already drive, or to registration if they can't yet.
+    const [hasApprovedVehicle, setHasApprovedVehicle] = useState(false);
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -89,6 +93,15 @@ export default function RidePage() {
     };
 
     useEffect(() => { loadRides(); const t = setInterval(loadRides, 6000); return () => clearInterval(t); }, [user]);
+
+    useEffect(() => {
+        if (!user) return;
+        fetch("/api/rides?mode=driver", { headers: authHeaders() })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setHasApprovedVehicle(!!d && !d.needsApprovedVehicle))
+            .catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
 
     const postRide = async () => {
         setError(null);
@@ -239,11 +252,27 @@ export default function RidePage() {
             </AnimatePresence>
 
             <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-                <div className="flex items-center gap-3 mb-2">
-                    <Car className="h-6 w-6 text-brand-green-700" />
-                    <h1 className="text-2xl font-black text-gray-900">Book a Ride</h1>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-3">
+                        <Car className="h-6 w-6 text-brand-green-700" />
+                        <h1 className="text-2xl font-black text-gray-900">Book a Ride</h1>
+                    </div>
+                    <div className="flex items-center bg-gray-100 rounded-full p-1 text-xs font-black shrink-0">
+                        <span className="px-3 py-1.5 rounded-full bg-white text-gray-900 shadow-sm">Passenger</span>
+                        <button
+                            onClick={() => router.push(hasApprovedVehicle ? "/drive/dashboard" : "/drive/onboarding")}
+                            className="px-3 py-1.5 rounded-full text-gray-500 hover:text-gray-700"
+                        >
+                            Driver
+                        </button>
+                    </div>
                 </div>
                 <p className="text-sm text-gray-500 mb-6">Name your price. Nearby drivers will send you offers — you pick the one you want.</p>
+                {!hasApprovedVehicle && (
+                    <p className="text-xs text-gray-400 -mt-4 mb-6">
+                        Going somewhere anyway? <button onClick={() => router.push("/drive/onboarding")} className="text-brand-green-600 font-bold underline">Register your car</button> and pick up riders headed your way.
+                    </p>
+                )}
 
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
                     <div className="relative">
@@ -368,9 +397,21 @@ export default function RidePage() {
 
                                 {(ride.status === "matched" || ride.status === "in_progress") && ride.driver && (
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                                {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
+                                            </div>
+                                            <a
+                                                href={`https://wa.me/?text=${encodeURIComponent(
+                                                    `🚗 My FairPrice ride details, for safety:\n\nDriver: ${ride.driver.name}\nVehicle: ${ride.vehicle?.make || ""} ${ride.vehicle?.model || ""} (${ride.vehicle?.plateNumber || "plate n/a"})\nFrom: ${ride.pickup}\nTo: ${ride.dropoff}\nFare: ${formatPrice(ride.agreedFare)}`
+                                                )}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full flex items-center gap-1.5 shrink-0"
+                                            >
+                                                <ShieldCheck className="h-3.5 w-3.5" /> Share trip for safety
+                                            </a>
                                         </div>
                                         <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} />
                                         {ride.conversationId && <RideChat conversationId={ride.conversationId} />}

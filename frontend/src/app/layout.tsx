@@ -18,6 +18,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
 import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
 import { WaitlistModal } from "@/components/modals/WaitlistModal";
+import { GlobalTripBar } from "@/components/ride/GlobalTripBar";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
@@ -269,6 +270,7 @@ export default function RootLayout({
                       <MessageProvider>
                         <NotificationProvider>
                           <CurrencyBanner />
+                          <GlobalTripBar />
                           {children}
                           <FieldFocusWatcher />
                           <ZivaChat />
