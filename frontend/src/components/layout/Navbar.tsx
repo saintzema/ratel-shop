@@ -1085,9 +1085,7 @@ export function Navbar() {
                     <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0 relative z-[10001]">
                         {/* Logo - Enhanced hit area for mobile */}
                         <div className="py-1 px-1 -ml-1">
-                            <Link href="/">
-                                <Logo variant="light" hideTextMobile />
-                            </Link>
+                            <Logo variant="light" hideTextMobile />
                         </div>
 
                         {/* Deliver To - Now Clickable */}
