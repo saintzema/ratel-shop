@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 
@@ -180,30 +181,33 @@ export default function DriveDashboardPage() {
                         <div className="space-y-6">
                             {myActiveRides.map(ride => (
                                 <div key={ride.id} className="border border-emerald-100 bg-emerald-50/40 rounded-2xl p-5 space-y-3">
-                                    <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center justify-between gap-3 flex-wrap">
                                         <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
                                             <CheckCircle2 className="h-4 w-4" /> {ride.pickup} → {ride.dropoff}
                                         </div>
-                                        {ride.status === "matched" && (
-                                            <Button
-                                                size="sm"
-                                                disabled={actingOnTrip === ride.id}
-                                                onClick={() => runTripAction(ride.id, "start")}
-                                                className="bg-brand-green-600 hover:bg-brand-green-700"
-                                            >
-                                                Start Trip
-                                            </Button>
-                                        )}
-                                        {ride.status === "in_progress" && (
-                                            <Button
-                                                size="sm"
-                                                disabled={actingOnTrip === ride.id}
-                                                onClick={() => runTripAction(ride.id, "complete")}
-                                                className="bg-brand-orange hover:bg-brand-orange/90"
-                                            >
-                                                Complete Trip
-                                            </Button>
-                                        )}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <MaskedCallButton kind="ride" tripId={ride.id} label="Call Rider" />
+                                            {ride.status === "matched" && (
+                                                <Button
+                                                    size="sm"
+                                                    disabled={actingOnTrip === ride.id}
+                                                    onClick={() => runTripAction(ride.id, "start")}
+                                                    className="bg-brand-green-600 hover:bg-brand-green-700"
+                                                >
+                                                    Start Trip
+                                                </Button>
+                                            )}
+                                            {ride.status === "in_progress" && (
+                                                <Button
+                                                    size="sm"
+                                                    disabled={actingOnTrip === ride.id}
+                                                    onClick={() => runTripAction(ride.id, "complete")}
+                                                    className="bg-brand-orange hover:bg-brand-orange/90"
+                                                >
+                                                    Complete Trip
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                     <ActiveRideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} />
                                     {ride.conversationId && <RideChat conversationId={ride.conversationId} />}

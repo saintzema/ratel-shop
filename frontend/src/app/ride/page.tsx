@@ -13,6 +13,7 @@ import { useLocation } from "@/context/LocationContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
@@ -402,16 +403,19 @@ export default function RidePage() {
                                                 <CheckCircle2 className="h-4 w-4" />
                                                 {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
                                             </div>
-                                            <a
-                                                href={`https://wa.me/?text=${encodeURIComponent(
-                                                    `🚗 My FairPrice ride details, for safety:\n\nDriver: ${ride.driver.name}\nVehicle: ${ride.vehicle?.make || ""} ${ride.vehicle?.model || ""} (${ride.vehicle?.plateNumber || "plate n/a"})\nFrom: ${ride.pickup}\nTo: ${ride.dropoff}\nFare: ${formatPrice(ride.agreedFare)}`
-                                                )}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full flex items-center gap-1.5 shrink-0"
-                                            >
-                                                <ShieldCheck className="h-3.5 w-3.5" /> Share trip for safety
-                                            </a>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <MaskedCallButton kind="ride" tripId={ride.id} label="Call Driver" />
+                                                <a
+                                                    href={`https://wa.me/?text=${encodeURIComponent(
+                                                        `🚗 My FairPrice ride details, for safety:\n\nDriver: ${ride.driver.name}\nVehicle: ${ride.vehicle?.make || ""} ${ride.vehicle?.model || ""} (${ride.vehicle?.plateNumber || "plate n/a"})\nFrom: ${ride.pickup}\nTo: ${ride.dropoff}\nFare: ${formatPrice(ride.agreedFare)}`
+                                                    )}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full flex items-center gap-1.5 shrink-0"
+                                                >
+                                                    <ShieldCheck className="h-3.5 w-3.5" /> Share trip for safety
+                                                </a>
+                                            </div>
                                         </div>
                                         <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} />
                                         {ride.conversationId && <RideChat conversationId={ride.conversationId} />}

@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 
@@ -325,9 +326,12 @@ export default function SendPackagePage() {
 
                                 {(delivery.status === "matched" || delivery.status === "picked_up") && delivery.courier && (
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            {delivery.status === "picked_up" ? "Package picked up" : "Matched"} with {delivery.courier.name} · {formatPrice(delivery.agreedFare)}
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                                {delivery.status === "picked_up" ? "Package picked up" : "Matched"} with {delivery.courier.name} · {formatPrice(delivery.agreedFare)}
+                                            </div>
+                                            <MaskedCallButton kind="delivery" tripId={delivery.id} label="Call Courier" />
                                         </div>
                                         <RideMap rideId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} trackRole="courier" kind="delivery" active />
                                         {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}

@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 
@@ -155,20 +156,23 @@ export default function DeliverDashboardPage() {
                         <div className="space-y-6">
                             {myActiveDeliveries.map(delivery => (
                                 <div key={delivery.id} className="border border-emerald-100 bg-emerald-50/40 rounded-2xl p-5 space-y-3">
-                                    <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center justify-between gap-3 flex-wrap">
                                         <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
                                             <CheckCircle2 className="h-4 w-4" /> {delivery.pickup} → {delivery.dropoff}
                                         </div>
-                                        {delivery.status === "matched" && (
-                                            <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "pickup")} className="bg-brand-green-600 hover:bg-brand-green-700">
-                                                Mark Picked Up
-                                            </Button>
-                                        )}
-                                        {delivery.status === "picked_up" && (
-                                            <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "deliver")} className="bg-brand-orange hover:bg-brand-orange/90">
-                                                Mark Delivered
-                                            </Button>
-                                        )}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <MaskedCallButton kind="delivery" tripId={delivery.id} label="Call Sender" />
+                                            {delivery.status === "matched" && (
+                                                <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "pickup")} className="bg-brand-green-600 hover:bg-brand-green-700">
+                                                    Mark Picked Up
+                                                </Button>
+                                            )}
+                                            {delivery.status === "picked_up" && (
+                                                <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "deliver")} className="bg-brand-orange hover:bg-brand-orange/90">
+                                                    Mark Delivered
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                     <ActiveDeliveryMap deliveryId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} />
                                     {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}
