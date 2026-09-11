@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -18,6 +19,13 @@ import {
 
 const DELAY_MS = 30000;
 const DISMISS_KEY = "fairprice_waitlist_dismissed";
+
+// Routes where the user is mid-task (camera permission, live ride tracking,
+// checkout, chat) — a full-screen acquisition popup stealing focus here reads
+// as "the feature is broken" (e.g. it silently covers the scan camera's own
+// "Enable Camera" button). Skip the auto-timer on these; the explicit
+// cart-trigger event can still fire anywhere.
+const BLOCKED_PATH_PREFIXES = ["/pay/scan", "/ride", "/checkout", "/messages"];
 
 const FEATURES = [
     {
@@ -69,6 +77,7 @@ export function triggerWaitlistModal() {
 }
 
 export function WaitlistModal() {
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [email, setEmail] = useState("");
     const [submitted, setSubmitted] = useState(false);
@@ -89,8 +98,9 @@ export function WaitlistModal() {
 
         // Only auto-show once per session (don't annoy the user)
         const alreadyDismissed = sessionStorage.getItem(DISMISS_KEY);
+        const onBlockedRoute = BLOCKED_PATH_PREFIXES.some(p => pathname?.startsWith(p));
 
-        const timer = !alreadyDismissed
+        const timer = !alreadyDismissed && !onBlockedRoute
             ? setTimeout(() => { openModal(); }, DELAY_MS)
             : undefined;
 
@@ -119,7 +129,7 @@ export function WaitlistModal() {
                 window.visualViewport.removeEventListener("resize", handleResize);
             }
         };
-    }, [openModal]);
+    }, [openModal, pathname]);
 
     const handleClose = () => {
         setIsOpen(false);
