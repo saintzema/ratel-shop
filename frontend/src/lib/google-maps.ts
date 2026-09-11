@@ -19,7 +19,7 @@ export function loadGoogleMaps(): Promise<void> | null {
 
     window.__fpGoogleMapsLoading = new Promise((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=places,geometry`;
         script.async = true;
         script.onload = () => resolve();
         script.onerror = () => reject(new Error("Failed to load Google Maps"));

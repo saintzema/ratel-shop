@@ -365,7 +365,7 @@ export default function RidePage() {
                                             <CheckCircle2 className="h-4 w-4" />
                                             {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
                                         </div>
-                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active />
+                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} />
                                         {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
                                     </div>
                                 )}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, MapPinned } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
+import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
 
 interface RideMapProps {
     rideId: string;
@@ -11,9 +12,47 @@ interface RideMapProps {
     /** Which party's live pin to show — the OTHER side from whoever is viewing. */
     trackRole: "driver" | "rider";
     active: boolean;
+    /** The driver's plate — shown as a floating label above their live pin so a rider can spot the right car. Only meaningful when trackRole === "driver". */
+    plateNumber?: string;
 }
 
 const POLL_MS = 4000;
+// Below this, two consecutive GPS fixes are noise (parked car, phone drift),
+// not real movement — recomputing bearing on noise makes the arrow twitch.
+const MIN_MOVEMENT_METERS = 3;
+
+/** Great-circle bearing from `from` to `to`, in degrees clockwise from north. */
+function bearingDegrees(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const toDeg = (r: number) => (r * 180) / Math.PI;
+    const lat1 = toRad(from.lat), lat2 = toRad(to.lat);
+    const dLng = toRad(to.lng - from.lng);
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+/** Rough distance in meters between two lat/lng points (haversine). */
+function distanceMeters(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+    const R = 6371000;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(to.lat - from.lat), dLng = toRad(to.lng - from.lng);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/** A big, legible plate-number pill, rendered as its own non-rotating marker floating above the live pin. */
+function buildPlateIcon(google: any, plateNumber: string) {
+    const text = plateNumber.toUpperCase();
+    const w = Math.max(64, text.length * 10 + 28);
+    const h = 26;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="${h / 2}" fill="#111827" stroke="#ffffff" stroke-width="2"/><text x="${w / 2}" y="${h / 2 + 5}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" fill="#ffffff" letter-spacing="0.5">${text}</text></svg>`;
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(w, h),
+        anchor: new google.maps.Point(w / 2, h + 12), // floats the pill ~12px above the pin
+    };
+}
 
 /**
  * The inDrive/AMap-style live map: real route (Google Directions, not a
@@ -26,11 +65,13 @@ const POLL_MS = 4000;
  * Renders nothing (the calling page falls back to its plain text summary)
  * if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set.
  */
-export function RideMap({ rideId, pickup, dropoff, trackRole, active }: RideMapProps) {
+export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber }: RideMapProps) {
     const mapDivRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const liveMarkerRef = useRef<any>(null);
+    const plateMarkerRef = useRef<any>(null);
     const liveMarkerPos = useRef<{ lat: number; lng: number } | null>(null);
+    const headingRef = useRef<number>(0);
     const animFrameRef = useRef<number | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -64,14 +105,11 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active }: RideMapP
             mapRef.current = map;
 
             const geocoder = new google.maps.Geocoder();
-            const geocode = (address: string): Promise<any> =>
-                new Promise((resolve) => {
-                    geocoder.geocode({ address: `${address}, Nigeria` }, (results: any, status: string) => {
-                        resolve(status === "OK" && results?.[0] ? results[0].geometry.location : null);
-                    });
-                });
 
-            Promise.all([geocode(pickup), geocode(dropoff)]).then(([pickupLoc, dropoffLoc]) => {
+            Promise.all([
+                cachedGeocode(geocoder, `${pickup}, Nigeria`),
+                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+            ]).then(([pickupLoc, dropoffLoc]) => {
                 if (cancelled) return;
                 if (!pickupLoc || !dropoffLoc) { setMapError(true); return; }
 
@@ -87,29 +125,26 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active }: RideMapP
                 });
 
                 const directionsService = new google.maps.DirectionsService();
-                const directionsRenderer = new google.maps.DirectionsRenderer({
-                    map,
-                    suppressMarkers: true,
-                    polylineOptions: { strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85 },
-                });
 
-                directionsService.route(
-                    { origin: pickupLoc, destination: dropoffLoc, travelMode: google.maps.TravelMode.DRIVING },
-                    (result: any, status: string) => {
-                        if (status === "OK" && result) {
-                            directionsRenderer.setDirections(result);
-                            const leg = result.routes?.[0]?.legs?.[0];
-                            if (leg) setRouteInfo({ distance: leg.distance?.text, duration: leg.duration?.text });
-                        } else {
-                            // Directions failed (e.g. no drivable route found) — the two
-                            // pins and geocoded locations are still real and useful on
-                            // their own, just without a drawn route line.
-                            const bounds = new google.maps.LatLngBounds();
-                            bounds.extend(pickupLoc); bounds.extend(dropoffLoc);
-                            map.fitBounds(bounds, 80);
-                        }
+                cachedDirections(directionsService, pickupLoc, dropoffLoc, google.maps.TravelMode.DRIVING).then((route) => {
+                    if (cancelled) return;
+                    if (route) {
+                        const path = google.maps.geometry.encoding.decodePath(route.encodedPolyline);
+                        new google.maps.Polyline({
+                            path, map,
+                            strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85,
+                        });
+                        setRouteInfo({ distance: route.distanceText, duration: route.durationText });
+                        map.fitBounds(route.bounds, 80);
+                    } else {
+                        // Directions failed (e.g. no drivable route found) — the two
+                        // pins and geocoded locations are still real and useful on
+                        // their own, just without a drawn route line.
+                        const bounds = new google.maps.LatLngBounds();
+                        bounds.extend(pickupLoc); bounds.extend(dropoffLoc);
+                        map.fitBounds(bounds, 80);
                     }
-                );
+                });
 
                 setReady(true);
             });
@@ -140,27 +175,53 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active }: RideMapP
                 if (!point) return;
 
                 const to = { lat: point.lat, lng: point.lng };
+
+                // A compact navigation-arrow icon (not a plain pin) so rotating it to
+                // face the direction of travel — AMap/inDrive-style — actually reads
+                // as "which way this car/person is facing" rather than a spinning pin.
+                const arrowIcon = (rotation: number) => ({
+                    path: "M12,2 L19,21 L12,17 L5,21 Z",
+                    fillColor: trackRole === "driver" ? "#16a34a" : "#f97316",
+                    fillOpacity: 1,
+                    strokeColor: "#fff",
+                    strokeWeight: 1.5,
+                    scale: 1.7,
+                    anchor: new google.maps.Point(12, 12),
+                    rotation,
+                });
+
                 if (!liveMarkerRef.current) {
                     liveMarkerRef.current = new google.maps.Marker({
                         position: to,
                         map: mapRef.current,
-                        icon: {
-                            path: "M12 2C8 2 5 5 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-4-3-7-7-7z",
-                            fillColor: trackRole === "driver" ? "#16a34a" : "#f97316",
-                            fillOpacity: 1,
-                            strokeColor: "#fff",
-                            strokeWeight: 1.5,
-                            scale: 1.6,
-                            anchor: new google.maps.Point(12, 22),
-                        },
+                        icon: arrowIcon(headingRef.current),
                         title: trackRole === "driver" ? "Your driver" : "Rider",
                     });
+                    if (trackRole === "driver" && plateNumber) {
+                        plateMarkerRef.current = new google.maps.Marker({
+                            position: to,
+                            map: mapRef.current,
+                            icon: buildPlateIcon(google, plateNumber),
+                            zIndex: 999,
+                            clickable: false,
+                        });
+                    }
                     liveMarkerPos.current = to;
                     return;
                 }
 
                 const from = liveMarkerPos.current || to;
                 liveMarkerPos.current = to;
+
+                // Real device heading, derived from actual consecutive GPS fixes rather
+                // than a compass reading (which needs its own permission prompt and is
+                // unreliable while a phone sits in a dash mount) — exactly how a moved
+                // car or a walking rider's direction of travel is actually known here.
+                if (distanceMeters(from, to) >= MIN_MOVEMENT_METERS) {
+                    headingRef.current = bearingDegrees(from, to);
+                    liveMarkerRef.current.setIcon(arrowIcon(headingRef.current));
+                }
+
                 const start = performance.now();
                 const duration = POLL_MS - 300; // finish just before the next reading arrives
                 if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -171,6 +232,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active }: RideMapP
                     const lat = from.lat + (to.lat - from.lat) * eased;
                     const lng = from.lng + (to.lng - from.lng) * eased;
                     liveMarkerRef.current.setPosition({ lat, lng });
+                    if (plateMarkerRef.current) plateMarkerRef.current.setPosition({ lat, lng });
                     if (t < 1) animFrameRef.current = requestAnimationFrame(step);
                 };
                 animFrameRef.current = requestAnimationFrame(step);
