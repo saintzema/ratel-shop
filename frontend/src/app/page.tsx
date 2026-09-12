@@ -12,7 +12,7 @@ import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard"
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText, Package2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -413,13 +413,14 @@ function HomeContent() {
               "Receive" is exactly how someone decides to start selling. */}
           <div className="w-full bg-[#E3E6E6]" style={{ paddingTop: `${headerOffset + 12}px` }}>
             <div className="container mx-auto px-3 md:px-4">
-              <div className="grid grid-cols-5 gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3">
+              <div className="grid grid-cols-6 gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3">
                 {[
                   { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
                   { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
                   { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
                   { icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true },
                   { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
+                  { icon: Package2, label: "Send Package", href: "/send-package", sellerOnly: false },
                 ].map((action) => (
                   <Link
                     key={action.label}
