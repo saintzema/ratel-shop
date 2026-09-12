@@ -181,6 +181,9 @@ export default function DeliverDashboardPage() {
                         </div>
                     </div>
                 )}
+                <p className="text-center text-xs text-gray-400 mt-10">
+                    <a href="/account/payout-details" className="text-brand-green-600 font-bold underline">Add your payout bank details</a> to get paid automatically the moment a delivery is confirmed.
+                </p>
             </div>
             <Footer />
         </div>

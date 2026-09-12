@@ -49,6 +49,14 @@ model User {
   deliveriesAsSender  DeliveryRequest[] @relation("SenderDeliveries")
   deliveriesAsCourier DeliveryRequest[] @relation("CourierDeliveries")
   deliveryOffers      DeliveryOffer[]
+  // A generic "where do I get paid" destination for anyone earning on the
+  // platform outside the Seller system (couriers today; drivers could reuse
+  // this later) — deliberately NOT another Seller row, since a courier
+  // isn't a store. Only ever read server-side for a real Paystack transfer;
+  // never returned to a client beyond the masked last 4 digits.
+  payoutBankName      String?
+  payoutAccountNumber String?
+  payoutAccountName   String?
   // NIN-based identity verification — every user, not just drivers (the
   // NaviaRide community feedback we reviewed calls this the actual load-
   // bearing trust layer for ride-sharing in Nigeria). No NIMC/NIN API
@@ -1193,6 +1201,11 @@ model DeliveryRequest {
   escrowStatus     EscrowStatus?
   paymentReference String?        @unique
   paidAt           DateTime?
+  // Set once an automatic Paystack transfer to the courier's payout bank
+  // details succeeds (see lib/delivery-payout.ts). Null means the courier
+  // either has no bank details on file yet, or the transfer failed — either
+  // way it falls back to the existing admin-reviewed settlement queue.
+  courierTransferCode String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   sender           User           @relation("SenderDeliveries", fields: [senderId], references: [id], onDelete: Cascade)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Upload, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
+import { Car, Upload, CheckCircle2, Clock, XCircle, Loader2, ScanLine } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ export default function DriveOnboardingPage() {
     const [photos, setPhotos] = useState<string[]>([]);
     const [licensePhotoUrl, setLicensePhotoUrl] = useState("");
     const [uploading, setUploading] = useState<string | null>(null);
+    const [scanningPlate, setScanningPlate] = useState(false);
+    const [scanError, setScanError] = useState<string | null>(null);
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -71,6 +73,32 @@ export default function DriveOnboardingPage() {
             setError(e.message || "Upload failed. Please try again.");
         } finally {
             setUploading(null);
+        }
+    };
+
+    const scanPlate = async (file: File) => {
+        setScanningPlate(true);
+        setScanError(null);
+        try {
+            const imageBase64: string = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            const res = await fetch("/api/vehicles/ocr-plate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ imageBase64 }),
+            });
+            const data = await res.json();
+            if (!res.ok) { setScanError(data?.error || "Couldn't read the plate — enter it manually."); return; }
+            if (data.guess) setPlateNumber(data.guess);
+            else setScanError("Couldn't make out the plate clearly — enter it manually.");
+        } catch {
+            setScanError("Couldn't read the photo — enter the plate manually.");
+        } finally {
+            setScanningPlate(false);
         }
     };
 
@@ -165,8 +193,18 @@ export default function DriveOnboardingPage() {
                             <Input placeholder="Make (e.g. Toyota)" value={make} onChange={e => setMake(e.target.value)} />
                             <Input placeholder="Model (e.g. Corolla)" value={model} onChange={e => setModel(e.target.value)} />
                             <Input placeholder="Year" type="number" value={year} onChange={e => setYear(e.target.value)} />
-                            <Input placeholder="Plate number" value={plateNumber} onChange={e => setPlateNumber(e.target.value.toUpperCase())} />
+                            <div className="relative">
+                                <Input placeholder="Plate number" value={plateNumber} onChange={e => setPlateNumber(e.target.value.toUpperCase())} className="pr-10" />
+                                <label className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center justify-center cursor-pointer">
+                                    {scanningPlate ? <Loader2 className="h-4 w-4 animate-spin text-gray-400" /> : <ScanLine className="h-4 w-4 text-gray-500" />}
+                                    <input
+                                        type="file" accept="image/*" capture="environment" className="hidden"
+                                        onChange={e => e.target.files?.[0] && scanPlate(e.target.files[0])}
+                                    />
+                                </label>
+                            </div>
                         </div>
+                        {scanError && <p className="text-xs text-amber-600 font-semibold -mt-3">{scanError}</p>}
                         <Input placeholder="VIN (Vehicle Identification Number)" value={vin} onChange={e => setVin(e.target.value.toUpperCase())} />
 
                         <div>
