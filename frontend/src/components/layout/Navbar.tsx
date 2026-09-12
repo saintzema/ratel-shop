@@ -42,7 +42,8 @@ import {
     Plug,
     AlertTriangle,
     Flame,
-    Plus
+    Plus,
+    Wrench
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -1834,6 +1835,9 @@ export function Navbar() {
                         </Link>
                         <Link href="/discover" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Compass className="w-3 h-3 md:w-3.5 md:h-3.5" /> Discover
+                        </Link>
+                        <Link href="/services" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                            <Wrench className="w-3 h-3 md:w-3.5 md:h-3.5" /> Hire an Expert
                         </Link>
                         <SlidingSubnavTexts />
                     </div >
