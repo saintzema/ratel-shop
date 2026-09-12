@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Sign in to register a vehicle" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { make, model, year, plateNumber, vin, vehicleClass, photos, licensePhotoUrl, operatingState } = body || {};
+    const { make, model, year, plateNumber, color, vin, vehicleClass, photos, licensePhotoUrl, operatingState } = body || {};
 
     if (!make || !model || !plateNumber || !vin) {
         return NextResponse.json({ error: "Make, model, plate number and VIN are required" }, { status: 400 });
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
             model: String(model),
             year: year ? Number(year) : null,
             plateNumber: String(plateNumber).toUpperCase(),
+            color: color ? String(color) : null,
             vin: String(vin).toUpperCase(),
             vehicleClass,
             photos,

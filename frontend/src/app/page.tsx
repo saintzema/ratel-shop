@@ -12,7 +12,7 @@ import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard"
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText, Package2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText, Package2, Wrench } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -415,20 +415,24 @@ function HomeContent() {
             <div className="container mx-auto px-3 md:px-4">
               <div
                 className="grid gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3"
-                style={{ gridTemplateColumns: `repeat(${isSeller ? 6 : 5}, minmax(0, 1fr))` }}
+                style={{ gridTemplateColumns: `repeat(4, minmax(0, 1fr))` }}
               >
                 {[
                   { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
-                  { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
-                  { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
-                  // AI Quote is genuinely seller-only functionality (unlike Receive/
-                  // Social Multi-Post, which still make sense as an onboarding nudge
-                  // for a buyer) — hidden entirely rather than shown-then-redirected,
-                  // so a buyer-only account's row isn't crowded with a tile that
-                  // never applies to them.
-                  ...(isSeller ? [{ icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true }] : []),
                   { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
+                  // Seller-only row 1: Social Multi-Post, Receive — kept right after
+                  // Book a Ride so the always-visible row (Scan/Book a Ride/Send
+                  // Package/Hire an Expert) still reads correctly for everyone else.
+                  ...(isSeller ? [
+                    { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
+                    { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
+                  ] : []),
                   { icon: Package2, label: "Send Package", href: "/send-package", sellerOnly: false },
+                  { icon: Wrench, label: "Hire an Expert", href: "/services", sellerOnly: false },
+                  // AI Quote is genuinely seller-only functionality — hidden entirely
+                  // rather than shown-then-redirected, so a buyer-only account's row
+                  // isn't crowded with a tile that never applies to them.
+                  ...(isSeller ? [{ icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true }] : []),
                 ].map((action) => (
                   <Link
                     key={action.label}

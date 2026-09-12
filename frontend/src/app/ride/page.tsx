@@ -50,6 +50,12 @@ export default function RidePage() {
 
     const [pickup, setPickup] = useState("");
     const [dropoff, setDropoff] = useState("");
+    // Extra drop points for a shared ride (e.g. multiple people booked together
+    // with different drop-offs). Folded into the single `dropoff` string the
+    // API already accepts ("Stop A → Stop B → Final") rather than a schema
+    // change — every place that already renders a ride's dropoff (RideMap,
+    // driver's offer list, trip history) shows the full route for free.
+    const [stops, setStops] = useState<string[]>([]);
     // No-ops to plain typing if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set — see
     // usePlacesAutocomplete's own comment for how to turn this on.
     const pickupAutocomplete = usePlacesAutocomplete(setPickup);
@@ -110,12 +116,14 @@ export default function RidePage() {
         if (!pickup || !dropoff) { setError("Enter pickup and drop-off."); return; }
         if (!fare || fare <= 0) { setError("Enter what you're willing to pay."); return; }
         setPosting(true);
+        const validStops = stops.map(s => s.trim()).filter(Boolean);
+        const combinedDropoff = validStops.length ? [...validStops, dropoff].join(" → ") : dropoff;
         try {
             const res = await fetch("/api/rides", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({
-                    pickup, dropoff, proposedFare: fare,
+                    pickup, dropoff: combinedDropoff, proposedFare: fare,
                     vehicleClassPref: vehicleClassPref || undefined,
                     pickupState: location,
                     autoAcceptMax: autoAccept ? fare : undefined,
@@ -123,7 +131,7 @@ export default function RidePage() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || "Could not post ride");
-            setPickup(""); setDropoff("");
+            setPickup(""); setDropoff(""); setStops([]);
             setLastVisibleDrivers(typeof data.visibleDrivers === "number" ? data.visibleDrivers : null);
             loadRides();
         } catch (e: any) {
@@ -291,6 +299,34 @@ export default function RidePage() {
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600" />
                         <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
                     </div>
+
+                    {stops.map((stop, i) => (
+                        <div key={i} className="relative flex items-center gap-1.5">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-500" />
+                            <Input
+                                placeholder={`Stop ${i + 1}`}
+                                value={stop}
+                                onChange={e => setStops(s => s.map((v, idx) => idx === i ? e.target.value : v))}
+                                className="pl-9 bg-white"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setStops(s => s.filter((_, idx) => idx !== i))}
+                                className="shrink-0 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ))}
+
+                    <button
+                        type="button"
+                        onClick={() => setStops(s => [...s, ""])}
+                        className="flex items-center gap-1 text-xs font-bold text-brand-green-700 hover:text-brand-green-800 -my-1"
+                    >
+                        <Plus className="h-3.5 w-3.5" /> Add stop
+                    </button>
+
                     <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
                         <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
@@ -433,7 +469,7 @@ export default function RidePage() {
                                                 </a>
                                             </div>
                                         </div>
-                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} />
+                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} vehicleColor={ride.vehicle?.color} />
                                         {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
                                     </div>
                                 )}

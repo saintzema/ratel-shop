@@ -16,6 +16,8 @@ interface RideMapProps {
     active: boolean;
     /** The driver's plate — shown as a floating label above their live pin so a rider can spot the right car. Only meaningful when trackRole === "driver". */
     plateNumber?: string;
+    /** e.g. "White" — appended to the plate label, same "PLATE · Color" format as the AMap/inDrive reference screenshots. */
+    vehicleColor?: string;
     /** "ride" (default) polls /api/rides/[id]/location; "delivery" polls /api/deliveries/[id]/location. */
     kind?: "ride" | "delivery";
 }
@@ -26,8 +28,8 @@ const POLL_MS = 4000;
 const MIN_MOVEMENT_METERS = 3;
 
 /** A big, legible plate-number pill, rendered as its own non-rotating marker floating above the live pin. */
-function buildPlateIcon(google: any, plateNumber: string) {
-    const text = plateNumber.toUpperCase();
+function buildPlateIcon(google: any, plateNumber: string, vehicleColor?: string) {
+    const text = vehicleColor ? `${plateNumber.toUpperCase()} · ${vehicleColor}` : plateNumber.toUpperCase();
     const w = Math.max(64, text.length * 10 + 28);
     const h = 26;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="${h / 2}" fill="#111827" stroke="#ffffff" stroke-width="2"/><text x="${w / 2}" y="${h / 2 + 5}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" fill="#ffffff" letter-spacing="0.5">${text}</text></svg>`;
@@ -49,7 +51,7 @@ function buildPlateIcon(google: any, plateNumber: string) {
  * Renders nothing (the calling page falls back to its plain text summary)
  * if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set.
  */
-export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber, kind = "ride" }: RideMapProps) {
+export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber, vehicleColor, kind = "ride" }: RideMapProps) {
     const apiBase = kind === "delivery" ? "/api/deliveries" : "/api/rides";
     // Rides key the location response as {driver, rider}; deliveries as {courier, sender}.
     const primaryRoleKey = trackRole === "driver" || trackRole === "courier" ? (kind === "delivery" ? "courier" : "driver") : (kind === "delivery" ? "sender" : "rider");
@@ -189,7 +191,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                         plateMarkerRef.current = new google.maps.Marker({
                             position: to,
                             map: mapRef.current,
-                            icon: buildPlateIcon(google, plateNumber),
+                            icon: buildPlateIcon(google, plateNumber, vehicleColor),
                             zIndex: 999,
                             clickable: false,
                         });

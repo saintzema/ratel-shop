@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Check, ChevronLeft, ChevronDown, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2, Package } from "lucide-react";
+import { Sparkles, Check, ChevronLeft, ChevronDown, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2, Package, Home, Briefcase, Wrench, MapPin } from "lucide-react";
 import { formatPrice, wrapInCDN, getProxiedImageUrl, cn } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -19,6 +19,14 @@ import { SortableGalleryGrid } from "@/components/product/SortableGalleryGrid";
 import { upload } from "@vercel/blob/client";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { getFiltersForCategory } from "@/lib/category-filters";
+
+const LISTING_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+    product: Package,
+    property: Home,
+    job: Briefcase,
+    service: Wrench,
+    spot: MapPin,
+};
 
 function NewProductContent() {
     const router = useRouter();
@@ -841,8 +849,8 @@ function NewProductContent() {
                                                     : "border-gray-200 bg-gray-50 hover:border-gray-300"
                                             }`}
                                         >
-                                            <span className="text-xl block leading-none mb-1">{cfg.icon}</span>
-                                            <span className={`text-sm font-bold ${active ? "text-green-700" : "text-gray-700"}`}>{cfg.label}</span>
+                                            {(() => { const Icon = LISTING_TYPE_ICONS[t] || Package; return <Icon className={`w-5 h-5 mb-1 ${active ? "text-green-700" : "text-gray-500"}`} />; })()}
+                                            <span className={`text-sm font-bold block ${active ? "text-green-700" : "text-gray-700"}`}>{cfg.label}</span>
                                         </button>
                                     );
                                 })}

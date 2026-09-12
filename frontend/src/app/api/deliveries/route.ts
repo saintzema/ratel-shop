@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
+import { notifyUser } from "@/lib/user-notify";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,63 @@ export async function POST(req: NextRequest) {
         },
     });
 
+    // Real-time nudge to couriers, not just whoever happens to have the open-
+    // request board on screen — anyone who's ever carried a delivery before,
+    // or who's already added payout bank details (the clearest signal of
+    // "I want to earn doing this"), same state when we know it. Best-effort:
+    // notifyUser never throws, so a notify failure can't fail the post itself.
+    (async () => {
+        try {
+            const [pastCouriers, interestedByPayout] = await Promise.all([
+                db.deliveryRequest.findMany({
+                    where: { courierId: { not: null } },
+                    select: { courierId: true },
+                    distinct: ["courierId"],
+                }),
+                db.user.findMany({
+                    where: { payoutBankName: { not: null } },
+                    select: { id: true },
+                }),
+            ]);
+            const candidateIds = new Set<string>([
+                ...pastCouriers.map(d => d.courierId as string),
+                ...interestedByPayout.map(u => u.id),
+            ]);
+            candidateIds.delete(user.userId);
+
+            // Early days: if literally nobody looks like a courier yet, this
+            // sender would otherwise just wait on a request nobody sees —
+            // hand it to the team the same way an unfulfillable "Hire an
+            // Expert" request is, so a human can manually arrange it.
+            if (candidateIds.size === 0) {
+                const { sendAdminAlert } = await import("@/lib/admin-alert");
+                await sendAdminAlert({
+                    title: "Delivery request has no couriers yet",
+                    message: `No registered couriers to notify for a new delivery: ${pickup} → ${dropoff}.`,
+                    data: {
+                        pickup: String(pickup),
+                        dropoff: String(dropoff),
+                        package: String(packageDescription),
+                        fare: `₦${fare.toLocaleString()}`,
+                        state: pickupState || "Not specified",
+                    },
+                    link: "/admin",
+                });
+            }
+
+            await Promise.all(
+                Array.from(candidateIds).map(id =>
+                    notifyUser(id, `New delivery request nearby: ${pickup} → ${dropoff} (₦${fare.toLocaleString()})`, {
+                        type: "system",
+                        link: "/deliver/dashboard",
+                    })
+                )
+            );
+        } catch {
+            // best-effort
+        }
+    })();
+
     return NextResponse.json({ success: true, delivery });
 }
 
@@ -63,9 +121,16 @@ export async function GET(req: NextRequest) {
     const mode = searchParams.get("mode"); // "sender" | "courier"
 
     if (mode === "courier") {
+        // A courier who hasn't set a vicinity still sees everything nationwide
+        // — a missing filter should never silently hide every request, same
+        // rule the ride-matching side already follows for operatingState.
+        const state = searchParams.get("state");
         const [deliveries, myActiveDeliveries] = await Promise.all([
             db.deliveryRequest.findMany({
-                where: { status: "searching" },
+                where: {
+                    status: "searching",
+                    ...(state ? { OR: [{ pickupState: null }, { pickupState: state }] } : {}),
+                },
                 include: {
                     sender: { select: { name: true } },
                     offers: { where: { courierId: user.userId } },

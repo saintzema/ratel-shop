@@ -351,7 +351,7 @@ export function Footer() {
             >
               Zema Technologies Group
             </a>{" "}
-            Venture | CEO: Emmanuel Ezeji
+            Venture
             </p>
             <p className="mt-2 text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
               FairPrice.ng is an escrow-based marketplace operated by Zema Technologies Group. <br />

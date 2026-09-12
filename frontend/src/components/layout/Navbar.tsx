@@ -1827,17 +1827,17 @@ export function Navbar() {
                 < div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10" >
                     {/* Left: Navigation Links */}
                     < div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]" >
+                        <Link href="/discover" className="flex items-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full transition-all text-[11px] md:text-[13px] font-bold bg-gradient-to-b from-[#ffd77a] to-[#f5b942] text-[#4a3200] shadow-sm hover:brightness-105">
+                            <Compass className="w-3 h-3 md:w-3.5 md:h-3.5" /> Discover
+                        </Link>
+                        <Link href="/services" className="flex items-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full transition-all text-[11px] md:text-[13px] font-bold bg-gradient-to-b from-[#ffd77a] to-[#f5b942] text-[#4a3200] shadow-sm hover:brightness-105">
+                            <Wrench className="w-3 h-3 md:w-3.5 md:h-3.5" /> Hire an Expert
+                        </Link>
                         <Link href="/search?sort=best_selling" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Best-Selling
                         </Link>
                         <Link href="/search?sort=top_rated" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
-                        </Link>
-                        <Link href="/discover" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
-                            <Compass className="w-3 h-3 md:w-3.5 md:h-3.5" /> Discover
-                        </Link>
-                        <Link href="/services" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
-                            <Wrench className="w-3 h-3 md:w-3.5 md:h-3.5" /> Hire an Expert
                         </Link>
                         <SlidingSubnavTexts />
                     </div >

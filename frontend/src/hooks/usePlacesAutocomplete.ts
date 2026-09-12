@@ -37,6 +37,29 @@ export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?
                 const loc = place?.geometry?.location;
                 if (address) onPlaceSelected(address, loc ? { lat: loc.lat(), lng: loc.lng() } : undefined);
             });
+
+            // The script loading fine only proves the Maps JavaScript API key is
+            // valid — it says nothing about whether the "Places API" (legacy, the
+            // one this classic Autocomplete widget calls) is actually enabled on
+            // the project. When it isn't, the widget attaches with zero errors and
+            // simply never returns predictions — silent, and indistinguishable
+            // from the user just not having typed enough yet. So probe it for
+            // real with a throwaway query once, on load.
+            try {
+                const probe = new window.google.maps.places.AutocompleteService();
+                probe.getPlacePredictions(
+                    { input: "Lagos", componentRestrictions: { country: "ng" } },
+                    (_results: unknown, status: string) => {
+                        if (cancelled) return;
+                        if (status !== "OK" && status !== "ZERO_RESULTS") {
+                            console.error("[Places Autocomplete] disabled or misconfigured — status:", status);
+                            setSupported(false);
+                        }
+                    }
+                );
+            } catch {
+                setSupported(false);
+            }
         }).catch(() => setSupported(false));
 
         return () => { cancelled = true; };

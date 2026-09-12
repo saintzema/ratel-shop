@@ -1019,6 +1019,7 @@ model Vehicle {
   model           String
   year            Int?
   plateNumber     String
+  color           String?
   vin             String
   vehicleClass    VehicleClass
   // Where this driver actually operates — lets a ride request be filtered to

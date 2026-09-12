@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Upload, CheckCircle2, Clock, XCircle, Loader2, ScanLine } from "lucide-react";
+import { Car, Upload, CheckCircle2, Clock, XCircle, Loader2, ScanLine, Pencil, Check, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export default function DriveOnboardingPage() {
     const [model, setModel] = useState("");
     const [year, setYear] = useState("");
     const [plateNumber, setPlateNumber] = useState("");
+    const [color, setColor] = useState("");
     const [vin, setVin] = useState("");
     const [vehicleClass, setVehicleClass] = useState<"ev" | "newer" | "standard">("standard");
     const [operatingState, setOperatingState] = useState("");
@@ -44,6 +45,13 @@ export default function DriveOnboardingPage() {
     const [uploading, setUploading] = useState<string | null>(null);
     const [scanningPlate, setScanningPlate] = useState(false);
     const [scanError, setScanError] = useState<string | null>(null);
+    // Inline "update plate/color" for an already-approved vehicle — a repaint
+    // or a plate swap shouldn't require re-submitting the whole vehicle for
+    // inspection, since make/model/VIN/photos are unchanged.
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editPlate, setEditPlate] = useState("");
+    const [editColor, setEditColor] = useState("");
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -102,6 +110,25 @@ export default function DriveOnboardingPage() {
         }
     };
 
+    const saveVehicleEdit = async (id: string) => {
+        setSavingEdit(true);
+        try {
+            const res = await fetch(`/api/vehicles/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({ plateNumber: editPlate, color: editColor }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.error || "Could not update vehicle");
+            setExisting(prev => prev.map(v => v.id === id ? data.vehicle : v));
+            setEditingId(null);
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
     const submit = async () => {
         setError(null);
         if (!make || !model || !plateNumber || !vin || !operatingState) { setError("Fill in make, model, plate number, VIN and where you'll drive."); return; }
@@ -111,7 +138,7 @@ export default function DriveOnboardingPage() {
             const res = await fetch("/api/vehicles", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify({ make, model, year, plateNumber, vin, vehicleClass, photos, licensePhotoUrl, operatingState }),
+                body: JSON.stringify({ make, model, year, plateNumber, color, vin, vehicleClass, photos, licensePhotoUrl, operatingState }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || "Could not submit vehicle");
@@ -171,11 +198,36 @@ export default function DriveOnboardingPage() {
                 {existing.length > 0 && (
                     <div className="mb-8 space-y-2">
                         {existing.map(v => (
-                            <div key={v.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 text-sm">
-                                <span className="font-bold text-gray-800">{v.make} {v.model} · {v.plateNumber}</span>
-                                {v.status === "pending" && <span className="flex items-center gap-1 text-amber-600 font-bold text-xs"><Clock className="h-3.5 w-3.5" /> Under review</span>}
-                                {v.status === "approved" && <span className="flex items-center gap-1 text-emerald-600 font-bold text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Approved</span>}
-                                {v.status === "rejected" && <span className="flex items-center gap-1 text-rose-600 font-bold text-xs"><XCircle className="h-3.5 w-3.5" /> {v.rejectionReason || "Not approved"}</span>}
+                            <div key={v.id} className="bg-gray-50 rounded-xl px-4 py-3 text-sm">
+                                {editingId === v.id ? (
+                                    <div className="flex items-center gap-2">
+                                        <Input value={editPlate} onChange={e => setEditPlate(e.target.value.toUpperCase())} placeholder="Plate number" className="h-8 text-xs" />
+                                        <Input value={editColor} onChange={e => setEditColor(e.target.value)} placeholder="Color" className="h-8 text-xs" />
+                                        <button onClick={() => saveVehicleEdit(v.id)} disabled={savingEdit} className="h-8 w-8 shrink-0 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                            {savingEdit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                        </button>
+                                        <button onClick={() => setEditingId(null)} className="h-8 w-8 shrink-0 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center">
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-bold text-gray-800">{v.make} {v.model} · {v.plateNumber}{v.color ? ` · ${v.color}` : ""}</span>
+                                        <div className="flex items-center gap-3">
+                                            {v.status === "pending" && <span className="flex items-center gap-1 text-amber-600 font-bold text-xs"><Clock className="h-3.5 w-3.5" /> Under review</span>}
+                                            {v.status === "approved" && <span className="flex items-center gap-1 text-emerald-600 font-bold text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Approved</span>}
+                                            {v.status === "rejected" && <span className="flex items-center gap-1 text-rose-600 font-bold text-xs"><XCircle className="h-3.5 w-3.5" /> {v.rejectionReason || "Not approved"}</span>}
+                                            {v.status === "approved" && (
+                                                <button
+                                                    onClick={() => { setEditingId(v.id); setEditPlate(v.plateNumber); setEditColor(v.color || ""); }}
+                                                    className="h-7 w-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500"
+                                                >
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -205,6 +257,7 @@ export default function DriveOnboardingPage() {
                             </div>
                         </div>
                         {scanError && <p className="text-xs text-amber-600 font-semibold -mt-3">{scanError}</p>}
+                        <Input placeholder="Color (e.g. White)" value={color} onChange={e => setColor(e.target.value)} />
                         <Input placeholder="VIN (Vehicle Identification Number)" value={vin} onChange={e => setVin(e.target.value.toUpperCase())} />
 
                         <div>

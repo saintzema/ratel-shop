@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, MapPin, Loader2, CheckCircle2 } from "lucide-react";
+import { Package, MapPin, Loader2, CheckCircle2, ChevronDown } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import { RideMap } from "@/components/ride/RideMap";
 import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
+import { useLocation } from "@/context/LocationContext";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
 /** One per active delivery, so useLocationBroadcast's hook call stays valid inside the .map() below. */
 function ActiveDeliveryMap({ deliveryId, pickup, dropoff }: { deliveryId: string; pickup: string; dropoff: string }) {
@@ -25,6 +27,12 @@ function ActiveDeliveryMap({ deliveryId, pickup, dropoff }: { deliveryId: string
 export default function DeliverDashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const { location } = useLocation();
+    // Which state this courier is actually in right now — a driver leaving
+    // their house needs to say where before the board can show them anything
+    // relevant. Defaults to the app-wide location picker, but is its own
+    // control since a courier's vicinity can differ from that setting.
+    const [operatingState, setOperatingState] = useState(location || "");
     const [deliveries, setDeliveries] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [offerInputs, setOfferInputs] = useState<Record<string, string>>({});
@@ -39,7 +47,8 @@ export default function DeliverDashboardPage() {
 
     const load = () => {
         if (!user) { setLoading(false); return; }
-        fetch("/api/deliveries?mode=courier", { headers: authHeaders() })
+        const qs = operatingState ? `&state=${encodeURIComponent(operatingState)}` : "";
+        fetch(`/api/deliveries?mode=courier${qs}`, { headers: authHeaders() })
             .then(r => r.ok ? r.json() : null)
             .then(d => {
                 const list = d?.deliveries || [];
@@ -55,7 +64,7 @@ export default function DeliverDashboardPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user]);
+    useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user, operatingState]);
 
     const [actingOn, setActingOn] = useState<string | null>(null);
     const runAction = async (deliveryId: string, action: "pickup" | "deliver") => {
@@ -115,6 +124,19 @@ export default function DeliverDashboardPage() {
                         </button>
                         <span className="px-3 py-1.5 rounded-full bg-white text-gray-900 shadow-sm">Courier</span>
                     </div>
+                </div>
+
+                <div className="relative mb-6">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600 pointer-events-none" />
+                    <select
+                        value={operatingState}
+                        onChange={e => setOperatingState(e.target.value)}
+                        className="w-full h-11 pl-9 pr-8 rounded-xl border border-gray-200 bg-gray-50 text-sm font-bold text-gray-800 appearance-none"
+                    >
+                        <option value="">Show requests from every state</option>
+                        {NIGERIAN_STATES.map(s => <option key={s.state} value={s.state}>{s.state}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                 </div>
 
                 {deliveries.length === 0 ? (

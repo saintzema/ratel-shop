@@ -17,6 +17,17 @@ import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
+import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
+import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+
+// ₦300 call-out + ₦120/km, scaled up for bigger packages — a rough but real
+// distance-anchored floor so "what you'll pay" isn't just a bare guess, the
+// same way a real delivery app prices a run instead of leaving it to chance.
+const SIZE_MULTIPLIER: Record<string, number> = { small: 1, medium: 1.3, large: 1.6 };
+function estimateFare(distanceKm: number, size: string): number {
+    const raw = (300 + distanceKm * 120) * (SIZE_MULTIPLIER[size] || 1);
+    return Math.max(500, Math.round(raw / 100) * 100);
+}
 
 const SIZES = [
     { value: "small", label: "Small (envelope, small box)" },
@@ -47,6 +58,11 @@ export default function SendPackagePage() {
     const [recipientName, setRecipientName] = useState("");
     const [recipientPhone, setRecipientPhone] = useState("");
     const [fare, setFare] = useState(1000);
+    const [suggestedFare, setSuggestedFare] = useState<number | null>(null);
+    const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
+    // Once the sender touches the +/- controls themselves, stop silently
+    // overwriting their choice every time the route recalculates.
+    const [fareTouched, setFareTouched] = useState(false);
     const [autoAccept, setAutoAccept] = useState(false);
     const [posting, setPosting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -78,6 +94,31 @@ export default function SendPackagePage() {
             .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
+
+    // Recompute the distance-based suggestion as pickup/dropoff/size settle.
+    useEffect(() => {
+        if (!hasGoogleMapsKey || pickup.trim().length < 4 || dropoff.trim().length < 4) return;
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            const g = await loadGoogleMaps()?.catch(() => null);
+            if (!g || cancelled || !window.google?.maps) return;
+            const geocoder = new window.google.maps.Geocoder();
+            const [pickupLoc, dropoffLoc] = await Promise.all([
+                cachedGeocode(geocoder, `${pickup}, Nigeria`),
+                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+            ]);
+            if (cancelled || !pickupLoc || !dropoffLoc) return;
+            const directionsService = new window.google.maps.DirectionsService();
+            const route = await cachedDirections(directionsService, pickupLoc, dropoffLoc, window.google.maps.TravelMode.DRIVING);
+            if (cancelled || !route) return;
+            const km = route.distanceMeters / 1000;
+            setRouteDistanceKm(km);
+            const suggestion = estimateFare(km, packageSize);
+            setSuggestedFare(suggestion);
+            if (!fareTouched) setFare(suggestion);
+        }, 800);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [pickup, dropoff, packageSize, fareTouched]);
 
     const postDelivery = async () => {
         setError(null);
@@ -276,13 +317,23 @@ export default function SendPackagePage() {
                         <Input placeholder="Recipient phone (optional)" value={recipientPhone} onChange={e => setRecipientPhone(e.target.value)} className="bg-white" />
                     </div>
 
-                    <div className="flex items-center justify-between bg-white rounded-xl px-4 py-3">
-                        <span className="text-sm font-bold text-gray-700">What you'll pay</span>
-                        <div className="flex items-center gap-3">
-                            <button onClick={() => setFare(f => Math.max(200, f - 100))} className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center"><Minus className="h-3.5 w-3.5" /></button>
-                            <span className="font-black text-gray-900 w-20 text-center">{formatPrice(fare)}</span>
-                            <button onClick={() => setFare(f => f + 100)} className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center"><Plus className="h-3.5 w-3.5" /></button>
+                    <div className="bg-white rounded-xl px-4 py-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-gray-700">What you'll pay</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => { setFareTouched(true); setFare(f => Math.max(200, f - 100)); }} className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center"><Minus className="h-3.5 w-3.5" /></button>
+                                <span className="font-black text-gray-900 w-20 text-center">{formatPrice(fare)}</span>
+                                <button onClick={() => { setFareTouched(true); setFare(f => f + 100); }} className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center"><Plus className="h-3.5 w-3.5" /></button>
+                            </div>
                         </div>
+                        {suggestedFare != null && routeDistanceKm != null && (
+                            <p className="text-[11px] text-gray-400 mt-1.5">
+                                Suggested {formatPrice(suggestedFare)} for {routeDistanceKm.toFixed(1)} km
+                                {fareTouched && fare !== suggestedFare && (
+                                    <button onClick={() => { setFareTouched(false); setFare(suggestedFare); }} className="ml-1.5 text-brand-green-600 font-bold underline">Use suggested</button>
+                                )}
+                            </p>
+                        )}
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-500 px-1">
                         <input type="checkbox" checked={autoAccept} onChange={e => setAutoAccept(e.target.checked)} />
