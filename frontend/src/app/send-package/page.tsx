@@ -149,6 +149,21 @@ export default function SendPackagePage() {
         loadDeliveries();
     };
 
+    const activeDeliveries = deliveries.filter(d => d.status !== "delivered" && d.status !== "cancelled");
+    const pastDeliveries = deliveries.filter(d => d.status === "delivered" || d.status === "cancelled");
+    // Share MY position for whichever delivery is actually matched, so the
+    // courier's map can show where I am too — same two-way tracking as rides.
+    //
+    // This hook (and the computations feeding it) MUST run before the
+    // `!user` early return below. A hook called on only SOME renders of the
+    // same mounted component — here, only once `user` becomes truthy after
+    // AuthContext resolves asynchronously — is a hard React crash
+    // ("Rendered more hooks than during the previous render"), not a lint
+    // nitpick. That crash is exactly what a real signed-in visitor hit in
+    // production on this page (and the identical /ride page, same bug).
+    const matchedDelivery = activeDeliveries.find(d => d.status === "matched" || d.status === "picked_up");
+    useLocationBroadcast(matchedDelivery?.id || null, !!matchedDelivery, "delivery");
+
     if (!user) {
         return (
             <div className="min-h-screen flex flex-col">
@@ -160,13 +175,6 @@ export default function SendPackagePage() {
             </div>
         );
     }
-
-    const activeDeliveries = deliveries.filter(d => d.status !== "delivered" && d.status !== "cancelled");
-    const pastDeliveries = deliveries.filter(d => d.status === "delivered" || d.status === "cancelled");
-    // Share MY position for whichever delivery is actually matched, so the
-    // courier's map can show where I am too — same two-way tracking as rides.
-    const matchedDelivery = activeDeliveries.find(d => d.status === "matched" || d.status === "picked_up");
-    useLocationBroadcast(matchedDelivery?.id || null, !!matchedDelivery, "delivery");
 
     return (
         <div className="min-h-screen bg-white font-sans">

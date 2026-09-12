@@ -172,6 +172,21 @@ export default function RidePage() {
         loadRides();
     };
 
+    const activeRides = rides.filter(r => r.status !== "completed" && r.status !== "cancelled");
+    // Share MY position for whichever ride is actually matched, so the
+    // driver's map can show where I am too — inDrive/AMap both do this
+    // two-way, not just "watch the driver".
+    //
+    // This hook — and the computations feeding it — MUST run before the
+    // `!user` early return below, not after it. A hook called only on some
+    // renders of the same mounted component (here: only once `user` becomes
+    // truthy, which happens asynchronously after AuthContext resolves) is a
+    // hard React crash — "Rendered more hooks than during the previous
+    // render" — not a lint nitpick. That crash is exactly what a real
+    // signed-in visitor hit in production on this page.
+    const matchedRide = activeRides.find(r => r.status === "matched" || r.status === "in_progress");
+    useLocationBroadcast(matchedRide?.id || null, !!matchedRide);
+
     if (!user) {
         return (
             <div className="min-h-screen flex flex-col">
@@ -186,13 +201,6 @@ export default function RidePage() {
             </div>
         );
     }
-
-    const activeRides = rides.filter(r => r.status !== "completed" && r.status !== "cancelled");
-    // Share MY position for whichever ride is actually matched, so the
-    // driver's map can show where I am too — inDrive/AMap both do this
-    // two-way, not just "watch the driver".
-    const matchedRide = activeRides.find(r => r.status === "matched" || r.status === "in_progress");
-    useLocationBroadcast(matchedRide?.id || null, !!matchedRide);
 
     return (
         <div className="min-h-screen bg-white font-sans">
