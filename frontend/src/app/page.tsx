@@ -413,12 +413,20 @@ function HomeContent() {
               "Receive" is exactly how someone decides to start selling. */}
           <div className="w-full bg-[#E3E6E6]" style={{ paddingTop: `${headerOffset + 12}px` }}>
             <div className="container mx-auto px-3 md:px-4">
-              <div className="grid grid-cols-6 gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3">
+              <div
+                className="grid gap-1.5 md:gap-3 bg-white rounded-2xl shadow-sm px-2 py-3 md:px-4 md:py-4 mb-3"
+                style={{ gridTemplateColumns: `repeat(${isSeller ? 6 : 5}, minmax(0, 1fr))` }}
+              >
                 {[
                   { icon: QrCode, label: "Scan", href: "/pay/scan", sellerOnly: false },
                   { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
                   { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
-                  { icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true },
+                  // AI Quote is genuinely seller-only functionality (unlike Receive/
+                  // Social Multi-Post, which still make sense as an onboarding nudge
+                  // for a buyer) — hidden entirely rather than shown-then-redirected,
+                  // so a buyer-only account's row isn't crowded with a tile that
+                  // never applies to them.
+                  ...(isSeller ? [{ icon: FileText, label: "AI Quote", href: "/seller/quotes/new", sellerOnly: true }] : []),
                   { icon: Car, label: "Book a Ride", href: "/ride", sellerOnly: false },
                   { icon: Package2, label: "Send Package", href: "/send-package", sellerOnly: false },
                 ].map((action) => (
