@@ -29,6 +29,7 @@ import {
     TrendingUp,
     ChevronLeft,
     ShoppingBag,
+    Star,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -61,6 +62,15 @@ function OrdersContent() {
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeOrder, setConciergeOrder] = useState<Order | null>(null);
     const [conciergeMode, setConciergeMode] = useState<"post_order" | "return" | "cancel" | "review">("post_order");
+    // Which of this buyer's products already have a review — gates the
+    // persistent "Rate" button below so it doesn't re-prompt for something
+    // already reviewed. The ONLY existing review prompt fired once, at the
+    // exact moment a buyer clicked "Confirm Delivery" themselves — an order
+    // delivered any other way (seller marks it, auto-release, or an order
+    // that was simply already "delivered" the first time this page loaded)
+    // never got a second chance to be reviewed, which is exactly why real
+    // production data showed 12 delivered orders and zero reviews ever.
+    const [reviewedProductIds, setReviewedProductIds] = useState<Set<string>>(new Set());
 
     const { addToCart } = useCart();
     const router = useRouter();
@@ -112,7 +122,7 @@ function OrdersContent() {
         loadData();
         // Proactive sync for latest orders
         DataSyncService.syncWithDB("orders", true);
-        
+
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);
         return () => {
@@ -120,6 +130,20 @@ function OrdersContent() {
             window.removeEventListener("sync-store-update", loadData);
         };
     }, [user]);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        fetch(`/api/reviews?userId=${encodeURIComponent(user.id)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setReviewedProductIds(new Set((d?.reviews || []).map((r: any) => r.product_id))))
+            .catch(() => {});
+    }, [user?.id]);
+
+    const rateOrder = (order: any) => {
+        setConciergeOrder(order);
+        setConciergeMode("review");
+        setShowConcierge(true);
+    };
 
     // Handle checkout success redirect — runs ONCE only
     useEffect(() => {
@@ -464,6 +488,14 @@ function OrdersContent() {
                                                                 Return
                                                             </button>
                                                         )}
+                                                        {order.status === "delivered" && order.product?.id && !reviewedProductIds.has(order.product.id) && (
+                                                            <button
+                                                                onClick={() => rateOrder(order)}
+                                                                className="text-[11px] font-semibold text-amber-600 hover:text-amber-700 hover:cursor-pointer px-1 py-1 rounded hover:bg-amber-50 transition-colors"
+                                                            >
+                                                                Rate
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => setSelectedOrderForTracking(order)}
                                                             className="text-[11px] font-semibold text-brand-green-600 hover:text-brand-green-700 hover:cursor-pointer px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
@@ -516,6 +548,11 @@ function OrdersContent() {
                                                         {order.status === "delivered" && (
                                                             <Button size="sm" variant="outline" onClick={() => handleReturnOrder(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-700 hover:bg-gray-100 bg-transparent px-1">
                                                                 Return
+                                                            </Button>
+                                                        )}
+                                                        {order.status === "delivered" && order.product?.id && !reviewedProductIds.has(order.product.id) && (
+                                                            <Button size="sm" variant="outline" onClick={() => rateOrder(order)} className="flex-1 text-xs rounded-lg font-semibold border-amber-300 text-amber-600 hover:bg-amber-50 bg-transparent px-1">
+                                                                <Star className="h-3 w-3 mr-1" /> Rate
                                                             </Button>
                                                         )}
                                                         <Button size="sm" variant="outline" onClick={() => setSelectedOrderForTracking(order)} className="flex-1 text-xs rounded-lg font-semibold border-brand-green-600/30 text-brand-green-700 hover:bg-brand-green-50 bg-transparent px-1">
