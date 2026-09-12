@@ -718,12 +718,27 @@ model Conversation {
   lastMessageAt DateTime @default(now())
   unreadForSeller Int    @default(0)
   unreadForBuyer  Int    @default(0)
+  // What this thread is actually ABOUT — the unified-inbox ask: rides and
+  // deliveries were both piggybacking on this same table (a ride/delivery
+  // id as productId, "Ride: X → Y" stuffed into productName as the only
+  // signal), which is exactly why a mixed inbox was hard to scan at a
+  // glance. Existing order-chat rows default to "order" on this migration,
+  // so nothing already in production silently reclassifies.
+  type          ConversationType @default(order)
   createdAt     DateTime @default(now())
   messages      ChatMessage[]
 
   @@unique([sellerId, buyerId, productId])
   @@index([sellerId, lastMessageAt])
   @@index([buyerId, lastMessageAt])
+}
+
+enum ConversationType {
+  order
+  ride
+  delivery
+  negotiation
+  service
 }
 
 model ChatMessage {
@@ -1167,6 +1182,17 @@ model DeliveryRequest {
   ratingComment    String?
   pickedUpAt       DateTime?
   deliveredAt      DateTime?
+  // In-app payment collection: the sender pays the agreed fare into escrow
+  // via Paystack once matched (see /api/deliveries/[id]/pay), rather than
+  // settling cash-in-hand like rides currently do. escrowStatus mirrors the
+  // same lifecycle Order.escrowStatus already uses elsewhere on the
+  // platform — "held" once captured, "released" once the courier confirms
+  // delivery (owed to the courier; settled out to them the same
+  // admin-reviewed way seller payouts are today until couriers have their
+  // own payout-bank-details flow).
+  escrowStatus     EscrowStatus?
+  paymentReference String?        @unique
+  paidAt           DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   sender           User           @relation("SenderDeliveries", fields: [senderId], references: [id], onDelete: Cascade)

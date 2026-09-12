@@ -2,12 +2,33 @@
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { MessageSquare, Send, ArrowLeft, CheckCheck, Bell, BellOff, Package, ShieldCheck, Star as StarIcon, AlertTriangle, Info } from "lucide-react";
+import { MessageSquare, Send, ArrowLeft, CheckCheck, Bell, BellOff, Package, ShieldCheck, Star as StarIcon, AlertTriangle, Info, Car, Tag, Wrench } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { RideChat } from "@/components/ride/RideChat";
+
+interface TripThread {
+    id: string;
+    type: "order" | "ride" | "delivery" | "negotiation" | "service";
+    productName: string | null;
+    sellerName: string | null;
+    buyerName: string | null;
+    lastMessage: string | null;
+    lastMessageAt: string;
+    viewerRole: "buyer" | "seller";
+    unread: number;
+}
+
+const TRIP_TYPE_META: Record<string, { icon: any; color: string; bg: string }> = {
+    ride: { icon: Car, color: "text-emerald-700", bg: "bg-emerald-50" },
+    delivery: { icon: Package, color: "text-orange-700", bg: "bg-orange-50" },
+    negotiation: { icon: Tag, color: "text-amber-700", bg: "bg-amber-50" },
+    service: { icon: Wrench, color: "text-indigo-700", bg: "bg-indigo-50" },
+    order: { icon: MessageSquare, color: "text-blue-700", bg: "bg-blue-50" },
+};
 
 export default function MessagesPage() {
     const { user } = useAuth();
@@ -16,8 +37,25 @@ export default function MessagesPage() {
     const [messages, setMessages] = useState<any[]>([]);
     const [inputText, setInputText] = useState("");
     const [mobileShowChat, setMobileShowChat] = useState(false);
-    const [activeTab, setActiveTab] = useState<"conversations" | "notifications">("conversations");
+    const [activeTab, setActiveTab] = useState<"conversations" | "notifications" | "trips">("conversations");
     const [notifications, setNotifications] = useState<any[]>([]);
+    // Rides/deliveries/services live in the real DB Conversation table (see
+    // /api/conversations/threads), not the localStorage-only DataSyncService
+    // store the rest of this page reads from — a second, real backend behind
+    // one more tab, not a rewrite of the negotiation/order chat above.
+    const [tripThreads, setTripThreads] = useState<TripThread[]>([]);
+    const [selectedTrip, setSelectedTrip] = useState<TripThread | null>(null);
+
+    const authHeaders = (): Record<string, string> => {
+        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return tok ? { Authorization: `Bearer ${tok}` } : {};
+    };
+    const loadTripThreads = useCallback(() => {
+        fetch("/api/conversations/threads", { headers: authHeaders() })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setTripThreads((d?.threads || []).filter((t: TripThread) => t.type !== "order")))
+            .catch(() => {});
+    }, []);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const userId = user?.id || user?.email || "";
@@ -50,6 +88,7 @@ export default function MessagesPage() {
 
     useEffect(() => {
         loadConversations(undefined);
+        if (user) loadTripThreads();
         const handleUpdate = () => {
             loadConversations();
             if (userId) setNotifications(DataSyncService.getNotifications(userId));
@@ -57,18 +96,21 @@ export default function MessagesPage() {
         window.addEventListener("storage", handleUpdate);
         window.addEventListener("sync-store-update", handleUpdate);
         const poll = setInterval(handleUpdate, 10000);
+        const tripPoll = setInterval(() => { if (user) loadTripThreads(); }, 10000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
             window.removeEventListener("sync-store-update", handleUpdate);
             clearInterval(poll);
+            clearInterval(tripPoll);
         };
-    }, [loadConversations]);
+    }, [loadConversations, loadTripThreads, user]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
     const openConversation = (conv: any) => {
+        setSelectedTrip(null);
         setActiveConv(conv);
         loadMessages(conv.id);
         setMobileShowChat(true);
@@ -96,6 +138,14 @@ export default function MessagesPage() {
 
     const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count?.[userId] || 0), 0);
     const unreadNotifs = notifications.filter(n => !n.read).length;
+    const tripUnread = tripThreads.reduce((sum, t) => sum + (t.unread || 0), 0);
+
+    const openTrip = (t: TripThread) => {
+        setActiveConv(null);
+        sessionStorage.removeItem("fp_active_conv");
+        setSelectedTrip(t);
+        setMobileShowChat(true);
+    };
 
     const formatTime = (ts: string) => {
         const d = new Date(ts);
@@ -142,6 +192,20 @@ export default function MessagesPage() {
                                 {totalUnread > 0 && (
                                     <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full">
                                         {totalUnread}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("trips")}
+                                className={cn(
+                                    "flex-1 py-3 text-xs font-bold uppercase tracking-widest text-center relative transition-colors",
+                                    activeTab === "trips" ? "text-indigo-600 bg-white" : "text-gray-400 hover:text-gray-600"
+                                )}
+                            >
+                                Trips
+                                {tripUnread > 0 && (
+                                    <span className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 bg-emerald-600 text-white text-[9px] font-bold rounded-full">
+                                        {tripUnread}
                                     </span>
                                 )}
                             </button>
@@ -207,6 +271,51 @@ export default function MessagesPage() {
                                         <MessageSquare className="h-8 w-8 text-gray-200 mb-2" />
                                         <p className="text-sm text-gray-400">No messages yet</p>
                                         <p className="text-xs text-gray-300 mt-1">Conversations with sellers and support will appear here.</p>
+                                    </div>
+                                )
+                            ) : activeTab === "trips" ? (
+                                tripThreads.length > 0 ? tripThreads.map(t => {
+                                    const meta = TRIP_TYPE_META[t.type] || TRIP_TYPE_META.order;
+                                    const Icon = meta.icon;
+                                    const otherName = (t.viewerRole === "seller" ? t.buyerName : t.sellerName) || "Conversation";
+                                    const isActive = selectedTrip?.id === t.id;
+                                    return (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => openTrip(t)}
+                                            className={cn(
+                                                "w-full text-left px-4 py-3 flex items-center gap-3 transition-all border-l-2",
+                                                isActive ? "bg-indigo-50/70 border-l-indigo-600" : "border-l-transparent hover:bg-gray-50"
+                                            )}
+                                        >
+                                            <div className={cn("h-9 w-9 rounded-full flex items-center justify-center shrink-0", meta.bg)}>
+                                                <Icon className={cn("h-4 w-4", meta.color)} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className={cn("text-sm truncate", t.unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-700")}>
+                                                        {otherName}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 shrink-0">{formatTime(t.lastMessageAt)}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <p className={cn("text-xs truncate", t.unread > 0 ? "text-gray-600 font-medium" : "text-gray-400")}>
+                                                        {t.productName ? `${t.productName} · ` : ""}{t.lastMessage || "Start chatting"}
+                                                    </p>
+                                                    {t.unread > 0 && (
+                                                        <span className="h-4.5 min-w-[18px] px-1 bg-emerald-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center shrink-0">
+                                                            {t.unread}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                }) : (
+                                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                                        <Car className="h-8 w-8 text-gray-200 mb-2" />
+                                        <p className="text-sm text-gray-400">No trips yet</p>
+                                        <p className="text-xs text-gray-300 mt-1">Ride, delivery, and service conversations will appear here.</p>
                                     </div>
                                 )
                             ) : (
@@ -287,7 +396,36 @@ export default function MessagesPage() {
                         "flex-1 flex flex-col",
                         !mobileShowChat ? "hidden md:flex" : "flex"
                     )}>
-                        {activeConv ? (
+                        {selectedTrip ? (
+                            <>
+                                <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
+                                    <button
+                                        onClick={() => { setMobileShowChat(false); setSelectedTrip(null); }}
+                                        className="md:hidden h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center"
+                                    >
+                                        <ArrowLeft className="h-4 w-4 text-gray-600" />
+                                    </button>
+                                    {(() => {
+                                        const meta = TRIP_TYPE_META[selectedTrip.type] || TRIP_TYPE_META.order;
+                                        const Icon = meta.icon;
+                                        return (
+                                            <div className={cn("h-8 w-8 rounded-full flex items-center justify-center", meta.bg)}>
+                                                <Icon className={cn("h-4 w-4", meta.color)} />
+                                            </div>
+                                        );
+                                    })()}
+                                    <div>
+                                        <h3 className="text-sm font-bold text-gray-900">
+                                            {(selectedTrip.viewerRole === "seller" ? selectedTrip.buyerName : selectedTrip.sellerName) || "Conversation"}
+                                        </h3>
+                                        {selectedTrip.productName && <p className="text-[11px] text-gray-400">{selectedTrip.productName}</p>}
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50/30">
+                                    <RideChat conversationId={selectedTrip.id} />
+                                </div>
+                            </>
+                        ) : activeConv ? (
                             <>
                                 {/* Chat Header */}
                                 <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">

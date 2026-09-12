@@ -51,6 +51,7 @@ export async function acceptRideOffer(rideId: string, offerId: string) {
                 buyerId: ride.riderId,
                 productId: rideId,
                 productName: `Ride: ${ride.pickup} → ${ride.dropoff}`,
+                type: "ride",
             },
         });
         await tx.rideRequest.update({ where: { id: rideId }, data: { conversationId: conversation.id } });

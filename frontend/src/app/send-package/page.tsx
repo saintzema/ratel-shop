@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Package, MapPin, Loader2, CheckCircle2, Minus, Plus, X, Star } from "lucide-react";
+import { Package, MapPin, Loader2, CheckCircle2, Minus, Plus, X, Star, ShieldCheck } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
 import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 
@@ -103,6 +104,18 @@ export default function SendPackagePage() {
 
     const acceptOffer = async (deliveryId: string, offerId: string) => {
         await fetch(`/api/deliveries/${deliveryId}/offers/${offerId}/accept`, { method: "POST", headers: authHeaders() });
+        loadDeliveries();
+    };
+
+    const [payingDelivery, setPayingDelivery] = useState<any | null>(null);
+    const confirmDeliveryPayment = async (reference: string) => {
+        if (!payingDelivery) return;
+        await fetch(`/api/deliveries/${payingDelivery.id}/pay`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ reference }),
+        });
+        setPayingDelivery(null);
         loadDeliveries();
     };
 
@@ -333,6 +346,16 @@ export default function SendPackagePage() {
                                             </div>
                                             <MaskedCallButton kind="delivery" tripId={delivery.id} label="Call Courier" />
                                         </div>
+                                        {delivery.escrowStatus === "held" || delivery.escrowStatus === "released" ? (
+                                            <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl">
+                                                <ShieldCheck className="h-3.5 w-3.5" />
+                                                {delivery.escrowStatus === "released" ? "Payment released to courier" : `${formatPrice(delivery.agreedFare)} paid into escrow`}
+                                            </div>
+                                        ) : (
+                                            <Button size="sm" onClick={() => setPayingDelivery(delivery)} className="w-full bg-brand-green-600 hover:bg-brand-green-700">
+                                                <ShieldCheck className="h-4 w-4 mr-1.5" /> Pay {formatPrice(delivery.agreedFare)} into Escrow
+                                            </Button>
+                                        )}
                                         <RideMap rideId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} trackRole="courier" kind="delivery" active />
                                         {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}
                                     </div>
@@ -359,6 +382,15 @@ export default function SendPackagePage() {
                     Have a route to run? <a href="/deliver/dashboard" className="text-brand-green-600 font-bold underline">Carry a package</a> and earn along the way.
                 </p>
             </div>
+            {payingDelivery && (
+                <PaystackCheckout
+                    amount={Math.round(payingDelivery.agreedFare * 100)}
+                    email={user.email}
+                    metadata={{ deliveryId: payingDelivery.id, kind: "delivery_escrow" }}
+                    onSuccess={confirmDeliveryPayment}
+                    onClose={() => setPayingDelivery(null)}
+                />
+            )}
             <Footer />
         </div>
     );

@@ -33,6 +33,7 @@ export async function acceptDeliveryOffer(deliveryId: string, offerId: string) {
                 buyerId: delivery.senderId,
                 productId: deliveryId,
                 productName: `Delivery: ${delivery.pickup} → ${delivery.dropoff}`,
+                type: "delivery",
             },
         });
         await tx.deliveryRequest.update({ where: { id: deliveryId }, data: { conversationId: conversation.id } });

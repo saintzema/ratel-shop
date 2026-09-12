@@ -75,6 +75,12 @@ export default function AccountPage() {
             href: "/account/profile"
         },
         {
+            icon: MessageSquare,
+            title: "Messages",
+            desc: "Every order, ride, delivery & negotiation chat in one place",
+            href: "/account/messages"
+        },
+        {
             icon: ShieldCheck,
             title: "Identity Verification",
             desc: "Get a Verified badge with your NIN",
