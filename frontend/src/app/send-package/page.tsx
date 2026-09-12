@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { BookingMap } from "@/components/ride/BookingMap";
 import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
@@ -239,6 +240,8 @@ export default function SendPackagePage() {
                     </p>
                 )}
 
+                <BookingMap pickup={pickup} dropoff={dropoff} />
+
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
                     <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600" />
@@ -248,6 +251,11 @@ export default function SendPackagePage() {
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
                         <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
                     </div>
+                    {!pickupAutocomplete.supported && (
+                        <p className="text-[11px] text-amber-600 -mt-1">
+                            Address suggestions are unavailable right now — type the full address instead.
+                        </p>
+                    )}
                     <Input placeholder="What are you sending? (e.g. documents, a phone)" value={packageDescription} onChange={e => setPackageDescription(e.target.value)} className="bg-white" />
                     <div className="grid grid-cols-3 gap-2">
                         {SIZES.map(s => (
