@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 const CLASSES: { value: "ev" | "newer" | "standard"; label: string; blurb: string }[] = [
     { value: "ev", label: "Electric (EV)", blurb: "Fully electric vehicle" },
@@ -26,6 +27,7 @@ const CLASSES: { value: "ev" | "newer" | "standard"; label: string; blurb: strin
 export default function DriveOnboardingPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const headerOffset = useHeaderOffset();
     const [existing, setExisting] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -155,7 +157,7 @@ export default function DriveOnboardingPage() {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
-                <div className="flex-1 flex items-center justify-center p-8 text-center">
+                <div className="flex-1 flex items-center justify-center p-8 text-center" style={{ paddingTop: headerOffset }}>
                     <div>
                         <p className="font-bold text-gray-900 mb-4">Sign in to register as a driver</p>
                         <Button onClick={() => router.push("/login?redirect=/drive/onboarding")}>Sign In</Button>
@@ -171,7 +173,7 @@ export default function DriveOnboardingPage() {
     return (
         <div className="min-h-screen bg-white font-sans">
             <Navbar />
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-10" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center gap-3 mb-8">
                     <div className="h-12 w-12 rounded-2xl bg-brand-green-50 flex items-center justify-center">
                         <Car className="h-6 w-6 text-brand-green-700" />

@@ -10,6 +10,7 @@ import { useLocation } from "@/context/LocationContext";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { getProductUrl, formatPrice } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 /**
  * The fallback for FairPrice's early days, when a given state/category
@@ -139,6 +140,7 @@ const SERVICE_TABS = ["All", "Home Services", "Repair & Maintenance", "Building 
  */
 export default function ServicesPage() {
     const { location, setLocation } = useLocation();
+    const headerOffset = useHeaderOffset();
     const [services, setServices] = useState<ServiceListing[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("All");
@@ -166,7 +168,7 @@ export default function ServicesPage() {
             <Navbar />
 
             <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-indigo-800 text-white">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                     <div className="flex items-center gap-2 text-white/80 text-xs font-black uppercase tracking-widest mb-2">
                         <Wrench className="h-4 w-4" /> Hire an Expert
                     </div>

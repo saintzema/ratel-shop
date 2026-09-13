@@ -40,6 +40,48 @@ function buildPlateIcon(google: any, plateNumber: string, vehicleColor?: string)
     };
 }
 
+/** A small car glyph, rotated to face the direction of travel — reads as an actual approaching vehicle rather than a generic arrowhead. */
+function buildCarIcon(google: any, rotation: number, color: string) {
+    return {
+        path: "M -1.2 -2.6 L 1.2 -2.6 L 1.9 -0.6 L 1.9 2.2 L 1.3 2.2 L 1.3 1.6 L -1.3 1.6 L -1.3 2.2 L -1.9 2.2 L -1.9 -0.6 Z M -1.4 0 L -1.1 -1.8 L 1.1 -1.8 L 1.4 0 Z",
+        fillColor: color,
+        fillOpacity: 1,
+        strokeColor: "#fff",
+        strokeWeight: 1,
+        scale: 7,
+        anchor: new google.maps.Point(0, 0),
+        rotation,
+    };
+}
+
+/** The viewer's own position — a blue dot with a heading cone when device orientation is available, a plain dot otherwise. */
+function buildMeIcon(google: any, headingDeg: number | null) {
+    if (headingDeg == null) {
+        return {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#3b82f6",
+            fillOpacity: 1,
+            strokeColor: "#fff",
+            strokeWeight: 2,
+        };
+    }
+    // A dot with a triangular cone pointing wherever the phone is facing —
+    // same "you are here, and this is which way you're looking" affordance
+    // AMap/inDrive show for a waiting rider.
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="-22 -22 44 44">
+        <g transform="rotate(${headingDeg})">
+            <path d="M0,-20 L11,4 A13,13 0 0 1 -11,4 Z" fill="#3b82f6" fill-opacity="0.35"/>
+        </g>
+        <circle cx="0" cy="0" r="7.5" fill="#3b82f6" stroke="#fff" stroke-width="2.5"/>
+    </svg>`;
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(44, 44),
+        anchor: new google.maps.Point(22, 22),
+    };
+}
+
 /**
  * The inDrive/AMap-style live map: real route (Google Directions, not a
  * straight line), a pin for pickup and drop-off, and — once the ride is
@@ -63,10 +105,19 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
     const headingRef = useRef<number>(0);
     const animFrameRef = useRef<number | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // The viewer's own position — only meaningful for the waiting side
+    // (rider/sender): "my circle, with a pointer facing wherever my phone
+    // faces, while the car closes in" is the inDrive/AMap rider view.
+    const meMarkerRef = useRef<any>(null);
+    const meHeadingDegRef = useRef<number | null>(null);
+    const meWatchIdRef = useRef<number | null>(null);
+    const [compassSupported, setCompassSupported] = useState(false);
+    const [compassGranted, setCompassGranted] = useState(false);
 
     const [ready, setReady] = useState(false);
     const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
     const [mapError, setMapError] = useState(false);
+    const isWaitingSide = trackRole === "rider" || trackRole === "sender";
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -147,6 +198,72 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pickup, dropoff]);
 
+    // My own position + heading — only for the side actually waiting on a
+    // moving party (rider waiting for a driver, sender waiting for a
+    // courier). Real GPS via watchPosition, real compass via
+    // deviceorientation — never a fabricated heading.
+    useEffect(() => {
+        if (!ready || !active || !isWaitingSide || !mapRef.current || !window.google?.maps) return;
+        const google = window.google;
+        setCompassSupported(typeof window.DeviceOrientationEvent !== "undefined");
+
+        const updateMeMarker = (pos: { lat: number; lng: number }) => {
+            if (!meMarkerRef.current) {
+                meMarkerRef.current = new google.maps.Marker({
+                    position: pos,
+                    map: mapRef.current,
+                    icon: buildMeIcon(google, meHeadingDegRef.current),
+                    zIndex: 600,
+                    title: "You",
+                });
+            } else {
+                meMarkerRef.current.setPosition(pos);
+            }
+        };
+
+        let cancelled = false;
+        if (navigator.geolocation) {
+            meWatchIdRef.current = navigator.geolocation.watchPosition(
+                (p) => { if (!cancelled) updateMeMarker({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+                () => {},
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+            );
+        }
+
+        const onOrientation = (e: DeviceOrientationEvent) => {
+            const heading = (e as any).webkitCompassHeading ?? (e.alpha != null ? 360 - e.alpha : null);
+            if (heading == null) return;
+            meHeadingDegRef.current = heading;
+            if (meMarkerRef.current) meMarkerRef.current.setIcon(buildMeIcon(google, heading));
+        };
+        if (compassGranted) window.addEventListener("deviceorientation", onOrientation);
+
+        return () => {
+            cancelled = true;
+            if (meWatchIdRef.current !== null) navigator.geolocation.clearWatch(meWatchIdRef.current);
+            window.removeEventListener("deviceorientation", onOrientation);
+            meMarkerRef.current?.setMap(null);
+            meMarkerRef.current = null;
+        };
+    }, [ready, active, isWaitingSide, compassGranted]);
+
+    // iOS gates DeviceOrientationEvent behind an explicit user-gesture
+    // permission prompt — Android/desktop just work, so this is only ever
+    // shown when that gate actually exists and hasn't been cleared yet.
+    const requestCompass = async () => {
+        try {
+            const anyDOE = window.DeviceOrientationEvent as any;
+            if (typeof anyDOE?.requestPermission === "function") {
+                const result = await anyDOE.requestPermission();
+                if (result === "granted") setCompassGranted(true);
+            } else {
+                setCompassGranted(true);
+            }
+        } catch {
+            setCompassGranted(true); // no gate on this platform — proceed
+        }
+    };
+
     // Poll the OTHER party's live position and animate the marker smoothly
     // between readings instead of snapping — the actual "seamless" quality
     // being asked for. Linear interpolation over the poll window with an
@@ -155,6 +272,22 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         if (!ready || !active || !mapRef.current || !window.google?.maps) return;
 
         const google = window.google;
+
+        // Zoom tighter and follow the two live points once they're both
+        // known — a fixed route-length zoom stops making sense once the car
+        // is 300m away and the whole 9km route is still in frame.
+        const fitToLiveParties = (otherPos: { lat: number; lng: number }) => {
+            if (!isWaitingSide) return;
+            const myPos = meMarkerRef.current?.getPosition();
+            if (!myPos) return;
+            const bounds = new google.maps.LatLngBounds();
+            bounds.extend(otherPos);
+            bounds.extend({ lat: myPos.lat(), lng: myPos.lng() });
+            mapRef.current.fitBounds(bounds, 90);
+            const z = mapRef.current.getZoom();
+            if (z > 17) mapRef.current.setZoom(17); // don't zoom in past street level on a near-arrival
+        };
+
         const poll = async () => {
             try {
                 const res = await fetch(`${apiBase}/${rideId}/location`, { headers: authHeaders() });
@@ -169,16 +302,18 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                 // face the direction of travel — AMap/inDrive-style — actually reads
                 // as "which way this car/person is facing" rather than a spinning pin.
                 const isPrimarySide = trackRole === "driver" || trackRole === "courier";
-                const arrowIcon = (rotation: number) => ({
-                    path: "M12,2 L19,21 L12,17 L5,21 Z",
-                    fillColor: isPrimarySide ? "#16a34a" : "#f97316",
-                    fillOpacity: 1,
-                    strokeColor: "#fff",
-                    strokeWeight: 1.5,
-                    scale: 1.7,
-                    anchor: new google.maps.Point(12, 12),
-                    rotation,
-                });
+                const arrowIcon = (rotation: number) => isPrimarySide
+                    ? buildCarIcon(google, rotation, "#16a34a")
+                    : {
+                        path: "M12,2 L19,21 L12,17 L5,21 Z",
+                        fillColor: "#f97316",
+                        fillOpacity: 1,
+                        strokeColor: "#fff",
+                        strokeWeight: 1.5,
+                        scale: 1.7,
+                        anchor: new google.maps.Point(12, 12),
+                        rotation,
+                    };
 
                 if (!liveMarkerRef.current) {
                     liveMarkerRef.current = new google.maps.Marker({
@@ -197,11 +332,13 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                         });
                     }
                     liveMarkerPos.current = to;
+                    fitToLiveParties(to);
                     return;
                 }
 
                 const from = liveMarkerPos.current || to;
                 liveMarkerPos.current = to;
+                fitToLiveParties(to);
 
                 // Real device heading, derived from actual consecutive GPS fixes rather
                 // than a compass reading (which needs its own permission prompt and is
@@ -270,6 +407,14 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                     <span className="flex items-center gap-1.5"><Navigation2 className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.distance}</span>
                     <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-brand-green-600" /> {routeInfo.duration}</span>
                 </div>
+            )}
+            {isWaitingSide && active && compassSupported && !compassGranted && (
+                <button
+                    onClick={requestCompass}
+                    className="absolute bottom-2.5 left-2.5 bg-white/90 backdrop-blur rounded-full px-3 py-1.5 text-[10px] font-bold text-gray-600 shadow-sm"
+                >
+                    Enable compass
+                </button>
             )}
         </div>
     );

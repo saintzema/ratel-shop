@@ -19,6 +19,7 @@ import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 // ₦300 call-out + ₦120/km, scaled up for bigger packages — a rough but real
 // distance-anchored floor so "what you'll pay" isn't just a bare guess, the
@@ -48,6 +49,7 @@ const FARE_STEP = 200;
 export default function SendPackagePage() {
     const { user } = useAuth();
     const router = useRouter();
+    const headerOffset = useHeaderOffset();
 
     const [pickup, setPickup] = useState("");
     const [dropoff, setDropoff] = useState("");
@@ -210,7 +212,7 @@ export default function SendPackagePage() {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
-                <div className="flex-1 flex items-center justify-center p-8 text-center">
+                <div className="flex-1 flex items-center justify-center p-8 text-center" style={{ paddingTop: headerOffset }}>
                     <Button onClick={() => router.push("/login?redirect=/send-package")}>Sign In to Send a Package</Button>
                 </div>
                 <Footer />
@@ -261,7 +263,7 @@ export default function SendPackagePage() {
                 )}
             </AnimatePresence>
 
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
                         <Package className="h-6 w-6 text-brand-green-700" />

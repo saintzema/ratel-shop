@@ -33,6 +33,11 @@ export default function DriveDashboardPage() {
     const [sending, setSending] = useState<string | null>(null);
     const [myActiveRides, setMyActiveRides] = useState<any[]>([]);
     const seenRideIds = useRef<Set<string> | null>(null);
+    const knownFares = useRef<Record<string, number>>({});
+    // Rider tapped + a few times waiting for a driver — flash "Fare increased"
+    // on that card for a bit rather than silently updating the number, which
+    // is the whole point of a rider being able to sweeten an offer.
+    const [justRaised, setJustRaised] = useState<Record<string, boolean>>({});
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -53,6 +58,29 @@ export default function DriveDashboardPage() {
                     seenRideIds.current = new Set();
                 }
                 seenRideIds.current = new Set(list.map((r: any) => r.id));
+
+                const raisedIds: string[] = [];
+                for (const r of list) {
+                    const prevFare = knownFares.current[r.id];
+                    if (prevFare != null && r.proposedFare > prevFare) raisedIds.push(r.id);
+                    knownFares.current[r.id] = r.proposedFare;
+                }
+                if (raisedIds.length) {
+                    playDingSound();
+                    setJustRaised(prev => {
+                        const next = { ...prev };
+                        raisedIds.forEach(id => { next[id] = true; });
+                        return next;
+                    });
+                    setTimeout(() => {
+                        setJustRaised(prev => {
+                            const next = { ...prev };
+                            raisedIds.forEach(id => { delete next[id]; });
+                            return next;
+                        });
+                    }, 5000);
+                }
+
                 setRides(list);
                 setMyActiveRides(d?.myActiveRides || []);
                 setVehicles(d?.vehicles || []);
@@ -146,12 +174,17 @@ export default function DriveDashboardPage() {
                     <div className="space-y-4">
                         {open.map(ride => {
                             return (
-                                <div key={ride.id} className="border border-gray-100 rounded-2xl p-5">
+                                <div key={ride.id} className={`border rounded-2xl p-5 transition-colors ${justRaised[ride.id] ? "border-emerald-400 bg-emerald-50/60" : "border-gray-100"}`}>
                                     <div className="flex items-start gap-2 mb-2">
                                         <MapPin className="h-4 w-4 text-brand-green-600 shrink-0 mt-0.5" />
                                         <p className="font-bold text-gray-900 text-sm">{ride.pickup} → {ride.dropoff}</p>
                                     </div>
-                                    <p className="text-xs text-gray-500 mb-3">{ride.rider?.name} proposed {formatPrice(ride.proposedFare)}</p>
+                                    <p className="text-xs text-gray-500 mb-3 flex items-center gap-1.5">
+                                        {ride.rider?.name} proposed {formatPrice(ride.proposedFare)}
+                                        {justRaised[ride.id] && (
+                                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide animate-pulse">Fare increased!</span>
+                                        )}
+                                    </p>
 
                                     {ride.offers?.length > 0 ? (
                                         <p className="text-xs font-bold text-amber-600">You offered {formatPrice(ride.offers[0].offeredFare)} — waiting on rider</p>

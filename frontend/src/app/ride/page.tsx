@@ -19,6 +19,18 @@ import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
+import { useHeaderOffset } from "@/lib/use-header-offset";
+import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
+import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+
+// ₦500 base + ₦550/km — a rough but realistic Nigerian ride-hailing floor
+// (inDrive-style apps land around this for a standard car) so "what you'll
+// pay" reflects the actual trip instead of sitting at a flat ₦2,000 default
+// regardless of whether the trip is 2km or 200km.
+function estimateRideFare(distanceKm: number): number {
+    const raw = 500 + distanceKm * 550;
+    return Math.max(800, Math.round(raw / 100) * 100);
+}
 
 const CLASSES = [
     { value: "", label: "Any vehicle" },
@@ -44,6 +56,7 @@ export default function RidePage() {
     const { user } = useAuth();
     const router = useRouter();
     const { location, setLocation } = useLocation();
+    const headerOffset = useHeaderOffset();
 
     const [confirmingCity, setConfirmingCity] = useState(true);
     const [pickingState, setPickingState] = useState(false);
@@ -61,6 +74,11 @@ export default function RidePage() {
     const pickupAutocomplete = usePlacesAutocomplete(setPickup);
     const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
     const [fare, setFare] = useState(2000);
+    const [suggestedFare, setSuggestedFare] = useState<number | null>(null);
+    const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
+    // Once the rider touches +/- themselves, stop silently overwriting their
+    // choice every time the route recalculates.
+    const [fareTouched, setFareTouched] = useState(false);
     const [autoAccept, setAutoAccept] = useState(false);
     const [vehicleClassPref, setVehicleClassPref] = useState("");
     const [posting, setPosting] = useState(false);
@@ -110,6 +128,31 @@ export default function RidePage() {
             .catch(() => {});
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
+
+    // Recompute the distance-based fare suggestion as pickup/dropoff settle.
+    useEffect(() => {
+        if (!hasGoogleMapsKey || pickup.trim().length < 4 || dropoff.trim().length < 4) return;
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            const g = await loadGoogleMaps()?.catch(() => null);
+            if (!g || cancelled || !window.google?.maps) return;
+            const geocoder = new window.google.maps.Geocoder();
+            const [pickupLoc, dropoffLoc] = await Promise.all([
+                cachedGeocode(geocoder, `${pickup}, Nigeria`),
+                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+            ]);
+            if (cancelled || !pickupLoc || !dropoffLoc) return;
+            const directionsService = new window.google.maps.DirectionsService();
+            const route = await cachedDirections(directionsService, pickupLoc, dropoffLoc, window.google.maps.TravelMode.DRIVING);
+            if (cancelled || !route) return;
+            const km = route.distanceMeters / 1000;
+            setRouteDistanceKm(km);
+            const suggestion = estimateRideFare(km);
+            setSuggestedFare(suggestion);
+            if (!fareTouched) setFare(suggestion);
+        }, 800);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [pickup, dropoff, fareTouched]);
 
     const postRide = async () => {
         setError(null);
@@ -200,7 +243,7 @@ export default function RidePage() {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
-                <div className="flex-1 flex items-center justify-center p-8 text-center">
+                <div className="flex-1 flex items-center justify-center p-8 text-center" style={{ paddingTop: headerOffset }}>
                     <div>
                         <p className="font-bold text-gray-900 mb-4">Sign in to book a ride</p>
                         <Button onClick={() => router.push("/login?redirect=/ride")}>Sign In</Button>
@@ -269,7 +312,7 @@ export default function RidePage() {
                 )}
             </AnimatePresence>
 
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3">
                         <Car className="h-6 w-6 text-brand-green-700" />
@@ -319,13 +362,15 @@ export default function RidePage() {
                         </div>
                     ))}
 
-                    <button
-                        type="button"
-                        onClick={() => setStops(s => [...s, ""])}
-                        className="flex items-center gap-1 text-xs font-bold text-brand-green-700 hover:text-brand-green-800 -my-1"
-                    >
-                        <Plus className="h-3.5 w-3.5" /> Add stop
-                    </button>
+                    <div className="flex justify-center">
+                        <button
+                            type="button"
+                            onClick={() => setStops(s => [...s, ""])}
+                            className="flex items-center gap-1.5 text-[11px] font-bold text-brand-green-700 hover:text-brand-green-800 bg-white border border-gray-200 hover:border-brand-green-300 rounded-full pl-2.5 pr-3 py-1.5 shadow-sm"
+                        >
+                            <Plus className="h-3 w-3" /> Add stop
+                        </button>
+                    </div>
 
                     <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
@@ -348,17 +393,27 @@ export default function RidePage() {
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 flex items-center justify-between">
-                        <button onClick={() => setFare(f => Math.max(FARE_STEP, f - FARE_STEP))} className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center">
-                            <Minus className="h-4 w-4" />
-                        </button>
-                        <div className="text-center">
-                            <p className="text-2xl font-black text-gray-900">{formatPrice(fare)}</p>
-                            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">What you'll pay</p>
+                    <div className="bg-white rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <button onClick={() => { setFareTouched(true); setFare(f => Math.max(FARE_STEP, f - FARE_STEP)); }} className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center">
+                                <Minus className="h-4 w-4" />
+                            </button>
+                            <div className="text-center">
+                                <p className="text-2xl font-black text-gray-900">{formatPrice(fare)}</p>
+                                <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">What you'll pay</p>
+                            </div>
+                            <button onClick={() => { setFareTouched(true); setFare(f => f + FARE_STEP); }} className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center">
+                                <Plus className="h-4 w-4" />
+                            </button>
                         </div>
-                        <button onClick={() => setFare(f => f + FARE_STEP)} className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center">
-                            <Plus className="h-4 w-4" />
-                        </button>
+                        {suggestedFare != null && routeDistanceKm != null && (
+                            <p className="text-[11px] text-gray-400 text-center mt-2">
+                                Recommended {formatPrice(suggestedFare)} for {routeDistanceKm.toFixed(1)} km
+                                {fareTouched && fare !== suggestedFare && (
+                                    <button onClick={() => { setFareTouched(false); setFare(suggestedFare); }} className="ml-1.5 text-brand-green-600 font-bold underline">Use recommended</button>
+                                )}
+                            </p>
+                        )}
                     </div>
 
                     <label className="flex items-center justify-between bg-white rounded-xl p-3 cursor-pointer">

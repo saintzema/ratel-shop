@@ -168,8 +168,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         Out" on every car listing is both meaningless and, on the
                         homepage, visually stomps on the other badges stacked in this
                         same corner. */}
-                    {product.stock !== undefined && product.stock > 0 && product.stock <= 3 &&
-                        product.category !== "cars" && product.category !== "vehicles" && (
+                    {product.stock !== undefined && product.stock > 0 && product.stock <= 3 && !isCar && (
                         <div className="absolute bottom-10 right-3 z-30 bg-red-600/90 backdrop-blur-md text-white px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded shadow-md border border-red-400 flex items-center gap-1">
                             <AlertTriangle className="h-2.5 w-2.5" /> Almost Sold Out
                         </div>

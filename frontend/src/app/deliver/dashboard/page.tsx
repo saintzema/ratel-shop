@@ -16,6 +16,7 @@ import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 import { useLocation } from "@/context/LocationContext";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 /** One per active delivery, so useLocationBroadcast's hook call stays valid inside the .map() below. */
 function ActiveDeliveryMap({ deliveryId, pickup, dropoff }: { deliveryId: string; pickup: string; dropoff: string }) {
@@ -28,6 +29,7 @@ export default function DeliverDashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
     const { location } = useLocation();
+    const headerOffset = useHeaderOffset();
     // Which state this courier is actually in right now — a driver leaving
     // their house needs to say where before the board can show them anything
     // relevant. Defaults to the app-wide location picker, but is its own
@@ -97,7 +99,7 @@ export default function DeliverDashboardPage() {
         return (
             <div className="min-h-screen flex flex-col">
                 <Navbar />
-                <div className="flex-1 flex items-center justify-center p-8 text-center">
+                <div className="flex-1 flex items-center justify-center p-8 text-center" style={{ paddingTop: headerOffset }}>
                     <Button onClick={() => router.push("/login?redirect=/deliver/dashboard")}>Sign In</Button>
                 </div>
                 <Footer />
@@ -112,7 +114,7 @@ export default function DeliverDashboardPage() {
     return (
         <div className="min-h-screen bg-white font-sans">
             <Navbar />
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center justify-between gap-3 mb-6">
                     <div className="flex items-center gap-3">
                         <Package className="h-6 w-6 text-brand-green-700" />
