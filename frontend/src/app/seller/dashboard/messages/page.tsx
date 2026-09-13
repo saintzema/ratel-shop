@@ -203,7 +203,11 @@ export default function UniversalMessagesPage() {
                             ...(order.chat_messages || []).map(m => ({
                                 sender: m.sender as "seller" | "buyer" | "system" | "admin" | "ziva",
                                 text: m.text,
-                                timestamp: new Date(),
+                                // Each message's OWN timestamp, not "right now this
+                                // page happened to render" — that hardcoded `new
+                                // Date()` was why every dispute/return thread showed
+                                // today's date for messages sent days or weeks ago.
+                                timestamp: new Date(m.timestamp || order.updated_at || order.created_at),
                                 imageUrl: m.imageUrl,
                                 imageUrls: m.imageUrls
                             }))

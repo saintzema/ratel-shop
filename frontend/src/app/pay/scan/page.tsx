@@ -3,12 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
-import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera } from "lucide-react";
+import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera, ImageIcon, Wallet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nativeBridge } from "@/lib/native-bridge";
+import { playDingSound } from "@/lib/audio";
+import { DataSyncService } from "@/lib/sync-store";
 
 /**
- * FairPay QR Scan — camera-based scan-to-pay.
+ * FairPay QR Scan — camera-based scan-to-pay, restyled after the Alipay/
+ * WeChat scanner in the reference screenshots: a bottom bar with an Album
+ * picker (for a screenshotted QR someone sent you) on the right, and a
+ * context-aware action on the left — flashlight for a regular visitor,
+ * "My QR" for a seller who wants to flip straight to receiving payment
+ * instead of scanning one.
  *
  * A FairPay QR (generated at /seller/dashboard/payments) already encodes a
  * plain fairprice.ng URL, so it's technically scannable with any phone's own
@@ -42,16 +49,31 @@ export default function ScanToPayPage() {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const rafRef = useRef<number | null>(null);
+    const albumInputRef = useRef<HTMLInputElement | null>(null);
+    const frameCountRef = useRef(0);
+    // tick() is a single closure captured once per scan session and then
+    // re-invoked via requestAnimationFrame — it never sees a state update
+    // that happens after it started, so torchSupported must be read from a
+    // ref here, not the state value the closure was created with.
+    const torchSupportedRef = useRef(false);
 
     const [phase, setPhase] = useState<"idle" | "starting" | "scanning" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<{ raw: string; isFairPrice: boolean; url?: string } | null>(null);
+    const [decodingAlbum, setDecodingAlbum] = useState(false);
+    const [albumError, setAlbumError] = useState<string | null>(null);
     // Torch is a REAL device capability check, not a guess — iOS Safari/WKWebView
     // doesn't expose MediaStreamTrack torch control to web content at all, so this
     // button only appears where it can actually do something (mainly Android Chrome).
     const [torchSupported, setTorchSupported] = useState(false);
     const [torchOn, setTorchOn] = useState(false);
+    const [lowLight, setLowLight] = useState(false);
+    const [isSeller, setIsSeller] = useState(false);
     const cancelledRef = useRef(false);
+
+    useEffect(() => {
+        try { setIsSeller(!!DataSyncService.getCurrentSellerId()); } catch { /* not signed in as a seller */ }
+    }, []);
 
     const stopStream = () => {
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -67,6 +89,7 @@ export default function ScanToPayPage() {
     const startCamera = async () => {
         setError(null);
         setPhase("starting");
+        torchSupportedRef.current = false;
 
         if (!navigator.mediaDevices?.getUserMedia) {
             setPhase("error");
@@ -91,9 +114,11 @@ export default function ScanToPayPage() {
             }
             const [track] = stream.getVideoTracks();
             if (track && "torch" in (track.getCapabilities?.() || {})) {
+                torchSupportedRef.current = true;
                 setTorchSupported(true);
             }
             setPhase("scanning");
+            frameCountRef.current = 0;
             tick();
         } catch (e: any) {
             setPhase("error");
@@ -112,6 +137,20 @@ export default function ScanToPayPage() {
         }
     };
 
+    // Cheap sparse-sample average brightness — every 20th pixel, every 15th
+    // frame — enough to reliably tell "dim room" from "daylight" without
+    // adding real per-frame cost to the scan loop.
+    const sampleBrightness = (imageData: ImageData) => {
+        const data = imageData.data;
+        let total = 0, count = 0;
+        for (let i = 0; i < data.length; i += 80) {
+            total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            count++;
+        }
+        const avg = count ? total / count : 255;
+        setLowLight(avg < 60);
+    };
+
     const tick = () => {
         if (cancelledRef.current) return;
         const video = videoRef.current;
@@ -123,6 +162,10 @@ export default function ScanToPayPage() {
             if (ctx) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                frameCountRef.current++;
+                if (torchSupportedRef.current && frameCountRef.current % 15 === 0) sampleBrightness(imageData);
+
                 // "dontInvert" only tried dark-on-light — a QR shown on a bright
                 // phone screen, or under glare, can need the inverted read.
                 // "attemptBoth" costs a bit more CPU per frame but this is the
@@ -143,6 +186,10 @@ export default function ScanToPayPage() {
 
     const handleDecoded = (raw: string) => {
         stopStream();
+        // The instant "got it" confirmation the reference screenshots show —
+        // fires the moment a code is actually decoded, before whatever
+        // happens next (auto-navigate or the manual-confirm screen).
+        playDingSound();
 
         let isFairPrice = false;
         let url: string | undefined;
@@ -158,7 +205,7 @@ export default function ScanToPayPage() {
         setResult({ raw, isFairPrice, url });
 
         if (isFairPrice && url) {
-            setTimeout(() => router.push(url!.replace(/^https?:\/\/[^/]+/, "")), 600);
+            setTimeout(() => router.push(url!.replace(/^https?:\/\/[^/]+/, "")), 500);
         }
     };
 
@@ -180,6 +227,47 @@ export default function ScanToPayPage() {
         }
     };
 
+    // For a screenshotted QR sitting in the photo library instead of on a
+    // physical surface in front of the camera — the same "Album" affordance
+    // the WeChat/Alipay scanners show, decoded with the exact same jsQR pass
+    // the live camera loop uses, just against a static image instead of
+    // consecutive video frames.
+    const handleAlbumFile = async (file: File) => {
+        setAlbumError(null);
+        setDecodingAlbum(true);
+        try {
+            const dataUrl: string = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = reject;
+                el.src = dataUrl;
+            });
+            const canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("no canvas context");
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+            if (code?.data) {
+                handleDecoded(code.data);
+            } else {
+                setAlbumError("No QR code found in that image — try a clearer screenshot.");
+            }
+        } catch {
+            setAlbumError("Couldn't read that image — try another one.");
+        } finally {
+            setDecodingAlbum(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black flex flex-col">
             <div className="flex items-center justify-between gap-3 px-4 py-4 text-white">
@@ -191,15 +279,6 @@ export default function ScanToPayPage() {
                         <QrCode className="h-4 w-4 text-brand-green-400" /> Scan to Pay
                     </h1>
                 </div>
-                {torchSupported && phase === "scanning" && (
-                    <button
-                        onClick={toggleTorch}
-                        className={`p-2.5 rounded-full transition-colors ${torchOn ? "bg-brand-green-500 text-black" : "bg-white/10 hover:bg-white/20"}`}
-                        aria-label="Toggle flashlight"
-                    >
-                        {torchOn ? <Flashlight className="h-4 w-4" /> : <FlashlightOff className="h-4 w-4" />}
-                    </button>
-                )}
             </div>
 
             <div className="relative flex-1 overflow-hidden">
@@ -233,9 +312,21 @@ export default function ScanToPayPage() {
                 )}
 
                 {phase === "scanning" && !error && (
-                    <p className="absolute bottom-8 inset-x-0 text-center text-white/80 text-sm font-semibold px-6">
+                    <p className="absolute bottom-28 inset-x-0 text-center text-white/80 text-sm font-semibold px-6">
                         Point your camera at a FairPay QR code
                     </p>
+                )}
+
+                {/* Surfaced automatically once the frame reads as dark, rather than
+                    leaving a torch-capable phone's flash as a button someone has to
+                    already know to look for. */}
+                {phase === "scanning" && !error && torchSupported && lowLight && !torchOn && (
+                    <button
+                        onClick={toggleTorch}
+                        className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-white/90 text-black text-xs font-bold rounded-full px-4 py-2 flex items-center gap-1.5 shadow-lg animate-pulse"
+                    >
+                        <Flashlight className="h-3.5 w-3.5" /> Low light — tap to turn on flash
+                    </button>
                 )}
 
                 {phase === "error" && error && (
@@ -270,6 +361,60 @@ export default function ScanToPayPage() {
                             </>
                         )}
                     </div>
+                )}
+
+                {/* Bottom action bar — Album (right) for a screenshotted QR, and a
+                    left action that means something different depending on who's
+                    holding the phone: a torch toggle for a regular visitor, or a
+                    one-tap shortcut to a seller's OWN receiving QR for when they'd
+                    rather show a code than scan one. */}
+                {!result && (
+                    <div className="absolute bottom-6 inset-x-0 flex items-center justify-center gap-16 px-8">
+                        {isSeller ? (
+                            <button
+                                onClick={() => router.push("/seller/dashboard/payments")}
+                                className="flex flex-col items-center gap-1.5 text-white/90"
+                            >
+                                <span className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
+                                    <Wallet className="h-6 w-6" />
+                                </span>
+                                <span className="text-xs font-bold">My QR / Receive</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={toggleTorch}
+                                disabled={!torchSupported || phase !== "scanning"}
+                                className="flex flex-col items-center gap-1.5 text-white/90 disabled:opacity-40"
+                            >
+                                <span className={`h-14 w-14 rounded-full backdrop-blur flex items-center justify-center ${torchOn ? "bg-brand-green-500 text-black" : "bg-white/10"}`}>
+                                    {torchOn ? <Flashlight className="h-6 w-6" /> : <FlashlightOff className="h-6 w-6" />}
+                                </span>
+                                <span className="text-xs font-bold">Flashlight</span>
+                            </button>
+                        )}
+
+                        <button
+                            onClick={() => albumInputRef.current?.click()}
+                            disabled={decodingAlbum}
+                            className="flex flex-col items-center gap-1.5 text-white/90"
+                        >
+                            <span className="h-14 w-14 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
+                                {decodingAlbum ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
+                            </span>
+                            <span className="text-xs font-bold">Album</span>
+                        </button>
+                        <input
+                            ref={albumInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => e.target.files?.[0] && handleAlbumFile(e.target.files[0])}
+                        />
+                    </div>
+                )}
+
+                {albumError && !result && (
+                    <p className="absolute bottom-28 inset-x-0 text-center text-amber-300 text-xs font-semibold px-8">{albumError}</p>
                 )}
             </div>
         </div>
