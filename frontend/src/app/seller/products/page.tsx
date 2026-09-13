@@ -80,6 +80,7 @@ function SellerProductsContent() {
     const { showNotification } = useNotification();
     const router = useRouter();
     const [loading, setLoading] = useState(true);
+    const hasLoadedOnceRef = useRef(false);
 
     // Pagination State
     const searchParams = useSearchParams();
@@ -109,11 +110,25 @@ function SellerProductsContent() {
             !!sellerInfo &&
             !(sellerInfo.status === "active" || sellerInfo.verified === true || (sellerInfo as any).kyc_status === "approved")
         );
-        setLoading(true);
+        // Only the FIRST load should greyscale-and-disable the table — this
+        // function re-runs on every sync-store-update (another tab syncing,
+        // an admin write, a background refresh), and re-entering "loading"
+        // each time turned the whole catalogue unclickable-and-grey for as
+        // long as that re-fetch took, repeatedly, which is why it looked
+        // stuck in black-and-white "too often" and "for a long time".
+        if (!hasLoadedOnceRef.current) setLoading(true);
         try {
             // Fetch products for this specific seller from global sync store first for better consistency
             const all = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
+            // `nj_pNN` ids are synthetic demo/placeholder catalogue data (see
+            // generateMoreDemoProducts in demo-data-nigeria.ts) meant only to
+            // avoid a blank first paint — they were never real database rows, so
+            // "Edit" on one always 404s. Exclude them outright rather than let
+            // them leak into a real seller's product list at all.
+            const sellerProducts = all.filter((p: any) =>
+                !/^nj_p\d+$/.test(String(p.id)) &&
+                (p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id))
+            );
             // Never let a re-read of the local cache SHRINK an already-populated list.
             //
             // loadProducts re-runs on every sync-store-update — including the one this
@@ -175,9 +190,10 @@ function SellerProductsContent() {
                 // `loading` flipped false while the real list was still in flight
                 // and the "Zero Items Found" empty state flashed at sellers who
                 // have hundreds of products.
-                .finally(() => setLoading(false));
+                .finally(() => { hasLoadedOnceRef.current = true; setLoading(false); });
         } catch (error) {
             console.error("Failed to load products:", error);
+            hasLoadedOnceRef.current = true;
             setLoading(false);
         }
     };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, Zap, MessageCircle } from "lucide-react";
+import { Package, Zap, MessageCircle, Car, Wrench, Share2, FileText, Navigation2, MapPin, CheckCircle2, Wand2, Instagram, Facebook, Twitter } from "lucide-react";
 
 // Static data at module level — avoids recreation on every render
 const PIPELINE = [
@@ -776,5 +776,249 @@ export function ZivaAIBanner() {
         Chat with Ziva
       </div>
     </div>
+  );
+}
+
+/* ─── Feature Hero Banners ───────────────────────────────────────────────
+ * One shared shell (badge, title, subtitle, CTA, full-slide click target)
+ * so five feature promos read as one consistent, on-brand hero family
+ * instead of five one-off designs — each just supplies its own small
+ * animated visual on the right. Replaces the generic stock-photo "Mega
+ * Sale" / "New Arrivals" placeholder banners that shipped as the default
+ * when no admin banner was configured. */
+function FeatureHeroShell({
+  href, badge, badgeColor, title, subtitle, gradient, ctaLabel, ctaColor, visual,
+}: {
+  href: string; badge: string; badgeColor: string; title: React.ReactNode; subtitle: string;
+  gradient: string; ctaLabel: string; ctaColor: string; visual: React.ReactNode;
+}) {
+  return (
+    <div className="absolute inset-0 overflow-hidden select-none" style={{ background: gradient }}>
+      <a href={href} className="absolute inset-0" style={{ zIndex: 6 }} aria-label={ctaLabel} />
+      <div className="absolute inset-0 flex items-center justify-between px-5 md:px-10 gap-3" style={{ zIndex: 7 }}>
+        <div className="flex flex-col justify-center min-w-0 max-w-[58%] md:max-w-[50%]">
+          <span
+            className="self-start text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 md:px-3 py-0.5 border whitespace-nowrap mb-2 md:mb-3"
+            style={{ color: badgeColor, borderColor: `${badgeColor}66`, background: `${badgeColor}14` }}
+          >
+            {badge}
+          </span>
+          <h2 className="text-white font-black leading-tight tracking-tight mb-1.5" style={{ fontSize: "clamp(1.15rem,3.2vw,2rem)" }}>
+            {title}
+          </h2>
+          <p className="text-gray-300 font-medium leading-snug mb-3 md:mb-4" style={{ fontSize: "clamp(9px,1.3vw,13px)", maxWidth: "30ch" }}>
+            {subtitle}
+          </p>
+          <a
+            href={href}
+            onClick={e => e.stopPropagation()}
+            className="self-start font-black uppercase tracking-widest transition-all active:scale-95 hover:opacity-80 inline-flex items-center gap-1.5"
+            style={{ color: ctaColor, fontSize: "clamp(9px,1.2vw,13px)" }}
+          >
+            {ctaLabel} <span aria-hidden="true">→</span>
+          </a>
+        </div>
+        <div className="relative flex-1 h-full flex items-center justify-center max-w-[42%]">
+          {visual}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Book a Ride — a car glyph travels a dashed route between two pins on loop. */
+export function RideHeroBanner() {
+  const [t, setT] = useState(0);
+  useEffect(() => { const i = setInterval(() => setT(v => (v + 1) % 100), 60); return () => clearInterval(i); }, []);
+  const carLeft = 12 + t * 0.72;
+
+  return (
+    <FeatureHeroShell
+      href="/ride"
+      badge="NOW LIVE"
+      badgeColor="#34d399"
+      title={<>Book a <span style={{ color: "#34d399" }}>Ride</span></>}
+      subtitle="Name your price, watch verified drivers respond in real time, and track the car all the way to your door."
+      gradient="linear-gradient(135deg, #06251c 0%, #0a3d2e 60%, #06251c 100%)"
+      ctaLabel="Find a Driver"
+      ctaColor="#fbbf24"
+      visual={
+        <svg viewBox="0 0 220 140" className="w-full h-full" style={{ maxHeight: 130 }}>
+          <circle cx="20" cy="100" r="6" fill="#34d399" />
+          <circle cx="200" cy="40" r="6" fill="#f87171" />
+          <path d="M 20 100 Q 110 20 200 40" fill="none" stroke="#ffffff33" strokeWidth="2" strokeDasharray="5 6" />
+          <g transform={`translate(${20 + (carLeft - 12) * 1.8}, ${100 - (carLeft - 12) * 0.9})`}>
+            <circle r="10" fill="#0a3d2e" stroke="#34d399" strokeWidth="2" />
+            <Car x={-6} y={-6} width={12} height={12} color="#34d399" strokeWidth={2.5} />
+          </g>
+        </svg>
+      }
+    />
+  );
+}
+
+/* Send a Package — a package glides along a dotted delivery route. */
+export function DeliveryHeroBanner() {
+  const [t, setT] = useState(0);
+  useEffect(() => { const i = setInterval(() => setT(v => (v + 1) % 100), 60); return () => clearInterval(i); }, []);
+
+  return (
+    <FeatureHeroShell
+      href="/send-package"
+      badge="DOOR TO DOOR"
+      badgeColor="#38bdf8"
+      title={<>Send a <span style={{ color: "#38bdf8" }}>Package</span></>}
+      subtitle="Post what you're sending, pick your courier's price, and track pickup to drop-off live on the map."
+      gradient="linear-gradient(135deg, #071a2b 0%, #0a2e4a 60%, #071a2b 100%)"
+      ctaLabel="Send Now"
+      ctaColor="#fbbf24"
+      visual={
+        <svg viewBox="0 0 220 140" className="w-full h-full" style={{ maxHeight: 130 }}>
+          <MapPin x={4} y={90} width={20} height={20} color="#38bdf8" />
+          <MapPin x={190} y={16} width={20} height={20} color="#f87171" />
+          <path d="M 20 105 Q 110 10 200 30" fill="none" stroke="#ffffff33" strokeWidth="2" strokeDasharray="4 7" />
+          <g transform={`translate(${20 + t * 1.6}, ${100 - t * 0.75})`}>
+            <rect x={-9} y={-9} width={18} height={18} rx={4} fill="#0a2e4a" stroke="#38bdf8" strokeWidth="2" />
+            <Package x={-6} y={-6} width={12} height={12} color="#38bdf8" strokeWidth={2.5} />
+          </g>
+        </svg>
+      }
+    />
+  );
+}
+
+/* Hire an Expert — skill icons fade in/out one at a time. */
+export function ExpertsHeroBanner() {
+  const icons = [Wrench, FileText, MessageCircle];
+  const [active, setActive] = useState(0);
+  useEffect(() => { const i = setInterval(() => setActive(a => (a + 1) % icons.length), 1300); return () => clearInterval(i); }, []);
+
+  return (
+    <FeatureHeroShell
+      href="/services"
+      badge="VERIFIED PROS"
+      badgeColor="#a78bfa"
+      title={<>Hire an <span style={{ color: "#a78bfa" }}>Expert</span></>}
+      subtitle="Web design, repairs, events, tutoring — request a quote from a real professional near you."
+      gradient="linear-gradient(135deg, #1a1030 0%, #2e1a4d 60%, #1a1030 100%)"
+      ctaLabel="Browse Experts"
+      ctaColor="#fbbf24"
+      visual={
+        <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
+          <div className="absolute rounded-full" style={{ width: 100, height: 100, border: "1.5px dashed #a78bfa55" }} />
+          {icons.map((Icon, i) => (
+            <div
+              key={i}
+              className="absolute flex items-center justify-center rounded-2xl transition-all duration-500"
+              style={{
+                width: 46, height: 46,
+                background: active === i ? "#a78bfa" : "#a78bfa1f",
+                transform: `translate(${Math.cos((i / icons.length) * 2 * Math.PI - Math.PI / 2) * 46}px, ${Math.sin((i / icons.length) * 2 * Math.PI - Math.PI / 2) * 46}px) scale(${active === i ? 1.15 : 0.9})`,
+                boxShadow: active === i ? "0 0 20px rgba(167,139,250,0.6)" : "none",
+              }}
+            >
+              <Icon size={20} color={active === i ? "#1a1030" : "#a78bfa"} strokeWidth={2.5} />
+            </div>
+          ))}
+        </div>
+      }
+    />
+  );
+}
+
+/* Social Multi-Post — platform glyphs cycle, then a checkmark confirms "posted". */
+export function SocialMultiPostHeroBanner() {
+  const [step, setStep] = useState(0);
+  const platforms = [
+    { Icon: Instagram, color: "#f472b6" },
+    { Icon: Facebook, color: "#60a5fa" },
+    { Icon: Twitter, color: "#38bdf8" },
+  ];
+  useEffect(() => { const i = setInterval(() => setStep(s => (s + 1) % (platforms.length + 1)), 700); return () => clearInterval(i); }, []);
+
+  return (
+    <FeatureHeroShell
+      href="/seller/social"
+      badge="ONE CLICK, EVERYWHERE"
+      badgeColor="#f472b6"
+      title={<>Post <span style={{ color: "#f472b6" }}>Everywhere</span>, Instantly</>}
+      subtitle="Turn a listing into a scroll-stopping post for Instagram, Facebook & WhatsApp — with one tap."
+      gradient="linear-gradient(135deg, #2b0f1e 0%, #4d1a35 60%, #2b0f1e 100%)"
+      ctaLabel="Try Social Multi-Post"
+      ctaColor="#fbbf24"
+      visual={
+        <div className="flex items-center gap-3">
+          {platforms.map(({ Icon, color }, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-center rounded-2xl transition-all duration-300"
+              style={{
+                width: 44, height: 44,
+                background: step === i ? color : `${color}22`,
+                transform: step === i ? "translateY(-6px) scale(1.1)" : "scale(1)",
+                boxShadow: step === i ? `0 8px 20px ${color}66` : "none",
+              }}
+            >
+              <Icon size={20} color={step === i ? "#2b0f1e" : color} strokeWidth={2.5} />
+            </div>
+          ))}
+          <div
+            className="flex items-center justify-center rounded-full transition-all duration-300"
+            style={{
+              width: 44, height: 44,
+              background: step === platforms.length ? "#34d399" : "#34d39922",
+              transform: step === platforms.length ? "scale(1.15)" : "scale(0.9)",
+            }}
+          >
+            <CheckCircle2 size={22} color={step === platforms.length ? "#2b0f1e" : "#34d399"} strokeWidth={2.5} />
+          </div>
+        </div>
+      }
+    />
+  );
+}
+
+/* AI Quote — a quote line "types" itself out, cursor blinking, then resets. */
+export function AiQuoteHeroBanner() {
+  const FULL = "Web design + hosting: ₦180,000";
+  const [chars, setChars] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setChars(c => (c >= FULL.length ? c : c + 1)), 90);
+    return () => clearInterval(i);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Pause briefly once the full line has typed out, then reset and re-type.
+  useEffect(() => {
+    if (chars !== FULL.length) return;
+    const t = setTimeout(() => setChars(0), 1400);
+    return () => clearTimeout(t);
+  }, [chars]);
+
+  return (
+    <FeatureHeroShell
+      href="/seller/quotes/new"
+      badge="SELLER TOOL"
+      badgeColor="#818cf8"
+      title={<>AI Quotes in <span style={{ color: "#818cf8" }}>Seconds</span></>}
+      subtitle="Describe the job — get a polished, ready-to-send quote your customer can pay instantly."
+      gradient="linear-gradient(135deg, #0e1130 0%, #1a1f4d 60%, #0e1130 100%)"
+      ctaLabel="Try AI Quote"
+      ctaColor="#fbbf24"
+      visual={
+        <div
+          className="rounded-2xl px-4 py-3 font-mono text-left"
+          style={{ background: "#05061a", border: "1px solid #818cf855", width: "100%", maxWidth: 220 }}
+        >
+          <div className="flex items-center gap-1.5 mb-2">
+            <Wand2 size={12} color="#818cf8" />
+            <span style={{ fontSize: 9, color: "#818cf8", fontWeight: 800, letterSpacing: "0.05em" }}>ZIVA QUOTE</span>
+          </div>
+          <p style={{ fontSize: 11, color: "#c7d2fe", lineHeight: 1.5, minHeight: 32 }}>
+            {FULL.slice(0, chars)}
+            <span className={chars < FULL.length ? "animate-pulse" : "opacity-0"}>▍</span>
+          </p>
+        </div>
+      }
+    />
   );
 }

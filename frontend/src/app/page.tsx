@@ -35,7 +35,33 @@ import {
   NewArrivalsBanner,
   TopBrandsBanner,
   ZivaAIBanner,
+  RideHeroBanner,
+  DeliveryHeroBanner,
+  ExpertsHeroBanner,
+  SocialMultiPostHeroBanner,
+  AiQuoteHeroBanner,
 } from "@/components/HeroBanners";
+
+const FEATURE_BANNER_COMPONENTS: Record<string, React.ComponentType> = {
+  ride: RideHeroBanner,
+  delivery: DeliveryHeroBanner,
+  experts: ExpertsHeroBanner,
+  "social-multipost": SocialMultiPostHeroBanner,
+  "ai-quote": AiQuoteHeroBanner,
+};
+
+// Code-defined feature promos — shown whenever the admin hasn't configured
+// their own sale banners, replacing what used to be two generic Unsplash
+// stock photos ("Mega Sale", "New Arrivals") that had nothing to do with
+// this app. Real, on-brand, animated slides for the features actually built
+// this year, in the same family as the ZEMA360 slide.
+const FEATURE_BANNERS = [
+  { id: "__ride", title: "Book a Ride", type: "component", componentId: "ride", image_url: "", active: true },
+  { id: "__delivery", title: "Send a Package", type: "component", componentId: "delivery", image_url: "", active: true },
+  { id: "__experts", title: "Hire an Expert", type: "component", componentId: "experts", image_url: "", active: true },
+  { id: "__social", title: "Social Multi-Post", type: "component", componentId: "social-multipost", image_url: "", active: true },
+  { id: "__aiquote", title: "AI Quote", type: "component", componentId: "ai-quote", image_url: "", active: true },
+];
 
 const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
   "flash-deals":  FlashDealsBanner,
@@ -195,10 +221,7 @@ function HomeContent() {
         const savedBanners = localStorage.getItem("ratel_homepage_banners");
         const imageBanners = savedBanners
           ? JSON.parse(savedBanners).filter((b: any) => b.active)
-          : [
-              { id: "b1", title: "Mega Sale — Up to 70% Off", image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000", link: "/category/deals", active: true },
-              { id: "b2", title: "New Arrivals This Week",    image_url: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=2000", link: "/category/new",   active: true },
-            ];
+          : FEATURE_BANNERS;
         setBanners([ZEMA360_BANNER, ...imageBanners]);
       } catch(e) {
         setBanners([ZEMA360_BANNER]);
@@ -505,7 +528,10 @@ function HomeContent() {
                         {banners[currentBannerIndex]?.type === "component" ? (
                           banners[currentBannerIndex]?.componentId === "zema360" ? (
                             <Zema360HeroBanner />
-                          ) : null
+                          ) : (() => {
+                              const FeatureBanner = FEATURE_BANNER_COMPONENTS[banners[currentBannerIndex]?.componentId];
+                              return FeatureBanner ? <FeatureBanner /> : null;
+                            })()
                         ) : (
                           <img
                             src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}

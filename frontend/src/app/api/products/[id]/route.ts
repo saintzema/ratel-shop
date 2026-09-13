@@ -5,22 +5,32 @@ import { mapDbProductToClient } from "@/lib/product-mapper";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     try {
-        const product = await db.product.findUnique({
+        const sellerSelect = {
+            businessName: true,
+            status: true,
+            verified: true,
+            rating: true,
+            trustScore: true,
+            createdAt: true,
+            subscriptionPlan: true,
+        } as const;
+
+        let product = await db.product.findUnique({
             where: { id },
-            include: {
-                seller: {
-                    select: {
-                        businessName: true,
-                        status: true,
-                        verified: true,
-                        rating: true,
-                        trustScore: true,
-                        createdAt: true,
-                        subscriptionPlan: true
-                    }
-                }
-            }
+            include: { seller: { select: sellerSelect } },
         });
+
+        // A seller's product-list "Edit" link is sometimes built from a slug
+        // rather than the real id (e.g. an older row, or a link constructed
+        // from the PDP's slug-based URL) — the plain id lookup above 404s for
+        // those even though the product genuinely exists, so fall back to a
+        // slug match before giving up.
+        if (!product) {
+            product = await db.product.findFirst({
+                where: { slug: id },
+                include: { seller: { select: sellerSelect } },
+            });
+        }
 
         if (!product) {
             return NextResponse.json({ error: "Product not found" }, { status: 404 });

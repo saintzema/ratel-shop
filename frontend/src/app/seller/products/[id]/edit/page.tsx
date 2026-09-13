@@ -157,7 +157,14 @@ function EditProductContent() {
 
             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
             const decodedId = decodeURIComponent(productId);
-            const found = allProducts.find(p => String(p.id) === decodedId || String(p.id) === productId);
+            // The Edit link is sometimes built from a slug rather than the real
+            // id — match either, so a product fetched via the slug fallback
+            // below (which merges in keyed by its REAL id) is actually found on
+            // the re-run instead of looping "not found" forever.
+            const found = allProducts.find(p =>
+                String(p.id) === decodedId || String(p.id) === productId ||
+                (p as any).slug === decodedId || (p as any).slug === productId
+            );
             if (!found) {
                 // Local cache is just this browser's own catalog snapshot — a product
                 // created server-side without ever passing through this client (e.g.
