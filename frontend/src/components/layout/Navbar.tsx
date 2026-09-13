@@ -43,7 +43,9 @@ import {
     AlertTriangle,
     Flame,
     Plus,
-    Wrench
+    Wrench,
+    Store as StoreIcon,
+    ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -61,7 +63,8 @@ import type { Product } from "@/lib/types";
 // the live synced catalog (DataSyncService), with global/server search filling the rest.
 import { DataSyncService } from "@/lib/sync-store";
 import { NotificationHub } from "@/lib/client-poll";
-import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGroundingUrl } from "@/lib/utils";
+import { cn, getProductUrl, getStoreUrl, getProxiedImageUrl, generateCompliantId, isGroundingUrl } from "@/lib/utils";
+import { getListingConfig } from "@/lib/listing-types";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -125,6 +128,9 @@ export function Navbar() {
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
     const [matchingBrands, setMatchingBrands] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
+    // Store-name matches — typing a seller's business name never surfaced
+    // their storefront before; only products were searchable.
+    const [storeResults, setStoreResults] = useState<any[]>([]);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
     const [imagePool, setImagePool] = useState<Record<string, string>>({});
     const { location, setLocation } = useLocation();
@@ -383,6 +389,7 @@ export function Navbar() {
             setIsGlobalSearching(false);
             setCachedResults([]);
             setTextSuggestions([]);
+            setStoreResults([]);
             setShowSuggestions(false);
             return;
         }
@@ -595,6 +602,22 @@ export function Navbar() {
                     if (added > 0 && !cancelled) setCatalogVersion(v => v + 1);
                 })
                 .catch(() => {});
+        }, 300);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [searchQuery]);
+
+    // Store-name search — a seller's business name was never searchable at
+    // all before; only their PRODUCTS could surface, never the storefront
+    // itself. Same debounce cadence as the catalog-enrichment search above.
+    useEffect(() => {
+        const q = searchQuery.trim();
+        if (q.length < 2) { setStoreResults([]); return; }
+        let cancelled = false;
+        const t = setTimeout(() => {
+            fetch(`/api/sellers?q=${encodeURIComponent(q)}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(data => { if (!cancelled) setStoreResults(data?.stores || []); })
+                .catch(() => { if (!cancelled) setStoreResults([]); });
         }, 300);
         return () => { cancelled = true; clearTimeout(t); };
     }, [searchQuery]);
@@ -1331,6 +1354,47 @@ export function Navbar() {
                                         </div>
                                     )}
 
+                                    {/* Store Suggestions — a seller's business name matching search
+                                        used to surface nothing at all; only their individual product
+                                        listings could ever appear. */}
+                                    {storeResults.length > 0 && (
+                                        <div className="border-b border-gray-50">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Stores
+                                            </div>
+                                            {storeResults.map((store: any) => (
+                                                <button
+                                                    key={store.id}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        router.push(getStoreUrl(store));
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 p-3 transition-all border-b border-gray-50/50 last:border-0 text-left cursor-pointer hover:bg-gray-50 active:bg-gray-100"
+                                                >
+                                                    <div className="relative h-10 w-10 shrink-0 bg-white border border-gray-100 rounded-full overflow-hidden flex items-center justify-center">
+                                                        {store.logo_url ? (
+                                                            <img src={getProxiedImageUrl(store.logo_url)} alt={store.business_name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <StoreIcon className="h-4 w-4 text-gray-300" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col flex-1 min-w-0">
+                                                        <span className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1">
+                                                            {store.business_name}
+                                                            {store.verified && <ShieldCheck className="h-3.5 w-3.5 text-brand-green-600 shrink-0" />}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400">
+                                                            {[store.city, store.state].filter(Boolean).join(", ") || "Store"}
+                                                            {store.rating ? ` · ⭐ ${store.rating}` : ""}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {/* Product Suggestions (The "PRODUCTS" section) */}
                                     {suggestions.length > 0 && (
                                         <div className="border-b border-gray-50">
@@ -1339,6 +1403,9 @@ export function Navbar() {
                                             </div>
                                             {suggestions.map((product, i) => {
                                                 const idx = textSuggestions.length + i;
+                                                const listingType = (product as any).listing_type || (product as any).listingType || "product";
+                                                const isNonProduct = listingType !== "product";
+                                                const listingLabel = isNonProduct ? getListingConfig(listingType).label : null;
                                                 return (
                                                     <button
                                                         key={product.id}
@@ -1363,10 +1430,17 @@ export function Navbar() {
                                                             />
                                                         </div>
                                                         <div className="flex flex-col flex-1 min-w-0">
-                                                            <span className="text-sm font-bold text-gray-900 line-clamp-1">{product.name}</span>
+                                                            <span className="text-sm font-bold text-gray-900 line-clamp-1 flex items-center gap-1.5">
+                                                                {product.name}
+                                                                {isNonProduct && (
+                                                                    <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0">{listingLabel}</span>
+                                                                )}
+                                                            </span>
                                                             <div className="flex items-center gap-2 mt-0.5">
-                                                                <span className="text-xs font-black text-emerald-600">₦{product.price.toLocaleString()}</span>
-                                                                <span className="text-[10px] text-gray-400">·</span>
+                                                                {product.price > 0 && (
+                                                                    <span className="text-xs font-black text-emerald-600">₦{product.price.toLocaleString()}</span>
+                                                                )}
+                                                                {product.price > 0 && <span className="text-[10px] text-gray-400">·</span>}
                                                                 <span className="text-[10px] text-gray-400">⭐ {product.avg_rating}</span>
                                                                 <span className="text-[10px] text-gray-400">·</span>
                                                                 <span className="text-[10px] text-gray-400">{product.seller_name}</span>

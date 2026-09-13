@@ -55,6 +55,30 @@ export async function GET(req: Request) {
             }, { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } });
         }
 
+        const qParam = searchParams.get("q");
+        // Public store-name search — powers the navbar's "Stores" suggestions.
+        // No such fuzzy lookup existed before; only the exact single-slug
+        // lookup above did, so typing a seller's business name into search
+        // never surfaced their storefront at all.
+        if (qParam && qParam.trim().length >= 2) {
+            const matches = await db.seller.findMany({
+                where: { status: "active", businessName: { contains: qParam.trim(), mode: "insensitive" } },
+                select: {
+                    id: true, businessName: true, storeUrl: true, logoUrl: true,
+                    category: true, verified: true, rating: true, state: true, city: true,
+                },
+                take: 6,
+                orderBy: { rating: "desc" },
+            });
+            return NextResponse.json({
+                stores: matches.map(s => ({
+                    id: s.id, business_name: s.businessName, store_url: s.storeUrl,
+                    logo_url: s.logoUrl, category: s.category, verified: s.verified,
+                    rating: s.rating, state: s.state, city: s.city,
+                })),
+            }, { headers: { "Cache-Control": "private, max-age=15" } });
+        }
+
         let whereClause: any = includeInactive ? {} : { status: "active" as const };
 
         // Security: Filter by userId if NOT an admin

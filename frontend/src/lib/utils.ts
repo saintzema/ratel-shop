@@ -91,6 +91,36 @@ export function getProductUrl(
     return `/product/${finalId}/${slug || 'product'}`;
 }
 
+/**
+ * A store's canonical URL — mirrors the same storeUrl → slugified-name → raw-id
+ * fallback chain resolveStoreUrl() (lib/seller-utils.ts) already guarantees a
+ * seller gets at creation time, so a seller row from ANY endpoint (search
+ * suggestions, the seller list, a product's embedded seller info) always
+ * lands on the same /store/[slug] page regardless of which field happened
+ * to be populated on that particular response shape.
+ */
+export function getStoreUrl(seller: {
+    id?: string;
+    storeUrl?: string | null;
+    store_url?: string | null;
+    businessName?: string | null;
+    business_name?: string | null;
+} | string | undefined | null): string {
+    if (!seller) return "/";
+    if (typeof seller === "string") return `/store/${seller}`;
+
+    const slug = seller.storeUrl || seller.store_url;
+    if (slug) return `/store/${slug}`;
+
+    const name = seller.businessName || seller.business_name;
+    if (name) {
+        const slugified = name.toLowerCase().trim().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+        if (slugified) return `/store/${slugified}`;
+    }
+
+    return seller.id ? `/store/${seller.id}` : "/";
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
     try {
         if (navigator?.clipboard?.writeText) {

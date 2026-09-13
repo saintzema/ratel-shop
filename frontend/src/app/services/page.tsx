@@ -193,12 +193,12 @@ export default function ServicesPage() {
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white pointer-events-none" />
                         </div>
-                        <button
-                            onClick={() => setShowRequestModal(true)}
+                        <Link
+                            href="/hire/post"
                             className="bg-white text-indigo-700 rounded-full px-4 py-2 text-sm font-black hover:bg-white/90 transition-colors"
                         >
-                            Can't find who you need? Request an Expert
-                        </button>
+                            Post a Gig — Get Proposals
+                        </Link>
                     </div>
                 </div>
             </div>

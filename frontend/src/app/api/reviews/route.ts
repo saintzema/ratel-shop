@@ -11,12 +11,14 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const productId = searchParams.get("productId");
         const userId = searchParams.get("userId");
+        const sellerId = searchParams.get("sellerId");
         const fetchAll = searchParams.get("all") === "true";
 
         const whereClause: any = {};
         if (!fetchAll) {
             if (productId) whereClause.productId = productId;
             if (userId) whereClause.userId = userId;
+            if (sellerId) whereClause.OR = [{ sellerId }, { product: { sellerId } }];
         }
 
         const reviews = await db.review.findMany({
@@ -25,7 +27,8 @@ export async function GET(request: Request) {
                 product: {
                     select: {
                         name: true,
-                        imageUrl: true
+                        imageUrl: true,
+                        sellerId: true,
                     }
                 }
             },
@@ -35,7 +38,10 @@ export async function GET(request: Request) {
             ...(fetchAll ? { take: 100 } : {}),
         });
 
-        // Map for frontend consistency
+        // Map for frontend consistency. seller_id is either the review's own
+        // direct sellerId (an expert-hire/quote review, which has no product)
+        // or the seller behind the product it's attached to — the store page
+        // filters storeReviews by seller_id, so both paths must populate it.
         const mapped = reviews.map(r => ({
             ...r,
             user_id: r.userId,
@@ -43,6 +49,7 @@ export async function GET(request: Request) {
             product_id: r.productId,
             product_name: r.product?.name,
             product_image: r.product?.imageUrl,
+            seller_id: r.sellerId || r.product?.sellerId || null,
             created_at: r.createdAt,
         }));
 

@@ -5,19 +5,24 @@ import { Resend } from "resend";
 import { ADMIN_EMAILS } from "@/lib/constants";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { getUserFromRequest } from "@/lib/jwt";
+import { attemptInstantSellerPayout, getPayoutHitlThreshold } from "@/lib/payout-transfer";
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
 
 /**
  * Automated Escrow Release Cron Job
- * Frequency: Every 1 hour (configured in vercel.json)
- * 
+ * Frequency: Every 30 minutes (configured in vercel.json) — was every 6
+ * hours; tightened so the deliberate 24h buyer-protection hold isn't
+ * compounded by up to 6 more hours of the cron simply not having run yet.
+ *
  * Logic:
  * 1. Find orders delivered > 24 hours ago that haven't been released.
  * 2. Update status to 'released'.
  * 3. Create a Payout record for the seller.
- * 4. Notify seller via Email & In-App notification.
- * 5. Notify Admins of the batch processing result.
+ * 4. At/below the auto-payout HITL threshold, attempt the real Paystack
+ *    transfer immediately instead of leaving it for an admin to approve.
+ * 5. Notify seller via Email & In-App notification.
+ * 6. Notify Admins of the batch processing result.
  */
 export async function GET(request: Request) {
     try {
@@ -67,8 +72,12 @@ export async function GET(request: Request) {
         const errors: { id: string; error: string }[] = [];
 
         // 3. Process each order
+        const hitlThreshold = await getPayoutHitlThreshold();
+
         for (const order of eligibleOrders) {
             try {
+                let newPayoutId: string | null = null;
+
                 await db.$transaction(async (tx) => {
                     // Update Order
                     await tx.order.update({
@@ -90,7 +99,7 @@ export async function GET(request: Request) {
                     });
 
                     if (!existingPayout) {
-                        await tx.payout.create({
+                        const created = await tx.payout.create({
                             data: {
                                 sellerId: order.sellerId,
                                 amount: order.amount,
@@ -102,6 +111,7 @@ export async function GET(request: Request) {
                                 isAutoPayout: false
                             }
                         });
+                        newPayoutId = created.id;
                     }
 
                     // Create Notification
@@ -114,6 +124,18 @@ export async function GET(request: Request) {
                         }
                     });
                 });
+
+                // As-fast-as-possible payout: a released order's payout used to
+                // just sit at "pending" until an admin noticed and manually
+                // approved it via PATCH /api/payouts — that wait (on top of
+                // the deliberate 24h escrow hold above) was the actual cause
+                // of sellers seeing their money arrive roughly a day late.
+                // At/below the HITL threshold, attempt the real transfer
+                // right now; above it, this intentionally falls through to
+                // the existing manual-approval queue.
+                if (newPayoutId && order.amount <= hitlThreshold) {
+                    await attemptInstantSellerPayout(newPayoutId).catch(() => {});
+                }
 
                 // 4. Send Email (Outside transaction to prevent blocking)
                 const sellerEmail = order.seller.ownerEmail || order.seller.user?.email || `seller_${order.sellerId}@fairprice.ng`;

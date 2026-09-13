@@ -14,6 +14,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!quote) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
 
+    // A paid/deposit-paid quote is a completed (or in-progress) engagement —
+    // the client page uses this to show a one-time "Rate this expert" prompt.
+    const existingReview = await db.review.findUnique({ where: { quoteId: id }, select: { id: true } });
+
     return NextResponse.json({
         quote: {
             id: quote.id,
@@ -29,6 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
             notes: quote.notes,
             currency: quote.currency,
             createdAt: quote.createdAt,
+            canReview: (quote.status === "paid" || quote.status === "deposit_paid") && !existingReview,
             seller: {
                 businessName: quote.seller.businessName,
                 logoUrl: quote.seller.logoUrl,

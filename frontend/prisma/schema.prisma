@@ -340,6 +340,7 @@ model Seller {
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
+  gigProposals   GigProposal[]
   kycSubmissions KYCSubmission[]
   negotiations   NegotiationRequest[] @relation("SellerNegotiations")
   orders         Order[]              @relation("SellerOrders")
@@ -347,6 +348,7 @@ model Seller {
   priceAlerts    PriceAlert[]
   products       Product[]
   quotes         Quote[]
+  reviews        Review[]
   staff          SellerStaff[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -381,6 +383,57 @@ model Quote {
 
   @@index([sellerId])
   @@index([status])
+}
+
+// Upwork-style: a buyer posts what they need done and their budget, instead of
+// only being able to browse sellers who already listed that exact service.
+// Any signed-in seller can submit a GigProposal (a bid); accepting one creates
+// a real Quote (see /api/gigs/[id]/proposals/[proposalId]) so payment,
+// escrow and the review flow are the exact same pipeline already built for
+// Quotes — this is a discovery/matching layer in front of it, not a parallel
+// payments system.
+model GigRequest {
+  id                 String    @id @default(cuid())
+  posterUserId       String?
+  posterName         String
+  posterEmail        String?
+  posterPhone        String?
+  title              String
+  description        String
+  category           String
+  budgetMin          Float?
+  budgetMax          Float?
+  budgetType         String    @default("fixed") // fixed | hourly
+  deadline           DateTime?
+  locationState      String?
+  locationCity       String?
+  status             String    @default("open") // open | in_progress | completed | cancelled
+  isSponsored        Boolean   @default(false)
+  acceptedProposalId String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  proposals          GigProposal[]
+
+  @@index([status])
+  @@index([category])
+  @@index([locationState])
+}
+
+model GigProposal {
+  id            String     @id @default(cuid())
+  gigRequestId  String
+  sellerId      String
+  message       String
+  proposedPrice Float
+  deliveryDays  Int?
+  status        String     @default("pending") // pending | accepted | declined | withdrawn
+  createdAt     DateTime   @default(now())
+  gigRequest    GigRequest @relation(fields: [gigRequestId], references: [id], onDelete: Cascade)
+  seller        Seller     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([gigRequestId, sellerId])
+  @@index([gigRequestId])
+  @@index([sellerId])
 }
 
 // A teammate a seller invited into their dashboard with restricted permissions
@@ -601,14 +654,27 @@ model Review {
   id               String   @id @default(cuid())
   userId           String
   userName         String
-  productId        String
+  // Nullable because an expert-hire review (from a paid Quote, which has no
+  // product listing behind it — see quoteId below) rates the seller directly,
+  // not a specific Product. A normal storefront review still always sets this.
+  productId        String?
+  // Set only for a quote-based review (Request-a-Quote / "Hire an Expert"),
+  // so it can be attached and rating-averaged even with no productId.
+  sellerId         String?
+  // One review per completed engagement — a payer can only rate a given
+  // quote once, mirroring "one review per product" below.
+  quoteId          String?  @unique
   rating           Int
   title            String
   body             String
   verifiedPurchase Boolean  @default(false)
   createdAt        DateTime @default(now())
-  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller           Seller?  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([productId])
 }
 
 model Deal {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { generateQuotePdf } from "@/lib/quote-pdf";
-import { ShieldCheck, Download, Loader2 } from "lucide-react";
+import { ShieldCheck, Download, Loader2, Star } from "lucide-react";
 
 export default function PublicQuotePage() {
     const params = useParams();
@@ -16,6 +16,12 @@ export default function PublicQuotePage() {
     const [email, setEmail] = useState("");
     const [showPay, setShowPay] = useState<"deposit" | "full" | null>(null);
     const [pdfLoading, setPdfLoading] = useState(false);
+    const [reviewRating, setReviewRating] = useState(0);
+    const [reviewText, setReviewText] = useState("");
+    const [reviewEmail, setReviewEmail] = useState("");
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
+    const [reviewDone, setReviewDone] = useState(false);
+    const [reviewError, setReviewError] = useState("");
 
     const load = () => {
         fetch(`/api/quotes/${id}`)
@@ -43,6 +49,33 @@ export default function PublicQuotePage() {
             body: JSON.stringify({ reference, payerEmail: email.trim() || undefined }),
         }).catch(() => {});
         load();
+    };
+
+    const submitReview = async () => {
+        if (!reviewRating) return;
+        if (!reviewEmail.includes("@")) {
+            setReviewError("Enter the email you paid with, so we know it's really you.");
+            return;
+        }
+        setReviewSubmitting(true);
+        setReviewError("");
+        try {
+            const res = await fetch(`/api/quotes/${id}/review`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rating: reviewRating, body: reviewText.trim(), reviewerEmail: reviewEmail.trim(), reviewerName: quote.clientName }),
+            });
+            const d = await res.json();
+            if (!res.ok) {
+                setReviewError(d?.error || "Couldn't submit your review. Try again.");
+                return;
+            }
+            setReviewDone(true);
+        } catch {
+            setReviewError("Couldn't submit your review. Try again.");
+        } finally {
+            setReviewSubmitting(false);
+        }
     };
 
     const downloadPdf = async () => {
@@ -157,6 +190,48 @@ export default function PublicQuotePage() {
                         onClose={() => setShowPay(null)}
                         autoStart={true}
                     />
+                )}
+
+                {quote.canReview && !reviewDone && (
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-3">
+                        <h2 className="font-bold text-gray-900">How was {quote.seller.businessName}'s work?</h2>
+                        <p className="text-xs text-gray-500 -mt-2">A genuine review helps other clients hire the right person.</p>
+                        <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map(n => (
+                                <button key={n} type="button" onClick={() => setReviewRating(n)} aria-label={`${n} star`}>
+                                    <Star className={`h-8 w-8 ${n <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`} />
+                                </button>
+                            ))}
+                        </div>
+                        <textarea
+                            value={reviewText}
+                            onChange={(e) => setReviewText(e.target.value)}
+                            placeholder="What was it like working with them? (optional)"
+                            rows={3}
+                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none"
+                        />
+                        <input
+                            type="email"
+                            value={reviewEmail || email}
+                            onChange={(e) => setReviewEmail(e.target.value)}
+                            placeholder="Email you paid with"
+                            className="w-full h-11 rounded-xl border border-gray-200 px-3 text-sm"
+                        />
+                        {reviewError && <p className="text-xs text-red-500">{reviewError}</p>}
+                        <Button
+                            disabled={!reviewRating || reviewSubmitting}
+                            onClick={submitReview}
+                            className="w-full h-12 rounded-2xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
+                        >
+                            {reviewSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null} Submit Review
+                        </Button>
+                    </div>
+                )}
+                {reviewDone && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center">
+                        <p className="font-bold text-emerald-700">Thanks for your review!</p>
+                        <p className="text-xs text-emerald-600 mt-1">It's now visible on {quote.seller.businessName}'s store page.</p>
+                    </div>
                 )}
             </div>
         </div>

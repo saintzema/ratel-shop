@@ -258,6 +258,85 @@ export async function createPayWithTransferCharge(opts: {
     }
 }
 
+interface InstantPayoutResult {
+    attempted: boolean;
+    success: boolean;
+    message?: string;
+}
+
+/**
+ * Send a just-created Payout straight to Paystack, no admin in the loop —
+ * for a seller's REGULAR order payout, this used to only ever happen via
+ * PATCH /api/payouts, which requires role:"admin". A seller earning ₦5,000
+ * from a delivered order waited on a human to notice and click Approve —
+ * that's the actual cause of "my payout takes ~24 hours," not Paystack's
+ * own transfer speed (NIP transfers land in minutes once actually
+ * initiated). The 24h escrow hold before an order is even payoutable (see
+ * api/cron/auto-release) is a deliberate buyer-protection window and is
+ * left untouched — this only removes the SECOND, unintentional wait after
+ * that: an admin manually approving a small, unremarkable payout.
+ *
+ * Mirrors exactly what PATCH /api/payouts already does for an admin-approved
+ * payout and what the QR auto-payout webhook path already does above the
+ * HITL threshold — same verification (a payout must be traceable to a real,
+ * verified Paystack charge before money moves), same failure handling
+ * (never silently mark "completed" without money actually moving).
+ */
+export async function attemptInstantSellerPayout(payoutId: string): Promise<InstantPayoutResult> {
+    try {
+        const payout = await db.payout.findUnique({ where: { id: payoutId } });
+        if (!payout) return { attempted: false, success: false, message: "Payout not found" };
+
+        if (!process.env.PAYSTACK_SECRET_KEY || !payout.accountNumber || payout.accountNumber.length < 10) {
+            return { attempted: false, success: false, message: "Not configured or no valid account number" };
+        }
+
+        // Same rule as the admin-approval path: only transfer real platform
+        // funds out against a payout traceable to an actually-verified
+        // Paystack charge (never COD/WhatsApp/manual/demo revenue).
+        let paymentReference: string | null = payout.paymentReference || null;
+        if (!paymentReference && payout.orderIds.length > 0) {
+            const linkedOrder = await db.order.findFirst({
+                where: { id: { in: payout.orderIds }, paymentReference: { not: null } },
+                select: { paymentReference: true },
+            });
+            paymentReference = linkedOrder?.paymentReference || null;
+        }
+        if (!paymentReference) {
+            return { attempted: false, success: false, message: "No verifiable Paystack payment reference — needs manual review" };
+        }
+
+        const verification = await verifyPaystackReference(paymentReference);
+        if (!verification.verified) {
+            return { attempted: false, success: false, message: `Could not verify payment: ${verification.message}` };
+        }
+
+        const result = await initiatePaystackTransfer({
+            payoutId: payout.id,
+            amount: payout.amount,
+            bankName: payout.bankName,
+            accountNumber: payout.accountNumber,
+            accountName: payout.accountName || "Seller",
+            sellerId: payout.sellerId,
+            paymentReference,
+            isAutoPayout: true,
+        });
+
+        if (result.success) {
+            await notifySellerPayout(payout.sellerId, payout.amount, "completed", payout.id);
+            await emailSellerPayout(payout.sellerId, payout.amount, "completed");
+            if (payout.orderIds.length > 0) {
+                await db.order.updateMany({ where: { id: { in: payout.orderIds } }, data: { payoutStatus: "paid" } });
+            }
+            return { attempted: true, success: true };
+        }
+
+        return { attempted: true, success: false, message: result.message };
+    } catch (err: any) {
+        return { attempted: true, success: false, message: err.message };
+    }
+}
+
 /**
  * Create a notification for the seller about a payout event.
  * Uses the Prisma Notification model and broadcasts via SSE.

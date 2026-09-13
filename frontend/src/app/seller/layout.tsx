@@ -24,7 +24,8 @@ import {
     Store,
     QrCode,
     Share2,
-    FileText
+    FileText,
+    Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -286,6 +287,7 @@ export default function SellerLayout({
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "Quotes & Invoices", href: "/seller/quotes", icon: FileText },
+        { label: "Find Work (Gigs)", href: "/hire", icon: Briefcase },
         { label: "Social Composer", href: "/seller/social", icon: Share2 },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
         { label: "Balance & Settlements", href: "/seller/balance", icon: Landmark },

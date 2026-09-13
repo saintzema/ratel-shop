@@ -796,23 +796,25 @@ function FeatureHeroShell({
     <div className="absolute inset-0 overflow-hidden select-none" style={{ background: gradient }}>
       <a href={href} className="absolute inset-0" style={{ zIndex: 6 }} aria-label={ctaLabel} />
       {/* This page docks a persistent DASHBOARD / PRICE CHECKER AI button
-          pair on top of every slide — vertically centered around md:right-44
-          on desktop, a full-width row pinned to the bottom on mobile. On
-          desktop that pair sits roughly in the container's right 40%, wide
-          enough that no percentage-based content width reliably clears it
-          across viewport sizes — so on desktop this content is capped to a
-          real, measured pixel width on the left instead, and the visual
-          (which has nowhere left to go once that's capped) is mobile-only,
-          where the buttons are a bottom bar instead and the whole vertical
-          center is free. */}
-      <div className="absolute inset-0 flex items-center px-5 md:pl-8 gap-3" style={{ zIndex: 7 }}>
-        <div className="flex flex-col justify-center min-w-0 w-full md:max-w-[200px]">
-          {/* Badge + this slide's own CTA share the top row, clear of the
-              bottom/center DASHBOARD overlay entirely — that overlay used to
-              sit directly on top of this button before. */}
-          <div className="flex items-center justify-between gap-2 mb-2 md:mb-3">
+          pair on top of every slide (bottom bar on mobile) and a shared
+          dots/pause indicator top-right (~top-4 through ~top-9). On mobile,
+          content used to be vertically CENTERED in the slide, which pushed
+          the subtitle straight down into that bottom button bar — hence
+          `items-start` + `pt-9` here so everything starts clear of both
+          overlays instead. The badge also used to share a row with the CTA
+          at the very top, on mobile that row is dropped entirely (the badge
+          adds little and the CTA moves under the subtitle instead, per
+          product feedback) so text and the visual both get real room —
+          previously the text column was `w-full` on mobile, which starved
+          the visual next to it down to almost nothing. */}
+      <div className="absolute inset-0 flex items-start md:items-center pt-9 md:pt-0 px-5 md:pl-8 gap-2 md:gap-3" style={{ zIndex: 7 }}>
+        <div className="flex flex-col justify-center min-w-0 w-[58%] md:w-auto md:max-w-[200px]">
+          {/* Badge + this slide's own CTA share the top row — desktop only.
+              There's no bottom-bar overlay to clear on desktop, so there's
+              room for both up top the way there used to be everywhere. */}
+          <div className="hidden md:flex items-center justify-between gap-2 mb-3">
             <span
-              className="text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 md:px-3 py-0.5 border whitespace-nowrap"
+              className="text-[10px] font-black uppercase tracking-widest rounded-full px-3 py-0.5 border whitespace-nowrap"
               style={{ color: badgeColor, borderColor: `${badgeColor}66`, background: `${badgeColor}14` }}
             >
               {badge}
@@ -826,14 +828,24 @@ function FeatureHeroShell({
               {ctaLabel} <span aria-hidden="true">→</span>
             </a>
           </div>
-          <h2 className="text-white font-black leading-tight tracking-tight mb-1.5 max-w-[65%] md:max-w-full" style={{ fontSize: "clamp(1.1rem,3vw,1.7rem)" }}>
+          <h2 className="text-white font-black leading-tight tracking-tight mb-1.5" style={{ fontSize: "clamp(1.1rem,3vw,1.7rem)" }}>
             {title}
           </h2>
-          <p className="text-gray-300 font-medium leading-snug" style={{ fontSize: "clamp(9px,1.2vw,12px)", maxWidth: "28ch" }}>
+          <p className="text-gray-300 font-medium leading-snug line-clamp-2 md:line-clamp-none" style={{ fontSize: "clamp(9px,1.2vw,12px)", maxWidth: "28ch" }}>
             {subtitle}
           </p>
+          {/* Mobile-only CTA, underneath the text — the badge+CTA header row
+              is desktop-only above, so this is mobile's only CTA. */}
+          <a
+            href={href}
+            onClick={e => e.stopPropagation()}
+            className="md:hidden mt-2 self-start font-black uppercase tracking-widest transition-all active:scale-95 inline-flex items-center gap-1"
+            style={{ color: ctaColor, fontSize: "10px" }}
+          >
+            {ctaLabel} <span aria-hidden="true">→</span>
+          </a>
         </div>
-        <div className="relative flex-1 h-full flex items-center justify-center min-w-0 md:hidden" style={{ maxWidth: 170 }}>
+        <div className="relative w-[38%] shrink-0 h-full flex items-center justify-center min-w-0 md:hidden">
           {visual}
         </div>
       </div>

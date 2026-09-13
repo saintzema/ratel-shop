@@ -25,7 +25,7 @@ interface Spot {
     seller?: { businessName?: string; phoneNumber?: string | null; whatsappNumber?: string | null };
 }
 
-const SPOT_TABS = ["All", "Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre"];
+const SPOT_TABS = ["All", "Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre", "Gym & Fitness", "Supermarket"];
 
 /**
  * A local-discovery surface, not a shop — "where to get the best nkwobi in

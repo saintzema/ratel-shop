@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserFromRequest } from "@/lib/jwt";
-import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference, getPayoutHitlThreshold } from "@/lib/payout-transfer";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout, verifyPaystackReference, getPayoutHitlThreshold, attemptInstantSellerPayout } from "@/lib/payout-transfer";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { ADMIN_EMAILS } from "@/lib/constants";
@@ -193,6 +193,26 @@ export async function POST(request: Request) {
                         }),
                     }).catch(() => {});
                 }
+            }
+        } else {
+            // At/below the threshold — this is the "as fast as possible" path:
+            // attempt the real Paystack transfer right now instead of leaving
+            // the payout sitting in "processing" for an admin to notice and
+            // approve later. Same verification as the admin-approval path
+            // (a real, verified Paystack charge must back this payout), so a
+            // payout this can't safely auto-clear (no verifiable reference,
+            // Paystack not configured, etc.) just falls back to the existing
+            // manual-review queue exactly as before — never worse than today.
+            const instant = await attemptInstantSellerPayout(payout.id);
+            if (instant.attempted && instant.success) {
+                const updated = await db.payout.findUnique({ where: { id: payout.id } });
+                return NextResponse.json({ success: true, payout: updated, instant: true });
+            }
+            if (instant.attempted) {
+                await notifyAdmins(
+                    `⚠️ Instant payout failed for ${sellerRecord?.businessName || seller_id} (₦${amount.toLocaleString()}): ${instant.message}. Needs manual review.`,
+                    { type: "system", link: "/admin/payouts" }
+                ).catch(() => {});
             }
         }
 

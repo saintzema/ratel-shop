@@ -51,6 +51,17 @@ const FEATURE_BANNER_COMPONENTS: Record<string, React.ComponentType> = {
   "ai-quote": AiQuoteHeroBanner,
 };
 
+// Mirrors each FeatureHeroShell's own `href` prop — kept alongside the
+// component map so tap-to-navigate (see onTap below) can resolve a
+// destination without importing anything from inside HeroBanners.tsx.
+const FEATURE_BANNER_HREFS: Record<string, string> = {
+  ride: "/ride",
+  delivery: "/send-package",
+  experts: "/services",
+  "social-multipost": "/seller/social",
+  "ai-quote": "/seller/quotes/new",
+};
+
 const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
   "flash-deals":  FlashDealsBanner,
   "new-arrivals": NewArrivalsBanner,
@@ -497,8 +508,18 @@ function HomeContent() {
                 
                 <div
                   className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-[#0a0f1e]"
-                  onMouseEnter={() => setHeroSliderPaused(true)}
-                  onMouseLeave={() => setHeroSliderPaused(false)}
+                  // Was onMouseEnter/onMouseLeave — on a touch device (incl. the
+                  // iOS/Android WebView this ships in) a tap can fire a synthetic
+                  // mouseenter with no matching mouseleave, so the very first tap
+                  // paused the slider and it never auto-resumed ("just keeps
+                  // pausing"). Gate to real mouse pointers, and use touch's own
+                  // start/end so a tap only pauses briefly, matching the pattern
+                  // already used for the scroller rows below.
+                  onPointerEnter={(e) => { if (e.pointerType === "mouse") setHeroSliderPaused(true); }}
+                  onPointerLeave={(e) => { if (e.pointerType === "mouse") setHeroSliderPaused(false); }}
+                  onTouchStart={() => setHeroSliderPaused(true)}
+                  onTouchEnd={() => setTimeout(() => setHeroSliderPaused(false), 3000)}
+                  onTouchCancel={() => setTimeout(() => setHeroSliderPaused(false), 3000)}
                 >
                   <div className="absolute inset-0">
                     <AnimatePresence initial={false}>
@@ -531,6 +552,26 @@ function HomeContent() {
                           } else if (info.offset.x > threshold) {
                             setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
                           }
+                        }}
+                        // The slide has its own full-cover <a href> (see
+                        // FeatureHeroShell), but framer-motion's own drag gesture
+                        // recognizer sits on top of it and can eat a tap's click
+                        // event on touch — a tap silently did nothing. onTap is
+                        // framer's own tap detector (fires only when no drag
+                        // threshold was crossed) so it's reliable where the
+                        // anchor's click wasn't. Bail out for anything that's
+                        // already its own control (Dashboard/Price Checker AI,
+                        // the arrow, the dots, this slide's own CTA link) so
+                        // tapping THOSE keeps doing exactly what they already do.
+                        onTap={(e) => {
+                          const target = e.target as HTMLElement;
+                          if (target.closest("button") || target.closest("a")) return;
+                          const current = banners[currentBannerIndex];
+                          if (!current) return;
+                          const href = current.type === "component"
+                            ? (current.componentId === "zema360" ? "/zema360" : FEATURE_BANNER_HREFS[current.componentId])
+                            : (current.link || current.link_url || current.href);
+                          if (href) router.push(href);
                         }}
                       >
                         {banners[currentBannerIndex]?.type === "component" ? (

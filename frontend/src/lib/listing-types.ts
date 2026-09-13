@@ -153,7 +153,7 @@ const SPOT: ListingTypeConfig = {
     // showing up in person, so the primary CTA is directions, not a cart.
     commerce: { cart: false, escrow: false, stock: false, primaryCta: "Get Directions", priceOptional: true },
     fields: [
-        { key: "spot_type", label: "Spot type", type: "select", options: ["Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre", "Other"], required: true, facet: true },
+        { key: "spot_type", label: "Spot type", type: "select", options: ["Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre", "Gym & Fitness", "Supermarket", "Other"], required: true, facet: true },
         // Not every real spot has a pin yet — a hiking trail or a new chill
         // spot easily doesn't — so this can't be required the way an
         // address is for a shop with a fixed storefront.
