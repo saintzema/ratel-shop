@@ -13,6 +13,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             trustScore: true,
             createdAt: true,
             subscriptionPlan: true,
+            // Public contact info for spot/service listings — already exposed
+            // the same way by the list endpoint (/api/products), which is
+            // what the Discover board's Call button has always relied on;
+            // this single-product route just didn't select it yet.
+            phoneNumber: true,
+            whatsappNumber: true,
         } as const;
 
         let product = await db.product.findUnique({

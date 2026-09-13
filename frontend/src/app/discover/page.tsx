@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MapPin, Star, Phone, Navigation2, PlayCircle, Compass, ChevronDown } from "lucide-react";
+import { MapPin, Star, Phone, Navigation2, PlayCircle, Compass, ChevronDown, Camera } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useLocation } from "@/context/LocationContext";
@@ -135,16 +135,35 @@ export default function DiscoverPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {filtered.map(spot => (
-                            <div key={spot.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                        {filtered.map(spot => {
+                            const gallery = (spot.images && spot.images.length > 0) ? spot.images : [spot.image_url].filter(Boolean);
+                            const strip = gallery.slice(0, 3);
+                            return (
+                            <Link key={spot.id} href={`/discover/${spot.id}`} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
                                 <div className="relative aspect-[4/3] bg-gray-100">
-                                    <img src={spot.image_url || "/assets/images/placeholder.png"} alt={spot.name} className="w-full h-full object-cover" />
+                                    {/* A single hero shot reads as one photo of the place; a
+                                        peek of 2-3 (TripAdvisor's card pattern) signals there's
+                                        a real gallery to browse before you even tap in. */}
+                                    {strip.length > 1 ? (
+                                        <div className="grid h-full gap-px" style={{ gridTemplateColumns: strip.map(() => "1fr").join(" ") }}>
+                                            {strip.map((img, i) => (
+                                                <img key={i} src={img || "/assets/images/placeholder.png"} alt={spot.name} className="w-full h-full object-cover" />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <img src={spot.image_url || "/assets/images/placeholder.png"} alt={spot.name} className="w-full h-full object-cover" />
+                                    )}
+                                    {gallery.length > 1 && (
+                                        <span className="absolute bottom-3 right-3 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 backdrop-blur-sm">
+                                            <Camera className="h-3 w-3" /> {gallery.length}
+                                        </span>
+                                    )}
                                     {spot.is_sponsored && (
                                         <span className="absolute top-3 left-3 bg-brand-orange text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">Featured</span>
                                     )}
                                     {spot.specs?.video_url && (
                                         <button
-                                            onClick={() => setVideoOpen(spot.specs!.video_url)}
+                                            onClick={(e) => { e.preventDefault(); setVideoOpen(spot.specs!.video_url); }}
                                             className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors"
                                         >
                                             <PlayCircle className="h-12 w-12 text-white drop-shadow-lg" />
@@ -174,14 +193,14 @@ export default function DiscoverPage() {
 
                                     <div className="flex gap-2 mt-auto pt-4">
                                         <button
-                                            onClick={() => directions(spot)}
+                                            onClick={(e) => { e.preventDefault(); directions(spot); }}
                                             disabled={!spot.specs?.maps_url}
                                             className="flex-1 h-10 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black flex items-center justify-center gap-1.5"
                                         >
                                             <Navigation2 className="h-3.5 w-3.5" /> Directions
                                         </button>
                                         <button
-                                            onClick={() => callSpot(spot)}
+                                            onClick={(e) => { e.preventDefault(); callSpot(spot); }}
                                             disabled={!spot.seller?.phoneNumber && !spot.seller?.whatsappNumber}
                                             className="h-10 w-10 rounded-xl border border-gray-200 disabled:opacity-30 flex items-center justify-center text-gray-700"
                                         >
@@ -189,8 +208,8 @@ export default function DiscoverPage() {
                                         </button>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            </Link>
+                        );})}
                     </div>
                 )}
             </div>
