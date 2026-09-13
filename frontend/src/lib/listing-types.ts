@@ -40,6 +40,10 @@ export interface ListingTypeConfig {
     icon: string;
     /** What the seller is doing — "List a property", "Post a job". */
     createVerb: string;
+    /** What the main name/title field is called for this type. */
+    nameLabel: string;
+    /** Placeholder for that field — a real example in this type's own vocabulary. */
+    namePlaceholder: string;
     /** Can a buyer add this to the cart and check out? */
     commerce: {
         cart: boolean;
@@ -64,6 +68,8 @@ const PRODUCT: ListingTypeConfig = {
     labelPlural: "Products",
     icon: "📦",
     createVerb: "List a product",
+    nameLabel: "Product Name",
+    namePlaceholder: "e.g. iPhone 15 Pro Max",
     commerce: { cart: true, escrow: true, stock: true, primaryCta: "Add to Cart" },
     fields: [],
 };
@@ -74,6 +80,8 @@ const PROPERTY: ListingTypeConfig = {
     labelPlural: "Property",
     icon: "🏠",
     createVerb: "List a property",
+    nameLabel: "Property Title",
+    namePlaceholder: "e.g. 3 Bedroom Flat, Lekki Phase 1",
     // Nobody puts a three-bedroom flat in a shopping cart. The buyer contacts the
     // agent; escrow applies to a deposit later, not to the listing itself.
     commerce: { cart: false, escrow: false, stock: false, primaryCta: "Contact Agent" },
@@ -97,6 +105,8 @@ const JOB: ListingTypeConfig = {
     labelPlural: "Jobs",
     icon: "💼",
     createVerb: "Post a job",
+    nameLabel: "Job Title",
+    namePlaceholder: "e.g. Senior Accountant",
     // A vacancy is not a purchase. The price field, when present, is the salary.
     commerce: { cart: false, escrow: false, stock: false, primaryCta: "Apply Now", priceSuffix: "salary", priceOptional: true },
     fields: [
@@ -116,6 +126,8 @@ const SERVICE: ListingTypeConfig = {
     labelPlural: "Services",
     icon: "🛠️",
     createVerb: "Offer a service",
+    nameLabel: "Service Name",
+    namePlaceholder: "e.g. Web Designer, Mechanic, Makeup Artist",
     // Services CAN be paid for through the platform (that is the quotes/invoices
     // flow), but they are not carted like stock, and there is no inventory.
     commerce: { cart: false, escrow: true, stock: false, primaryCta: "Request a Quote", priceSuffix: "from" },
@@ -135,12 +147,17 @@ const SPOT: ListingTypeConfig = {
     labelPlural: "Discover Spots",
     icon: "📍",
     createVerb: "List a spot",
+    nameLabel: "Spot Name",
+    namePlaceholder: "e.g. Sunset Chill Spot, Lekki",
     // Discover isn't a purchase flow at all — the destination action is
     // showing up in person, so the primary CTA is directions, not a cart.
     commerce: { cart: false, escrow: false, stock: false, primaryCta: "Get Directions", priceOptional: true },
     fields: [
         { key: "spot_type", label: "Spot type", type: "select", options: ["Food & Dining", "Chill Spot", "Nightlife", "Activity", "Hiking & Outdoor", "Sip & Paint", "Event Centre", "Other"], required: true, facet: true },
-        { key: "maps_url", label: "Google Maps link", type: "text", placeholder: "Paste the Google Maps share link", required: true },
+        // Not every real spot has a pin yet — a hiking trail or a new chill
+        // spot easily doesn't — so this can't be required the way an
+        // address is for a shop with a fixed storefront.
+        { key: "maps_url", label: "Google Maps link (optional)", type: "text", placeholder: "Paste the Google Maps share link, if you have one" },
         { key: "video_url", label: "Video URL (optional)", type: "text", placeholder: "A short video walkthrough, if you have one" },
         { key: "price_hint", label: "What ₦ roughly covers", type: "text", placeholder: "e.g. Average spend per person" },
         { key: "opening_hours", label: "Opening hours", type: "text", placeholder: "e.g. Mon–Sun, 10am–10pm" },

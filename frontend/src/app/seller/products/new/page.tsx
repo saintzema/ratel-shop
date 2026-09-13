@@ -859,9 +859,9 @@ function NewProductContent() {
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Product Name</label>
+                                    <label className="text-sm font-medium text-gray-700">{getListingConfig(formData.listing_type).nameLabel}</label>
                                     <Input
-                                        placeholder="e.g. iPhone 15 Pro Max"
+                                        placeholder={getListingConfig(formData.listing_type).namePlaceholder}
                                         className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
                                         value={formData.name}
                                         onChange={(e) => handleChange("name", e.target.value)}
@@ -879,7 +879,15 @@ function NewProductContent() {
                                 </div>
                                 {/* Searchable category picker. A plain <select> meant scrolling
                                     a long list on a phone to find "Generators" — typing to filter
-                                    is how Jiji (and every marketplace worth copying) does it. */}
+                                    is how Jiji (and every marketplace worth copying) does it.
+                                    Product-only: property/job/service/spot already have their
+                                    OWN type-specific categorization (property_type, job_field,
+                                    service_type, spot_type below) — the generic product taxonomy
+                                    (and its category-specific attrs like Condition/RAM/Brand,
+                                    rendered further down) has no meaning for a job posting or a
+                                    hiking spot and was showing regardless. */}
+                                {formData.listing_type === "product" && (
+                                <>
                                 <div className="space-y-2 relative">
                                     <label className="text-sm font-medium text-gray-700">Category</label>
                                     <div className="relative">
@@ -946,6 +954,8 @@ function NewProductContent() {
                                         />
                                     )}
                                 </div>
+                                </>
+                                )}
                                 {/* Per-listing location. Falls back to the seller's profile
                                     location when left blank, so this is additive — a seller
                                     with stock in more than one city can finally say which. */}
@@ -1039,6 +1049,7 @@ function NewProductContent() {
                                         onChange={(tags) => handleChange("tags", tags)}
                                     />
                                 </div>
+                                {formData.listing_type === "product" && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
                                     <Input
@@ -1054,6 +1065,7 @@ function NewProductContent() {
                                         ))}
                                     </datalist>
                                 </div>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-gray-700">Description</label>
@@ -1229,7 +1241,12 @@ function NewProductContent() {
                             attribute keys the search filters already match against, so
                             filling them in is what makes this listing show up when a
                             buyer narrows to e.g. Electric + Automatic. */}
-                        {categoryFilterGroups.length > 0 && (
+                        {/* getFiltersForCategory("") falls back to GENERIC_FILTERS (Brand,
+                            Condition, ...) rather than an empty list — exactly wrong once a
+                            job/service/property/spot listing has no product category at all,
+                            which is why "Condition: New/Used/Refurbished" was showing under a
+                            Discover Spot or a job post. Product-only. */}
+                        {formData.listing_type === "product" && categoryFilterGroups.length > 0 && (
                             <div className="mb-8 pb-8 border-b border-gray-100">
                                 <div className="flex items-center gap-2 mb-1">
                                     <h3 className="text-sm font-bold text-gray-900">{categoryLabel(formData.category)} details</h3>
