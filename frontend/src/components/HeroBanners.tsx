@@ -795,30 +795,45 @@ function FeatureHeroShell({
   return (
     <div className="absolute inset-0 overflow-hidden select-none" style={{ background: gradient }}>
       <a href={href} className="absolute inset-0" style={{ zIndex: 6 }} aria-label={ctaLabel} />
-      <div className="absolute inset-0 flex items-center justify-between px-5 md:px-10 gap-3" style={{ zIndex: 7 }}>
-        <div className="flex flex-col justify-center min-w-0 max-w-[58%] md:max-w-[50%]">
-          <span
-            className="self-start text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 md:px-3 py-0.5 border whitespace-nowrap mb-2 md:mb-3"
-            style={{ color: badgeColor, borderColor: `${badgeColor}66`, background: `${badgeColor}14` }}
-          >
-            {badge}
-          </span>
-          <h2 className="text-white font-black leading-tight tracking-tight mb-1.5" style={{ fontSize: "clamp(1.15rem,3.2vw,2rem)" }}>
+      {/* This page docks a persistent DASHBOARD / PRICE CHECKER AI button
+          pair on top of every slide — vertically centered around md:right-44
+          on desktop, a full-width row pinned to the bottom on mobile. On
+          desktop that pair sits roughly in the container's right 40%, wide
+          enough that no percentage-based content width reliably clears it
+          across viewport sizes — so on desktop this content is capped to a
+          real, measured pixel width on the left instead, and the visual
+          (which has nowhere left to go once that's capped) is mobile-only,
+          where the buttons are a bottom bar instead and the whole vertical
+          center is free. */}
+      <div className="absolute inset-0 flex items-center px-5 md:pl-8 gap-3" style={{ zIndex: 7 }}>
+        <div className="flex flex-col justify-center min-w-0 w-full md:max-w-[200px]">
+          {/* Badge + this slide's own CTA share the top row, clear of the
+              bottom/center DASHBOARD overlay entirely — that overlay used to
+              sit directly on top of this button before. */}
+          <div className="flex items-center justify-between gap-2 mb-2 md:mb-3">
+            <span
+              className="text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-full px-2.5 md:px-3 py-0.5 border whitespace-nowrap"
+              style={{ color: badgeColor, borderColor: `${badgeColor}66`, background: `${badgeColor}14` }}
+            >
+              {badge}
+            </span>
+            <a
+              href={href}
+              onClick={e => e.stopPropagation()}
+              className="font-black uppercase tracking-widest transition-all active:scale-95 hover:opacity-80 inline-flex items-center gap-1 shrink-0"
+              style={{ color: ctaColor, fontSize: "clamp(8px,1.1vw,12px)" }}
+            >
+              {ctaLabel} <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          <h2 className="text-white font-black leading-tight tracking-tight mb-1.5 max-w-[65%] md:max-w-full" style={{ fontSize: "clamp(1.1rem,3vw,1.7rem)" }}>
             {title}
           </h2>
-          <p className="text-gray-300 font-medium leading-snug mb-3 md:mb-4" style={{ fontSize: "clamp(9px,1.3vw,13px)", maxWidth: "30ch" }}>
+          <p className="text-gray-300 font-medium leading-snug" style={{ fontSize: "clamp(9px,1.2vw,12px)", maxWidth: "28ch" }}>
             {subtitle}
           </p>
-          <a
-            href={href}
-            onClick={e => e.stopPropagation()}
-            className="self-start font-black uppercase tracking-widest transition-all active:scale-95 hover:opacity-80 inline-flex items-center gap-1.5"
-            style={{ color: ctaColor, fontSize: "clamp(9px,1.2vw,13px)" }}
-          >
-            {ctaLabel} <span aria-hidden="true">→</span>
-          </a>
         </div>
-        <div className="relative flex-1 h-full flex items-center justify-center max-w-[42%]">
+        <div className="relative flex-1 h-full flex items-center justify-center min-w-0 md:hidden" style={{ maxWidth: 170 }}>
           {visual}
         </div>
       </div>

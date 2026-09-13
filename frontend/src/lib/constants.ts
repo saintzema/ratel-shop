@@ -160,6 +160,35 @@ export const CATEGORY_CARDS_ROW_3: CategoryCard[] = [
   },
 ];
 
+// The animated, code-defined hero slides available for the homepage
+// carousel (see components/HeroBanners.tsx) — shown by an admin picking
+// "Feature Slide" as a banner type in /admin/content/banners rather than
+// pasting an image. ZEMA360 is deliberately excluded here: it's always
+// prepended by the homepage itself and isn't manageable as a regular slide.
+export const FEATURE_SLIDE_OPTIONS: { componentId: string; label: string; defaultTitle: string }[] = [
+    { componentId: "ride", label: "Book a Ride", defaultTitle: "Book a Ride" },
+    { componentId: "delivery", label: "Send a Package", defaultTitle: "Send a Package" },
+    { componentId: "experts", label: "Hire an Expert", defaultTitle: "Hire an Expert" },
+    { componentId: "social-multipost", label: "Social Multi-Post", defaultTitle: "Social Multi-Post" },
+    { componentId: "ai-quote", label: "AI Quote", defaultTitle: "AI Quote" },
+];
+
+// Default banner rotation when the admin hasn't saved a custom list yet —
+// replaces what used to be two generic Unsplash stock photos ("Mega Sale",
+// "New Arrivals") that had nothing to do with this app. Kept here, not
+// duplicated between the homepage and the admin management page, so both
+// always agree on what "the current default" actually is.
+export const DEFAULT_HOMEPAGE_BANNERS = FEATURE_SLIDE_OPTIONS.map(f => ({
+    id: `__${f.componentId}`,
+    title: f.defaultTitle,
+    subtitle: "",
+    type: "component" as const,
+    componentId: f.componentId,
+    image_url: "",
+    link: "",
+    active: true,
+}));
+
 export const DEFAULT_AD_SLOTS = [
     { id: 'ad1', title: 'Flash Deals',   img: '', link: '/deals',              componentId: 'flash-deals'   },
     { id: 'ad2', title: 'New Arrivals',  img: '', link: '/category/new',       componentId: 'new-arrivals'  },

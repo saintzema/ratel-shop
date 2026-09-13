@@ -21,6 +21,13 @@ export function PwaManager() {
         // the app they were currently using, and eating screen space at the top.
         if (Capacitor.isNativePlatform()) {
             setShowInstallBanner(false);
+            // See globals.css `html.cap-ios body` — WKWebView's own
+            // contentInset:"automatic" already clears the notch/status bar on
+            // iOS specifically, so the CSS safe-area-inset-top padding must
+            // be skipped there or the page gets shifted down twice.
+            if (Capacitor.getPlatform() === "ios") {
+                document.documentElement.classList.add("cap-ios");
+            }
             return;
         }
 

@@ -414,6 +414,18 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* iOS's own WKWebView already shifts the whole page below the status bar/
+   notch — capacitor.config.ts sets ios.contentInset: "automatic" for
+   exactly that. Also applying env(safe-area-inset-top) here on TOP of that
+   double-inset the page, which is why there was a chunk of dead space above
+   the quick-action buttons ONLY inside the native iOS app, not on mobile web
+   (no WKWebView contentInset there) and not on Android (no contentInset
+   concept — it genuinely needs this CSS inset). See layout.tsx for where
+   `cap-ios` gets added, exactly once, at runtime via Capacitor.getPlatform(). */
+html.cap-ios body {
+  padding-top: 0;
+}
+
 /* Remove default focus rings from inputs that appear on mobile taps */
 textarea:focus,
 select:focus {

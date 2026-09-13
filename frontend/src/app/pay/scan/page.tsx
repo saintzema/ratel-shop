@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import jsQR from "jsqr";
-import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera, ImageIcon, Wallet, Loader2 } from "lucide-react";
+import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera, ImageIcon, Wallet, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nativeBridge } from "@/lib/native-bridge";
 import { playDingSound } from "@/lib/audio";
@@ -279,6 +279,17 @@ export default function ScanToPayPage() {
                         <QrCode className="h-4 w-4 text-brand-green-400" /> Scan to Pay
                     </h1>
                 </div>
+                {/* A dedicated close, not just Back — this is a full-screen camera
+                    takeover, the kind of surface people expect an X to dismiss
+                    outright. Goes straight to "/" rather than history.back() so
+                    it can never land back on this same page's transient states. */}
+                <button
+                    onClick={() => router.push("/")}
+                    aria-label="Close"
+                    className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                >
+                    <X className="h-5 w-5" />
+                </button>
             </div>
 
             <div className="relative flex-1 overflow-hidden">
@@ -295,6 +306,16 @@ export default function ScanToPayPage() {
                         <Button onClick={startCamera} className="bg-brand-green-500 hover:bg-brand-green-600 text-black font-bold rounded-full px-8 h-12 mt-2">
                             Enable Camera
                         </Button>
+                        {/* Already have the code as a screenshot — this needs no
+                            camera permission at all, so lead with it as the
+                            reliable fallback rather than a button someone
+                            only discovers after the camera has already failed them. */}
+                        <button
+                            onClick={() => albumInputRef.current?.click()}
+                            className="text-white/70 text-xs font-bold underline underline-offset-2 mt-1"
+                        >
+                            Or pick a screenshot from your Album instead
+                        </button>
                     </div>
                 )}
 
@@ -369,7 +390,12 @@ export default function ScanToPayPage() {
                     one-tap shortcut to a seller's OWN receiving QR for when they'd
                     rather show a code than scan one. */}
                 {!result && (
-                    <div className="absolute bottom-6 inset-x-0 flex items-center justify-center gap-16 px-8">
+                    // bottom-24, not bottom-6 — the app's own bottom tab bar
+                    // (Home/Categories/Sell/Messages/Global) is a separate,
+                    // globally-fixed element that sits on top of every page
+                    // including this full-screen one, and was covering these
+                    // buttons enough that Album/Torch were barely tappable.
+                    <div className="absolute bottom-24 inset-x-0 flex items-center justify-center gap-16 px-8">
                         {isSeller ? (
                             <button
                                 onClick={() => router.push("/seller/dashboard/payments")}
@@ -414,7 +440,7 @@ export default function ScanToPayPage() {
                 )}
 
                 {albumError && !result && (
-                    <p className="absolute bottom-28 inset-x-0 text-center text-amber-300 text-xs font-semibold px-8">{albumError}</p>
+                    <p className="absolute bottom-44 inset-x-0 text-center text-amber-300 text-xs font-semibold px-8">{albumError}</p>
                 )}
             </div>
         </div>

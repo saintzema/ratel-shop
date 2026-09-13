@@ -27,7 +27,8 @@ import { CategoryPanel } from "@/components/ui/CategoryPanel";
 import {
   CATEGORY_CARDS_ROW_1,
   CategoryCard,
-  DEFAULT_AD_SLOTS
+  DEFAULT_AD_SLOTS,
+  DEFAULT_HOMEPAGE_BANNERS
 } from "@/lib/constants";
 import {
   Zema360HeroBanner,
@@ -49,19 +50,6 @@ const FEATURE_BANNER_COMPONENTS: Record<string, React.ComponentType> = {
   "social-multipost": SocialMultiPostHeroBanner,
   "ai-quote": AiQuoteHeroBanner,
 };
-
-// Code-defined feature promos — shown whenever the admin hasn't configured
-// their own sale banners, replacing what used to be two generic Unsplash
-// stock photos ("Mega Sale", "New Arrivals") that had nothing to do with
-// this app. Real, on-brand, animated slides for the features actually built
-// this year, in the same family as the ZEMA360 slide.
-const FEATURE_BANNERS = [
-  { id: "__ride", title: "Book a Ride", type: "component", componentId: "ride", image_url: "", active: true },
-  { id: "__delivery", title: "Send a Package", type: "component", componentId: "delivery", image_url: "", active: true },
-  { id: "__experts", title: "Hire an Expert", type: "component", componentId: "experts", image_url: "", active: true },
-  { id: "__social", title: "Social Multi-Post", type: "component", componentId: "social-multipost", image_url: "", active: true },
-  { id: "__aiquote", title: "AI Quote", type: "component", componentId: "ai-quote", image_url: "", active: true },
-];
 
 const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
   "flash-deals":  FlashDealsBanner,
@@ -95,7 +83,22 @@ function HomeContent() {
   // property failed to re-resolve for those elements, leaving them on the
   // hardcoded fallback (see use-header-offset.ts).
   const headerOffset = useHeaderOffset();
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  // Lazily seeded from the local cache on the very FIRST render, not an
+  // empty array waiting for an effect. This page remounts every time
+  // client-side navigation brings someone back to "/" — and in the native
+  // iOS/Android shell specifically, returning from certain routes (the QR
+  // scanner among them) can force a genuine fresh mount rather than the
+  // Router Cache reusing the old instance. On that fresh mount, `prev` in
+  // the layout effect's "never clobber good data with empty" guard below
+  // starts back at [] too — it protects against a bad read WITHIN one
+  // mounted instance, not across a remount. Reading the cache synchronously
+  // right here means the very first paint already has the last-known-good
+  // catalogue regardless of why the remount happened, instead of a blank
+  // shelf that a slow or failed re-fetch might never fill back in.
+  const [allProducts, setAllProducts] = useState<Product[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return DataSyncService.getApprovedProducts().filter(p => p.is_active); } catch { return []; }
+  });
   // True while the first real catalogue fetch is in flight, so the page shows
   // skeletons instead of empty shelves.
   const [productsLoading, setProductsLoading] = useState(false);
@@ -221,7 +224,7 @@ function HomeContent() {
         const savedBanners = localStorage.getItem("ratel_homepage_banners");
         const imageBanners = savedBanners
           ? JSON.parse(savedBanners).filter((b: any) => b.active)
-          : FEATURE_BANNERS;
+          : DEFAULT_HOMEPAGE_BANNERS;
         setBanners([ZEMA360_BANNER, ...imageBanners]);
       } catch(e) {
         setBanners([ZEMA360_BANNER]);
@@ -493,10 +496,9 @@ function HomeContent() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
                 <div
-                  className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200"
+                  className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-[#0a0f1e]"
                   onMouseEnter={() => setHeroSliderPaused(true)}
                   onMouseLeave={() => setHeroSliderPaused(false)}
-                  onTouchStart={() => setHeroSliderPaused(p => !p)}
                 >
                   <div className="absolute inset-0">
                     <AnimatePresence initial={false}>
@@ -505,7 +507,13 @@ function HomeContent() {
                         initial={{ x: "100%" }}
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
-                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 } }}
+                        // A spring can overshoot before settling — during that
+                        // overshoot BOTH slides can momentarily clear their
+                        // resting positions at once, flashing this container's
+                        // own background through the gap. A fixed-duration
+                        // tween never overshoots, so the two slides stay
+                        // edge-to-edge the entire transition.
+                        transition={{ x: { type: "tween", duration: 0.45, ease: [0.4, 0, 0.2, 1] } }}
                         className="absolute inset-0 w-full h-full"
                         // Swipe to move between hero slides. Previously the only way
                         // to reach another banner was to wait out the 6s timer, so a
