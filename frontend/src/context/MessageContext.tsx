@@ -47,6 +47,16 @@ export interface Conversation {
     productId?: string;
     customerId?: string;
     negotiationId?: string;
+    /** Set when this thread is a REAL, DB-backed Conversation — order chat,
+     *  ride, delivery, or a service/property listing's buyer↔seller DM (see
+     *  /api/conversations/threads) — as opposed to the older, negotiation-
+     *  only local store above. Replying/hydrating routes through the real
+     *  API instead of the local negotiation helpers. */
+    dbConversationId?: string;
+    /** True once the full message history has been fetched — the list view
+     *  only ever needs the latest message for its preview, so full history
+     *  is fetched lazily the first time a thread is actually opened. */
+    hydrated?: boolean;
 }
 
 interface MessageContextType {
@@ -453,18 +463,115 @@ export function MessageProvider({ children }: { children: ReactNode }) {
              } catch (e) {}
         };
 
+        // ─── REAL, DB-backed conversations — order chat, ride, delivery, and
+        // service/property listing DMs (see /api/conversations/threads) —
+        // alongside the negotiation-only sync above. This is the same
+        // durable-thread table the desktop /seller/dashboard/messages "Trips"
+        // tab reads; that page has its own aggregation, but every OTHER
+        // surface (this mobile inbox, the badge count, the floating box)
+        // shares this one context, so it needs the same data here at the
+        // source rather than a second parallel implementation.
+        const typeLabel = (type?: string): string => {
+            switch (type) {
+                case "ride": return "Ride";
+                case "delivery": return "Delivery";
+                case "service": return "Service Request";
+                case "negotiation": return "Negotiation";
+                default: return "Order Chat";
+            }
+        };
+
+        const syncRealConversations = async () => {
+            if (typeof window === "undefined") return;
+            const userStr = localStorage.getItem("fp_user");
+            if (!userStr) return;
+            let myId: string | undefined;
+            try { myId = JSON.parse(userStr)?.id; } catch { return; }
+            if (!myId) return;
+
+            await DataSyncService.syncConversationsFromServer(true).catch(() => {});
+            const mySellerId = DataSyncService.getCurrentSellerId();
+            const serverConvs = DataSyncService.getConversations(myId).filter((c: any) => c._server);
+
+            setConversations(prev => {
+                let changed = false;
+                const next = [...prev];
+
+                for (const c of serverConvs) {
+                    const participants = Array.isArray(c.participants) ? c.participants : [];
+                    const [buyerId, sellerId] = participants;
+                    const iAmBuyer = buyerId === myId;
+                    const iAmSeller = (!!mySellerId && sellerId === mySellerId) || sellerId === myId;
+                    if (!iAmBuyer && !iAmSeller) continue;
+
+                    const viewerRole: "buyer" | "seller" = iAmSeller && !iAmBuyer ? "seller" : "buyer";
+                    const otherId = viewerRole === "seller" ? buyerId : sellerId;
+                    const orderId = `dbconv_${c.id}`;
+                    const lastMsgText: string = c.last_message || "";
+                    const lastMsgAt: string = c.last_message_at || new Date().toISOString();
+                    const unread: number = viewerRole === "seller" ? (c.unread_count?.[sellerId] || 0) : (c.unread_count?.[buyerId] || 0);
+
+                    const idx = next.findIndex(x => x.orderId === orderId);
+                    if (idx === -1) {
+                        next.push({
+                            id: `conv_db_${c.id}`,
+                            orderId,
+                            productName: c.product_name || typeLabel(c.context?.type),
+                            productImage: c.product_image,
+                            storeName: c.participant_names?.[otherId] || (viewerRole === "seller" ? "Buyer" : "Seller"),
+                            viewerRole,
+                            productId: c.context?.product_id,
+                            customerId: otherId,
+                            dbConversationId: c.id,
+                            hydrated: false,
+                            messages: lastMsgText ? [{
+                                id: `preview_${c.id}`,
+                                sender: "seller", // polarity unknown until opened — a safe default that just renders as "incoming" in the list preview
+                                text: lastMsgText,
+                                timestamp: lastMsgAt,
+                            }] : [],
+                            unreadCount: unread,
+                            lastUpdated: lastMsgAt,
+                        });
+                        changed = true;
+                    } else {
+                        const existing = next[idx];
+                        if (existing.lastUpdated !== lastMsgAt || existing.unreadCount !== unread) {
+                            next[idx] = {
+                                ...existing,
+                                lastUpdated: lastMsgAt,
+                                unreadCount: existing.hydrated && activeConversationId === existing.id && isMessageBoxOpen ? 0 : unread,
+                                // Never clobber a fully-hydrated message history with the
+                                // one-line list preview.
+                                messages: existing.hydrated
+                                    ? existing.messages
+                                    : (lastMsgText ? [{ id: `preview_${c.id}`, sender: "seller", text: lastMsgText, timestamp: lastMsgAt }] : existing.messages),
+                            };
+                            changed = true;
+                        }
+                    }
+                }
+                return changed ? next : prev;
+            });
+        };
+
         // Layer 1: Pull from Postgres (cross-device) & trigger sync.
         // visibleInterval pauses this entirely while the tab is backgrounded — no
         // /api/negotiations spend for idle tabs — and refreshes on re-focus.
         const stopPoll = visibleInterval(() => {
             DataSyncService.syncNegotiations();
             syncFromDataSyncService();
+            syncRealConversations();
         }, 12000);
+        // First paint shouldn't wait a full poll cycle for real threads.
+        syncRealConversations();
 
         // React to sync-store-update (e.g. triggered by SSE)
         window.addEventListener("sync-store-update", syncFromDataSyncService);
+        window.addEventListener("sync-store-update", syncRealConversations);
 
         return () => {
+            window.removeEventListener("sync-store-update", syncRealConversations);
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
             window.removeEventListener("sync-store-update", syncFromDataSyncService);
@@ -476,6 +583,39 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (mounted) saveConversations(conversations);
     }, [conversations, mounted]);
+
+    // Fetch the FULL message history for a real DB conversation the moment
+    // it's actually opened — the list view only ever needed the latest
+    // message for its preview, so there's no reason to pull every thread's
+    // full history on every poll tick, just the one someone is reading.
+    useEffect(() => {
+        if (!activeConversationId) return;
+        const conv = conversations.find(c => c.id === activeConversationId);
+        if (!conv || !conv.dbConversationId || conv.hydrated) return;
+
+        let cancelled = false;
+        (async () => {
+            const userStr = localStorage.getItem("fp_user");
+            let myId: string | undefined;
+            try { myId = userStr ? JSON.parse(userStr)?.id : undefined; } catch {}
+
+            await DataSyncService.syncThreadMessages(conv.dbConversationId!).catch(() => {});
+            if (cancelled) return;
+            const raw = DataSyncService.getChatMessages(conv.dbConversationId!);
+            const messages: ChatMessage[] = raw.map((m: any) => ({
+                id: m.id,
+                sender: (myId && m.sender_id === myId) ? "user" : "seller",
+                text: m.text,
+                timestamp: m.timestamp,
+                imageUrl: m.imageUrl,
+            }));
+
+            setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, messages, hydrated: true } : c));
+        })();
+
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeConversationId]);
 
     const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
@@ -494,20 +634,34 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 return { ...c, messages: [...c.messages, newMsg], lastUpdated: new Date().toISOString() };
             });
 
-            // Sync local floating chats to backend Postgres schema — a seller
-            // replying from their OWN inbox must land as a seller message on
-            // the exact negotiation the buyer sees, not the generic
-            // "first open negotiation for this product" the buyer-side event
-            // below resolves to (wrong when several buyers are negotiating
-            // the same listing at once).
-            if (typeof window !== "undefined" && conv.orderId.startsWith("neg_")) {
-                if (conv.viewerRole === "seller" && conv.negotiationId) {
-                    DataSyncService.addNegotiationMessage(conv.negotiationId, "seller", message.text, undefined, (message as any).replyTo);
-                } else {
-                    const productId = conv.productId || conv.orderId.replace("neg_", "");
-                    window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
-                        detail: { productId, text: message.text, replyTo: (message as any).replyTo }
-                    }));
+            if (typeof window !== "undefined") {
+                if (conv.dbConversationId) {
+                    // A real DB-backed thread (order chat, ride, delivery, a
+                    // service/property DM) — post straight to the same
+                    // endpoint the desktop Trips tab and RideChat use, so it's
+                    // one durable message history regardless of which screen
+                    // sent it, not a second local-only copy.
+                    const token = localStorage.getItem("fp_token");
+                    fetch("/api/conversations/threads", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({ conversationId: conv.dbConversationId, text: message.text }),
+                    }).catch(() => {});
+                } else if (conv.orderId.startsWith("neg_")) {
+                    // Sync local floating chats to backend Postgres schema — a seller
+                    // replying from their OWN inbox must land as a seller message on
+                    // the exact negotiation the buyer sees, not the generic
+                    // "first open negotiation for this product" the buyer-side event
+                    // below resolves to (wrong when several buyers are negotiating
+                    // the same listing at once).
+                    if (conv.viewerRole === "seller" && conv.negotiationId) {
+                        DataSyncService.addNegotiationMessage(conv.negotiationId, "seller", message.text, undefined, (message as any).replyTo);
+                    } else {
+                        const productId = conv.productId || conv.orderId.replace("neg_", "");
+                        window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
+                            detail: { productId, text: message.text, replyTo: (message as any).replyTo }
+                        }));
+                    }
                 }
             }
 
