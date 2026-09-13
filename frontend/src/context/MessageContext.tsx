@@ -38,6 +38,15 @@ export interface Conversation {
     messages: ChatMessage[];
     unreadCount: number;
     lastUpdated: string;
+    /** Which side of a negotiation the current viewer is on. Undefined means
+     *  "buyer" (the original, only-ever-supported case) for backward
+     *  compatibility with conversations already in localStorage. */
+    viewerRole?: "buyer" | "seller";
+    /** Set on seller-viewed negotiation threads, so replying and re-syncing
+     *  don't need to fragile-parse them back out of `orderId`. */
+    productId?: string;
+    customerId?: string;
+    negotiationId?: string;
 }
 
 interface MessageContextType {
@@ -174,38 +183,61 @@ export function MessageProvider({ children }: { children: ReactNode }) {
 
         // ─── AGGRESSIVE DUAL-LAYER SYNC LOOP ───
         // Extract Layer 2 logic into a reusable function for real-time reactivity
+        // "user" always means "me" in this UI (right-aligned bubble); "seller"
+        // always means "the other party" (left-aligned). Which real-world role
+        // that maps to flips depending on which side of the negotiation the
+        // viewer is actually on — a seller replying to a buyer's offer is
+        // still "user" in their OWN inbox.
+        const flipRole = (raw: string, customerId: string): "user" | "seller" =>
+            (raw === "seller" || (raw !== "buyer" && raw !== "user" && raw !== customerId)) ? "user" : "seller";
+
         const syncFromDataSyncService = () => {
              if (typeof window === "undefined") return;
              try {
                  const rawNegs = localStorage.getItem("fp_negotiations");
                  if (!rawNegs) return;
                  const negs: any[] = JSON.parse(rawNegs);
-                 
+                 const currentUserId = localStorage.getItem("fp_guest_name") || localStorage.getItem("fp_user_id") || "guest_session";
+                 const mySellerId = DataSyncService.getCurrentSellerId();
+
                  setConversations(prev => {
                      let changed = false;
                      let nextConvs = [...prev];
-                     
+
                      // 1. Auto-create missing negotiations (essential for cross-device/guest sync)
                      for (const neg of negs) {
-                         const orderId = `neg_${neg.product_id}`;
-                         // Ensure we only sync negotiations meant for the current user
-                         const currentUserId = typeof window !== "undefined" ? localStorage.getItem("fp_guest_name") || localStorage.getItem("fp_user_id") || "guest_session" : "";
-                         if (neg.customer_id !== currentUserId && neg.customer_id !== "guest_session") continue;
+                         const isMyPurchase = neg.customer_id === currentUserId || neg.customer_id === "guest_session";
+                         const isMySale = !!mySellerId && neg.seller_id === mySellerId;
+                         if (!isMyPurchase && !isMySale) continue;
+
+                         // A seller can have many buyers negotiating the SAME product —
+                         // `neg_<productId>` alone would collide them into one thread.
+                         // Keyed per-buyer only on the seller's side; the buyer's own
+                         // key is unchanged (a buyer only ever has one active
+                         // negotiation thread per product, so no collision there).
+                         const orderId = isMySale && !isMyPurchase ? `neg_${neg.product_id}_${neg.customer_id}` : `neg_${neg.product_id}`;
 
                          if (!nextConvs.some(c => c.orderId === orderId)) {
                              // Find product to enrich conversation UI
                              const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
                              const product = allProducts.find(p => p.id === neg.product_id);
-                             
+                             const viewerRole: "buyer" | "seller" = isMySale && !isMyPurchase ? "seller" : "buyer";
+
                              const newConv: Conversation = {
                                  id: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                                  orderId,
                                  productName: product?.name || "Negotiated Item",
                                  productImage: product?.image_url,
-                                 storeName: product?.seller_name || "Global Store",
+                                 storeName: viewerRole === "seller" ? (neg.customer_name || "Buyer") : (product?.seller_name || "Global Store"),
+                                 viewerRole,
+                                 productId: neg.product_id,
+                                 customerId: neg.customer_id,
+                                 negotiationId: neg.id,
                                  messages: Array.isArray(neg.chat_messages) ? neg.chat_messages.map((m: any) => ({
                                      id: `msg_sync_init_${Math.random()}`,
-                                     sender: m.sender || (m.sender_id === neg.customer_id ? "user" : "seller"),
+                                     sender: viewerRole === "seller"
+                                         ? flipRole(m.sender || (m.sender_id === neg.customer_id ? "buyer" : "seller"), neg.customer_id)
+                                         : (m.sender || (m.sender_id === neg.customer_id ? "user" : "seller")),
                                      text: m.text,
                                      timestamp: m.timestamp || new Date().toISOString(),
                                      negotiation: m.negotiation,
@@ -222,8 +254,56 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                      // 2. Diff and append new messages
                      const updated = nextConvs.map(conv => {
                          if (!conv.orderId?.startsWith("neg_")) return conv;
-                         const productId = conv.orderId.replace("neg_", "");
-                         
+                         const productId = conv.productId || conv.orderId.replace("neg_", "");
+
+                         // Seller-viewed threads: a much simpler sync than the buyer path
+                         // below — just mirror new chat_messages (role-flipped) and short
+                         // status notes, without the buyer-voiced copy ("Your offer...")
+                         // that would read backwards from a seller's own inbox.
+                         if (conv.viewerRole === "seller") {
+                             const neg = negs.find((n: any) => n.id === conv.negotiationId) ||
+                                 negs.find((n: any) => n.product_id === conv.productId && n.customer_id === conv.customerId);
+                             if (!neg) return conv;
+
+                             let newMessages = [...conv.messages];
+                             let hasNewMsg = false;
+
+                             if (Array.isArray(neg.chat_messages)) {
+                                 for (const chatMsg of neg.chat_messages) {
+                                     if (newMessages.some(m => m.text === chatMsg.text && m.timestamp === chatMsg.timestamp)) continue;
+                                     newMessages.push({
+                                         id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                         sender: flipRole(chatMsg.sender, neg.customer_id),
+                                         text: chatMsg.text,
+                                         timestamp: chatMsg.timestamp || new Date().toISOString(),
+                                         negotiation: chatMsg.negotiation,
+                                         readByRecipient: chatMsg.readByRecipient,
+                                     });
+                                     hasNewMsg = true;
+                                 }
+                             }
+
+                             const statusNote = (key: string, text: string) => {
+                                 if (newMessages.some(m => (m as any)._statusKey === key)) return;
+                                 newMessages.push({
+                                     id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                     sender: "seller", // the OTHER party's action, from the seller-viewer's own perspective — rendered as an incoming/system note
+                                     text,
+                                     timestamp: neg.updated_at || new Date().toISOString(),
+                                     negotiation: { type: key as any, productId: neg.product_id, counterPrice: neg.counter_price || neg.proposed_price, productName: conv.productName },
+                                     _statusKey: key,
+                                 } as any);
+                                 hasNewMsg = true;
+                             };
+                             if (neg.status === "accepted") statusNote("accepted", `You accepted the buyer's ₦${neg.proposed_price?.toLocaleString()} offer.`);
+                             if (neg.status === "rejected") statusNote("rejected", `You rejected the buyer's ₦${neg.proposed_price?.toLocaleString()} offer.`);
+                             if (neg.counter_price) statusNote(`countered_${neg.counter_price}`, `You countered with ₦${neg.counter_price.toLocaleString()}.`);
+
+                             if (!hasNewMsg) return conv;
+                             changed = true;
+                             return { ...conv, messages: newMessages, lastUpdated: new Date().toISOString(), unreadCount: conv.unreadCount + 1 };
+                         }
+
                          let patchedConv = conv;
                          // Retrospectively patch missing metadata for older conversations
                          if (!patchedConv.storeName || patchedConv.productName === "Negotiated Item" || !patchedConv.productImage) {
@@ -243,10 +323,10 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                          // Find ALL negotiations for this product
                          const relatedNegs = negs.filter((n: any) => n.product_id === productId);
                          if (relatedNegs.length === 0) return patchedConv;
-                         
+
                          let newMessages = [...patchedConv.messages];
                          let hasNewMsg = false;
-                         
+
                          for (const neg of relatedNegs) {
                              // Check for counter offers not yet in the conversation
                              if (neg.counter_price && !conv.messages.some(m => 
@@ -414,12 +494,21 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 return { ...c, messages: [...c.messages, newMsg], lastUpdated: new Date().toISOString() };
             });
 
-            // Dispatch event to DataSyncService to sync local floating chats to backend Postgres schema
+            // Sync local floating chats to backend Postgres schema — a seller
+            // replying from their OWN inbox must land as a seller message on
+            // the exact negotiation the buyer sees, not the generic
+            // "first open negotiation for this product" the buyer-side event
+            // below resolves to (wrong when several buyers are negotiating
+            // the same listing at once).
             if (typeof window !== "undefined" && conv.orderId.startsWith("neg_")) {
-                const productId = conv.orderId.replace("neg_", "");
-                window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
-                    detail: { productId, text: message.text, replyTo: (message as any).replyTo }
-                }));
+                if (conv.viewerRole === "seller" && conv.negotiationId) {
+                    DataSyncService.addNegotiationMessage(conv.negotiationId, "seller", message.text, undefined, (message as any).replyTo);
+                } else {
+                    const productId = conv.productId || conv.orderId.replace("neg_", "");
+                    window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
+                        detail: { productId, text: message.text, replyTo: (message as any).replyTo }
+                    }));
+                }
             }
 
             return updated;
