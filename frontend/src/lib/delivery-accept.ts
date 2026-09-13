@@ -16,7 +16,12 @@ export async function acceptDeliveryOffer(deliveryId: string, offerId: string) {
 
         const { count } = await tx.deliveryRequest.updateMany({
             where: { id: deliveryId, status: "searching" },
-            data: { status: "matched", courierId: offer.courierId, agreedFare: offer.offeredFare },
+            data: {
+                status: "matched",
+                courierId: offer.courierId,
+                agreedFare: offer.offeredFare,
+                pickupCode: String(Math.floor(1000 + Math.random() * 9000)),
+            },
         });
         if (count === 0) throw new Error("This delivery already has a courier");
 

@@ -1096,6 +1096,12 @@ model RideRequest {
   ratingComment    String?
   startedAt        DateTime?
   completedAt      DateTime?
+  // A 4-digit code shown to the rider once matched ("Ride Code: 1234", same
+  // as AMap/inDrive) — the rider reads out the digits the driver's app asks
+  // for (last two by default) before the driver can mark pickup, so a
+  // driver can't fat-finger "picked up" for the wrong passenger at a busy
+  // pickup point.
+  pickupCode       String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   rider            User          @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
@@ -1191,6 +1197,9 @@ model DeliveryRequest {
   ratingComment    String?
   pickedUpAt       DateTime?
   deliveredAt      DateTime?
+  // Same pickup-verification code as RideRequest.pickupCode — the sender
+  // reads it out to the courier before pickup is confirmed.
+  pickupCode       String?
   // In-app payment collection: the sender pays the agreed fare into escrow
   // via Paystack once matched (see /api/deliveries/[id]/pay), rather than
   // settling cash-in-hand like rides currently do. escrowStatus mirrors the

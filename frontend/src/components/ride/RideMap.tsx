@@ -40,13 +40,28 @@ function buildPlateIcon(google: any, plateNumber: string, vehicleColor?: string)
     };
 }
 
+const VEHICLE_COLOR_HEX: Record<string, string> = {
+    white: "#f4f4f5", silver: "#9ca3af", grey: "#6b7280", gray: "#6b7280",
+    black: "#1f2937", red: "#dc2626", blue: "#2563eb", green: "#16a34a",
+    yellow: "#eab308", gold: "#d4af37", orange: "#f97316", brown: "#78350f",
+    beige: "#d6c7a1", purple: "#7c3aed", maroon: "#7f1d1d",
+};
+/** The registered vehicle's real color, boldly rendered on the map instead of a fixed brand green — same "this is literally your car" read as the yellow taxi icon in the AMap reference screenshot. */
+function carColorHex(vehicleColor?: string): string {
+    if (!vehicleColor) return "#16a34a";
+    return VEHICLE_COLOR_HEX[vehicleColor.trim().toLowerCase()] || "#16a34a";
+}
+
 /** A small car glyph, rotated to face the direction of travel — reads as an actual approaching vehicle rather than a generic arrowhead. */
 function buildCarIcon(google: any, rotation: number, color: string) {
+    // A near-white/light car needs a dark outline to read against the map's
+    // own light basemap — a white stroke on a white car would be invisible.
+    const isLight = ["#f4f4f5", "#9ca3af", "#eab308", "#d6c7a1"].includes(color);
     return {
         path: "M -1.2 -2.6 L 1.2 -2.6 L 1.9 -0.6 L 1.9 2.2 L 1.3 2.2 L 1.3 1.6 L -1.3 1.6 L -1.3 2.2 L -1.9 2.2 L -1.9 -0.6 Z M -1.4 0 L -1.1 -1.8 L 1.1 -1.8 L 1.4 0 Z",
         fillColor: color,
         fillOpacity: 1,
-        strokeColor: "#fff",
+        strokeColor: isLight ? "#1f2937" : "#fff",
         strokeWeight: 1,
         scale: 7,
         anchor: new google.maps.Point(0, 0),
@@ -303,7 +318,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                 // as "which way this car/person is facing" rather than a spinning pin.
                 const isPrimarySide = trackRole === "driver" || trackRole === "courier";
                 const arrowIcon = (rotation: number) => isPrimarySide
-                    ? buildCarIcon(google, rotation, "#16a34a")
+                    ? buildCarIcon(google, rotation, carColorHex(vehicleColor))
                     : {
                         path: "M12,2 L19,21 L12,17 L5,21 Z",
                         fillColor: "#f97316",

@@ -408,6 +408,15 @@ export default function SendPackagePage() {
 
                                 {(delivery.status === "matched" || delivery.status === "picked_up") && delivery.courier && (
                                     <div className="space-y-3">
+                                        {delivery.status === "matched" && delivery.pickupCode && (
+                                            <div className="bg-gray-900 rounded-xl px-4 py-3 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Pickup Code</p>
+                                                    <p className="text-xl font-black text-white tracking-[0.2em]">{delivery.pickupCode}</p>
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 max-w-[160px] text-right">Read the last 2 digits to your courier when they arrive</p>
+                                            </div>
+                                        )}
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
                                                 <CheckCircle2 className="h-4 w-4" />

@@ -92,10 +92,22 @@ export default function DriveDashboardPage() {
     useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user]);
 
     const [actingOnTrip, setActingOnTrip] = useState<string | null>(null);
-    const runTripAction = async (rideId: string, action: "start" | "complete") => {
+    const [startCodeInputs, setStartCodeInputs] = useState<Record<string, string>>({});
+    const [startCodeErrors, setStartCodeErrors] = useState<Record<string, string>>({});
+    const runTripAction = async (rideId: string, action: "start" | "complete", code?: string) => {
         setActingOnTrip(rideId);
+        setStartCodeErrors(prev => ({ ...prev, [rideId]: "" }));
         try {
-            await fetch(`/api/rides/${rideId}/${action}`, { method: "POST", headers: authHeaders() });
+            const res = await fetch(`/api/rides/${rideId}/${action}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify(code ? { code } : {}),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => null);
+                setStartCodeErrors(prev => ({ ...prev, [rideId]: data?.error || "Couldn't start the trip" }));
+                return;
+            }
             load();
         } finally {
             setActingOnTrip(null);
@@ -220,16 +232,6 @@ export default function DriveDashboardPage() {
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <MaskedCallButton kind="ride" tripId={ride.id} label="Call Rider" />
-                                            {ride.status === "matched" && (
-                                                <Button
-                                                    size="sm"
-                                                    disabled={actingOnTrip === ride.id}
-                                                    onClick={() => runTripAction(ride.id, "start")}
-                                                    className="bg-brand-green-600 hover:bg-brand-green-700"
-                                                >
-                                                    Start Trip
-                                                </Button>
-                                            )}
                                             {ride.status === "in_progress" && (
                                                 <Button
                                                     size="sm"
@@ -242,6 +244,27 @@ export default function DriveDashboardPage() {
                                             )}
                                         </div>
                                     </div>
+                                    {ride.status === "matched" && (
+                                        <div className="bg-white rounded-xl p-3 flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-600 shrink-0">Ask rider for the last 2 digits of their code:</span>
+                                            <Input
+                                                value={startCodeInputs[ride.id] || ""}
+                                                onChange={e => setStartCodeInputs(prev => ({ ...prev, [ride.id]: e.target.value.replace(/\D/g, "").slice(0, 2) }))}
+                                                placeholder="00"
+                                                className="w-16 text-center font-black tracking-widest"
+                                                maxLength={2}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                disabled={actingOnTrip === ride.id || (startCodeInputs[ride.id] || "").length !== 2}
+                                                onClick={() => runTripAction(ride.id, "start", startCodeInputs[ride.id])}
+                                                className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0"
+                                            >
+                                                Start Trip
+                                            </Button>
+                                        </div>
+                                    )}
+                                    {startCodeErrors[ride.id] && <p className="text-xs text-rose-600 font-semibold px-1">{startCodeErrors[ride.id]}</p>}
                                     <ActiveRideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} />
                                     {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
                                 </div>

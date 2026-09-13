@@ -69,10 +69,22 @@ export default function DeliverDashboardPage() {
     useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user, operatingState]);
 
     const [actingOn, setActingOn] = useState<string | null>(null);
-    const runAction = async (deliveryId: string, action: "pickup" | "deliver") => {
+    const [pickupCodeInputs, setPickupCodeInputs] = useState<Record<string, string>>({});
+    const [pickupCodeErrors, setPickupCodeErrors] = useState<Record<string, string>>({});
+    const runAction = async (deliveryId: string, action: "pickup" | "deliver", code?: string) => {
         setActingOn(deliveryId);
+        setPickupCodeErrors(prev => ({ ...prev, [deliveryId]: "" }));
         try {
-            await fetch(`/api/deliveries/${deliveryId}/${action}`, { method: "POST", headers: authHeaders() });
+            const res = await fetch(`/api/deliveries/${deliveryId}/${action}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify(code ? { code } : {}),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => null);
+                setPickupCodeErrors(prev => ({ ...prev, [deliveryId]: data?.error || "Couldn't mark picked up" }));
+                return;
+            }
             load();
         } finally {
             setActingOn(null);
@@ -186,11 +198,6 @@ export default function DeliverDashboardPage() {
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             <MaskedCallButton kind="delivery" tripId={delivery.id} label="Call Sender" />
-                                            {delivery.status === "matched" && (
-                                                <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "pickup")} className="bg-brand-green-600 hover:bg-brand-green-700">
-                                                    Mark Picked Up
-                                                </Button>
-                                            )}
                                             {delivery.status === "picked_up" && (
                                                 <Button size="sm" disabled={actingOn === delivery.id} onClick={() => runAction(delivery.id, "deliver")} className="bg-brand-orange hover:bg-brand-orange/90">
                                                     Mark Delivered
@@ -198,6 +205,27 @@ export default function DeliverDashboardPage() {
                                             )}
                                         </div>
                                     </div>
+                                    {delivery.status === "matched" && (
+                                        <div className="bg-white rounded-xl p-3 flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-600 shrink-0">Ask sender for the last 2 digits of their code:</span>
+                                            <Input
+                                                value={pickupCodeInputs[delivery.id] || ""}
+                                                onChange={e => setPickupCodeInputs(prev => ({ ...prev, [delivery.id]: e.target.value.replace(/\D/g, "").slice(0, 2) }))}
+                                                placeholder="00"
+                                                className="w-16 text-center font-black tracking-widest"
+                                                maxLength={2}
+                                            />
+                                            <Button
+                                                size="sm"
+                                                disabled={actingOn === delivery.id || (pickupCodeInputs[delivery.id] || "").length !== 2}
+                                                onClick={() => runAction(delivery.id, "pickup", pickupCodeInputs[delivery.id])}
+                                                className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0"
+                                            >
+                                                Mark Picked Up
+                                            </Button>
+                                        </div>
+                                    )}
+                                    {pickupCodeErrors[delivery.id] && <p className="text-xs text-rose-600 font-semibold px-1">{pickupCodeErrors[delivery.id]}</p>}
                                     <ActiveDeliveryMap deliveryId={delivery.id} pickup={delivery.pickup} dropoff={delivery.dropoff} />
                                     {delivery.conversationId && <RideChat conversationId={delivery.conversationId} />}
                                 </div>

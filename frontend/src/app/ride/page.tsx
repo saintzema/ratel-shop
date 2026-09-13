@@ -505,6 +505,15 @@ export default function RidePage() {
 
                                 {(ride.status === "matched" || ride.status === "in_progress") && ride.driver && (
                                     <div className="space-y-3">
+                                        {ride.status === "matched" && ride.pickupCode && (
+                                            <div className="bg-gray-900 rounded-xl px-4 py-3 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ride Code</p>
+                                                    <p className="text-xl font-black text-white tracking-[0.2em]">{ride.pickupCode}</p>
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 max-w-[160px] text-right">Read the last 2 digits to your driver when they arrive</p>
+                                            </div>
+                                        )}
                                         <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
                                                 <CheckCircle2 className="h-4 w-4" />

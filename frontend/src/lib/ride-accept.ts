@@ -34,6 +34,11 @@ export async function acceptRideOffer(rideId: string, offerId: string) {
                 driverId: offer.driverId,
                 vehicleId: offer.vehicleId,
                 agreedFare: offer.offeredFare,
+                // A 4-digit pickup code, generated the moment a driver is
+                // actually assigned — same "Ride Code" AMap/inDrive show the
+                // rider, so a driver can't confirm pickup for the wrong
+                // passenger at a busy spot.
+                pickupCode: String(Math.floor(1000 + Math.random() * 9000)),
             },
         });
         if (count === 0) throw new Error("This ride already has a driver");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, Suspense } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
@@ -114,16 +114,22 @@ function SellerProductsContent() {
             // Fetch products for this specific seller from global sync store first for better consistency
             const all = DataSyncService.getProducts({ includeInactiveSellers: true });
             const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
-            // Never replace a populated list with an empty one.
+            // Never let a re-read of the local cache SHRINK an already-populated list.
             //
-            // loadProducts re-runs on every sync-store-update, and the shared
-            // product cache is capped and can be evicted or written mid-sync. When
-            // that happened this filter returned [] and wiped a good list — the
-            // "166 items, then 0 items" flash. An empty local result is far more
-            // likely to mean "cache not ready" than "this seller has no products",
-            // so keep what we have and let the authoritative DB fetch below settle
-            // it. It clears legitimately via the explicit delete path.
-            setProducts(prev => (sellerProducts.length === 0 && prev.length > 0 ? prev : sellerProducts));
+            // loadProducts re-runs on every sync-store-update — including the one this
+            // very function's own DB-merge fires below (addRawProducts). That merge
+            // writes the GLOBAL product cache back to localStorage capped at 180 items
+            // total (a real quota constraint, shared across every seller, not just this
+            // one) — so a seller with 297 products got its own local mirror truncated to
+            // whatever fit under that global cap the instant the write landed. This
+            // synchronous local-cache read then fired right after, and used to overwrite
+            // the just-fetched, complete 297-item DB state with that truncated ~166-item
+            // local slice — real products silently vanishing from their own dashboard.
+            // The local-cache path is inherently lossy by design; it must never be
+            // treated as more authoritative than a count we already established. Legit
+            // deletions go through the explicit delete path instead, which mutates the
+            // list directly rather than relying on this cache re-read to shrink it.
+            setProducts(prev => (sellerProducts.length < prev.length ? prev : sellerProducts));
 
             // The DB is the source of truth for a seller's own product list.
             //
@@ -199,8 +205,15 @@ function SellerProductsContent() {
         localStorage.setItem("seller_products_view_mode", viewMode);
     }, [viewMode]);
 
-    // Reset page when filters change
+    // Reset page when filters change — but NOT on the very first render. This
+    // effect's dependency array fires on mount regardless, which was
+    // silently snapping a deep-linked/back-navigated `?page=4` URL (e.g. the
+    // "back to list" link from the product edit page) straight back to page
+    // 1 every time, while the address bar kept showing page=4 — the
+    // pagination widget and the URL permanently disagreeing.
+    const filtersMounted = useRef(false);
     useEffect(() => {
+        if (!filtersMounted.current) { filtersMounted.current = true; return; }
         setCurrentPage(1);
     }, [searchQuery, selectedCategory, statusFilter, sortBy]);
 
@@ -710,7 +723,7 @@ function SellerProductsContent() {
                                                     {!product.is_sponsored ? (
                                                         <Button
                                                             variant="ghost"
-                                                            className="h-10 px-4 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors gap-2 text-[10px] font-black uppercase tracking-widest"
+                                                            className="h-10 px-4 rounded-xl bg-amber-50 text-amber-600 border-2 border-transparent hover:bg-gradient-to-b hover:from-[#ffd77a] hover:to-[#f5b942] hover:text-[#4a3200] hover:border-[#c99a2e] transition-colors gap-2 text-[10px] font-black uppercase tracking-widest"
                                                             onClick={() => setBoostModal({ isOpen: true, product })}
                                                             title="Promote this listing — pick a boost package"
                                                         >
@@ -816,7 +829,7 @@ function SellerProductsContent() {
                                             <Button
                                                 size="icon"
                                                 variant="ghost"
-                                                className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-amber-50 hover:text-amber-600"
+                                                className="h-9 w-9 rounded-xl bg-amber-50 text-amber-600 border-2 border-transparent shadow-sm hover:bg-gradient-to-b hover:from-[#ffd77a] hover:to-[#f5b942] hover:text-[#4a3200] hover:border-[#c99a2e]"
                                                 onClick={() => setBoostModal({ isOpen: true, product })}
                                                 title="Promote this listing — pick a boost package"
                                             >

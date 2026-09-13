@@ -427,8 +427,8 @@ function HomeContent() {
                     { icon: Megaphone, label: "Social Multi-Post", href: "/seller/social", sellerOnly: true },
                     { icon: Wallet, label: "Receive", href: "/seller/dashboard/payments", sellerOnly: true },
                   ] : []),
-                  { icon: Package2, label: "Send Package", href: "/send-package", sellerOnly: false },
                   { icon: Wrench, label: "Hire an Expert", href: "/services", sellerOnly: false },
+                  { icon: Package2, label: "Send Package", href: "/send-package", sellerOnly: false },
                   // AI Quote is genuinely seller-only functionality — hidden entirely
                   // rather than shown-then-redirected, so a buyer-only account's row
                   // isn't crowded with a tile that never applies to them.
