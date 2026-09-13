@@ -31,6 +31,17 @@ workflows:
       - name: Install npm dependencies
         script: |
           cd "$CM_BUILD_DIR/frontend"
+          # Codemagic caches ~/.npm between builds on this same machine image.
+          # A previously-cached esbuild postinstall binary (or one restored
+          # with the wrong permissions/quarantine bit for this arch) makes
+          # esbuild's own install.js fail trying to spawn it to check its
+          # version — "Unknown system error -88" — before npm ci even gets to
+          # the rest of the tree. `npm ci` alone doesn't protect against this:
+          # it always wipes node_modules first, but still pulls package
+          # tarballs from the (possibly bad) npm cache rather than
+          # re-downloading. Force a clean cache so every native postinstall
+          # binary is freshly fetched, not replayed from a stale cache.
+          npm cache clean --force
           npm ci
 
       # Capacitor's webDir ("out") only ever holds a small static loading/
@@ -143,6 +154,8 @@ workflows:
       - name: Install npm dependencies
         script: |
           cd "$CM_BUILD_DIR/frontend"
+          # See the matching step in the iOS workflow — same rationale.
+          npm cache clean --force
           npm ci
 
       - name: Regenerate static shell + sync Capacitor Android
