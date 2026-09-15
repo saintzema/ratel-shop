@@ -93,7 +93,15 @@ export async function GET(req: NextRequest) {
                 take: 50,
             }),
             db.rideRequest.findMany({
-                where: { driverId: user.userId, status: { in: ["matched", "in_progress"] } },
+                // A just-ended trip stays here (unpaid "completed") so the driver's
+                // QR/payment-pending card keeps showing until the rider actually pays.
+                where: {
+                    driverId: user.userId,
+                    OR: [
+                        { status: { in: ["matched", "in_progress"] } },
+                        { status: "completed", paidAt: null },
+                    ],
+                },
                 include: { rider: { select: { name: true } } },
                 orderBy: { createdAt: "desc" },
             }),

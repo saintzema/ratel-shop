@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, MapPin, Loader2, CheckCircle2 } from "lucide-react";
+import { Car, MapPin, Loader2, CheckCircle2, CreditCard } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { formatPrice } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
 import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
+import { SlideToConfirm } from "@/components/ride/SlideToConfirm";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
 
@@ -91,26 +94,43 @@ export default function DriveDashboardPage() {
 
     useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user]);
 
-    const [actingOnTrip, setActingOnTrip] = useState<string | null>(null);
     const [startCodeInputs, setStartCodeInputs] = useState<Record<string, string>>({});
     const [startCodeErrors, setStartCodeErrors] = useState<Record<string, string>>({});
+    // The slider itself owns its own "confirming" spinner state — this just
+    // needs to resolve/reject so SlideToConfirm knows whether to lock in the
+    // "Done" state or snap back for another try (e.g. a wrong pickup code).
     const runTripAction = async (rideId: string, action: "start" | "complete", code?: string) => {
-        setActingOnTrip(rideId);
         setStartCodeErrors(prev => ({ ...prev, [rideId]: "" }));
+        const res = await fetch(`/api/rides/${rideId}/${action}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify(code ? { code } : {}),
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            setStartCodeErrors(prev => ({ ...prev, [rideId]: data?.error || "Couldn't start the trip" }));
+            throw new Error(data?.error || "failed");
+        }
+        load();
+    };
+
+    // The driver's own device can show the exact same Paystack checkout the
+    // QR points to — e.g. a passenger without a working camera scanner can
+    // just look at the driver's screen and pick Transfer or card themselves.
+    const [showCheckoutFor, setShowCheckoutFor] = useState<string | null>(null);
+    const [payingRideId, setPayingRideId] = useState<string | null>(null);
+    const handleDriverSidePayment = async (rideId: string, reference: string) => {
+        setShowCheckoutFor(null);
+        setPayingRideId(rideId);
         try {
-            const res = await fetch(`/api/rides/${rideId}/${action}`, {
+            await fetch(`/api/rides/${rideId}/pay`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify(code ? { code } : {}),
+                body: JSON.stringify({ reference }),
             });
-            if (!res.ok) {
-                const data = await res.json().catch(() => null);
-                setStartCodeErrors(prev => ({ ...prev, [rideId]: data?.error || "Couldn't start the trip" }));
-                return;
-            }
             load();
         } finally {
-            setActingOnTrip(null);
+            setPayingRideId(null);
         }
     };
 
@@ -224,51 +244,92 @@ export default function DriveDashboardPage() {
                     <div className="mt-10">
                         <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Your Active Rides</h2>
                         <div className="space-y-6">
-                            {myActiveRides.map(ride => (
+                            {myActiveRides.map(ride => {
+                                const payUrl = typeof window !== "undefined" ? `${window.location.origin}/ride/${ride.id}/pay` : "";
+                                return (
                                 <div key={ride.id} className="border border-emerald-100 bg-emerald-50/40 rounded-2xl p-5 space-y-3">
                                     <div className="flex items-center justify-between gap-3 flex-wrap">
                                         <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
                                             <CheckCircle2 className="h-4 w-4" /> {ride.pickup} → {ride.dropoff}
                                         </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <MaskedCallButton kind="ride" tripId={ride.id} label="Call Rider" />
-                                            {ride.status === "in_progress" && (
-                                                <Button
-                                                    size="sm"
-                                                    disabled={actingOnTrip === ride.id}
-                                                    onClick={() => runTripAction(ride.id, "complete")}
-                                                    className="bg-brand-orange hover:bg-brand-orange/90"
-                                                >
-                                                    Complete Trip
-                                                </Button>
-                                            )}
-                                        </div>
+                                        {ride.status !== "completed" && (
+                                            <div className="shrink-0">
+                                                <MaskedCallButton kind="ride" tripId={ride.id} label="Call Rider" />
+                                            </div>
+                                        )}
                                     </div>
+
                                     {ride.status === "matched" && (
-                                        <div className="bg-white rounded-xl p-3 flex items-center gap-2">
-                                            <span className="text-xs font-bold text-gray-600 shrink-0">Ask rider for the last 2 digits of their code:</span>
-                                            <Input
-                                                value={startCodeInputs[ride.id] || ""}
-                                                onChange={e => setStartCodeInputs(prev => ({ ...prev, [ride.id]: e.target.value.replace(/\D/g, "").slice(0, 2) }))}
-                                                placeholder="00"
-                                                className="w-16 text-center font-black tracking-widest"
-                                                maxLength={2}
+                                        <>
+                                            <div className="bg-white rounded-xl p-3 flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-600 shrink-0">Ask rider for the last 2 digits of their code:</span>
+                                                <Input
+                                                    value={startCodeInputs[ride.id] || ""}
+                                                    onChange={e => setStartCodeInputs(prev => ({ ...prev, [ride.id]: e.target.value.replace(/\D/g, "").slice(0, 2) }))}
+                                                    placeholder="00"
+                                                    className="w-16 text-center font-black tracking-widest"
+                                                    maxLength={2}
+                                                />
+                                            </div>
+                                            <SlideToConfirm
+                                                label="Slide to start ride"
+                                                confirmedLabel="Trip started"
+                                                disabled={(startCodeInputs[ride.id] || "").length !== 2}
+                                                onConfirm={() => runTripAction(ride.id, "start", startCodeInputs[ride.id])}
                                             />
-                                            <Button
-                                                size="sm"
-                                                disabled={actingOnTrip === ride.id || (startCodeInputs[ride.id] || "").length !== 2}
-                                                onClick={() => runTripAction(ride.id, "start", startCodeInputs[ride.id])}
-                                                className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0"
-                                            >
-                                                Start Trip
-                                            </Button>
+                                        </>
+                                    )}
+
+                                    {ride.status === "in_progress" && (
+                                        <SlideToConfirm
+                                            label="Slide to end ride"
+                                            confirmedLabel="Trip ended"
+                                            color="orange"
+                                            onConfirm={() => runTripAction(ride.id, "complete")}
+                                        />
+                                    )}
+
+                                    {ride.status === "completed" && !ride.paidAt && (
+                                        <div className="bg-white rounded-2xl p-4 space-y-3">
+                                            <p className="text-sm font-black text-gray-900">Trip ended — collect ₦{ride.agreedFare?.toLocaleString()}</p>
+                                            <p className="text-xs text-gray-500">Have the rider scan this to pay instantly in-app, or open the checkout yourself and show them the Transfer option.</p>
+                                            <div className="flex items-center gap-4">
+                                                {payUrl && (
+                                                    <div className="p-2 bg-white rounded-xl border border-gray-100 shrink-0">
+                                                        <QRCodeCanvas value={payUrl} size={110} level="H" marginSize={2} imageSettings={{ src: "/logo.png", height: 22, width: 22, excavate: true }} />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 space-y-2">
+                                                    <p className="text-2xl font-black text-gray-900">{formatPrice(ride.agreedFare)}</p>
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={payingRideId === ride.id}
+                                                        onClick={() => setShowCheckoutFor(ride.id)}
+                                                        className="bg-brand-green-600 hover:bg-brand-green-700 w-full flex items-center gap-1.5"
+                                                    >
+                                                        {payingRideId === ride.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} Show Checkout on This Phone
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
+
                                     {startCodeErrors[ride.id] && <p className="text-xs text-rose-600 font-semibold px-1">{startCodeErrors[ride.id]}</p>}
-                                    <ActiveRideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} />
-                                    {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
+                                    {ride.status !== "completed" && <ActiveRideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} />}
+                                    {ride.conversationId && ride.status !== "completed" && <RideChat conversationId={ride.conversationId} />}
+
+                                    {showCheckoutFor === ride.id && (
+                                        <PaystackCheckout
+                                            amount={Math.round((ride.agreedFare || 0) * 100)}
+                                            email={`ride-${ride.id}@fairprice.ng`}
+                                            metadata={{ type: "ride_payment", ride_id: ride.id }}
+                                            onSuccess={(reference) => handleDriverSidePayment(ride.id, reference)}
+                                            onClose={() => setShowCheckoutFor(null)}
+                                            autoStart={true}
+                                        />
+                                    )}
                                 </div>
-                            ))}
+                            );})}
                         </div>
                     </div>
                 )}

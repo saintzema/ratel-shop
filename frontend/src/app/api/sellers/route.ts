@@ -144,9 +144,22 @@ export async function GET(req: Request) {
 
         return NextResponse.json(mappedSellers, {
             headers: {
-                // Admin/sync requests bypass cache; public store list gets 60s CDN cache
+                // `all=true` returns different content per caller — an admin gets every
+                // seller, a signed-in non-admin gets only their own store(s) (see the
+                // whereClause branch above) — so a signed-in request must never be
+                // shared-cached: a public cache-control there could serve one seller's
+                // scoped result to a different seller hitting the same URL. An
+                // anonymous `all=true`, though, always resolves to the exact same
+                // "every active seller" query for literally everyone (the whereClause
+                // forces status:"active" with no user filter when `!user`) — that was
+                // still hardcoded to no-store, so every anonymous visitor's routine
+                // background full-sync (DataSyncService, every mount + every 5 min)
+                // was an uncached function invocation + full DB read, which is real
+                // money on Fast Origin Transfer / Fluid compute at any real traffic
+                // volume. A short shared cache absorbs concurrent visitors within the
+                // window into one origin hit instead of one each.
                 "Cache-Control": includeInactive
-                    ? "no-store"
+                    ? (user ? "no-store" : "public, s-maxage=20, stale-while-revalidate=120")
                     : "public, s-maxage=60, stale-while-revalidate=600"
             }
         });

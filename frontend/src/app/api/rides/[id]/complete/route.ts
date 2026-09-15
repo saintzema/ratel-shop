@@ -6,12 +6,14 @@ import { notifyUser } from "@/lib/user-notify";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/rides/[id]/complete — the DRIVER confirms drop-off; in_progress → completed.
+ * POST /api/rides/[id]/complete — the DRIVER slides to end the trip;
+ * in_progress → completed.
  *
- * No fare collection happens here — there's no in-app ride-payment pipeline
- * yet, so the agreed fare is settled directly between rider and driver
- * (cash, transfer, whatever they arrange). This only closes out the trip
- * record and opens rating.
+ * The driver's own screen renders a QR/link straight to /ride/[id]/pay right
+ * after this call succeeds (see the SlideToConfirm flow on /drive/dashboard)
+ * so the rider can scan and pay in-app instead of settling cash-in-hand —
+ * the rider is also notified here with that same link, and /ride
+ * auto-navigates them there if they're actively on the app.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = getUserFromRequest(req);
@@ -29,8 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const ride = await db.rideRequest.findUnique({ where: { id: rideId }, select: { riderId: true, agreedFare: true, pickup: true, dropoff: true } });
     if (ride) {
         await notifyUser(ride.riderId,
-            `✅ Trip completed: ${ride.pickup} → ${ride.dropoff}. Please settle ₦${ride.agreedFare?.toLocaleString()} with your driver if you haven't, and rate your trip.`,
-            { type: "system", link: "/ride" }
+            `✅ Trip completed: ${ride.pickup} → ${ride.dropoff}. Pay ₦${ride.agreedFare?.toLocaleString()} now to close out your trip.`,
+            { type: "system", link: `/ride/${rideId}/pay` }
         );
     }
 

@@ -99,6 +99,12 @@ export default function RidePage() {
         return tok ? { Authorization: `Bearer ${tok}` } : {};
     };
 
+    // Tracks each ride's last-seen status so a fresh "completed" transition —
+    // the driver just slid to end the trip — can be told apart from a ride
+    // that was already sitting completed on a previous poll (which shouldn't
+    // yank the rider into checkout again on every 6s refresh).
+    const lastStatusRef = useRef<Record<string, string>>({});
+
     const loadRides = () => {
         if (!user) { setLoading(false); return; }
         fetch("/api/rides", { headers: authHeaders() })
@@ -113,6 +119,18 @@ export default function RidePage() {
                     if (count > prev) playDingSound();
                     offerCountRef.current[r.id] = count;
                 }
+
+                // The driver just slid to end this exact trip — take the rider
+                // straight to checkout instead of making them notice a
+                // notification and tap it themselves.
+                for (const r of list) {
+                    const prevStatus = lastStatusRef.current[r.id];
+                    if (prevStatus && prevStatus !== "completed" && r.status === "completed" && !r.paidAt) {
+                        router.push(`/ride/${r.id}/pay`);
+                    }
+                    lastStatusRef.current[r.id] = r.status;
+                }
+
                 setRides(list);
             })
             .finally(() => setLoading(false));
@@ -541,6 +559,16 @@ export default function RidePage() {
                         ))}
                     </div>
                 )}
+
+                {rides.filter(r => r.status === "completed" && !r.paidAt).map(ride => (
+                    <div key={`pay-${ride.id}`} className="border border-emerald-200 bg-emerald-50/60 rounded-2xl p-5 mt-4 text-center">
+                        <p className="text-sm font-bold text-gray-900">Trip complete — pay {formatPrice(ride.agreedFare)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 mb-3">{ride.pickup} → {ride.dropoff}</p>
+                        <Button onClick={() => router.push(`/ride/${ride.id}/pay`)} className="bg-emerald-600 hover:bg-emerald-700 rounded-2xl h-11 px-8">
+                            Pay Now
+                        </Button>
+                    </div>
+                ))}
 
                 {rides.filter(r => r.status === "completed" && r.rating == null).map(ride => (
                     <div key={ride.id} className="border border-amber-100 bg-amber-50/50 rounded-2xl p-5 mt-4 text-center">
