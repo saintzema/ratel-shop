@@ -294,14 +294,12 @@ export async function PATCH(request: Request) {
             const realAccountName = sellerRecord?.accountName || sellerRecord?.businessName || currentPayout?.accountName;
 
             if (!currentPayout || !process.env.PAYSTACK_SECRET_KEY || !realAccountNumber || realAccountNumber.length < 10) {
+                const reasonMsg = !realAccountNumber || realAccountNumber.length < 10
+                    ? "Seller has no valid full account number on file — cannot transfer. Update their bank details first."
+                    : "Paystack not configured on this server.";
                 // Do NOT silently mark this "completed" — that's how money gets lost.
-                await db.payout.update({ where: { id }, data: { status: "failed" } });
-                return NextResponse.json({
-                    success: false,
-                    error: !realAccountNumber || realAccountNumber.length < 10
-                        ? "Seller has no valid full account number on file — cannot transfer. Update their bank details first."
-                        : "Paystack not configured on this server.",
-                }, { status: 400 });
+                await db.payout.update({ where: { id }, data: { status: "failed", failureReason: reasonMsg } });
+                return NextResponse.json({ success: false, error: reasonMsg }, { status: 400 });
             }
 
             // Confirm real money actually funded this payout before sending platform funds
@@ -318,20 +316,16 @@ export async function PATCH(request: Request) {
             }
 
             if (!paymentReference) {
-                await db.payout.update({ where: { id }, data: { status: "pending" } });
-                return NextResponse.json({
-                    success: false,
-                    error: "No Paystack payment reference found for this payout's order(s) — cannot auto-verify it was actually paid through Paystack (may be COD/WhatsApp/manual/demo). Confirm manually before overriding.",
-                }, { status: 400 });
+                const reasonMsg = "No Paystack payment reference found for this payout's order(s) — cannot auto-verify it was actually paid through Paystack (may be COD/WhatsApp/manual/demo). Confirm manually before overriding.";
+                await db.payout.update({ where: { id }, data: { status: "pending", failureReason: reasonMsg } });
+                return NextResponse.json({ success: false, error: reasonMsg }, { status: 400 });
             }
 
             const verification = await verifyPaystackReference(paymentReference);
             if (!verification.verified) {
-                await db.payout.update({ where: { id }, data: { status: "pending" } });
-                return NextResponse.json({
-                    success: false,
-                    error: `Could not verify the linked Paystack transaction (${paymentReference}): ${verification.message}. Refusing to transfer until this is confirmed.`,
-                }, { status: 400 });
+                const reasonMsg = `Could not verify the linked Paystack transaction (${paymentReference}): ${verification.message}. Refusing to transfer until this is confirmed.`;
+                await db.payout.update({ where: { id }, data: { status: "pending", failureReason: reasonMsg } });
+                return NextResponse.json({ success: false, error: reasonMsg }, { status: 400 });
             }
 
             const result = await initiatePaystackTransfer({

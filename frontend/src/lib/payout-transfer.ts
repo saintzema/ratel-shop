@@ -85,7 +85,7 @@ export async function initiatePaystackTransfer(req: TransferRequest): Promise<Tr
             console.error("❌ Paystack Recipient Creation Failed:", recipientData.message);
             await db.payout.update({
                 where: { id: req.payoutId },
-                data: { status: "failed" }
+                data: { status: "failed", failureReason: `Recipient creation failed: ${recipientData.message}` }
             });
             return { success: false, message: `Recipient creation failed: ${recipientData.message}` };
         }
@@ -116,7 +116,7 @@ export async function initiatePaystackTransfer(req: TransferRequest): Promise<Tr
             console.error("❌ Paystack Transfer Failed:", transferData.message);
             await db.payout.update({
                 where: { id: req.payoutId },
-                data: { status: "failed" }
+                data: { status: "failed", failureReason: `Transfer failed: ${transferData.message}` }
             });
             return { success: false, message: `Transfer failed: ${transferData.message}` };
         }
@@ -127,7 +127,8 @@ export async function initiatePaystackTransfer(req: TransferRequest): Promise<Tr
             where: { id: req.payoutId },
             data: {
                 transferCode: transferCode,
-                status: "completed"
+                status: "completed",
+                failureReason: null
             }
         });
 
@@ -141,7 +142,7 @@ export async function initiatePaystackTransfer(req: TransferRequest): Promise<Tr
         console.error("🚨 Paystack Transfer Error:", err);
         await db.payout.update({
             where: { id: req.payoutId },
-            data: { status: "failed" }
+            data: { status: "failed", failureReason: err.message || "Unknown error" }
         }).catch(() => {});
         return { success: false, message: err.message };
     }
@@ -288,7 +289,9 @@ export async function attemptInstantSellerPayout(payoutId: string): Promise<Inst
         if (!payout) return { attempted: false, success: false, message: "Payout not found" };
 
         if (!process.env.PAYSTACK_SECRET_KEY || !payout.accountNumber || payout.accountNumber.length < 10) {
-            return { attempted: false, success: false, message: "Not configured or no valid account number" };
+            const msg = "Not configured or no valid account number";
+            await db.payout.update({ where: { id: payoutId }, data: { failureReason: msg } }).catch(() => {});
+            return { attempted: false, success: false, message: msg };
         }
 
         // Same rule as the admin-approval path: only transfer real platform
@@ -303,12 +306,16 @@ export async function attemptInstantSellerPayout(payoutId: string): Promise<Inst
             paymentReference = linkedOrder?.paymentReference || null;
         }
         if (!paymentReference) {
-            return { attempted: false, success: false, message: "No verifiable Paystack payment reference — needs manual review" };
+            const msg = "No verifiable Paystack payment reference — needs manual review";
+            await db.payout.update({ where: { id: payoutId }, data: { failureReason: msg } }).catch(() => {});
+            return { attempted: false, success: false, message: msg };
         }
 
         const verification = await verifyPaystackReference(paymentReference);
         if (!verification.verified) {
-            return { attempted: false, success: false, message: `Could not verify payment: ${verification.message}` };
+            const msg = `Could not verify payment: ${verification.message}`;
+            await db.payout.update({ where: { id: payoutId }, data: { failureReason: msg } }).catch(() => {});
+            return { attempted: false, success: false, message: msg };
         }
 
         const result = await initiatePaystackTransfer({

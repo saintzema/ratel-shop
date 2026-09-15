@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -25,7 +26,7 @@ const DISMISS_KEY = "fairprice_waitlist_dismissed";
 // as "the feature is broken" (e.g. it silently covers the scan camera's own
 // "Enable Camera" button). Skip the auto-timer on these; the explicit
 // cart-trigger event can still fire anywhere.
-const BLOCKED_PATH_PREFIXES = ["/pay/scan", "/ride", "/checkout", "/messages"];
+const BLOCKED_PATH_PREFIXES = ["/pay/scan", "/ride", "/checkout", "/messages", "/seller", "/admin", "/drive", "/deliver"];
 
 const FEATURES = [
     {
@@ -78,6 +79,7 @@ export function triggerWaitlistModal() {
 
 export function WaitlistModal() {
     const pathname = usePathname();
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [email, setEmail] = useState("");
     const [submitted, setSubmitted] = useState(false);
@@ -99,13 +101,23 @@ export function WaitlistModal() {
         // Only auto-show once per session (don't annoy the user)
         const alreadyDismissed = sessionStorage.getItem(DISMISS_KEY);
         const onBlockedRoute = BLOCKED_PATH_PREFIXES.some(p => pathname?.startsWith(p));
+        // "Join the waitlist / start selling / get early access" is an
+        // acquisition pitch for someone who hasn't signed up yet — a seller
+        // or admin already has an account (they ARE the audience this modal
+        // is trying to recruit) and can be mid-task on their own dashboard
+        // for well over 30s. It doesn't just interrupt them: the full-screen
+        // backdrop (z-[200]) sits on top of the sidebar with nothing behind
+        // it to click through, so it silently blocks navigating their own
+        // dashboard until they notice and dismiss it.
+        const isSellerOrAdmin = user?.role === "seller" || user?.role === "admin";
 
-        const timer = !alreadyDismissed && !onBlockedRoute
+        const timer = !alreadyDismissed && !onBlockedRoute && !isSellerOrAdmin
             ? setTimeout(() => { openModal(); }, DELAY_MS)
             : undefined;
 
-        // Listen for "Add to Cart" triggers — always show
-        const handleCartTrigger = () => openModal();
+        // Listen for "Add to Cart" triggers — always show, except for a
+        // seller/admin for the same reason as above.
+        const handleCartTrigger = () => { if (!isSellerOrAdmin) openModal(); };
         window.addEventListener(WAITLIST_EVENT, handleCartTrigger);
 
         // Handle iOS virtual keyboard resizing
@@ -129,7 +141,7 @@ export function WaitlistModal() {
                 window.visualViewport.removeEventListener("resize", handleResize);
             }
         };
-    }, [openModal, pathname]);
+    }, [openModal, pathname, user?.role]);
 
     const handleClose = () => {
         setIsOpen(false);

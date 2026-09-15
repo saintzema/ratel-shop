@@ -100,6 +100,12 @@ export default function PayoutRequestsDirectory() {
                         account_name: p.accountName,
                         method: "bank_transfer",
                         order_ids: p.orderIds || [],
+                        // The actual Paystack (or pre-flight) error text for the most recent
+                        // failed/stuck attempt — a "failed" status alone looked identical
+                        // whether the cause was a bad account number or an account-level
+                        // Paystack restriction (e.g. "starter business" transfer lockout),
+                        // and admin had no way to tell those apart without digging server logs.
+                        failure_reason: p.failureReason || null,
                         created_at: (p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString()),
                     };
                 });
@@ -377,20 +383,31 @@ export default function PayoutRequestsDirectory() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <div className="flex items-center gap-2">
-                                        <span className={cn(
-                                            "text-[9px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1",
-                                            p.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                                                p.status === "processing" ? "bg-amber-100 text-amber-700" :
-                                                    "bg-rose-100 text-rose-700"
-                                        )}>
-                                            {p.status === "completed" && <CheckCircle2 className="h-3 w-3" />}
-                                            {p.status === "processing" && <Clock className="h-3 w-3" />}
-                                            {p.status}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-gray-400 ml-2">
-                                            {new Date(p.created_at).toLocaleDateString()}
-                                        </span>
+                                    <div className="flex flex-col gap-1.5 max-w-[220px]">
+                                        <div className="flex items-center gap-2">
+                                            <span className={cn(
+                                                "text-[9px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1 shrink-0",
+                                                p.status === "completed" ? "bg-emerald-100 text-emerald-700" :
+                                                    p.status === "processing" ? "bg-amber-100 text-amber-700" :
+                                                        "bg-rose-100 text-rose-700"
+                                            )}>
+                                                {p.status === "completed" && <CheckCircle2 className="h-3 w-3" />}
+                                                {p.status === "processing" && <Clock className="h-3 w-3" />}
+                                                {p.status}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-gray-400 ml-2">
+                                                {new Date(p.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        {/* Why it's stuck — the actual Paystack rejection text
+                                            (e.g. an account-tier transfer lockout) rather than
+                                            just "failed" with no way to tell that apart from a
+                                            bad account number without checking server logs. */}
+                                        {p.failure_reason && p.status !== "completed" && (
+                                            <span className="text-[10px] text-rose-600 font-semibold leading-snug" title={p.failure_reason}>
+                                                {p.failure_reason}
+                                            </span>
+                                        )}
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">

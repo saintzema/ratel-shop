@@ -619,6 +619,13 @@ model Payout {
   paymentReference String?  @unique // Links to the original Paystack charge reference for audit
   transferCode     String?  // Paystack transfer code for tracking
   isAutoPayout     Boolean  @default(false)
+  // The actual Paystack (or our own pre-flight check's) error text for the most
+  // recent failed attempt — e.g. "You cannot initiate third party payouts as a
+  // starter business." Previously a failed payout just showed status "failed"
+  // with the real reason thrown away in a server log admin never saw, so an
+  // account-level Paystack restriction (like the one above) looked identical
+  // to a bad bank number and nobody could tell the two apart from the queue.
+  failureReason    String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   seller           Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
