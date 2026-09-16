@@ -129,8 +129,8 @@ export function PwaManager() {
                         <img src="/logo.png" alt="FairPrice" className="h-7 w-7 object-contain" />
                     </div>
                     <div className="flex flex-col">
-                        <h4 className="text-[13px] font-black text-gray-900 leading-tight">FairPrice Market App</h4>
-                        <p className="text-[10px] text-gray-500 font-medium">Verified deals & instant alerts.</p>
+                        <h4 className="text-[13px] font-black text-gray-900 leading-tight">FairPrice is better on the app</h4>
+                        <p className="text-[10px] text-gray-500 font-medium">Nigeria's #1 everything app — best deals & instant alerts.</p>
                     </div>
                 </div>
 

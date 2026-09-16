@@ -83,15 +83,34 @@ export default function ScanToPayPage() {
 
     useEffect(() => {
         cancelledRef.current = false;
+        // Try starting the camera immediately on arrival, no tap required —
+        // this is what actually fixes "I already granted permission but I'm
+        // still asked to tap Enable Camera every single time." It only
+        // succeeds silently when the browser already has a recorded grant;
+        // otherwise it falls straight back to the normal tap-to-enable idle
+        // screen with zero visible difference from before.
+        startCamera(true);
         return () => { cancelledRef.current = true; stopStream(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const startCamera = async () => {
+    // `silent` powers the auto-attempt on mount below: if permission was
+    // already granted on a previous visit, most browsers (including the
+    // WKWebView shell) will hand the stream straight over with NO fresh user
+    // gesture required at all — the gesture requirement only really bites on
+    // the very FIRST-ever request for an origin. So this tries once,
+    // unprompted, on arrival; if that fails for any reason (permission
+    // genuinely not granted yet, gesture requirement, denied, etc.) it falls
+    // back to the idle "Enable Camera" screen exactly as before rather than
+    // showing a scary error state for what is, for a first-time visitor, an
+    // entirely expected outcome.
+    const startCamera = async (silent = false) => {
         setError(null);
         setPhase("starting");
         torchSupportedRef.current = false;
 
         if (!navigator.mediaDevices?.getUserMedia) {
+            if (silent) { setPhase("idle"); return; }
             setPhase("error");
             setError("This browser doesn't support camera access. Try updating it, or use a different browser.");
             return;
@@ -121,6 +140,7 @@ export default function ScanToPayPage() {
             frameCountRef.current = 0;
             tick();
         } catch (e: any) {
+            if (silent) { setPhase("idle"); return; }
             setPhase("error");
             const name = e?.name || "";
             if (name === "NotAllowedError" || name === "PermissionDeniedError") {
@@ -303,7 +323,7 @@ export default function ScanToPayPage() {
                         </div>
                         <p className="text-white font-bold">Scan a FairPay QR code</p>
                         <p className="text-white/60 text-sm max-w-xs">We'll ask for camera access once — your browser remembers it after that.</p>
-                        <Button onClick={startCamera} className="bg-brand-green-500 hover:bg-brand-green-600 text-black font-bold rounded-full px-8 h-12 mt-2">
+                        <Button onClick={() => startCamera()} className="bg-brand-green-500 hover:bg-brand-green-600 text-black font-bold rounded-full px-8 h-12 mt-2">
                             Enable Camera
                         </Button>
                         {/* Already have the code as a screenshot — this needs no
@@ -354,7 +374,7 @@ export default function ScanToPayPage() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
                         <AlertTriangle className="h-10 w-10 text-amber-400" />
                         <p className="text-white font-semibold">{error}</p>
-                        <Button onClick={startCamera} className="bg-white text-black rounded-full">Try again</Button>
+                        <Button onClick={() => startCamera()} className="bg-white text-black rounded-full">Try again</Button>
                     </div>
                 )}
 

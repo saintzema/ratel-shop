@@ -1383,7 +1383,7 @@ function SearchContent() {
                 pills below, which meant reaching Sort or Filters required scrolling
                 past six category pills on a phone. Separate rows: refine on top,
                 browse-by-category underneath. */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 px-4 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
                 <div className="flex items-center gap-2 shrink-0">
                     {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000 || stateParam || cityParam) && (
                         <button
@@ -1554,7 +1554,7 @@ function SearchContent() {
                 catalog for that category (see browseCategory) — the AI/global
                 search is opt-in via "See more results" underneath the grid,
                 not something a single pill tap should spend a model call on. */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-4 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
                 {[
                     { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
                     { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },

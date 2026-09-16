@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/google-maps";
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -15,19 +15,49 @@ const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
  *
  * Passes the picked place's coordinates through too — RideMap uses these
  * directly instead of a second geocoding round-trip for the same address.
+ *
+ * This used to be a plain `useRef` + a `useEffect(..., [])`. That combination
+ * quietly assumes the <Input ref={...}> is already in the DOM by the time
+ * the very first effect pass runs — but both /ride and /send-package gate
+ * their form behind `if (!user) return <SignInPrompt/>`, and `user` from
+ * AuthContext is null on the first render and only resolves asynchronously.
+ * So the FIRST commit renders the sign-in fallback (no input at all), the
+ * once-only effect fires with `inputRef.current === null`, and — because its
+ * deps array is empty — it never runs again once the real form (with the
+ * actual input) mounts on a later render. Confirmed directly: real
+ * suggestions never appeared, and console tracing showed the effect's
+ * `inputRef.current` was `null` on the only pass it ever got. A callback ref
+ * fixes this correctly: React invokes it exactly when the DOM node is
+ * actually created, on WHICHEVER render that turns out to be.
  */
 export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?: { lat: number; lng: number }) => void) {
-    const inputRef = useRef<HTMLInputElement | null>(null);
     const [supported, setSupported] = useState(!!API_KEY);
+    const nodeRef = useRef<HTMLInputElement | null>(null);
+    const cancelledRef = useRef(false);
+    const onPlaceSelectedRef = useRef(onPlaceSelected);
+    onPlaceSelectedRef.current = onPlaceSelected;
 
     useEffect(() => {
-        if (!API_KEY || !inputRef.current) return;
-        let autocomplete: any;
-        let cancelled = false;
+        cancelledRef.current = false;
+        return () => { cancelledRef.current = true; };
+    }, []);
+
+    const attach = useCallback((node: HTMLInputElement | null) => {
+        nodeRef.current = node;
+        if (!API_KEY || !node) return;
+        // A SECOND Autocomplete on the same <input> (e.g. React Strict
+        // Mode's dev-only mount→cleanup→mount) creates two competing
+        // .pac-container elements that both end up permanently
+        // `display:none` — confirmed directly. This flag on the DOM node
+        // itself survives that double-invoke.
+        if ((node as any).__fpAutocompleteAttached) return;
 
         loadGoogleMaps()?.then(() => {
-            if (cancelled || !inputRef.current || !window.google?.maps?.places) return;
-            autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+            if (cancelledRef.current || nodeRef.current !== node || !window.google?.maps?.places) return;
+            if ((node as any).__fpAutocompleteAttached) return;
+            (node as any).__fpAutocompleteAttached = true;
+
+            const autocomplete = new window.google.maps.places.Autocomplete(node, {
                 componentRestrictions: { country: "ng" },
                 fields: ["formatted_address", "name", "geometry"],
             });
@@ -35,7 +65,7 @@ export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?
                 const place = autocomplete.getPlace();
                 const address = place?.formatted_address || place?.name;
                 const loc = place?.geometry?.location;
-                if (address) onPlaceSelected(address, loc ? { lat: loc.lat(), lng: loc.lng() } : undefined);
+                if (address) onPlaceSelectedRef.current(address, loc ? { lat: loc.lat(), lng: loc.lng() } : undefined);
             });
 
             // The script loading fine only proves the Maps JavaScript API key is
@@ -50,7 +80,7 @@ export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?
                 probe.getPlacePredictions(
                     { input: "Lagos", componentRestrictions: { country: "ng" } },
                     (_results: unknown, status: string) => {
-                        if (cancelled) return;
+                        if (cancelledRef.current) return;
                         if (status !== "OK" && status !== "ZERO_RESULTS") {
                             console.error("[Places Autocomplete] disabled or misconfigured — status:", status);
                             setSupported(false);
@@ -61,10 +91,8 @@ export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?
                 setSupported(false);
             }
         }).catch(() => setSupported(false));
-
-        return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { inputRef, supported };
+    return { inputRef: attach, supported };
 }
