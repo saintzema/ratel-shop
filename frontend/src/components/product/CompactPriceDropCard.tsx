@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, memo } from "react";
 import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store, Plus, AlertTriangle } from "lucide-react";
 import { Product } from "@/lib/types";
@@ -20,7 +19,6 @@ interface CompactPriceDropCardProps {
 function CompactPriceDropCardComponent({ product, className }: CompactPriceDropCardProps) {
     const { addToCart } = useCart();
     const { user } = useAuth();
-    const router = useRouter();
     const [timeLeft, setTimeLeft] = useState<string>("00:00:00");
     const [addedToCart, setAddedToCart] = useState(false);
     
@@ -74,8 +72,8 @@ function CompactPriceDropCardComponent({ product, className }: CompactPriceDropC
     const stockLeft = product.stock > 0 && product.stock <= 15 ? product.stock : (Math.floor(Math.random() * 10) + 2);
 
     return (
-        <div 
-            onClick={() => router.push(getProductUrl(product.id, product.name, product.slug))}
+        <Link
+            href={getProductUrl(product.id, product.name, product.slug)}
             className={cn("group relative flex flex-col bg-white border border-gray-100 rounded-lg overflow-hidden transition-all hover:shadow-lg active:scale-[0.98] cursor-pointer h-full", className)}
         >
             {/* Discount Badge Floating */}
@@ -220,7 +218,7 @@ function CompactPriceDropCardComponent({ product, className }: CompactPriceDropC
                     animation-play-state: paused;
                 }
             `}</style>
-        </div>
+        </Link>
     );
 }
 export const CompactPriceDropCard = memo(CompactPriceDropCardComponent);

@@ -794,20 +794,24 @@ function FeatureHeroShell({
 }) {
   return (
     <div className="absolute inset-0 overflow-hidden select-none" style={{ background: gradient }}>
-      <a href={href} className="absolute inset-0" style={{ zIndex: 6 }} aria-label={ctaLabel} />
+      {/* No full-slide click target — tapping anywhere used to navigate,
+          which meant a stray tap while just scrolling past the slide fired
+          a full page navigation with no visible affordance that it would.
+          Only the explicit CTA text link (below) and the Dashboard/Price
+          Checker buttons/arrow/dots the page itself renders are clickable
+          now. */}
       {/* This page docks a persistent DASHBOARD / PRICE CHECKER AI button
           pair on top of every slide (bottom bar on mobile) and a shared
-          dots/pause indicator top-right (~top-4 through ~top-9). On mobile,
-          content used to be vertically CENTERED in the slide, which pushed
-          the subtitle straight down into that bottom button bar — hence
-          `items-start` + `pt-9` here so everything starts clear of both
-          overlays instead. The badge also used to share a row with the CTA
-          at the very top, on mobile that row is dropped entirely (the badge
-          adds little and the CTA moves under the subtitle instead, per
-          product feedback) so text and the visual both get real room —
+          dots/pause indicator top-right (~top-4). Content is raised to
+          roughly that same row on mobile (pt-3) rather than sitting lower —
+          the only thing it still needs to clear is the bottom button bar,
+          not empty space above. The badge also used to share a row with the
+          CTA at the very top, on mobile that row is dropped entirely (the
+          badge adds little and the CTA moves under the subtitle instead,
+          per product feedback) so text and the visual both get real room —
           previously the text column was `w-full` on mobile, which starved
           the visual next to it down to almost nothing. */}
-      <div className="absolute inset-0 flex items-start md:items-center pt-9 md:pt-0 px-5 md:pl-8 gap-2 md:gap-3" style={{ zIndex: 7 }}>
+      <div className="absolute inset-0 flex items-start md:items-center pt-3 md:pt-0 px-5 md:pl-8 gap-2 md:gap-3" style={{ zIndex: 7 }}>
         <div className="flex flex-col justify-center min-w-0 w-[58%] md:w-auto md:max-w-[200px]">
           {/* Badge + this slide's own CTA share the top row — desktop only.
               There's no bottom-bar overlay to clear on desktop, so there's

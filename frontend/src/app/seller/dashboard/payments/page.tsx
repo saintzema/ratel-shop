@@ -412,6 +412,27 @@ export default function QRPaymentsPage() {
     // find "last Tuesday's orders" instead of scrolling forever.
     const [qrDateFrom, setQrDateFrom] = useState("");
     const [qrDateTo, setQrDateTo] = useState("");
+    // Default to a useful window instead of forcing the seller to pick dates
+    // before seeing anything: from their registration date (so a newer store
+    // sees its whole history) or one month back, whichever is more recent,
+    // through today. Only applied once — a ref guard (not a state check) so
+    // clicking "Clear" afterward stays cleared even if `seller` re-renders
+    // from an unrelated background sync.
+    const qrDefaultsAppliedRef = useRef(false);
+    useEffect(() => {
+        if (qrDefaultsAppliedRef.current) return;
+        const today = new Date();
+        const oneMonthAgo = new Date(today);
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        const joinDateRaw = seller?.joined_at || seller?.created_at;
+        const joinDate = joinDateRaw ? new Date(joinDateRaw) : null;
+        // Whichever is LATER (more recent) of registration vs. one month back —
+        // a store that's been open 2 years shouldn't default to a 2-year query.
+        const from = joinDate && joinDate.getTime() > oneMonthAgo.getTime() ? joinDate : oneMonthAgo;
+        qrDefaultsAppliedRef.current = true;
+        setQrDateFrom(from.toISOString().slice(0, 10));
+        setQrDateTo(today.toISOString().slice(0, 10));
+    }, [seller]);
     useEffect(() => {
         const loadUsage = async () => {
             setQrUsageLoading(true);
@@ -555,10 +576,10 @@ export default function QRPaymentsPage() {
                 <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] rounded-full bg-blue-500/8 blur-[80px]" />
             </div>
 
-            <div className="max-w-6xl mx-auto pb-28 px-4 md:px-6 space-y-8">
+            <div className="max-w-6xl mx-auto pb-28 px-4 md:px-6 space-y-4">
 
                 {/* ── Hero Header ── */}
-                <div className="pt-2 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="pt-1 pb-1 flex flex-col md:flex-row md:items-end justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-3 mb-3">
                             <div className="relative">
@@ -603,8 +624,8 @@ export default function QRPaymentsPage() {
                             <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
                             <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-indigo-400/20 blur-2xl" />
 
-                            <div className="relative p-8 text-center">
-                                <div className="flex items-center justify-between mb-6">
+                            <div className="relative p-5 text-center">
+                                <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
                                         <div className="h-7 w-7 rounded-lg bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
                                             <QrCode className="h-3.5 w-3.5 text-white" />
@@ -616,10 +637,10 @@ export default function QRPaymentsPage() {
                                     </div>
                                 </div>
 
-                                <p className="text-white font-black text-xl tracking-tight mb-1">{bizName}</p>
-                                <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-6">Scan to Browse & Pay</p>
+                                <p className="text-white font-black text-xl tracking-tight mb-0.5">{bizName}</p>
+                                <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-3">Scan to Browse & Pay</p>
 
-                                <div className="inline-flex items-center justify-center p-5 rounded-[32px] bg-white/95 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.25)] mb-6 border border-white/60">
+                                <div className="inline-flex items-center justify-center p-5 rounded-[32px] bg-white/95 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.25)] mb-3 border border-white/60">
                                     <QRCodeCanvas
                                         id="store-qr"
                                         value={storeUrl || "https://fairprice.ng"}

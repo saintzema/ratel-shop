@@ -134,17 +134,28 @@ export default function DriveDashboardPage() {
         }
     };
 
+    const [offerErrors, setOfferErrors] = useState<Record<string, string>>({});
     const sendOffer = async (rideId: string) => {
         const fare = Number(offerInputs[rideId]);
         if (!fare || fare <= 0 || !vehicles[0]) return;
         setSending(rideId);
+        setOfferErrors(prev => ({ ...prev, [rideId]: "" }));
         try {
-            await fetch(`/api/rides/${rideId}/offers`, {
+            // Previously this never checked the response — a rejected offer just
+            // did nothing with zero feedback, reading exactly like a broken button.
+            const res = await fetch(`/api/rides/${rideId}/offers`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({ vehicleId: vehicles[0].id, offeredFare: fare }),
             });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setOfferErrors(prev => ({ ...prev, [rideId]: data?.error || "Couldn't send that offer" }));
+                return;
+            }
             load();
+        } catch {
+            setOfferErrors(prev => ({ ...prev, [rideId]: "Couldn't reach the server — try again" }));
         } finally {
             setSending(null);
         }
@@ -221,17 +232,20 @@ export default function DriveDashboardPage() {
                                     {ride.offers?.length > 0 ? (
                                         <p className="text-xs font-bold text-amber-600">You offered {formatPrice(ride.offers[0].offeredFare)} — waiting on rider</p>
                                     ) : (
-                                        <div className="flex gap-2">
-                                            <Input
-                                                placeholder="Your offer (₦)"
-                                                type="number"
-                                                value={offerInputs[ride.id] || ""}
-                                                onChange={e => setOfferInputs(prev => ({ ...prev, [ride.id]: e.target.value }))}
-                                                className="flex-1"
-                                            />
-                                            <Button onClick={() => sendOffer(ride.id)} disabled={sending === ride.id} className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0">
-                                                Send Offer
-                                            </Button>
+                                        <div>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    placeholder="Your offer (₦)"
+                                                    type="number"
+                                                    value={offerInputs[ride.id] || ""}
+                                                    onChange={e => setOfferInputs(prev => ({ ...prev, [ride.id]: e.target.value }))}
+                                                    className="flex-1"
+                                                />
+                                                <Button onClick={() => sendOffer(ride.id)} disabled={sending === ride.id} className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0">
+                                                    {sending === ride.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Offer"}
+                                                </Button>
+                                            </div>
+                                            {offerErrors[ride.id] && <p className="text-xs text-rose-600 font-semibold mt-1.5">{offerErrors[ride.id]}</p>}
                                         </div>
                                     )}
                                 </div>

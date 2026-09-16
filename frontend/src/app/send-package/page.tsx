@@ -19,14 +19,19 @@ import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+import { freeGeocode, approxRoadKm } from "@/lib/free-distance";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 
 // ₦300 call-out + ₦120/km, scaled up for bigger packages — a rough but real
 // distance-anchored floor so "what you'll pay" isn't just a bare guess, the
 // same way a real delivery app prices a run instead of leaving it to chance.
+// Fragile/electronics (phones, laptops, glass) add real handling risk for the
+// courier, so they carry a surcharge the same way a real courier would quote
+// one for anything they'd have to insure or specially cushion.
 const SIZE_MULTIPLIER: Record<string, number> = { small: 1, medium: 1.3, large: 1.6 };
-function estimateFare(distanceKm: number, size: string): number {
-    const raw = (300 + distanceKm * 120) * (SIZE_MULTIPLIER[size] || 1);
+const FRAGILE_MULTIPLIER = 1.25;
+function estimateFare(distanceKm: number, size: string, fragile: boolean): number {
+    const raw = (300 + distanceKm * 120) * (SIZE_MULTIPLIER[size] || 1) * (fragile ? FRAGILE_MULTIPLIER : 1);
     return Math.max(500, Math.round(raw / 100) * 100);
 }
 
@@ -57,6 +62,7 @@ export default function SendPackagePage() {
     const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
     const [packageDescription, setPackageDescription] = useState("");
     const [packageSize, setPackageSize] = useState("small");
+    const [isFragile, setIsFragile] = useState(false);
     const [recipientName, setRecipientName] = useState("");
     const [recipientPhone, setRecipientPhone] = useState("");
     const [fare, setFare] = useState(1000);
@@ -97,30 +103,49 @@ export default function SendPackagePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Recompute the distance-based suggestion as pickup/dropoff/size settle.
+    // Recompute the distance-based suggestion as pickup/dropoff/size/fragility
+    // settle. Tries Google Maps first (if a key is configured — it never was
+    // in this app, which is the real reason this used to never fire at all),
+    // then falls back to a free, no-key distance estimate so the price
+    // actually moves regardless.
     useEffect(() => {
-        if (!hasGoogleMapsKey || pickup.trim().length < 4 || dropoff.trim().length < 4) return;
+        if (pickup.trim().length < 4 || dropoff.trim().length < 4) return;
         let cancelled = false;
         const t = setTimeout(async () => {
-            const g = await loadGoogleMaps()?.catch(() => null);
-            if (!g || cancelled || !window.google?.maps) return;
-            const geocoder = new window.google.maps.Geocoder();
-            const [pickupLoc, dropoffLoc] = await Promise.all([
-                cachedGeocode(geocoder, `${pickup}, Nigeria`),
-                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
-            ]);
-            if (cancelled || !pickupLoc || !dropoffLoc) return;
-            const directionsService = new window.google.maps.DirectionsService();
-            const route = await cachedDirections(directionsService, pickupLoc, dropoffLoc, window.google.maps.TravelMode.DRIVING);
-            if (cancelled || !route) return;
-            const km = route.distanceMeters / 1000;
+            let km: number | null = null;
+
+            if (hasGoogleMapsKey) {
+                const g = await loadGoogleMaps()?.catch(() => null);
+                if (g && window.google?.maps) {
+                    const geocoder = new window.google.maps.Geocoder();
+                    const [pickupLoc, dropoffLoc] = await Promise.all([
+                        cachedGeocode(geocoder, `${pickup}, Nigeria`),
+                        cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+                    ]);
+                    if (pickupLoc && dropoffLoc) {
+                        const directionsService = new window.google.maps.DirectionsService();
+                        const route = await cachedDirections(directionsService, pickupLoc, dropoffLoc, window.google.maps.TravelMode.DRIVING);
+                        if (route) km = route.distanceMeters / 1000;
+                    }
+                }
+            }
+
+            if (km == null) {
+                const [pickupLoc, dropoffLoc] = await Promise.all([
+                    freeGeocode(`${pickup}, Nigeria`),
+                    freeGeocode(`${dropoff}, Nigeria`),
+                ]);
+                if (pickupLoc && dropoffLoc) km = approxRoadKm(pickupLoc, dropoffLoc);
+            }
+
+            if (cancelled || km == null) return;
             setRouteDistanceKm(km);
-            const suggestion = estimateFare(km, packageSize);
+            const suggestion = estimateFare(km, packageSize, isFragile);
             setSuggestedFare(suggestion);
             if (!fareTouched) setFare(suggestion);
         }, 800);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [pickup, dropoff, packageSize, fareTouched]);
+    }, [pickup, dropoff, packageSize, isFragile, fareTouched]);
 
     const postDelivery = async () => {
         setError(null);
@@ -132,14 +157,20 @@ export default function SendPackagePage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({
-                    pickup, dropoff, packageDescription, packageSize,
+                    pickup, dropoff,
+                    // Flagged in the description so the courier sees it before
+                    // accepting — no dedicated fragile column on DeliveryRequest,
+                    // and this is exactly the kind of handling note that belongs
+                    // in a description anyway.
+                    packageDescription: isFragile ? `⚠️ Fragile/Electronics — ${packageDescription}` : packageDescription,
+                    packageSize,
                     recipientName: recipientName || undefined, recipientPhone: recipientPhone || undefined,
                     proposedFare: fare, autoAcceptMax: autoAccept ? fare : undefined,
                 }),
             });
             const data = await res.json();
             if (!res.ok) { setError(data.error || "Something went wrong"); return; }
-            setPickup(""); setDropoff(""); setPackageDescription(""); setRecipientName(""); setRecipientPhone("");
+            setPickup(""); setDropoff(""); setPackageDescription(""); setRecipientName(""); setRecipientPhone(""); setIsFragile(false);
             loadDeliveries();
         } finally {
             setPosting(false);
@@ -314,6 +345,19 @@ export default function SendPackagePage() {
                             </button>
                         ))}
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsFragile(v => !v)}
+                        className={cn(
+                            "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border text-left",
+                            isFragile ? "bg-amber-50 border-amber-300 text-amber-700" : "bg-white border-gray-200 text-gray-600"
+                        )}
+                    >
+                        <span>Contains electronics or fragile items (phone, laptop, glass, etc.)</span>
+                        <span className={cn("shrink-0 h-5 w-9 rounded-full relative transition-colors ml-2", isFragile ? "bg-amber-500" : "bg-gray-200")}>
+                            <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform", isFragile ? "translate-x-4" : "translate-x-0.5")} />
+                        </span>
+                    </button>
                     <div className="grid grid-cols-2 gap-2">
                         <Input placeholder="Recipient name (optional)" value={recipientName} onChange={e => setRecipientName(e.target.value)} className="bg-white" />
                         <Input placeholder="Recipient phone (optional)" value={recipientPhone} onChange={e => setRecipientPhone(e.target.value)} className="bg-white" />

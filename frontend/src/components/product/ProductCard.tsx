@@ -122,7 +122,16 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
     return (
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
-            <div onClick={() => router.push(getProductUrl(product.id, product.name, product.slug))} className="flex flex-col flex-1">
+            {/* A plain div+onClick+router.push here meant Next.js never
+                prefetched this product route while the card sat in the
+                viewport — the route's JS/RSC payload only started loading
+                AFTER the tap, which is exactly what read as "the product
+                doesn't open, nothing happens" for a second or more. A real
+                Link gets that prefetch for free; the double-tap-to-favorite
+                handler below already calls preventDefault/stopPropagation
+                on its own event, which stops this Link's navigation the
+                same way it already stopped the old div's onClick. */}
+            <Link href={getProductUrl(product.id, product.name, product.slug)} className="flex flex-col flex-1">
                 <div
                     className="relative aspect-square w-full overflow-hidden flex-shrink-0 bg-muted"
                     onClick={handleDoubleTap}
@@ -298,7 +307,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         </div>
                     )}
                 </div>
-            </div>
+            </Link>
 
             {/* Action Buttons */}
             <div className="px-3 pb-3 mt-1.5">

@@ -51,17 +51,6 @@ const FEATURE_BANNER_COMPONENTS: Record<string, React.ComponentType> = {
   "ai-quote": AiQuoteHeroBanner,
 };
 
-// Mirrors each FeatureHeroShell's own `href` prop — kept alongside the
-// component map so tap-to-navigate (see onTap below) can resolve a
-// destination without importing anything from inside HeroBanners.tsx.
-const FEATURE_BANNER_HREFS: Record<string, string> = {
-  ride: "/ride",
-  delivery: "/send-package",
-  experts: "/services",
-  "social-multipost": "/seller/social",
-  "ai-quote": "/seller/quotes/new",
-};
-
 const AD_SLOT_COMPONENTS: Record<string, React.ComponentType> = {
   "flash-deals":  FlashDealsBanner,
   "new-arrivals": NewArrivalsBanner,
@@ -552,26 +541,6 @@ function HomeContent() {
                           } else if (info.offset.x > threshold) {
                             setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
                           }
-                        }}
-                        // The slide has its own full-cover <a href> (see
-                        // FeatureHeroShell), but framer-motion's own drag gesture
-                        // recognizer sits on top of it and can eat a tap's click
-                        // event on touch — a tap silently did nothing. onTap is
-                        // framer's own tap detector (fires only when no drag
-                        // threshold was crossed) so it's reliable where the
-                        // anchor's click wasn't. Bail out for anything that's
-                        // already its own control (Dashboard/Price Checker AI,
-                        // the arrow, the dots, this slide's own CTA link) so
-                        // tapping THOSE keeps doing exactly what they already do.
-                        onTap={(e) => {
-                          const target = e.target as HTMLElement;
-                          if (target.closest("button") || target.closest("a")) return;
-                          const current = banners[currentBannerIndex];
-                          if (!current) return;
-                          const href = current.type === "component"
-                            ? (current.componentId === "zema360" ? "/zema360" : FEATURE_BANNER_HREFS[current.componentId])
-                            : (current.link || current.link_url || current.href);
-                          if (href) router.push(href);
                         }}
                       >
                         {banners[currentBannerIndex]?.type === "component" ? (

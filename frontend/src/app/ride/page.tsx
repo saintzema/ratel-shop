@@ -22,13 +22,18 @@ import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+import { freeRouteDistanceKm } from "@/lib/free-distance";
 
 // ₦500 base + ₦550/km — a rough but realistic Nigerian ride-hailing floor
 // (inDrive-style apps land around this for a standard car) so "what you'll
 // pay" reflects the actual trip instead of sitting at a flat ₦2,000 default
-// regardless of whether the trip is 2km or 200km.
-function estimateRideFare(distanceKm: number): number {
-    const raw = 500 + distanceKm * 550;
+// regardless of whether the trip is 2km or 200km. A pricier vehicle class
+// costs more per trip, same as Bolt/inDrive's own Comfort/XL tiers — "Any
+// vehicle" and "Standard" both price at the base rate since neither commits
+// the rider to the pricier tiers.
+const CLASS_FARE_MULTIPLIER: Record<string, number> = { "": 1, standard: 1, newer: 1.15, ev: 1.25 };
+function estimateRideFare(distanceKm: number, vehicleClass: string = ""): number {
+    const raw = (500 + distanceKm * 550) * (CLASS_FARE_MULTIPLIER[vehicleClass] ?? 1);
     return Math.max(800, Math.round(raw / 100) * 100);
 }
 
@@ -147,30 +152,53 @@ export default function RidePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    // Recompute the distance-based fare suggestion as pickup/dropoff settle.
+    // Recompute the distance-based fare suggestion as pickup/dropoff/stops/
+    // vehicle class settle. Stops used to be silently dropped from this calc
+    // entirely — a 3-stop trip priced identically to a direct one — so this
+    // now sums each leg (pickup → stop 1 → ... → dropoff) instead of just
+    // the endpoints. Tries Google Maps first (if a key is configured), then
+    // falls back to a free, no-key distance estimate — the Maps key was
+    // never actually provisioned in this app, which is the real reason the
+    // price never used to adjust at all, not a data problem.
     useEffect(() => {
-        if (!hasGoogleMapsKey || pickup.trim().length < 4 || dropoff.trim().length < 4) return;
+        const validStops = stops.map(s => s.trim()).filter(Boolean);
+        const routeAddresses = [pickup, ...validStops, dropoff].map(s => s.trim());
+        if (routeAddresses.some(a => a.length < 4)) return;
         let cancelled = false;
         const t = setTimeout(async () => {
-            const g = await loadGoogleMaps()?.catch(() => null);
-            if (!g || cancelled || !window.google?.maps) return;
-            const geocoder = new window.google.maps.Geocoder();
-            const [pickupLoc, dropoffLoc] = await Promise.all([
-                cachedGeocode(geocoder, `${pickup}, Nigeria`),
-                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
-            ]);
-            if (cancelled || !pickupLoc || !dropoffLoc) return;
-            const directionsService = new window.google.maps.DirectionsService();
-            const route = await cachedDirections(directionsService, pickupLoc, dropoffLoc, window.google.maps.TravelMode.DRIVING);
-            if (cancelled || !route) return;
-            const km = route.distanceMeters / 1000;
+            let km: number | null = null;
+
+            if (hasGoogleMapsKey) {
+                const g = await loadGoogleMaps()?.catch(() => null);
+                if (g && window.google?.maps) {
+                    const geocoder = new window.google.maps.Geocoder();
+                    const points = await Promise.all(routeAddresses.map(a => cachedGeocode(geocoder, `${a}, Nigeria`)));
+                    if (!points.some(p => !p)) {
+                        const directionsService = new window.google.maps.DirectionsService();
+                        let total = 0;
+                        let ok = true;
+                        for (let i = 0; i < points.length - 1; i++) {
+                            const leg = await cachedDirections(directionsService, points[i]!, points[i + 1]!, window.google.maps.TravelMode.DRIVING);
+                            if (!leg) { ok = false; break; }
+                            total += leg.distanceMeters / 1000;
+                        }
+                        if (ok) km = total;
+                    }
+                }
+            }
+
+            if (km == null) {
+                km = await freeRouteDistanceKm(routeAddresses);
+            }
+
+            if (cancelled || km == null) return;
             setRouteDistanceKm(km);
-            const suggestion = estimateRideFare(km);
+            const suggestion = estimateRideFare(km, vehicleClassPref);
             setSuggestedFare(suggestion);
             if (!fareTouched) setFare(suggestion);
         }, 800);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [pickup, dropoff, fareTouched]);
+    }, [pickup, dropoff, stops, vehicleClassPref, fareTouched]);
 
     const postRide = async () => {
         setError(null);
@@ -361,6 +389,10 @@ export default function RidePage() {
                         <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
                     </div>
 
+                    {/* Stop inputs render here — between pickup and drop-off, matching
+                        the actual order a driver would visit them in — even though the
+                        "Add stop" button that creates them lives below the drop-off
+                        field now, not up here. */}
                     {stops.map((stop, i) => (
                         <div key={i} className="relative flex items-center gap-1.5">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-500" />
@@ -380,6 +412,11 @@ export default function RidePage() {
                         </div>
                     ))}
 
+                    <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
+                        <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
+                    </div>
+
                     <div className="flex justify-center">
                         <button
                             type="button"
@@ -390,10 +427,6 @@ export default function RidePage() {
                         </button>
                     </div>
 
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
-                        <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
-                    </div>
                     {!pickupAutocomplete.supported && (
                         <p className="text-[11px] text-amber-600 -mt-1">
                             Address suggestions are unavailable right now — type the full address instead.

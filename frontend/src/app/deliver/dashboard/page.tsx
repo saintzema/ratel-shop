@@ -91,17 +91,30 @@ export default function DeliverDashboardPage() {
         }
     };
 
+    const [offerErrors, setOfferErrors] = useState<Record<string, string>>({});
     const sendOffer = async (deliveryId: string) => {
         const fare = Number(offerInputs[deliveryId]);
         if (!fare || fare <= 0) return;
         setSending(deliveryId);
+        setOfferErrors(prev => ({ ...prev, [deliveryId]: "" }));
         try {
-            await fetch(`/api/deliveries/${deliveryId}/offers`, {
+            // Previously this never checked the response — a rejected offer (e.g.
+            // the delivery got matched to someone else a moment earlier) just did
+            // nothing with zero feedback, which read exactly like "I clicked Send
+            // Offer and nothing happened."
+            const res = await fetch(`/api/deliveries/${deliveryId}/offers`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({ offeredFare: fare }),
             });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setOfferErrors(prev => ({ ...prev, [deliveryId]: data?.error || "Couldn't send that offer" }));
+                return;
+            }
             load();
+        } catch {
+            setOfferErrors(prev => ({ ...prev, [deliveryId]: "Couldn't reach the server — try again" }));
         } finally {
             setSending(null);
         }
@@ -163,22 +176,30 @@ export default function DeliverDashboardPage() {
                                     <MapPin className="h-4 w-4 text-brand-green-600 shrink-0 mt-0.5" />
                                     <p className="font-bold text-gray-900 text-sm">{delivery.pickup} → {delivery.dropoff}</p>
                                 </div>
-                                <p className="text-xs text-gray-500 mb-3">{delivery.sender?.name} proposed {formatPrice(delivery.proposedFare)} · {delivery.packageDescription} ({delivery.packageSize})</p>
+                                <p className="text-xs text-gray-500 mb-1">{delivery.sender?.name} proposed {formatPrice(delivery.proposedFare)} · {delivery.packageDescription} ({delivery.packageSize})</p>
+                                {(delivery.recipientName || delivery.recipientPhone) && (
+                                    <p className="text-[11px] text-gray-400 mb-3">
+                                        Recipient: {delivery.recipientName || "—"}{delivery.recipientPhone ? ` · ${delivery.recipientPhone}` : ""}
+                                    </p>
+                                )}
 
                                 {delivery.offers?.length > 0 ? (
                                     <p className="text-xs font-bold text-amber-600">You offered {formatPrice(delivery.offers[0].offeredFare)} — waiting on sender</p>
                                 ) : (
-                                    <div className="flex gap-2">
-                                        <Input
-                                            placeholder="Your offer (₦)"
-                                            type="number"
-                                            value={offerInputs[delivery.id] || ""}
-                                            onChange={e => setOfferInputs(prev => ({ ...prev, [delivery.id]: e.target.value }))}
-                                            className="flex-1"
-                                        />
-                                        <Button onClick={() => sendOffer(delivery.id)} disabled={sending === delivery.id} className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0">
-                                            Send Offer
-                                        </Button>
+                                    <div>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                placeholder="Your offer (₦)"
+                                                type="number"
+                                                value={offerInputs[delivery.id] || ""}
+                                                onChange={e => setOfferInputs(prev => ({ ...prev, [delivery.id]: e.target.value }))}
+                                                className="flex-1"
+                                            />
+                                            <Button onClick={() => sendOffer(delivery.id)} disabled={sending === delivery.id} className="bg-brand-green-600 hover:bg-brand-green-700 shrink-0">
+                                                {sending === delivery.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send Offer"}
+                                            </Button>
+                                        </div>
+                                        {offerErrors[delivery.id] && <p className="text-xs text-rose-600 font-semibold mt-1.5">{offerErrors[delivery.id]}</p>}
                                     </div>
                                 )}
                             </div>

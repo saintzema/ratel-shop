@@ -389,7 +389,12 @@ export default function StoreProfile() {
                                         <span>{seller.rating}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <MapPin className="h-2.5 w-2.5" /> {seller.location?.split(',')[0] || "Lagos"}
+                                        {/* seller.location is already stored as "City, State" (see
+                                            seller onboarding/settings) — splitting on the comma here
+                                            was throwing away the state half, showing just "Lugbe"
+                                            instead of "Lugbe, Abuja", which is exactly the detail
+                                            buyers and search need to match sellers by area. */}
+                                        <MapPin className="h-2.5 w-2.5" /> {seller.location || "Lagos, Nigeria"}
                                     </div>
                                     <div className="hidden md:flex items-center gap-1.5 text-emerald-600">
                                         <Clock className="h-3.5 w-3.5" /> Responds in 1h
