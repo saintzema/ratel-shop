@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Search, Camera, Check, ChevronRight, ShoppingCart, Star, ChevronDown } from "lucide-react";
 import { SmartSearchInput } from "@/components/ui/SmartSearchInput";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { getProductUrl } from "@/lib/utils";
 import { Loader2, PlusCircle } from "lucide-react";
 
 // ─── Sidebar Categories (Temu-style extensive list, adapted to our platform) ───
@@ -625,7 +627,7 @@ export default function CategoriesPage() {
 
                         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 -mx-1 md:mx-0 min-h-[300px]">
                             {displayedProducts.map((product, idx) => (
-                                <div key={`${product.id}-${idx}`} className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-md overflow-hidden cursor-pointer" onClick={() => router.push(`/product/${product.id}`)}>
+                                <Link key={`${product.id}-${idx}`} href={getProductUrl(product)} className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-md overflow-hidden cursor-pointer">
                                     <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
                                         <img
                                             src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
@@ -698,7 +700,7 @@ export default function CategoriesPage() {
                                             {product.sold_count > 1000 ? `${Math.floor(product.sold_count / 1000)}K+` : product.sold_count} sold
                                         </span>
                                     </div>
-                                </div>
+                                </Link>
                             ))}
                         </div>
 
