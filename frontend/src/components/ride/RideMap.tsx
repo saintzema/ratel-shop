@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, MapPinned } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
@@ -113,7 +113,6 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
     const apiBase = kind === "delivery" ? "/api/deliveries" : "/api/rides";
     // Rides key the location response as {driver, rider}; deliveries as {courier, sender}.
     const primaryRoleKey = trackRole === "driver" || trackRole === "courier" ? (kind === "delivery" ? "courier" : "driver") : (kind === "delivery" ? "sender" : "rider");
-    const mapDivRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const liveMarkerRef = useRef<any>(null);
     const plateMarkerRef = useRef<any>(null);
@@ -140,15 +139,39 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         return tok ? { Authorization: `Bearer ${tok}` } : {};
     };
 
+    const cancelledRef = useRef(false);
     useEffect(() => {
-        if (!hasGoogleMapsKey || !mapDivRef.current) return;
-        let cancelled = false;
+        cancelledRef.current = false;
+        return () => {
+            cancelledRef.current = true;
+            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
+    }, []);
+
+    // Create the map ONCE the container div actually exists. This used to be
+    // a plain useRef checked inside a useEffect keyed on [pickup, dropoff] —
+    // which both assumed the div was already mounted on the very first run
+    // AND recreated the entire google.maps.Map instance (losing zoom/pan)
+    // every time pickup/dropoff changed, instead of just redrawing pins on
+    // the existing map. Both /ride and /send-package (where this renders for
+    // an active/matched trip) gate their form behind an async `if (!user)`
+    // check, so the div is NOT guaranteed to exist on the first commit —
+    // confirmed as the exact cause of the address-autocomplete bug on these
+    // same pages. A callback ref fixes the mount-timing issue; splitting map
+    // creation from marker drawing (below) fixes the recreate-on-every-
+    // change issue as a bonus.
+    const attachMapDiv = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return;
+        if ((node as any).__fpMapAttached) return;
+        if (!hasGoogleMapsKey) { setMapError(true); return; }
+        (node as any).__fpMapAttached = true;
 
         loadGoogleMaps()?.then(() => {
-            if (cancelled || !mapDivRef.current || !window.google?.maps) return;
+            if (cancelledRef.current || !window.google?.maps) return;
             const google = window.google;
 
-            const map = new google.maps.Map(mapDivRef.current, {
+            const map = new google.maps.Map(node, {
                 center: { lat: 9.082, lng: 8.6753 }, // Nigeria centroid — replaced once geocoded
                 zoom: 6,
                 disableDefaultUI: true,
@@ -159,60 +182,64 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                 ],
             });
             mapRef.current = map;
-
-            const geocoder = new google.maps.Geocoder();
-
-            Promise.all([
-                cachedGeocode(geocoder, `${pickup}, Nigeria`),
-                cachedGeocode(geocoder, `${dropoff}, Nigeria`),
-            ]).then(([pickupLoc, dropoffLoc]) => {
-                if (cancelled) return;
-                if (!pickupLoc || !dropoffLoc) { setMapError(true); return; }
-
-                new google.maps.Marker({
-                    position: pickupLoc, map,
-                    icon: teardropPinIcon(google, PIN_GREEN),
-                    title: "Pickup",
-                });
-                new google.maps.Marker({
-                    position: dropoffLoc, map,
-                    icon: teardropPinIcon(google, PIN_RED),
-                    title: "Drop-off",
-                });
-
-                const directionsService = new google.maps.DirectionsService();
-
-                cachedDirections(directionsService, pickupLoc, dropoffLoc, google.maps.TravelMode.DRIVING).then((route) => {
-                    if (cancelled) return;
-                    if (route) {
-                        const path = google.maps.geometry.encoding.decodePath(route.encodedPolyline);
-                        new google.maps.Polyline({
-                            path, map,
-                            strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85,
-                        });
-                        setRouteInfo({ distance: route.distanceText, duration: route.durationText });
-                        map.fitBounds(route.bounds, 80);
-                    } else {
-                        // Directions failed (e.g. no drivable route found) — the two
-                        // pins and geocoded locations are still real and useful on
-                        // their own, just without a drawn route line.
-                        const bounds = new google.maps.LatLngBounds();
-                        bounds.extend(pickupLoc); bounds.extend(dropoffLoc);
-                        map.fitBounds(bounds, 80);
-                    }
-                });
-
-                setReady(true);
-            });
+            setReady(true);
         }).catch(() => setMapError(true));
-
-        return () => {
-            cancelled = true;
-            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-            if (pollRef.current) clearInterval(pollRef.current);
-        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pickup, dropoff]);
+    }, []);
+
+    // Geocode pickup/dropoff and (re)draw pins/route on the ALREADY-CREATED
+    // map — separate from map creation above, so a pickup/dropoff change
+    // just redraws instead of tearing down and recreating the whole map.
+    useEffect(() => {
+        if (!ready || !mapRef.current || !window.google?.maps) return;
+        const google = window.google;
+        const map = mapRef.current;
+        let cancelled = false;
+
+        const geocoder = new google.maps.Geocoder();
+        Promise.all([
+            cachedGeocode(geocoder, `${pickup}, Nigeria`),
+            cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+        ]).then(([pickupLoc, dropoffLoc]) => {
+            if (cancelled) return;
+            if (!pickupLoc || !dropoffLoc) { setMapError(true); return; }
+
+            new google.maps.Marker({
+                position: pickupLoc, map,
+                icon: teardropPinIcon(google, PIN_GREEN),
+                title: "Pickup",
+            });
+            new google.maps.Marker({
+                position: dropoffLoc, map,
+                icon: teardropPinIcon(google, PIN_RED),
+                title: "Drop-off",
+            });
+
+            const directionsService = new google.maps.DirectionsService();
+
+            cachedDirections(directionsService, pickupLoc, dropoffLoc, google.maps.TravelMode.DRIVING).then((route) => {
+                if (cancelled) return;
+                if (route) {
+                    const path = google.maps.geometry.encoding.decodePath(route.encodedPolyline);
+                    new google.maps.Polyline({
+                        path, map,
+                        strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85,
+                    });
+                    setRouteInfo({ distance: route.distanceText, duration: route.durationText });
+                    map.fitBounds(route.bounds, 80);
+                } else {
+                    // Directions failed (e.g. no drivable route found) — the two
+                    // pins and geocoded locations are still real and useful on
+                    // their own, just without a drawn route line.
+                    const bounds = new google.maps.LatLngBounds();
+                    bounds.extend(pickupLoc); bounds.extend(dropoffLoc);
+                    map.fitBounds(bounds, 80);
+                }
+            });
+        });
+
+        return () => { cancelled = true; };
+    }, [ready, pickup, dropoff]);
 
     // My own position + heading — only for the side actually waiting on a
     // moving party (rider waiting for a driver, sender waiting for a
@@ -395,7 +422,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
             className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)]"
             style={{ border: "1px solid rgba(255,255,255,0.6)" }}
         >
-            <div ref={mapDivRef} className="h-56 w-full bg-gray-100" />
+            <div ref={attachMapDiv} className="h-56 w-full bg-gray-100" />
             {mapError && (
                 <div
                     className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6"

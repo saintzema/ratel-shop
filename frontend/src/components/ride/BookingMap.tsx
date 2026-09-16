@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, LocateFixed } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
@@ -23,29 +23,55 @@ interface BookingMapProps {
  * pointer genuinely moves in real time) plus the two addresses being typed.
  */
 export function BookingMap({ pickup, dropoff }: BookingMapProps) {
-    const mapDivRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const meMarkerRef = useRef<any>(null);
     const pickupMarkerRef = useRef<any>(null);
     const dropoffMarkerRef = useRef<any>(null);
     const routeLineRef = useRef<any>(null);
     const watchIdRef = useRef<number | null>(null);
+    const cancelledRef = useRef(false);
 
     const [ready, setReady] = useState(false);
     const [mapError, setMapError] = useState(false);
     const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
     const [locating, setLocating] = useState(true);
 
-    // Map + my own live position, once.
     useEffect(() => {
-        if (!hasGoogleMapsKey || !mapDivRef.current) { setMapError(true); return; }
-        let cancelled = false;
+        cancelledRef.current = false;
+        return () => { cancelledRef.current = true; };
+    }, []);
+
+    // Map + my own live position, once the container div actually exists.
+    // This used to be a plain useRef checked inside a useEffect(..., []) —
+    // fine as long as the div is already in the DOM on the component's very
+    // first commit. Both /ride and /send-package gate their whole form
+    // behind an async `if (!user) return <SignInPrompt/>` check, so that's
+    // NOT guaranteed: the first commit can render the sign-in fallback (no
+    // map div at all), and a once-only effect never gets a second chance
+    // once the real form mounts later. Confirmed as the exact cause of the
+    // address-autocomplete bug on the same pages (see
+    // usePlacesAutocomplete's own comment) — a callback ref fixes it the
+    // same way here, since React invokes it whenever the div is actually
+    // created, on whichever render that turns out to be.
+    const attachMapDiv = useCallback((node: HTMLDivElement | null) => {
+        if (!node) {
+            // Unmounting — a callback ref's return value isn't a cleanup
+            // function the way a useEffect's is, so this branch (React
+            // calls the ref with null right before/on unmount) is where
+            // that cleanup actually has to live instead.
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+            if ((meMarkerRef as any).pulseInterval) clearInterval((meMarkerRef as any).pulseInterval);
+            return;
+        }
+        if ((node as any).__fpMapAttached) return;
+        if (!hasGoogleMapsKey) { setMapError(true); return; }
+        (node as any).__fpMapAttached = true;
 
         loadGoogleMaps()?.then(() => {
-            if (cancelled || !mapDivRef.current || !window.google?.maps) return;
+            if (cancelledRef.current || !window.google?.maps) return;
             const google = window.google;
 
-            const map = new google.maps.Map(mapDivRef.current, {
+            const map = new google.maps.Map(node, {
                 center: { lat: 9.082, lng: 8.6753 },
                 zoom: 6,
                 disableDefaultUI: true,
@@ -102,12 +128,6 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
                 { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
             );
         }).catch(() => setMapError(true));
-
-        return () => {
-            cancelled = true;
-            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-            if ((meMarkerRef as any).pulseInterval) clearInterval((meMarkerRef as any).pulseInterval);
-        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -177,7 +197,7 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
 
     return (
         <div className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)] mb-4" style={{ border: "1px solid rgba(255,255,255,0.6)" }}>
-            <div ref={mapDivRef} className="h-48 w-full bg-gray-100" />
+            <div ref={attachMapDiv} className="h-48 w-full bg-gray-100" />
             {mapError && (
                 <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-2 text-center px-6">
                     <p className="text-xs text-gray-400">Live map unavailable right now — you can still book normally.</p>
