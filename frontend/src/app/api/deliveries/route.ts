@@ -140,7 +140,10 @@ export async function GET(req: NextRequest) {
             }),
             db.deliveryRequest.findMany({
                 where: { courierId: user.userId, status: { in: ["matched", "picked_up"] } },
-                include: { sender: { select: { name: true } } },
+                // Only once this delivery is actually matched to this courier
+                // does the sender's own contact number become visible — the
+                // open board above deliberately withholds it (sender name only).
+                include: { sender: { select: { name: true, whatsappNumber: true } } },
                 orderBy: { createdAt: "desc" },
             }),
         ]);

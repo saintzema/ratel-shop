@@ -102,7 +102,9 @@ export async function GET(req: NextRequest) {
                         { status: "completed", paidAt: null },
                     ],
                 },
-                include: { rider: { select: { name: true } } },
+                // Contact number only exposed here (matched to this driver) — the
+                // open request board never includes it.
+                include: { rider: { select: { name: true, whatsappNumber: true } } },
                 orderBy: { createdAt: "desc" },
             }),
         ]);

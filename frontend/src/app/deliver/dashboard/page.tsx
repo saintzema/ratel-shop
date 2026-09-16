@@ -176,12 +176,11 @@ export default function DeliverDashboardPage() {
                                     <MapPin className="h-4 w-4 text-brand-green-600 shrink-0 mt-0.5" />
                                     <p className="font-bold text-gray-900 text-sm">{delivery.pickup} → {delivery.dropoff}</p>
                                 </div>
-                                <p className="text-xs text-gray-500 mb-1">{delivery.sender?.name} proposed {formatPrice(delivery.proposedFare)} · {delivery.packageDescription} ({delivery.packageSize})</p>
-                                {(delivery.recipientName || delivery.recipientPhone) && (
-                                    <p className="text-[11px] text-gray-400 mb-3">
-                                        Recipient: {delivery.recipientName || "—"}{delivery.recipientPhone ? ` · ${delivery.recipientPhone}` : ""}
-                                    </p>
-                                )}
+                                {/* Sender/recipient contact details are deliberately withheld
+                                    here — this is the OPEN board, before any courier has been
+                                    matched. They only appear once this courier's offer is
+                                    accepted, in "Your Active Deliveries" below. */}
+                                <p className="text-xs text-gray-500 mb-3">{delivery.sender?.name} proposed {formatPrice(delivery.proposedFare)} · {delivery.packageDescription} ({delivery.packageSize})</p>
 
                                 {delivery.offers?.length > 0 ? (
                                     <p className="text-xs font-bold text-amber-600">You offered {formatPrice(delivery.offers[0].offeredFare)} — waiting on sender</p>
@@ -225,6 +224,14 @@ export default function DeliverDashboardPage() {
                                                 </Button>
                                             )}
                                         </div>
+                                    </div>
+                                    {/* Contact details only ever shown here — once matched to
+                                        this courier — never on the open board above. */}
+                                    <div className="text-xs text-gray-600 space-y-0.5">
+                                        <p><span className="font-bold text-gray-800">Sender:</span> {delivery.sender?.name || "—"}{delivery.sender?.whatsappNumber ? ` · ${delivery.sender.whatsappNumber}` : ""}</p>
+                                        {(delivery.recipientName || delivery.recipientPhone) && (
+                                            <p><span className="font-bold text-gray-800">Recipient:</span> {delivery.recipientName || "—"}{delivery.recipientPhone ? ` · ${delivery.recipientPhone}` : ""}</p>
+                                        )}
                                     </div>
                                     {delivery.status === "matched" && (
                                         <div className="bg-white rounded-xl p-3 flex items-center gap-2">

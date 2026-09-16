@@ -272,6 +272,11 @@ export default function DriveDashboardPage() {
                                             </div>
                                         )}
                                     </div>
+                                    {/* Rider's contact only shown here — once matched to this
+                                        driver — never on the open request board above. */}
+                                    <p className="text-xs text-gray-600">
+                                        <span className="font-bold text-gray-800">Rider:</span> {ride.rider?.name || "—"}{ride.rider?.whatsappNumber ? ` · ${ride.rider.whatsappNumber}` : ""}
+                                    </p>
 
                                     {ride.status === "matched" && (
                                         <>
