@@ -1224,7 +1224,7 @@ function SearchContent() {
         const desc = (p.description || "").toLowerCase();
         return words.some(w => name.includes(w) || desc.includes(w));
       })
-      .slice(0, 12);
+      .slice(0, 60);
   }, [query, allProducts]);
 
   // Build the combined current view array
@@ -1277,10 +1277,15 @@ function SearchContent() {
     // category, same city) were sitting right there in catalogueFallback,
     // already computed, and simply never shown. A real SRP fills the page
     // with the most relevant results first, then similar/nearby listings —
-    // it doesn't leave whitespace once it runs out of exact matches.
-    if (combined.length > 0 && combined.length < ITEMS_PER_PAGE) {
+    // it doesn't leave whitespace once it runs out of exact matches. The
+    // fill target scales with `page` (via paginatedProducts, which already
+    // grows with it) so clicking "View More Results" keeps revealing
+    // further catalogue matches too, instead of maxing out at one page's
+    // worth and then doing nothing on every subsequent click.
+    const fillTarget = page * ITEMS_PER_PAGE;
+    if (combined.length > 0 && combined.length < fillTarget) {
       for (const p of catalogueFallback) {
-        if (combined.length >= ITEMS_PER_PAGE) break;
+        if (combined.length >= fillTarget) break;
         const pName = (p.name || "").toLowerCase().trim();
         const isDuplicate = seenIds.has(p.id) || combined.some(r => (r.name || "").toLowerCase().trim() === pName);
         if (!isDuplicate) {
@@ -1295,7 +1300,7 @@ function SearchContent() {
       const itemPrice = p.price !== undefined ? p.price : (p.approxPrice || 0);
       return itemPrice >= priceRange[0] && itemPrice <= priceRange[1];
     });
-  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool, catalogueFallback]);
+  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool, catalogueFallback, page]);
 
   // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
   // When there are no local results and no ongoing search, auto-trigger the
@@ -1908,7 +1913,14 @@ function SearchContent() {
                     ))}
                 </div>
 
-                {paginatedProducts.length < filteredProducts.length &&
+                {/* Also keep offering more when there's unused catalogue-fallback
+                    inventory beyond what's currently shown — otherwise this
+                    disappeared (or kept re-rendering with nothing new) the
+                    moment filteredProducts itself ran out, even though
+                    dozens of similar items were still sitting in
+                    catalogueFallback, unrevealed. */}
+                {(paginatedProducts.length < filteredProducts.length ||
+                  combinedCurrentResults.length < catalogueFallback.length) &&
                   !showGlobalResults && (
                     <div className="flex justify-center mt-8 mb-4">
                       <NextLink

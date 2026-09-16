@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Package, MapPin, Loader2, CheckCircle2, Minus, Plus, X, Star, ShieldCheck } from "lucide-react";
+import { Package, MapPin, Loader2, CheckCircle2, Minus, Plus, X, Star, ShieldCheck, ArrowUpDown } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -359,13 +359,25 @@ export default function SendPackagePage() {
                 <BookingMap pickup={pickup} dropoff={dropoff} />
 
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600" />
-                        <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
-                    </div>
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
-                        <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
+                    <div className="relative bg-white rounded-2xl border border-gray-200 pr-12">
+                        <div className="divide-y divide-gray-100">
+                            <div className="relative flex items-center">
+                                <MapPin className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
+                                <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                            </div>
+                            <div className="relative flex items-center">
+                                <MapPin className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
+                                <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { setPickup(dropoff); setDropoff(pickup); }}
+                            title="Swap pickup and drop-off"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 active:scale-90 transition-transform"
+                        >
+                            <ArrowUpDown className="h-3.5 w-3.5" />
+                        </button>
                     </div>
                     {!pickupAutocomplete.supported && (
                         <p className="text-[11px] text-amber-600 -mt-1">

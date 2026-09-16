@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Car, MapPin, ChevronDown, Loader2, CheckCircle2, Minus, Plus, X, ShieldCheck, Star } from "lucide-react";
+import { Car, MapPin, ChevronDown, Loader2, CheckCircle2, Minus, Plus, X, ShieldCheck, Star, ArrowUpDown } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -232,6 +232,11 @@ export default function RidePage() {
         return () => { cancelled = true; clearTimeout(t); };
     }, [pickup, dropoff, stops, vehicleClassPref, fareTouched]);
 
+    const swapPickupDropoff = () => {
+        setPickup(dropoff);
+        setDropoff(pickup);
+    };
+
     const postRide = async () => {
         setError(null);
         if (!pickup || !dropoff) { setError("Enter pickup and drop-off."); return; }
@@ -416,47 +421,65 @@ export default function RidePage() {
                 <BookingMap pickup={pickup} dropoff={dropoff} />
 
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-green-600" />
-                        <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 bg-white" />
-                    </div>
+                    {/* Grouped like a real ride app's route card: pickup/stops/
+                        drop-off stacked in one bordered box, with a swap and an
+                        add-stop control docked on the right instead of a
+                        standalone "Add stop" pill taking its own row. Swap only
+                        ever exchanges pickup ↔ drop-off — stops keep their own
+                        position in between either way. */}
+                    <div className="relative bg-white rounded-2xl border border-gray-200 pr-12">
+                        <div className="divide-y divide-gray-100">
+                            <div className="relative flex items-center">
+                                <MapPin className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
+                                <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                            </div>
 
-                    {/* Stop inputs render here — between pickup and drop-off, matching
-                        the actual order a driver would visit them in — even though the
-                        "Add stop" button that creates them lives below the drop-off
-                        field now, not up here. */}
-                    {stops.map((stop, i) => (
-                        <div key={i} className="relative flex items-center gap-1.5">
-                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-500" />
-                            <Input
-                                placeholder={`Stop ${i + 1}`}
-                                value={stop}
-                                onChange={e => setStops(s => s.map((v, idx) => idx === i ? e.target.value : v))}
-                                className="pl-9 bg-white"
-                            />
+                            {/* Stop inputs render here — between pickup and drop-off,
+                                matching the actual order a driver would visit them in. */}
+                            {stops.map((stop, i) => (
+                                <div key={i} className="relative flex items-center gap-1.5 pr-2">
+                                    <MapPin className="absolute left-3 h-4 w-4 text-amber-500 pointer-events-none" />
+                                    <Input
+                                        placeholder={`Stop ${i + 1}`}
+                                        value={stop}
+                                        onChange={e => setStops(s => s.map((v, idx) => idx === i ? e.target.value : v))}
+                                        className="pl-9 border-0 bg-transparent focus-visible:ring-0"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setStops(s => s.filter((_, idx) => idx !== i))}
+                                        className="shrink-0 h-7 w-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-700"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            <div className="relative flex items-center">
+                                <MapPin className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
+                                <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                            </div>
+                        </div>
+
+                        {/* Right-side action rail */}
+                        <div className="absolute right-1.5 top-0 bottom-0 flex flex-col items-center justify-center gap-2">
                             <button
                                 type="button"
-                                onClick={() => setStops(s => s.filter((_, idx) => idx !== i))}
-                                className="shrink-0 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-700"
+                                onClick={swapPickupDropoff}
+                                title="Swap pickup and drop-off"
+                                className="h-8 w-8 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 active:scale-90 transition-transform"
                             >
-                                <X className="h-3.5 w-3.5" />
+                                <ArrowUpDown className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStops(s => [...s, ""])}
+                                title="Add a stop"
+                                className="h-8 w-8 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-brand-green-700 active:scale-90 transition-transform"
+                            >
+                                <Plus className="h-4 w-4" />
                             </button>
                         </div>
-                    ))}
-
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-rose-500" />
-                        <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 bg-white" />
-                    </div>
-
-                    <div className="flex justify-center">
-                        <button
-                            type="button"
-                            onClick={() => setStops(s => [...s, ""])}
-                            className="flex items-center gap-1.5 text-[11px] font-bold text-brand-green-700 hover:text-brand-green-800 bg-white border border-gray-200 hover:border-brand-green-300 rounded-full pl-2.5 pr-3 py-1.5 shadow-sm"
-                        >
-                            <Plus className="h-3 w-3" /> Add stop
-                        </button>
                     </div>
 
                     {!pickupAutocomplete.supported && (
