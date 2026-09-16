@@ -92,8 +92,8 @@ export default function DeliverDashboardPage() {
     };
 
     const [offerErrors, setOfferErrors] = useState<Record<string, string>>({});
-    const sendOffer = async (deliveryId: string) => {
-        const fare = Number(offerInputs[deliveryId]);
+    const sendOffer = async (deliveryId: string, exactFare?: number) => {
+        const fare = exactFare ?? Number(offerInputs[deliveryId]);
         if (!fare || fare <= 0) return;
         setSending(deliveryId);
         setOfferErrors(prev => ({ ...prev, [deliveryId]: "" }));
@@ -186,9 +186,19 @@ export default function DeliverDashboardPage() {
                                     <p className="text-xs font-bold text-amber-600">You offered {formatPrice(delivery.offers[0].offeredFare)} — waiting on sender</p>
                                 ) : (
                                     <div>
+                                        {/* Happy with the sender's own asking price? One tap instead
+                                            of retyping the same number into the offer box below. */}
+                                        <Button
+                                            onClick={() => sendOffer(delivery.id, delivery.proposedFare)}
+                                            disabled={sending === delivery.id}
+                                            variant="outline"
+                                            className="w-full mb-2 border-brand-green-200 text-brand-green-700 hover:bg-brand-green-50"
+                                        >
+                                            {sending === delivery.id ? <Loader2 className="h-4 w-4 animate-spin" /> : `Accept ${formatPrice(delivery.proposedFare)} as offered`}
+                                        </Button>
                                         <div className="flex gap-2">
                                             <Input
-                                                placeholder="Your offer (₦)"
+                                                placeholder="Or counter with your own price (₦)"
                                                 type="number"
                                                 value={offerInputs[delivery.id] || ""}
                                                 onChange={e => setOfferInputs(prev => ({ ...prev, [delivery.id]: e.target.value }))}

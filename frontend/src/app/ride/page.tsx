@@ -22,7 +22,7 @@ import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
-import { freeRouteDistanceKm } from "@/lib/free-distance";
+import { freeRouteDistanceKm, freeReverseGeocode } from "@/lib/free-distance";
 
 // ₦500 base + ₦550/km — a rough but realistic Nigerian ride-hailing floor
 // (inDrive-style apps land around this for a standard car) so "what you'll
@@ -78,6 +78,38 @@ export default function RidePage() {
     // usePlacesAutocomplete's own comment for how to turn this on.
     const pickupAutocomplete = usePlacesAutocomplete(setPickup);
     const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
+
+    // Prefill pickup with the rider's actual precise location, the way a
+    // real ride app does — instead of leaving them to type out their own
+    // address every single time. Only ever fills an EMPTY field (never
+    // overwrites something already typed) and fails completely silently:
+    // if location is denied or unavailable, pickup just stays blank exactly
+    // as it always has.
+    useEffect(() => {
+        if (pickup || typeof navigator === "undefined" || !navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                let address: string | null = null;
+                if (hasGoogleMapsKey) {
+                    const g = await loadGoogleMaps()?.catch(() => null);
+                    if (g && window.google?.maps) {
+                        const geocoder = new window.google.maps.Geocoder();
+                        address = await new Promise((resolve) => {
+                            geocoder.geocode({ location: point }, (results: any, status: string) => {
+                                resolve(status === "OK" && results?.[0] ? results[0].formatted_address : null);
+                            });
+                        });
+                    }
+                }
+                if (!address) address = await freeReverseGeocode(point);
+                if (address) setPickup((current) => current || address!);
+            },
+            () => { /* denied/unavailable — pickup just stays blank, as before */ },
+            { timeout: 8000, maximumAge: 5 * 60 * 1000 }
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [fare, setFare] = useState(2000);
     const [suggestedFare, setSuggestedFare] = useState<number | null>(null);
     const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);

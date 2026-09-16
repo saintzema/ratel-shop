@@ -135,8 +135,8 @@ export default function DriveDashboardPage() {
     };
 
     const [offerErrors, setOfferErrors] = useState<Record<string, string>>({});
-    const sendOffer = async (rideId: string) => {
-        const fare = Number(offerInputs[rideId]);
+    const sendOffer = async (rideId: string, exactFare?: number) => {
+        const fare = exactFare ?? Number(offerInputs[rideId]);
         if (!fare || fare <= 0 || !vehicles[0]) return;
         setSending(rideId);
         setOfferErrors(prev => ({ ...prev, [rideId]: "" }));
@@ -233,9 +233,19 @@ export default function DriveDashboardPage() {
                                         <p className="text-xs font-bold text-amber-600">You offered {formatPrice(ride.offers[0].offeredFare)} — waiting on rider</p>
                                     ) : (
                                         <div>
+                                            {/* Happy with the rider's own named price? One tap instead of
+                                                retyping the same number into the offer box below. */}
+                                            <Button
+                                                onClick={() => sendOffer(ride.id, ride.proposedFare)}
+                                                disabled={sending === ride.id}
+                                                variant="outline"
+                                                className="w-full mb-2 border-brand-green-200 text-brand-green-700 hover:bg-brand-green-50"
+                                            >
+                                                {sending === ride.id ? <Loader2 className="h-4 w-4 animate-spin" /> : `Accept ${formatPrice(ride.proposedFare)} as offered`}
+                                            </Button>
                                             <div className="flex gap-2">
                                                 <Input
-                                                    placeholder="Your offer (₦)"
+                                                    placeholder="Or counter with your own price (₦)"
                                                     type="number"
                                                     value={offerInputs[ride.id] || ""}
                                                     onChange={e => setOfferInputs(prev => ({ ...prev, [ride.id]: e.target.value }))}

@@ -83,6 +83,19 @@ export function approxRoadKm(a: LatLngLiteral, b: LatLngLiteral): number {
     return haversineKm(a, b) * ROAD_DISTANCE_FACTOR;
 }
 
+/** Reverse-geocode coordinates to a human address via Nominatim — no API key required. */
+export async function freeReverseGeocode(point: LatLngLiteral): Promise<string | null> {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${point.lat}&lon=${point.lng}`;
+        const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.display_name || null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * Total approximate driving distance across an ordered route of 2+ points
  * (pickup → stop 1 → stop 2 → ... → dropoff) — each leg geocoded and summed,

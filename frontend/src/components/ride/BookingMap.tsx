@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, LocateFixed } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
+import { teardropPinIcon, PIN_GREEN, PIN_RED } from "@/lib/map-pins";
 
 interface BookingMapProps {
     pickup: string;
@@ -132,14 +133,14 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
             if (pickupLoc) {
                 pickupMarkerRef.current = new google.maps.Marker({
                     position: pickupLoc, map: mapRef.current,
-                    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#16a34a", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+                    icon: teardropPinIcon(google, PIN_GREEN),
                     title: "Pickup",
                 });
             }
             if (dropoffLoc) {
                 dropoffMarkerRef.current = new google.maps.Marker({
                     position: dropoffLoc, map: mapRef.current,
-                    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#dc2626", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+                    icon: teardropPinIcon(google, PIN_RED),
                     title: "Drop-off",
                 });
             }

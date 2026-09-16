@@ -5,6 +5,7 @@ import { Navigation2, Clock, MapPinned } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
 import { bearingDegrees, distanceMeters } from "@/lib/geo-math";
+import { teardropPinIcon, PIN_GREEN, PIN_RED } from "@/lib/map-pins";
 
 interface RideMapProps {
     /** The ride or delivery id — used to build the /api/{kind}s/[id]/location poll URL. */
@@ -170,12 +171,12 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
 
                 new google.maps.Marker({
                     position: pickupLoc, map,
-                    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#16a34a", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+                    icon: teardropPinIcon(google, PIN_GREEN),
                     title: "Pickup",
                 });
                 new google.maps.Marker({
                     position: dropoffLoc, map,
-                    icon: { path: google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: "#dc2626", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+                    icon: teardropPinIcon(google, PIN_RED),
                     title: "Drop-off",
                 });
 

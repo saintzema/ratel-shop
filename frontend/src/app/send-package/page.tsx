@@ -19,19 +19,31 @@ import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
-import { freeGeocode, approxRoadKm } from "@/lib/free-distance";
+import { freeGeocode, approxRoadKm, freeReverseGeocode } from "@/lib/free-distance";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 
-// ₦300 call-out + ₦120/km, scaled up for bigger packages — a rough but real
-// distance-anchored floor so "what you'll pay" isn't just a bare guess, the
-// same way a real delivery app prices a run instead of leaving it to chance.
-// Fragile/electronics (phones, laptops, glass) add real handling risk for the
-// courier, so they carry a surcharge the same way a real courier would quote
-// one for anything they'd have to insure or specially cushion.
+// A flat ₦/km rate is fine for a short in-city run but wildly overpriced for
+// a real interstate haul — a flat ₦120/km put Abuja → Awka (~480km) at
+// ~₦72,000, when real Nigerian courier pricing for exactly that route runs
+// ₦15,000-₦20,000. Real logistics pricing is degressive: the rate per km
+// drops sharply as distance grows (fixed costs amortize, and long routes are
+// this industry's actual bread and butter, priced to be worth taking).
+// Tiered instead of one flat rate: ₦150/km for the first 20km (in-city),
+// ₦80/km for the next 80km (regional), ₦25/km beyond that (interstate) — a
+// 480km trip now lands at ~₦19,200, right in the middle of the real range
+// above, instead of nearly 4x it.
 const SIZE_MULTIPLIER: Record<string, number> = { small: 1, medium: 1.3, large: 1.6 };
 const FRAGILE_MULTIPLIER = 1.25;
+const TIER_1_KM = 20, TIER_1_RATE = 150;
+const TIER_2_KM = 100, TIER_2_RATE = 80;
+const TIER_3_RATE = 25;
+function distanceCost(distanceKm: number): number {
+    if (distanceKm <= TIER_1_KM) return distanceKm * TIER_1_RATE;
+    if (distanceKm <= TIER_2_KM) return TIER_1_KM * TIER_1_RATE + (distanceKm - TIER_1_KM) * TIER_2_RATE;
+    return TIER_1_KM * TIER_1_RATE + (TIER_2_KM - TIER_1_KM) * TIER_2_RATE + (distanceKm - TIER_2_KM) * TIER_3_RATE;
+}
 function estimateFare(distanceKm: number, size: string, fragile: boolean): number {
-    const raw = (300 + distanceKm * 120) * (SIZE_MULTIPLIER[size] || 1) * (fragile ? FRAGILE_MULTIPLIER : 1);
+    const raw = (300 + distanceCost(distanceKm)) * (SIZE_MULTIPLIER[size] || 1) * (fragile ? FRAGILE_MULTIPLIER : 1);
     return Math.max(500, Math.round(raw / 100) * 100);
 }
 
@@ -60,6 +72,36 @@ export default function SendPackagePage() {
     const [dropoff, setDropoff] = useState("");
     const pickupAutocomplete = usePlacesAutocomplete(setPickup);
     const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
+
+    // Prefill pickup with the sender's actual precise location — see the
+    // identical effect on /ride for the full rationale. Only fills an EMPTY
+    // field and fails silently.
+    useEffect(() => {
+        if (pickup || typeof navigator === "undefined" || !navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                let address: string | null = null;
+                if (hasGoogleMapsKey) {
+                    const g = await loadGoogleMaps()?.catch(() => null);
+                    if (g && window.google?.maps) {
+                        const geocoder = new window.google.maps.Geocoder();
+                        address = await new Promise((resolve) => {
+                            geocoder.geocode({ location: point }, (results: any, status: string) => {
+                                resolve(status === "OK" && results?.[0] ? results[0].formatted_address : null);
+                            });
+                        });
+                    }
+                }
+                if (!address) address = await freeReverseGeocode(point);
+                if (address) setPickup((current) => current || address!);
+            },
+            () => { /* denied/unavailable — pickup just stays blank, as before */ },
+            { timeout: 8000, maximumAge: 5 * 60 * 1000 }
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const [packageDescription, setPackageDescription] = useState("");
     const [packageSize, setPackageSize] = useState("small");
     const [isFragile, setIsFragile] = useState(false);
