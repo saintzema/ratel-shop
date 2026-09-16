@@ -1270,12 +1270,32 @@ function SearchContent() {
       }
     }
 
+    // Backfill with the broader catalogue match when the exact/narrow result
+    // set is sparse — this used to only ever show catalogueFallback when
+    // combined was COMPLETELY empty, so "1 exact match" left the rest of the
+    // grid just... empty, even though genuinely similar items (same
+    // category, same city) were sitting right there in catalogueFallback,
+    // already computed, and simply never shown. A real SRP fills the page
+    // with the most relevant results first, then similar/nearby listings —
+    // it doesn't leave whitespace once it runs out of exact matches.
+    if (combined.length > 0 && combined.length < ITEMS_PER_PAGE) {
+      for (const p of catalogueFallback) {
+        if (combined.length >= ITEMS_PER_PAGE) break;
+        const pName = (p.name || "").toLowerCase().trim();
+        const isDuplicate = seenIds.has(p.id) || combined.some(r => (r.name || "").toLowerCase().trim() === pName);
+        if (!isDuplicate) {
+          seenIds.add(p.id);
+          combined.push(p);
+        }
+      }
+    }
+
     // Filter by price range at the very end
     return combined.filter(p => {
       const itemPrice = p.price !== undefined ? p.price : (p.approxPrice || 0);
       return itemPrice >= priceRange[0] && itemPrice <= priceRange[1];
     });
-  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool]);
+  }, [navResults, paginatedProducts, navClickedId, priceRange, imagePool, catalogueFallback]);
 
   // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
   // When there are no local results and no ongoing search, auto-trigger the
