@@ -372,10 +372,29 @@ export default function QRPaymentsPage() {
     );
     const [sellerLoading, setSellerLoading] = useState(true);
     useEffect(() => {
+        let cancelled = false;
+        let retries = 0;
         const load = () => {
             const s = DataSyncService.getCurrentSeller();
-            if (s) setSeller(s);
-            setSellerLoading(false);
+            if (s) {
+                setSeller(s);
+                setSellerLoading(false);
+                return;
+            }
+            // Landing here straight from a quick-action (exactly what "Receive" on
+            // the account page does) races against seller/layout.tsx's own
+            // auto-login chain: resolve the seller pointer, then fetch/cache the
+            // full seller row — real network round-trips, not instant. This used
+            // to flip sellerLoading to false on the very FIRST synchronous check,
+            // before either had a chance to land, showing "No seller profile
+            // found" to an actual seller who then had to manually refresh. Retry
+            // a bounded number of times instead of giving up on attempt one.
+            if (retries < 8 && !cancelled) {
+                retries += 1;
+                setTimeout(load, 400);
+            } else {
+                setSellerLoading(false);
+            }
         };
         load();
         // This listened for sync-store-update but never actually triggered a
@@ -387,6 +406,7 @@ export default function QRPaymentsPage() {
         window.addEventListener("sync-store-update", load);
         window.addEventListener("storage", load);
         return () => {
+            cancelled = true;
             window.removeEventListener("sync-store-update", load);
             window.removeEventListener("storage", load);
         };

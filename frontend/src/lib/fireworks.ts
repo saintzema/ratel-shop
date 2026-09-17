@@ -9,18 +9,23 @@
  * Llama 3.1 70B/8B, Gemma 3 27B, Gemma 2 9B, Llama 4 Maverick, and DeepSeek V3.1 all
  * returned "Model not found, inaccessible, and/or not deployed" on this account — not an
  * account-wide block after all, just those specific models weren't in this account's
- * enabled serverless set. GLM 5.2 and Qwen 3.7 Plus are both confirmed working. Qwen is
- * the default deliberately — it's AMD-hosted inference via Fireworks AND a genuine Qwen
- * model, so this same call path counts toward both the AMD hackathon and the separate
- * Qwen Cloud hackathon.
+ * enabled serverless set. Qwen 3.7 Plus (the default this pointed to) went the same way
+ * at some point after that comment was written — confirmed directly against the live API
+ * with the real production key: still a valid model ID in Fireworks' catalog, but a
+ * CUSTOM_MODEL that isn't deployed for serverless inference on this account, so every
+ * single call 404'd and silently fell back to Gemini. That's the actual reason Fireworks
+ * showed $0 spend while Gemini was racking up real billing and occasional "AI caption
+ * service is temporarily unavailable" errors under load — Fireworks was never being used
+ * at all despite a funded, valid API key. GLM 5.2 is confirmed working right now (glm-5p2,
+ * HTTP 200 with real content) — switched the default to it.
  *
  * Configure in Vercel:
  *   FIREWORKS_API_KEY   — from the AMD AI Developer Program / Fireworks dashboard
- *   FIREWORKS_MODEL     — optional; defaults to Qwen 3.7 Plus
+ *   FIREWORKS_MODEL     — optional; defaults to GLM 5.2
  */
 
 const FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
-const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/qwen3p7-plus";
+const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/glm-5p2";
 
 /** True when a Fireworks key is present, so callers can prefer AMD inference. */
 export function isFireworksEnabled(): boolean {
@@ -63,11 +68,14 @@ export async function fireworksChat(opts: FireworksChatOpts): Promise<string | n
             max_tokens: opts.maxTokens ?? 2048,
         };
         if (opts.jsonMode) body.response_format = { type: "json_object" };
-        // Qwen 3.7 Plus (and other reasoning models) default to writing out a "Thinking
-        // Process:" chain-of-thought before the actual answer — for JSON mode this ate the
-        // entire token budget before ever emitting the JSON, so fireworksJSON's caller
-        // silently fell back to Gemini every time. reasoning_effort: "none" stops that.
-        if (opts.jsonMode) body.reasoning_effort = "none";
+        // GLM 5.2 (and Qwen 3.7 Plus before it) default to writing out a full
+        // chain-of-thought ("reasoning_content") before the actual answer — confirmed
+        // directly: a plain call came back with content: "" and finish_reason: "length"
+        // because the entire max_tokens budget was consumed by reasoning before any
+        // answer text was ever produced, for BOTH JSON and plain-text calls. Every
+        // caller of this helper wants the direct answer, never the internal reasoning
+        // trace, so this is unconditional now — it used to only apply in JSON mode.
+        body.reasoning_effort = "none";
 
         const res = await fetch(FIREWORKS_URL, {
             method: "POST",
