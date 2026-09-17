@@ -1449,6 +1449,10 @@ export function ZivaChat() {
     }, []);
 
     if (!mounted) return null;
+    // Hidden on the full-screen QR scan camera takeover — the chat bubble was
+    // overlapping the scan frame's hint text and the low-light flash prompt
+    // there, per the reported "cluttered... components hiding underneath".
+    if (pathname?.startsWith("/pay/scan")) return null;
 
     // ─── Render Markdown-lite ───────────────────────
     const renderText = (text: string) => {

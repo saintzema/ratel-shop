@@ -25,8 +25,10 @@ export function FloatingCart() {
         setPrevCount(itemCount);
     }, [itemCount, prevCount]);
 
-    // Hide the floating cart inside checkout page, admin, or seller paths
-    if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
+    // Hide the floating cart inside checkout page, admin, seller paths, or the
+    // full-screen QR scan camera takeover — the cart FAB was overlapping the
+    // scan frame's own hint text and bottom action bar there.
+    if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller") || pathname?.startsWith("/pay/scan")) {
         return null;
     }
 

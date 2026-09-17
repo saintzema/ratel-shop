@@ -290,7 +290,13 @@ export default function ScanToPayPage() {
 
     return (
         <div className="min-h-screen bg-black flex flex-col">
-            <div className="flex items-center justify-between gap-3 px-4 py-4 text-white">
+            {/* This full-screen page has no shared Navbar, so nothing else was
+                accounting for the iOS status bar (clock/battery) — it was
+                rendering right on top of "Scan to Pay" instead of below it. */}
+            <div
+                className="flex items-center justify-between gap-3 px-4 pb-4 text-white"
+                style={{ paddingTop: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))" }}
+            >
                 <div className="flex items-center gap-3">
                     <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-white/10">
                         <ArrowLeft className="h-5 w-5" />

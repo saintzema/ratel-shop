@@ -10,8 +10,9 @@ export function FloatingWhatsApp() {
   const [showTooltip, setShowTooltip] = useState(false);
   const pathname = usePathname();
 
-  // Don't show on checkout pages or admin pages
-  const isHidden = pathname?.startsWith('/checkout') || pathname?.startsWith('/admin') || pathname?.startsWith('/seller');
+  // Don't show on checkout pages, admin pages, or the full-screen QR scan
+  // camera takeover (it was overlapping the scan hint text/action bar there)
+  const isHidden = pathname?.startsWith('/checkout') || pathname?.startsWith('/admin') || pathname?.startsWith('/seller') || pathname?.startsWith('/pay/scan');
 
   useEffect(() => {
     // Delay render so it doesn't overlap Ziva AI's initial greeting
