@@ -11,8 +11,10 @@ import { useState, useEffect } from "react";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 
 import { useRouter } from "next/navigation";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 export default function AccountPage() {
+    const headerOffset = useHeaderOffset();
     const { user, logout } = useAuth();
     const router = useRouter();
 
@@ -151,7 +153,7 @@ export default function AccountPage() {
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-5xl" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center justify-between mb-8">
                     <h1 className="text-2xl font-bold text-gray-900 leading-tight">Hello, {(user?.name || user?.email || "there").split(" ")[0]}</h1>
                 </div>

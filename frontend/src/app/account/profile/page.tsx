@@ -13,8 +13,10 @@ import { useLocation } from "@/context/LocationContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 import { COUNTRY_CODES } from "@/lib/constants/countries";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 export default function ProfilePage() {
+    const headerOffset = useHeaderOffset();
     const { user, updateUser, logout } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const { showNotification } = useNotification();
@@ -210,7 +212,7 @@ export default function ProfilePage() {
         <div className="min-h-screen bg-white flex flex-col font-sans text-black">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-2xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-2xl" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center gap-4 mb-8">
                     <Button
                         variant="ghost"

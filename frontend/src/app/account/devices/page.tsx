@@ -4,8 +4,10 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Laptop, Smartphone, Tablet, Monitor, Trash2 } from "lucide-react";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 export default function DevicesPage() {
+    const headerOffset = useHeaderOffset();
     const devices = [
         { id: 1, type: "laptop", name: "FairPrice Web on MacBook Pro", last_active: "Active Now", icon: Laptop },
         { id: 2, type: "phone", name: "FairPrice App on iPhone 13", last_active: "Yesterday", icon: Smartphone },
@@ -16,7 +18,7 @@ export default function DevicesPage() {
         <div className="min-h-screen bg-white flex flex-col font-sans text-black">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-4xl" style={{ paddingTop: headerOffset + 24 }}>
                 <h1 className="text-3xl font-normal mb-2">Manage Your Content and Devices</h1>
 
                 <div className="border-b border-gray-200 flex gap-8 mb-8">

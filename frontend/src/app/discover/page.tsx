@@ -9,6 +9,7 @@ import { useLocation } from "@/context/LocationContext";
 import { nativeBridge } from "@/lib/native-bridge";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { cn } from "@/lib/utils";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 interface Spot {
     id: string;
@@ -37,6 +38,7 @@ const SPOT_TABS = ["All", "Food & Dining", "Chill Spot", "Nightlife", "Activity"
  * see LISTING_TYPE_PRICING.spot in boost-packages.ts.
  */
 export default function DiscoverPage() {
+    const headerOffset = useHeaderOffset();
     const { location, setLocation } = useLocation();
     const [spots, setSpots] = useState<Spot[]>([]);
     const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export default function DiscoverPage() {
             <Navbar />
 
             <div className="bg-gradient-to-br from-brand-green-700 via-brand-green-600 to-brand-green-800 text-white">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                     <div className="flex items-center gap-2 text-white/80 text-xs font-black uppercase tracking-widest mb-2">
                         <Compass className="h-4 w-4" /> Discover
                     </div>

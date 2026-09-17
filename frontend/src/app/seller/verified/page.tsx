@@ -7,15 +7,17 @@ import { SEED_PRODUCTS } from "@/lib/data";
 import { ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 export default function VerifiedSellersPage() {
+    const headerOffset = useHeaderOffset();
     const verifiedProducts = SEED_PRODUCTS.filter(p => p.price_flag === "fair");
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8">
+            <main className="flex-1 container mx-auto px-4 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                 {/* Header */}
                 <div className="bg-white border rounded-2xl p-8 mb-8 text-center shadow-sm">
                     <div className="w-16 h-16 bg-green-100 text-brand-green-600 rounded-full flex items-center justify-center mx-auto mb-4">

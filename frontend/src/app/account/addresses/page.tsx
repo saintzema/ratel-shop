@@ -6,6 +6,7 @@ import { MapPin, Plus, Trash2, Edit2, Check, Home, Briefcase } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 interface Address {
     id: string;
@@ -33,6 +34,7 @@ function getAddressKey(): string {
 }
 
 export default function AddressesPage() {
+    const headerOffset = useHeaderOffset();
     const [addresses, setAddresses] = useState<Address[]>([]);
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -205,7 +207,7 @@ export default function AddressesPage() {
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-3xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-3xl" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-emerald-50 rounded-xl"><MapPin className="h-5 w-5 text-emerald-600" /></div>

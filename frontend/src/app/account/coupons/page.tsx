@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { Coupon } from "@/lib/types";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 export default function CouponsPage() {
+    const headerOffset = useHeaderOffset();
     const { user } = useAuth();
     const [coupons, setCoupons] = useState<Coupon[]>([]);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function CouponsPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-4xl" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="mb-6 flex items-center gap-4">
                     <Link href="/account" className="text-brand-green-600 hover:text-brand-green-700">
                         <ChevronLeft className="h-6 w-6" />

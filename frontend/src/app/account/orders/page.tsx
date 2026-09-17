@@ -38,6 +38,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
 import { Suspense } from "react";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 type OrderFilter = "all" | "processing" | "shipped" | "delivered" | "cancelled" | "buy_again";
 
@@ -53,6 +54,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
 };
 
 function OrdersContent() {
+    const headerOffset = useHeaderOffset();
     const [orders, setOrders] = useState<Order[]>([]);
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -330,7 +332,11 @@ function OrdersContent() {
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-900">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 pt-6 max-w-7xl">
+            {/* Navbar is position:fixed and contributes zero height to normal
+                flow, so this page's own content needs to reserve that space
+                itself — without it, the fixed header rendered ON TOP of "Your
+                Orders" instead of above it, cutting the title/subtitle off. */}
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-7xl" style={{ paddingTop: headerOffset + 24 }}>
                 {/* Page Header with Back Nav */}
                 <div className="mb-6 flex items-center gap-3">
                     <button

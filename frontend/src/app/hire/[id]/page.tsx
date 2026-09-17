@@ -9,6 +9,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice, getStoreUrl } from "@/lib/utils";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 function budgetLabel(g: any): string {
     if (!g.budgetMin && !g.budgetMax) return "Negotiable";
@@ -18,6 +19,7 @@ function budgetLabel(g: any): string {
 }
 
 export default function GigDetailPage() {
+    const headerOffset = useHeaderOffset();
     const params = useParams();
     const router = useRouter();
     const id = params.id as string;
@@ -87,7 +89,7 @@ export default function GigDetailPage() {
     return (
         <div className="min-h-screen bg-gray-50 font-sans">
             <Navbar />
-            <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
+            <div className="max-w-2xl mx-auto px-4 pb-8 space-y-5" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-3">
                     <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{gig.category}</span>
                     <h1 className="text-xl font-black text-gray-900">{gig.title}</h1>

@@ -9,6 +9,7 @@ import { useLocation } from "@/context/LocationContext";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { formatPrice } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 
 const CATEGORIES = ["All", "Home Services", "Repair & Maintenance", "Building & Construction", "Automotive", "Beauty & Wellness", "Events & Catering", "Cleaning", "Logistics & Moving", "Professional / Consulting", "Tech & Digital", "Tutoring", "Other"];
 
@@ -42,6 +43,7 @@ function budgetLabel(g: Gig): string {
  * existing payment/escrow/review pipeline handles everything after that.
  */
 export default function HireBoardPage() {
+    const headerOffset = useHeaderOffset();
     const { location } = useLocation();
     const [gigs, setGigs] = useState<Gig[]>([]);
     const [loading, setLoading] = useState(true);
@@ -65,7 +67,7 @@ export default function HireBoardPage() {
             <Navbar />
 
             <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-indigo-800 text-white">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8" style={{ paddingTop: headerOffset + 24 }}>
                     <div className="flex items-center gap-2 text-white/80 text-xs font-black uppercase tracking-widest mb-2">
                         <Briefcase className="h-4 w-4" /> Find Work
                     </div>

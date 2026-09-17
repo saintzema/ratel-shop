@@ -74,16 +74,16 @@ const FARE_STEP = 200;
 // <StopInput> is its own component instance, so each gets its own hook call
 // (and its own attached Autocomplete widget) legitimately. This is what was
 // missing before — pickup/drop-off had suggestions, stops never did.
-function StopInput({ value, onChange, onRemove, placeholder }: { value: string; onChange: (v: string) => void; onRemove: () => void; placeholder: string }) {
-    const autocomplete = usePlacesAutocomplete((address) => onChange(address));
+function StopInput({ value, onChange, onRemove, placeholder }: { value: string; onChange: (v: string, coords?: { lat: number; lng: number }) => void; onRemove: () => void; placeholder: string }) {
+    const autocomplete = usePlacesAutocomplete((address, coords) => onChange(address, coords));
     return (
         <div className="relative flex items-center gap-1.5 pr-2">
-            <MapPin className="absolute left-3 h-4 w-4 text-amber-500 pointer-events-none" />
+            <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-amber-500 pointer-events-none" />
             <Input
                 ref={autocomplete.inputRef}
                 placeholder={placeholder}
                 value={value}
-                onChange={e => onChange(e.target.value)}
+                onChange={e => onChange(e.target.value, undefined)}
                 className="pl-9 border-0 bg-transparent focus-visible:ring-0"
             />
             <button
@@ -113,7 +113,7 @@ export default function RidePage() {
     // API already accepts ("Stop A → Stop B → Final") rather than a schema
     // change — every place that already renders a ride's dropoff (RideMap,
     // driver's offer list, trip history) shows the full route for free.
-    const [stops, setStops] = useState<string[]>([]);
+    const [stops, setStops] = useState<{ address: string; coords?: { lat: number; lng: number } }[]>([]);
     // The pickup FIELD shows "My Location" (like Uber/Bolt) while `pickup`
     // itself still holds the real resolved address underneath — the rider
     // doesn't need to see their own street address, just confirmation
@@ -257,8 +257,17 @@ export default function RidePage() {
     // never actually provisioned in this app, which is the real reason the
     // price never used to adjust at all, not a data problem.
     useEffect(() => {
-        const validStops = stops.map(s => s.trim()).filter(Boolean);
-        const routeAddresses = [pickup, ...validStops, dropoff].map(s => s.trim());
+        const validStops = stops.filter(s => s.address.trim().length > 0);
+        // Each leg carries its own already-resolved coords (pickup/dropoff/stop)
+        // when the rider picked it from the suggestions dropdown — see the
+        // pickupCoords comment below for why re-geocoding the address STRING
+        // instead is what caused the 64km/₦44,700 fare bug.
+        const route: { address: string; coords?: { lat: number; lng: number } }[] = [
+            { address: pickup.trim(), coords: pickupCoords },
+            ...validStops.map(s => ({ address: s.address.trim(), coords: s.coords })),
+            { address: dropoff.trim(), coords: dropoffCoords },
+        ];
+        const routeAddresses = route.map(r => r.address);
         if (routeAddresses.some(a => a.length < 4)) return;
         let cancelled = false;
         const t = setTimeout(async () => {
@@ -268,20 +277,15 @@ export default function RidePage() {
                 const g = await loadGoogleMaps()?.catch(() => null);
                 if (g && window.google?.maps) {
                     const geocoder = new window.google.maps.Geocoder();
-                    // Pickup/dropoff use the exact coordinates the rider picked from
-                    // the suggestions dropdown when available, instead of
+                    // Pickup/dropoff/stop use the exact coordinates the rider picked
+                    // from the suggestions dropdown when available, instead of
                     // re-geocoding the address STRING — that string can be a
                     // synthesized "<landmark name>, <formatted address>" combo
                     // (see usePlacesAutocomplete) that reads as two different
                     // places at once, and re-geocoding it can resolve to the
-                    // wrong one. Only stops (which don't track coords) still
-                    // geocode by string.
+                    // wrong one.
                     const points = await Promise.all(
-                        routeAddresses.map((a, i) => {
-                            if (i === 0 && pickupCoords && a === pickup.trim()) return Promise.resolve(pickupCoords);
-                            if (i === routeAddresses.length - 1 && dropoffCoords && a === dropoff.trim()) return Promise.resolve(dropoffCoords);
-                            return cachedGeocode(geocoder, `${a}, Nigeria`);
-                        })
+                        route.map(r => r.coords ? Promise.resolve(r.coords) : cachedGeocode(geocoder, `${r.address}, Nigeria`))
                     );
                     if (!points.some(p => !p)) {
                         const directionsService = new window.google.maps.DirectionsService();
@@ -323,7 +327,7 @@ export default function RidePage() {
         if (!pickup || !dropoff) { setError("Enter pickup and drop-off."); return; }
         if (!fare || fare <= 0) { setError("Enter what you're willing to pay."); return; }
         setPosting(true);
-        const validStops = stops.map(s => s.trim()).filter(Boolean);
+        const validStops = stops.map(s => s.address.trim()).filter(Boolean);
         const combinedDropoff = validStops.length ? [...validStops, dropoff].join(" → ") : dropoff;
         try {
             const res = await fetch("/api/rides", {
@@ -531,9 +535,9 @@ export default function RidePage() {
                             {stops.map((stop, i) => (
                                 <StopInput
                                     key={i}
-                                    value={stop}
+                                    value={stop.address}
                                     placeholder={`Stop ${i + 1}`}
-                                    onChange={(v) => setStops(s => s.map((val, idx) => idx === i ? v : val))}
+                                    onChange={(v, coords) => setStops(s => s.map((val, idx) => idx === i ? { address: v, coords } : val))}
                                     onRemove={() => setStops(s => s.filter((_, idx) => idx !== i))}
                                 />
                             ))}
@@ -562,7 +566,7 @@ export default function RidePage() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setStops(s => [...s, ""])}
+                                onClick={() => setStops(s => [...s, { address: "" }])}
                                 title="Add a stop"
                                 className="h-8 w-8 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-brand-green-700 active:scale-90 transition-transform"
                             >

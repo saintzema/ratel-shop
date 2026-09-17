@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
+import { useHeaderOffset } from "@/lib/use-header-offset";
 import { formatPrice, cn } from "@/lib/utils";
 import { Order } from "@/lib/types";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
@@ -70,6 +71,7 @@ const PaymentLogos = () => (
 );
 
 export default function PaymentsPage() {
+    const headerOffset = useHeaderOffset();
     const [methods, setMethods] = useState<PaymentMethod[]>([]);
     const [cards, setCards] = useState<SavedCard[]>([]);
     const [loadingCards, setLoadingCards] = useState(false);
@@ -211,7 +213,7 @@ export default function PaymentsPage() {
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 max-w-4xl" style={{ paddingTop: headerOffset + 24 }}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 bg-gradient-to-br from-indigo-900 to-indigo-800 p-6 rounded-3xl text-white shadow-xl shadow-indigo-500/20">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
