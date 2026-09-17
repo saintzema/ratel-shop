@@ -24,16 +24,28 @@ import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
 import { freeRouteDistanceKm, freeReverseGeocode } from "@/lib/free-distance";
 
-// ₦500 base + ₦550/km — a rough but realistic Nigerian ride-hailing floor
-// (inDrive-style apps land around this for a standard car) so "what you'll
-// pay" reflects the actual trip instead of sitting at a flat ₦2,000 default
-// regardless of whether the trip is 2km or 200km. A pricier vehicle class
-// costs more per trip, same as Bolt/inDrive's own Comfort/XL tiers — "Any
-// vehicle" and "Standard" both price at the base rate since neither commits
-// the rider to the pricier tiers.
+// ₦500 base + a tiered/degressive per-km rate — a flat ₦550/km priced an
+// 11km Abuja trip at ~₦6,660 and, when a route glitch inflated the distance,
+// a genuinely short cross-town trip at ₦44,700 for what should be a normal
+// fare. Real Nigerian ride-hailing (Bolt/inDrive) charges more per km on a
+// short trip and progressively less as distance grows, so the first few km
+// cost more per-km than km 50. A pricier vehicle class costs more per trip,
+// same as Bolt/inDrive's own Comfort/XL tiers — "Any vehicle" and "Standard"
+// both price at the base rate since neither commits the rider to the
+// pricier tiers.
 const CLASS_FARE_MULTIPLIER: Record<string, number> = { "": 1, standard: 1, newer: 1.15, ev: 1.25 };
+const RIDE_TIER_1_KM = 10, RIDE_TIER_1_RATE = 180;
+const RIDE_TIER_2_KM = 30, RIDE_TIER_2_RATE = 130;
+const RIDE_TIER_3_RATE = 80;
+function rideDistanceCost(km: number): number {
+    if (km <= RIDE_TIER_1_KM) return km * RIDE_TIER_1_RATE;
+    if (km <= RIDE_TIER_1_KM + RIDE_TIER_2_KM) {
+        return RIDE_TIER_1_KM * RIDE_TIER_1_RATE + (km - RIDE_TIER_1_KM) * RIDE_TIER_2_RATE;
+    }
+    return RIDE_TIER_1_KM * RIDE_TIER_1_RATE + RIDE_TIER_2_KM * RIDE_TIER_2_RATE + (km - RIDE_TIER_1_KM - RIDE_TIER_2_KM) * RIDE_TIER_3_RATE;
+}
 function estimateRideFare(distanceKm: number, vehicleClass: string = ""): number {
-    const raw = (500 + distanceKm * 550) * (CLASS_FARE_MULTIPLIER[vehicleClass] ?? 1);
+    const raw = (500 + rideDistanceCost(distanceKm)) * (CLASS_FARE_MULTIPLIER[vehicleClass] ?? 1);
     return Math.max(800, Math.round(raw / 100) * 100);
 }
 
@@ -57,6 +69,34 @@ const FARE_STEP = 200;
  * offer they want, or sets an auto-accept ceiling and lets the first
  * qualifying offer win.
  */
+// A dynamic array of stops can't each call usePlacesAutocomplete() directly
+// in a .map() — hooks can't run a variable number of times per render. Each
+// <StopInput> is its own component instance, so each gets its own hook call
+// (and its own attached Autocomplete widget) legitimately. This is what was
+// missing before — pickup/drop-off had suggestions, stops never did.
+function StopInput({ value, onChange, onRemove, placeholder }: { value: string; onChange: (v: string) => void; onRemove: () => void; placeholder: string }) {
+    const autocomplete = usePlacesAutocomplete((address) => onChange(address));
+    return (
+        <div className="relative flex items-center gap-1.5 pr-2">
+            <MapPin className="absolute left-3 h-4 w-4 text-amber-500 pointer-events-none" />
+            <Input
+                ref={autocomplete.inputRef}
+                placeholder={placeholder}
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                className="pl-9 border-0 bg-transparent focus-visible:ring-0"
+            />
+            <button
+                type="button"
+                onClick={onRemove}
+                className="shrink-0 h-7 w-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-700"
+            >
+                <X className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    );
+}
+
 export default function RidePage() {
     const { user } = useAuth();
     const router = useRouter();
@@ -74,10 +114,30 @@ export default function RidePage() {
     // change — every place that already renders a ride's dropoff (RideMap,
     // driver's offer list, trip history) shows the full route for free.
     const [stops, setStops] = useState<string[]>([]);
+    // The pickup FIELD shows "My Location" (like Uber/Bolt) while `pickup`
+    // itself still holds the real resolved address underneath — the rider
+    // doesn't need to see their own street address, just confirmation
+    // it's using where they are. Cleared the moment they edit the field
+    // manually or pick a different address, so it never lies about what's
+    // actually going to the driver.
+    const [pickupIsMyLocation, setPickupIsMyLocation] = useState(false);
+    // The picked suggestion's own lat/lng, straight from the Places dropdown —
+    // used instead of re-geocoding the address STRING for distance/route
+    // calculations. Re-geocoding matters because a landmark address is often
+    // synthesized as "<name>, <formatted_address>" (e.g. "Kuje Area Council,
+    // 3C5F+XJ7, Utako, Abuja") when the two genuinely differ — geocoding that
+    // combined, self-contradictory string back can resolve to the WRONG one
+    // of the two places, which is exactly how an 11km trip got quoted a
+    // 64km/₦44,700 fare: the map used the correct picked coordinates, but the
+    // fare calc separately re-geocoded the string and landed somewhere else
+    // entirely. Cleared the moment the field is hand-typed or the address is
+    // otherwise edited, since the coordinates no longer match at that point.
+    const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+    const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
     // No-ops to plain typing if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set — see
     // usePlacesAutocomplete's own comment for how to turn this on.
-    const pickupAutocomplete = usePlacesAutocomplete(setPickup);
-    const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
+    const pickupAutocomplete = usePlacesAutocomplete((address, coords) => { setPickup(address); setPickupIsMyLocation(false); setPickupCoords(coords); });
+    const dropoffAutocomplete = usePlacesAutocomplete((address, coords) => { setDropoff(address); setDropoffCoords(coords); });
 
     // Prefill pickup with the rider's actual precise location, the way a
     // real ride app does — instead of leaving them to type out their own
@@ -103,7 +163,11 @@ export default function RidePage() {
                     }
                 }
                 if (!address) address = await freeReverseGeocode(point);
-                if (address) setPickup((current) => current || address!);
+                if (address) {
+                    setPickup((current) => current || address!);
+                    setPickupIsMyLocation(true);
+                    setPickupCoords(point);
+                }
             },
             () => { /* denied/unavailable — pickup just stays blank, as before */ },
             { timeout: 8000, maximumAge: 5 * 60 * 1000 }
@@ -204,7 +268,21 @@ export default function RidePage() {
                 const g = await loadGoogleMaps()?.catch(() => null);
                 if (g && window.google?.maps) {
                     const geocoder = new window.google.maps.Geocoder();
-                    const points = await Promise.all(routeAddresses.map(a => cachedGeocode(geocoder, `${a}, Nigeria`)));
+                    // Pickup/dropoff use the exact coordinates the rider picked from
+                    // the suggestions dropdown when available, instead of
+                    // re-geocoding the address STRING — that string can be a
+                    // synthesized "<landmark name>, <formatted address>" combo
+                    // (see usePlacesAutocomplete) that reads as two different
+                    // places at once, and re-geocoding it can resolve to the
+                    // wrong one. Only stops (which don't track coords) still
+                    // geocode by string.
+                    const points = await Promise.all(
+                        routeAddresses.map((a, i) => {
+                            if (i === 0 && pickupCoords && a === pickup.trim()) return Promise.resolve(pickupCoords);
+                            if (i === routeAddresses.length - 1 && dropoffCoords && a === dropoff.trim()) return Promise.resolve(dropoffCoords);
+                            return cachedGeocode(geocoder, `${a}, Nigeria`);
+                        })
+                    );
                     if (!points.some(p => !p)) {
                         const directionsService = new window.google.maps.DirectionsService();
                         let total = 0;
@@ -230,11 +308,14 @@ export default function RidePage() {
             if (!fareTouched) setFare(suggestion);
         }, 800);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [pickup, dropoff, stops, vehicleClassPref, fareTouched]);
+    }, [pickup, dropoff, stops, vehicleClassPref, fareTouched, pickupCoords, dropoffCoords]);
 
     const swapPickupDropoff = () => {
         setPickup(dropoff);
         setDropoff(pickup);
+        setPickupCoords(dropoffCoords);
+        setDropoffCoords(pickupCoords);
+        setPickupIsMyLocation(false);
     };
 
     const postRide = async () => {
@@ -418,7 +499,7 @@ export default function RidePage() {
                     </p>
                 )}
 
-                <BookingMap pickup={pickup} dropoff={dropoff} />
+                <BookingMap pickup={pickup} dropoff={dropoff} pickupCoords={pickupCoords} dropoffCoords={dropoffCoords} />
 
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
                     {/* Grouped like a real ride app's route card: pickup/stops/
@@ -430,34 +511,42 @@ export default function RidePage() {
                     <div className="relative bg-white rounded-2xl border border-gray-200 pr-12">
                         <div className="divide-y divide-gray-100">
                             <div className="relative flex items-center">
-                                <MapPin className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
-                                <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                                <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
+                                <Input
+                                    ref={pickupAutocomplete.inputRef}
+                                    placeholder="Pickup location"
+                                    value={pickupIsMyLocation ? "My Location" : pickup}
+                                    // Reveal the real address on focus so a keystroke edits
+                                    // from there, not from the literal text "My Location" —
+                                    // otherwise the first character typed would land inside
+                                    // that label instead of a fresh, editable address.
+                                    onFocus={() => { if (pickupIsMyLocation) setPickupIsMyLocation(false); }}
+                                    onChange={e => { setPickup(e.target.value); setPickupIsMyLocation(false); setPickupCoords(undefined); }}
+                                    className={cn("pl-9 border-0 bg-transparent focus-visible:ring-0", pickupIsMyLocation && "text-brand-green-700 font-bold")}
+                                />
                             </div>
 
                             {/* Stop inputs render here — between pickup and drop-off,
                                 matching the actual order a driver would visit them in. */}
                             {stops.map((stop, i) => (
-                                <div key={i} className="relative flex items-center gap-1.5 pr-2">
-                                    <MapPin className="absolute left-3 h-4 w-4 text-amber-500 pointer-events-none" />
-                                    <Input
-                                        placeholder={`Stop ${i + 1}`}
-                                        value={stop}
-                                        onChange={e => setStops(s => s.map((v, idx) => idx === i ? e.target.value : v))}
-                                        className="pl-9 border-0 bg-transparent focus-visible:ring-0"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setStops(s => s.filter((_, idx) => idx !== i))}
-                                        className="shrink-0 h-7 w-7 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-700"
-                                    >
-                                        <X className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
+                                <StopInput
+                                    key={i}
+                                    value={stop}
+                                    placeholder={`Stop ${i + 1}`}
+                                    onChange={(v) => setStops(s => s.map((val, idx) => idx === i ? v : val))}
+                                    onRemove={() => setStops(s => s.filter((_, idx) => idx !== i))}
+                                />
                             ))}
 
                             <div className="relative flex items-center">
-                                <MapPin className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
-                                <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                                <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
+                                <Input
+                                    ref={dropoffAutocomplete.inputRef}
+                                    placeholder="Where are you going?"
+                                    value={dropoff}
+                                    onChange={e => { setDropoff(e.target.value); setDropoffCoords(undefined); }}
+                                    className="pl-9 border-0 bg-transparent focus-visible:ring-0 placeholder:font-bold placeholder:text-gray-900"
+                                />
                             </div>
                         </div>
 
@@ -553,7 +642,7 @@ export default function RidePage() {
                                 <div className="flex items-center justify-between mb-3">
                                     <div>
                                         <p className="font-bold text-gray-900 text-sm">{ride.pickup} → {ride.dropoff}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">You proposed {formatPrice(ride.proposedFare)}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">You proposed <span className="font-bold text-gray-700">{formatPrice(ride.proposedFare)}</span></p>
                                     </div>
                                     <span className={cn(
                                         "text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full",
@@ -677,10 +766,10 @@ export default function RidePage() {
                     </div>
                 ))}
 
-                <p className="text-center text-xs text-gray-400 mt-10">
+                <p className="text-center text-xs text-gray-400 mt-4">
                     Have a car? <a href="/drive/onboarding" className="text-brand-green-600 font-bold underline">Register to drive</a> and start sending offers.
                 </p>
-                <p className="text-center text-xs text-gray-400 mt-2">
+                <p className="text-center text-xs text-gray-400 mt-1.5">
                     Need to send something instead? <a href="/send-package" className="text-brand-green-600 font-bold underline">Send a Package</a>.
                 </p>
             </div>

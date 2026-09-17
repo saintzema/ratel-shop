@@ -63,7 +63,22 @@ export function usePlacesAutocomplete(onPlaceSelected: (address: string, coords?
             });
             autocomplete.addListener("place_changed", () => {
                 const place = autocomplete.getPlace();
-                const address = place?.formatted_address || place?.name;
+                const name = place?.name;
+                const formatted = place?.formatted_address;
+                // For a landmark/airport (e.g. "Murtala Muhammed International
+                // Airport"), Google's formatted_address is often just the
+                // surrounding locality ("Ikeja, Lagos, Nigeria") — not the
+                // airport itself. Preferring it outright silently replaced the
+                // exact place someone tapped with a vague area name. Combine
+                // both when they genuinely differ; only formatted_address is
+                // used when name is already part of it (a normal street
+                // address), to avoid "24 Broad Street, 24 Broad Street, Lagos".
+                let address: string | undefined;
+                if (name && formatted && !formatted.toLowerCase().includes(name.toLowerCase())) {
+                    address = `${name}, ${formatted}`;
+                } else {
+                    address = formatted || name;
+                }
                 const loc = place?.geometry?.location;
                 if (address) onPlaceSelectedRef.current(address, loc ? { lat: loc.lat(), lng: loc.lng() } : undefined);
             });

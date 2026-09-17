@@ -70,8 +70,18 @@ export default function SendPackagePage() {
 
     const [pickup, setPickup] = useState("");
     const [dropoff, setDropoff] = useState("");
-    const pickupAutocomplete = usePlacesAutocomplete(setPickup);
-    const dropoffAutocomplete = usePlacesAutocomplete(setDropoff);
+    // Shows "My Location" in the field while `pickup` itself still holds the
+    // real address underneath — see the identical pattern on /ride.
+    const [pickupIsMyLocation, setPickupIsMyLocation] = useState(false);
+    // The picked suggestion's own lat/lng — see the identical fix (and full
+    // rationale) on /ride, which traced a 64km/₦44,700 fare on an actual
+    // 11km trip to re-geocoding a synthesized "<name>, <formatted address>"
+    // string instead of using the coordinates already resolved by the
+    // dropdown pick.
+    const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+    const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+    const pickupAutocomplete = usePlacesAutocomplete((address, coords) => { setPickup(address); setPickupIsMyLocation(false); setPickupCoords(coords); });
+    const dropoffAutocomplete = usePlacesAutocomplete((address, coords) => { setDropoff(address); setDropoffCoords(coords); });
 
     // Prefill pickup with the sender's actual precise location — see the
     // identical effect on /ride for the full rationale. Only fills an EMPTY
@@ -94,7 +104,11 @@ export default function SendPackagePage() {
                     }
                 }
                 if (!address) address = await freeReverseGeocode(point);
-                if (address) setPickup((current) => current || address!);
+                if (address) {
+                    setPickup((current) => current || address!);
+                    setPickupIsMyLocation(true);
+                    setPickupCoords(point);
+                }
             },
             () => { /* denied/unavailable — pickup just stays blank, as before */ },
             { timeout: 8000, maximumAge: 5 * 60 * 1000 }
@@ -160,9 +174,13 @@ export default function SendPackagePage() {
                 const g = await loadGoogleMaps()?.catch(() => null);
                 if (g && window.google?.maps) {
                     const geocoder = new window.google.maps.Geocoder();
+                    // Prefer the coordinates already resolved by the Places dropdown
+                    // pick over re-geocoding the address STRING — see the pickupCoords
+                    // comment above and the identical /ride fix for why that string
+                    // re-geocode can land on the wrong place entirely.
                     const [pickupLoc, dropoffLoc] = await Promise.all([
-                        cachedGeocode(geocoder, `${pickup}, Nigeria`),
-                        cachedGeocode(geocoder, `${dropoff}, Nigeria`),
+                        pickupCoords ?? cachedGeocode(geocoder, `${pickup}, Nigeria`),
+                        dropoffCoords ?? cachedGeocode(geocoder, `${dropoff}, Nigeria`),
                     ]);
                     if (pickupLoc && dropoffLoc) {
                         const directionsService = new window.google.maps.DirectionsService();
@@ -174,8 +192,8 @@ export default function SendPackagePage() {
 
             if (km == null) {
                 const [pickupLoc, dropoffLoc] = await Promise.all([
-                    freeGeocode(`${pickup}, Nigeria`),
-                    freeGeocode(`${dropoff}, Nigeria`),
+                    pickupCoords ?? freeGeocode(`${pickup}, Nigeria`),
+                    dropoffCoords ?? freeGeocode(`${dropoff}, Nigeria`),
                 ]);
                 if (pickupLoc && dropoffLoc) km = approxRoadKm(pickupLoc, dropoffLoc);
             }
@@ -187,7 +205,7 @@ export default function SendPackagePage() {
             if (!fareTouched) setFare(suggestion);
         }, 800);
         return () => { cancelled = true; clearTimeout(t); };
-    }, [pickup, dropoff, packageSize, isFragile, fareTouched]);
+    }, [pickup, dropoff, packageSize, isFragile, fareTouched, pickupCoords, dropoffCoords]);
 
     const postDelivery = async () => {
         setError(null);
@@ -356,23 +374,30 @@ export default function SendPackagePage() {
                     </p>
                 )}
 
-                <BookingMap pickup={pickup} dropoff={dropoff} />
+                <BookingMap pickup={pickup} dropoff={dropoff} pickupCoords={pickupCoords} dropoffCoords={dropoffCoords} />
 
                 <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
                     <div className="relative bg-white rounded-2xl border border-gray-200 pr-12">
                         <div className="divide-y divide-gray-100">
                             <div className="relative flex items-center">
-                                <MapPin className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
-                                <Input ref={pickupAutocomplete.inputRef} placeholder="Pickup location" value={pickup} onChange={e => setPickup(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                                <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
+                                <Input
+                                    ref={pickupAutocomplete.inputRef}
+                                    placeholder="Pickup location"
+                                    value={pickupIsMyLocation ? "My Location" : pickup}
+                                    onFocus={() => { if (pickupIsMyLocation) setPickupIsMyLocation(false); }}
+                                    onChange={e => { setPickup(e.target.value); setPickupIsMyLocation(false); setPickupCoords(undefined); }}
+                                    className={cn("pl-9 border-0 bg-transparent focus-visible:ring-0", pickupIsMyLocation && "text-brand-green-700 font-bold")}
+                                />
                             </div>
                             <div className="relative flex items-center">
-                                <MapPin className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
-                                <Input ref={dropoffAutocomplete.inputRef} placeholder="Drop-off location" value={dropoff} onChange={e => setDropoff(e.target.value)} className="pl-9 border-0 bg-transparent focus-visible:ring-0" />
+                                <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-rose-500 pointer-events-none" />
+                                <Input ref={dropoffAutocomplete.inputRef} placeholder="Where's it going?" value={dropoff} onChange={e => { setDropoff(e.target.value); setDropoffCoords(undefined); }} className="pl-9 border-0 bg-transparent focus-visible:ring-0 placeholder:font-bold placeholder:text-gray-900" />
                             </div>
                         </div>
                         <button
                             type="button"
-                            onClick={() => { setPickup(dropoff); setDropoff(pickup); }}
+                            onClick={() => { setPickup(dropoff); setDropoff(pickup); setPickupCoords(dropoffCoords); setDropoffCoords(pickupCoords); setPickupIsMyLocation(false); }}
                             title="Swap pickup and drop-off"
                             className="absolute right-1.5 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-500 active:scale-90 transition-transform"
                         >
@@ -455,7 +480,7 @@ export default function SendPackagePage() {
                                 <div className="flex items-center justify-between mb-3">
                                     <div>
                                         <p className="font-bold text-gray-900 text-sm">{delivery.pickup} → {delivery.dropoff}</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">{delivery.packageDescription} · You proposed {formatPrice(delivery.proposedFare)}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">{delivery.packageDescription} · You proposed <span className="font-bold text-gray-700">{formatPrice(delivery.proposedFare)}</span></p>
                                     </div>
                                     <span className={cn(
                                         "text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full",

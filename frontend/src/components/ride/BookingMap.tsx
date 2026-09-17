@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigation2, Clock, LocateFixed } from "lucide-react";
+import { Navigation2, Clock, LocateFixed, Maximize } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
 import { teardropPinIcon, PIN_GREEN, PIN_RED } from "@/lib/map-pins";
@@ -9,6 +9,18 @@ import { teardropPinIcon, PIN_GREEN, PIN_RED } from "@/lib/map-pins";
 interface BookingMapProps {
     pickup: string;
     dropoff: string;
+    // The exact coordinates the rider picked from the Places suggestions
+    // dropdown, when available — preferred over re-geocoding the address
+    // STRING. A landmark address is often synthesized as "<name>,
+    // <formatted address>" when the two differ (see usePlacesAutocomplete),
+    // and re-geocoding that combined, self-contradictory string can resolve
+    // to the wrong one of the two places — confirmed as the cause of a
+    // pickup/dropoff pair that priced 64km/₦44,700 when the real trip was
+    // 11km. Passing the already-resolved point through sidesteps the
+    // ambiguity entirely, and keeps the map and fare estimate looking at the
+    // exact same location.
+    pickupCoords?: { lat: number; lng: number };
+    dropoffCoords?: { lat: number; lng: number };
 }
 
 /**
@@ -22,7 +34,7 @@ interface BookingMapProps {
  * server polling, just this device's own geolocation (watchPosition, so the
  * pointer genuinely moves in real time) plus the two addresses being typed.
  */
-export function BookingMap({ pickup, dropoff }: BookingMapProps) {
+export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: BookingMapProps) {
     const mapRef = useRef<any>(null);
     const meMarkerRef = useRef<any>(null);
     const pickupMarkerRef = useRef<any>(null);
@@ -30,6 +42,10 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
     const routeLineRef = useRef<any>(null);
     const watchIdRef = useRef<number | null>(null);
     const cancelledRef = useRef(false);
+    // The last route/pin bounds actually drawn — so the "focus route" button
+    // can re-fit them after a rider pans/zooms away (gestureHandling is
+    // "greedy", i.e. one-finger free pan/zoom, with no other way back).
+    const lastBoundsRef = useRef<any>(null);
 
     const [ready, setReady] = useState(false);
     const [mapError, setMapError] = useState(false);
@@ -140,8 +156,8 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
         const debounce = setTimeout(async () => {
             const geocoder = new google.maps.Geocoder();
             const [pickupLoc, dropoffLoc] = await Promise.all([
-                pickup.trim().length > 3 ? cachedGeocode(geocoder, `${pickup}, Nigeria`) : Promise.resolve(null),
-                dropoff.trim().length > 3 ? cachedGeocode(geocoder, `${dropoff}, Nigeria`) : Promise.resolve(null),
+                pickupCoords ? Promise.resolve(pickupCoords) : (pickup.trim().length > 3 ? cachedGeocode(geocoder, `${pickup}, Nigeria`) : Promise.resolve(null)),
+                dropoffCoords ? Promise.resolve(dropoffCoords) : (dropoff.trim().length > 3 ? cachedGeocode(geocoder, `${dropoff}, Nigeria`) : Promise.resolve(null)),
             ]);
             if (cancelled) return;
 
@@ -175,23 +191,34 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
                         path, map: mapRef.current, strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85,
                     });
                     setRouteInfo({ distance: route.distanceText, duration: route.durationText });
+                    lastBoundsRef.current = route.bounds;
                     mapRef.current.fitBounds(route.bounds, 80);
                 } else {
                     const bounds = new google.maps.LatLngBounds();
                     bounds.extend(pickupLoc); bounds.extend(dropoffLoc);
+                    lastBoundsRef.current = bounds;
                     mapRef.current.fitBounds(bounds, 80);
                 }
             } else if (pickupLoc) {
+                lastBoundsRef.current = null;
                 mapRef.current.setCenter(pickupLoc);
                 mapRef.current.setZoom(14);
             } else if (dropoffLoc) {
+                lastBoundsRef.current = null;
                 mapRef.current.setCenter(dropoffLoc);
                 mapRef.current.setZoom(14);
             }
         }, 700);
 
         return () => { cancelled = true; clearTimeout(debounce); };
-    }, [ready, pickup, dropoff]);
+    }, [ready, pickup, dropoff, pickupCoords, dropoffCoords]);
+
+    const focusRoute = () => {
+        if (!mapRef.current || !window.google?.maps) return;
+        if (lastBoundsRef.current) {
+            mapRef.current.fitBounds(lastBoundsRef.current, 80);
+        }
+    };
 
     if (!hasGoogleMapsKey) return null;
 
@@ -207,6 +234,16 @@ export function BookingMap({ pickup, dropoff }: BookingMapProps) {
                 <div className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur rounded-full px-3 py-1.5 flex items-center gap-1.5 text-[11px] font-bold text-gray-600 shadow-sm">
                     <LocateFixed className="h-3.5 w-3.5 animate-pulse text-blue-500" /> Finding you…
                 </div>
+            )}
+            {!mapError && (pickupMarkerRef.current || dropoffMarkerRef.current) && (
+                <button
+                    type="button"
+                    onClick={focusRoute}
+                    title="Focus route"
+                    className="absolute bottom-2.5 right-2.5 h-8 w-8 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center text-gray-600 hover:text-brand-green-700 active:scale-90 transition-transform"
+                >
+                    <Maximize className="h-4 w-4" />
+                </button>
             )}
             {routeInfo && (
                 <div
