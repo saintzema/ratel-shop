@@ -6152,6 +6152,33 @@ class DataSyncServiceService {
         const updated = orders.map(o => o.id === orderId ? { ...o, escrow_status: "disputed" as const } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
+        // This used to be ONLY a localStorage write — the real database's
+        // Order.escrowStatus never actually flipped to "disputed", so the
+        // auto-release cron (which reads straight from Postgres) could still
+        // pay the seller out 24h later while this screen told the buyer
+        // their payment was frozen. keepalive so this survives even if the
+        // buyer navigates away right after filing.
+        try {
+            const token = localStorage.getItem("fp_token");
+            fetch("/api/disputes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    buyer_id: buyerId,
+                    buyer_name: buyerName,
+                    buyer_email: buyerEmail,
+                    seller_id: order.seller_id,
+                    seller_name: seller?.business_name || order.seller_name || "Unknown Seller",
+                    product_name: dispute.product_name,
+                    amount: order.amount,
+                    reason,
+                    description,
+                }),
+                keepalive: true,
+            }).catch(() => { /* the notification/email side-effects below still fire either way */ });
+        } catch { /* never let this block the local UI update */ }
+
         const productName = order.product?.name || `Product ${order.product_id}`;
         const reasonLabel = reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
 

@@ -233,7 +233,24 @@ function OrdersContent() {
     const handleReturnOrder = (order: Order) => {
         DataSyncService.updateOrderStatus(order.id, "return_requested");
         DataSyncService.updateOrder(order.id, { escrow_status: "disputed" });
-        
+
+        // DataSyncService.updateOrder is a pure localStorage write — it never
+        // reaches the real database, so Order.escrowStatus there never
+        // actually flipped to "disputed". The auto-release cron reads
+        // straight from Postgres, so a returned order could still
+        // auto-release to the seller 24h after delivery while this screen
+        // told the buyer their payment was frozen. This is the real freeze.
+        try {
+            const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+            fetch("/api/orders", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ id: order.id, escrow_status: "disputed" }),
+                keepalive: true,
+            }).catch(() => {});
+        } catch { /* never block the local UI update */ }
+
+
         // Notify customer
         DataSyncService.addNotification({
             userId: user?.email || "guest",
