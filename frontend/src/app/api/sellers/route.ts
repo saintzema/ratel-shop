@@ -81,18 +81,30 @@ export async function GET(req: Request) {
 
         let whereClause: any = includeInactive ? {} : { status: "active" as const };
 
-        // Security: Filter by userId if NOT an admin
+        // Security: Filter by userId if NOT an admin.
+        //
+        // This used to scope EVERY logged-in non-admin to `userId: user.userId`,
+        // including plain buyers/riders/couriers with no seller row of their own —
+        // for them that's an empty result. DataSyncService.autoSync()'s periodic
+        // full sync calls this exact endpoint (`all=true`) for every signed-in
+        // user regardless of role, to build the local "which sellers are active"
+        // cache that getApprovedProducts() filters the whole catalogue against.
+        // An empty result silently REPLACED that cache, collapsing the homepage
+        // down to just the always-visible global-partners items — "products
+        // disappear after visiting another page and coming back" was this,
+        // firing the moment a buyer's periodic sync landed while they were on
+        // /ride or /pay/scan. A seller still only sees their OWN store(s) here
+        // (avoids leaking another seller's bank details etc.); a buyer gets the
+        // same public active-sellers list an anonymous visitor gets, which is
+        // exactly the non-sensitive data their local filtering actually needs.
         if (!user || user.role !== "admin") {
-            // If logged in as a seller/customer, only show their own stores
-            if (user) {
+            if (user && user.role === "seller") {
                 whereClause.userId = user.userId;
             } else {
-                // Not logged in -> Only show active public stores
+                // Not logged in, or logged in as a plain buyer/rider/courier with no
+                // seller row of their own — either way, the same public active-only
+                // store list (never bank details — those are gated below regardless).
                 whereClause.status = "active";
-                // If they are asking for "all=true" but not logged in, reject or ignore
-                if (includeInactive) {
-                    // For now, just ignore it and keep status active
-                }
             }
         }
 
@@ -123,24 +135,43 @@ export async function GET(req: Request) {
                 ownerName: true,
                 subscriptionPlan: true,
                 planExpiryDate: true,
+                // Bank details were never selected here at all — this endpoint is what
+                // DataSyncService.autoSync()'s periodic background sync uses to REPLACE
+                // the local seller cache wholesale, so every sync silently stripped the
+                // seller's own saved payout bank details from their local copy even
+                // though the DB still had them. Any later save of something unrelated
+                // (a toggle, a profile edit) then round-tripped that now-incomplete
+                // cached object straight back through POST /api/sellers, which is how
+                // "I entered my bank details again for the umpteenth time" kept
+                // happening. Selected here and filtered to the owner/admin only below —
+                // never exposed on the public/anonymous browsing path.
+                bankName: true,
+                accountNumber: true,
+                accountName: true,
             },
             take: 100
         });
 
-        const mappedSellers = sellers.map(s => ({
-            ...s,
-            user_id: s.userId,
-            business_name: s.businessName,
-            logo_url: s.logoUrl,
-            cover_image_url: s.coverImageUrl,
-            trust_score: s.trustScore,
-            kyc_status: s.kycStatus,
-            store_url: s.storeUrl,
-            owner_name: s.ownerName,
-            subscription_plan: s.subscriptionPlan,
-            plan_expiry_date: s.planExpiryDate ? s.planExpiryDate.toISOString() : null,
-            created_at: s.createdAt.toISOString(),
-        }));
+        const mappedSellers = sellers.map(({ bankName, accountNumber, accountName, ...s }) => {
+            const isOwnerOrAdmin = !!user && (user.role === "admin" || s.userId === user.userId);
+            return {
+                ...s,
+                user_id: s.userId,
+                business_name: s.businessName,
+                logo_url: s.logoUrl,
+                cover_image_url: s.coverImageUrl,
+                trust_score: s.trustScore,
+                kyc_status: s.kycStatus,
+                store_url: s.storeUrl,
+                owner_name: s.ownerName,
+                subscription_plan: s.subscriptionPlan,
+                plan_expiry_date: s.planExpiryDate ? s.planExpiryDate.toISOString() : null,
+                created_at: s.createdAt.toISOString(),
+                bank_name: isOwnerOrAdmin ? bankName : undefined,
+                account_number: isOwnerOrAdmin ? accountNumber : undefined,
+                account_name: isOwnerOrAdmin ? accountName : undefined,
+            };
+        });
 
         return NextResponse.json(mappedSellers, {
             headers: {

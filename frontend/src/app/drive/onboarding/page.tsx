@@ -179,7 +179,7 @@ export default function DriveOnboardingPage() {
                         <Car className="h-6 w-6 text-brand-green-700" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-gray-900">Drive with FairPrice</h1>
+                        <h1 className="text-2xl font-black text-gray-900">FairRide</h1>
                         <p className="text-sm text-gray-500">Register your vehicle — passes inspection before you can accept rides.</p>
                     </div>
                 </div>
