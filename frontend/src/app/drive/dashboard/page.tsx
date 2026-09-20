@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Car, MapPin, Loader2, CheckCircle2, CreditCard } from "lucide-react";
@@ -92,7 +93,7 @@ export default function DriveDashboardPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user]);
+    useEffect(() => { load(); return visibleInterval(load, 8000); }, [user]);
 
     const [startCodeInputs, setStartCodeInputs] = useState<Record<string, string>>({});
     const [startCodeErrors, setStartCodeErrors] = useState<Record<string, string>>({});

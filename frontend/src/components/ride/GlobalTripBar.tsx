@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -68,8 +69,8 @@ export function GlobalTripBar() {
                 .catch(() => {});
         };
         poll();
-        const t = setInterval(poll, 15000);
-        return () => { cancelled = true; clearInterval(t); };
+        const stop = visibleInterval(poll, 15000);
+        return () => { cancelled = true; stop(); };
     }, [user]);
 
     // Live distance/progress — geocode pickup+dropoff once per trip, then poll
@@ -132,8 +133,8 @@ export function GlobalTripBar() {
         };
 
         poll();
-        const t = setInterval(poll, POLL_MS);
-        return () => { cancelled = true; clearInterval(t); };
+        const stop = visibleInterval(poll, POLL_MS);
+        return () => { cancelled = true; stop(); };
     }, [trip?.id, trip?.status, trip?.kind, trip?.pickup, trip?.dropoff]);
 
     // Already on the trip's own page — its own map/status card shows all of

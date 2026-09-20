@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -239,7 +240,7 @@ export default function RidePage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { loadRides(); const t = setInterval(loadRides, 6000); return () => clearInterval(t); }, [user]);
+    useEffect(() => { loadRides(); return visibleInterval(loadRides, 6000); }, [user]);
 
     useEffect(() => {
         if (!user) return;

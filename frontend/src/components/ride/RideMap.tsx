@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation2, Clock, MapPinned } from "lucide-react";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
@@ -470,8 +471,8 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         };
 
         poll();
-        pollRef.current = setInterval(poll, POLL_MS);
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
+        const stopPoll = visibleInterval(poll, POLL_MS);
+        return () => stopPoll();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, active, rideId, trackRole, legToPickup]);
 

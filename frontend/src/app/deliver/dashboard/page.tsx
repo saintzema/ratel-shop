@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Package, MapPin, Loader2, CheckCircle2, ChevronDown } from "lucide-react";
@@ -66,7 +67,7 @@ export default function DeliverDashboardPage() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [user, operatingState]);
+    useEffect(() => { load(); return visibleInterval(load, 8000); }, [user, operatingState]);
 
     const [actingOn, setActingOn] = useState<string | null>(null);
     const [pickupCodeInputs, setPickupCodeInputs] = useState<Record<string, string>>({});

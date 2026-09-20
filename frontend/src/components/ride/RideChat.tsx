@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleInterval } from "@/lib/client-poll";
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -32,8 +33,7 @@ export function RideChat({ conversationId }: { conversationId: string }) {
 
     useEffect(() => {
         load();
-        const interval = setInterval(load, 5000);
-        return () => clearInterval(interval);
+        return visibleInterval(load, 5000);
     }, [conversationId]);
 
     useEffect(() => {

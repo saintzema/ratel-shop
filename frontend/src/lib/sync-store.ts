@@ -382,10 +382,28 @@ class DataSyncServiceService {
         //
         // Live updates are a background nicety; painting the page is not. Wait
         // until the page has loaded (plus an idle beat) before connecting.
+        // Cost control: every open stream is a serverless function held alive (and
+        // billed for memory) the whole time, reconnecting every 25s. Anonymous visitors
+        // — the bulk of traffic — got one each just for "live product updates", and
+        // backgrounded tabs kept theirs open all day. Only signed-in users get a stream,
+        // and it is closed while the tab is hidden and reopened when it's visible again.
         const connect = () => {
             if (this._realtimeSource) return;
+            if (!this.getCurrentUser()) return;
+            if (document.visibilityState === "hidden") return;
             this.openRealtimeStream();
         };
+        if (!(this as any)._rtVisibilityBound) {
+            (this as any)._rtVisibilityBound = true;
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") {
+                    this._realtimeSource?.close();
+                    this._realtimeSource = null;
+                } else {
+                    connect();
+                }
+            });
+        }
 
         if (document.readyState === "complete") {
             // Already loaded — still yield a frame so we never contend with a

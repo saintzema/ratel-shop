@@ -56,7 +56,7 @@ export async function GET(req: Request) {
     // IF the source is HTTP, we MUST proxy it to avoid Mixed Content errors.
     if (isThumb && imageUrl.startsWith('https://')) {
         return NextResponse.redirect(imageUrl, {
-            headers: { "Cache-Control": "public, max-age=2592000" },
+            headers: { "Cache-Control": "public, max-age=2592000, s-maxage=2592000, immutable" },
         });
     }
 
@@ -118,7 +118,7 @@ export async function GET(req: Request) {
         return new NextResponse(upstream.body, {
             headers: {
                 "Content-Type": contentType,
-                "Cache-Control": "public, max-age=2592000, stale-while-revalidate=86400",
+                "Cache-Control": "public, max-age=2592000, s-maxage=2592000, stale-while-revalidate=86400",
                 "X-Content-Type-Options": "nosniff",
             },
         });
