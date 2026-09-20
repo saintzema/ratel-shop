@@ -88,6 +88,8 @@ export interface ProductVariant {
     image_url?: string;
     stock?: number;
     is_default?: boolean;
+    /** Attribute values this variant represents, e.g. { Capacity: "80Ah", Style: "Vertical" }. Drives the grouped picker on the PDP. */
+    options?: Record<string, string>;
 }
 
 export interface Product {

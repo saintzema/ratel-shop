@@ -1,5 +1,6 @@
 "use client";
 
+import { VariantOptionGenerator } from "@/components/seller/VariantOptionGenerator";
 import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
@@ -69,7 +70,7 @@ function EditProductContent() {
         financing_down_payment: "",
         financing_deposit_pct: 10,
         isDepositByPct: true,
-        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string }[],
+        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string; options?: Record<string, string> }[],
         require_delivery_details: true,
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -217,7 +218,8 @@ function EditProductContent() {
                             price: v.price > 0 ? v.price.toLocaleString() : "",
                             original_price: v.original_price ? v.original_price.toLocaleString() : "",
                             image_url: v.image_url || "",
-                            stock: v.stock != null ? String(v.stock) : ""
+                            stock: v.stock != null ? String(v.stock) : "",
+                            options: (v as any).options
                         })) : [],
                         require_delivery_details: !(found as any).is_direct_payment,
                     }));
@@ -578,6 +580,7 @@ function EditProductContent() {
                 price: parseInt(v.price.replace(/,/g, "")) || 0,
                 original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
                 stock: v.stock !== "" && v.stock != null ? parseInt(String(v.stock)) : undefined,
+                    options: v.options && Object.keys(v.options).length ? v.options : undefined,
                 image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                 is_default: false
             })),
@@ -1123,6 +1126,8 @@ function EditProductContent() {
                         <Plus className="h-4 w-4" /> Add Option
                     </Button>
                 </div>
+                <VariantOptionGenerator onGenerate={(rows) => { markDirty(); setFormData(p => ({ ...p, variants: [...p.variants.filter(v => v.name.trim()), ...rows] })); }} />
+
 
                 {formData.variants.length > 0 ? (
                     <div className="space-y-4">

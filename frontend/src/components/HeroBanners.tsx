@@ -849,7 +849,10 @@ function FeatureHeroShell({
             {ctaLabel} <span aria-hidden="true">→</span>
           </a>
         </div>
-        <div className="relative w-[38%] shrink-0 h-full flex items-center justify-center min-w-0 md:hidden">
+        {/* Was `md:hidden`, so on desktop every feature slide (Book a Ride, Send a Package,
+            Hire an Expert, Post Everywhere…) rendered text only — the animated visual that
+            makes each slide feel alive never showed. Shown at every size now. */}
+        <div className="relative w-[38%] md:w-auto md:flex-1 md:max-w-[460px] md:ml-auto md:mr-24 shrink-0 h-full flex items-center justify-center min-w-0">
           {visual}
         </div>
       </div>

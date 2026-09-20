@@ -569,63 +569,33 @@ function HomeContent() {
                       so they hold still while the slide moves under them. */}
                   {banners.length > 1 && (
                     <>
-                      {/* Right arrow only. The left one sat over the banner's own
-                          headline (covering the "A" in AUTONOMOUS on the ZEMA 360
-                          slide) — hero art has content on the left, so that side has
-                          to stay clear. Swiping still moves both directions. */}
-                      {/* Back arrow, tucked into the bottom-left corner (the dots row) rather than
-                          the vertical middle, so it never covers hero copy on the left. */}
-                      <button
-                        aria-label="Previous banner"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
-                        }}
-                        className="absolute z-30 left-2 md:left-3 bottom-2 md:bottom-3 h-7 w-7 md:h-9 md:w-9 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90"
-                      >
-                        <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                      </button>
-                      <button
-                        aria-label="Next banner"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentBannerIndex(prev => (prev + 1) % banners.length);
-                        }}
-                        className="absolute z-30 right-2 md:right-3 top-1/2 -translate-y-1/2 h-8 w-8 md:h-10 md:w-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90 shadow-lg"
-                      >
-                        <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
-                      </button>
+                      {/* Prev/next sit together in the bottom-left corner as bare chevrons
+                          (no filled circles) so they never cover hero copy or art — a soft
+                          drop shadow keeps them legible on any slide. Swiping still works. */}
+                      <div className="absolute z-30 left-2 md:left-4 bottom-1.5 md:bottom-3 flex items-center gap-1 md:gap-2">
+                        <button
+                          aria-label="Previous banner"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+                          }}
+                          className="p-1.5 text-white/80 hover:text-white transition-all active:scale-90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+                        >
+                          <ChevronLeft className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.5} />
+                        </button>
+                        <button
+                          aria-label="Next banner"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+                          }}
+                          className="p-1.5 text-white/80 hover:text-white transition-all active:scale-90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+                        >
+                          <ChevronRight className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.5} />
+                        </button>
+                      </div>
                     </>
                   )}
-
-                  {/* Buttons Overlay — Centered Bottom on Mobile, Center-Right on Desktop (clear of right metrics column) */}
-                  <div className="absolute z-30 flex flex-row md:flex-col items-center justify-center gap-2 md:gap-3 bottom-4 md:bottom-auto left-0 right-0 md:left-auto md:right-44 md:top-1/2 md:-translate-y-1/2 px-4 md:px-0">
-                    <Button
-                      size="lg"
-                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-gradient-to-b from-[#fbbf24] to-brand-orange hover:from-[#fcd34d] hover:to-[#fbbf24] text-black font-black text-[10px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(245,158,11,0.5)] border border-amber-300/60 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // /sell handles the "create the product first, finish
-                        // store setup right after" flow for anyone who isn't
-                        // already a seller — no separate onboarding-first step.
-                        router.push(isSeller ? "/seller/dashboard" : "/sell");
-                      }}
-                    >
-                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-black" />
-                      {/* Routing already sent sellers to their dashboard, but the label
-                          still said START SELLING — confusing for someone who plainly
-                          already sells. "DASHBOARD" also keeps the pill short on mobile. */}
-                      {isSeller ? "DASHBOARD" : "START SELLING"}
-                    </Button>
-                    <Button
-                      size="lg"
-                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
-                      onClick={() => setIsPriceModalOpen(true)}
-                    >
-                      PRICE CHECKER AI
-                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
-                    </Button>
-                  </div>
 
                   {/* Carousel Indicators — clickable, jumps to that slide */}
                   <div className="absolute top-4 md:top-6 right-4 md:right-6 z-20 flex items-center gap-1.5 md:gap-2">
@@ -682,6 +652,37 @@ function HomeContent() {
                   })}
                 </div>
               </div>
+            </div>
+
+            {/* Start Selling / Dashboard + Price Checker, relocated out of the hero so they never
+                sit on top of slide copy or animations — they live in the gap between the hero
+                and the category pills instead. */}
+            <div className="container mx-auto px-1 md:px-2 mt-3 md:mt-4 flex flex-row items-center justify-center gap-2 md:gap-3">
+              <Button
+                      size="lg"
+                      className="rounded-full px-4 md:px-7 h-10 md:h-12 bg-gradient-to-b from-[#fbbf24] to-brand-orange hover:from-[#fcd34d] hover:to-[#fbbf24] text-black font-black text-[11px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(245,158,11,0.5)] border border-amber-300/60 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // /sell handles the "create the product first, finish
+                        // store setup right after" flow for anyone who isn't
+                        // already a seller — no separate onboarding-first step.
+                        router.push(isSeller ? "/seller/dashboard" : "/sell");
+                      }}
+                    >
+                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-black" />
+                      {/* Routing already sent sellers to their dashboard, but the label
+                          still said START SELLING — confusing for someone who plainly
+                          already sells. "DASHBOARD" also keeps the pill short on mobile. */}
+                      {isSeller ? "DASHBOARD" : "START SELLING"}
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="rounded-full px-4 md:px-7 h-10 md:h-12 bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[11px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
+                      onClick={() => setIsPriceModalOpen(true)}
+                    >
+                      PRICE CHECKER AI
+                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
+                    </Button>
             </div>
           </section>
 

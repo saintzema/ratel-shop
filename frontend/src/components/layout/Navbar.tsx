@@ -1412,7 +1412,7 @@ export function Navbar() {
                                                         onMouseDown={(e) => { 
                                                             e.preventDefault(); 
                                                             e.stopPropagation();
-                                                            navigateWithResults(product.id, true); 
+                                                            navigateWithResults(product.id, false); 
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50/50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
@@ -1492,7 +1492,7 @@ export function Navbar() {
                                                 return (
                                                     <button
                                                         key={`cached-${result.id || i}`}
-                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, true); }}
+                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, false); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
                                                             activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-100"
@@ -1616,7 +1616,7 @@ export function Navbar() {
                                                             e.preventDefault();
                                                             e.stopPropagation();
                                                             // The navigateWithResults will create the global product and cache it
-                                                            navigateWithResults(`__global_${i}`, true);
+                                                            navigateWithResults(`__global_${i}`, false);
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-emerald-100",

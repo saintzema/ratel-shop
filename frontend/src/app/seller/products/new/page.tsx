@@ -1,5 +1,6 @@
 "use client";
 
+import { VariantOptionGenerator } from "@/components/seller/VariantOptionGenerator";
 import { useState, useEffect, useRef, useMemo, ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,7 @@ function NewProductContent() {
         financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
         contact_info: { show: false, phone: "", whatsapp: "" },
-        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string }[],
+        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string; options?: Record<string, string> }[],
         // Defaults to requiring delivery details (normal shipping checkout). Turning
         // this off is for in-person/consumable items (food, drinks) where a customer
         // just needs to pay — same fast checkout QR/payment links already use.
@@ -686,6 +687,7 @@ function NewProductContent() {
                     price: parseInt(v.price.replace(/,/g, "")) || 0,
                     original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
                     stock: v.stock !== "" && v.stock != null ? parseInt(String(v.stock)) : undefined,
+                    options: v.options && Object.keys(v.options).length ? v.options : undefined,
                     image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                     is_default: false
                 })),
@@ -1356,6 +1358,8 @@ function NewProductContent() {
                                 <Plus className="h-4 w-4" /> Add Option
                             </Button>
                         </div>
+
+                        <VariantOptionGenerator onGenerate={(rows) => setFormData(p => ({ ...p, variants: [...p.variants.filter(v => v.name.trim()), ...rows] }))} />
 
                         {formData.variants.length > 0 ? (
                             <div className="space-y-4">

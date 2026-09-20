@@ -152,6 +152,8 @@ export default function ProductDetailPage({ initialProduct = null }: { initialPr
     const [loadedMore, setLoadedMore] = useState(false);
     // -1 = base product selected (no add-on/variant), ≥0 = a specific variant/bundle
     const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(-1);
+    // Attribute-grouped picker (Capacity × Style …) for variants that carry `options`.
+    const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
     const [revealedContact, setRevealedContact] = useState<{ business_name: string; whatsapp_number: string | null; phone_number: string | null } | null>(null);
     const [contactLoading, setContactLoading] = useState(false);
     const [contactError, setContactError] = useState("");
@@ -726,7 +728,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     }, [user, product?.id, product?.seller_id]);
 
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const allImages = [product?.image_url, ...(product?.images || [])].filter((img): img is string => {
+    // Variant photos join the gallery so picking a variant can switch the main image to it.
+    const allImages = [product?.image_url, ...(product?.images || []), ...((product?.variants || []).map((v: any) => v.image_url))].filter((img): img is string => {
         if (!img || typeof img !== 'string') return false;
         const lower = img.toLowerCase().trim();
         if (!lower || lower === 'n/a' || lower.includes('no photo') || lower.includes('no image')) return false;
@@ -737,6 +740,48 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     // slot later than intended.
     }).filter((img, i, arr) => arr.indexOf(img) === i)
       .map(img => getProxiedImageUrl(img));
+    const variantAttrs = useMemo(() => {
+        const vs: any[] = (product?.variants as any[]) || [];
+        const names: string[] = [];
+        vs.forEach(v => Object.keys(v.options || {}).forEach(k => { if (!names.includes(k)) names.push(k); }));
+        return names.slice(0, 2).map(name => ({
+            name,
+            values: Array.from(new Set(vs.map(v => v.options?.[name]).filter(Boolean))) as string[],
+        }));
+    }, [product?.variants]);
+    const isGroupedVariants = variantAttrs.length > 0;
+    const variantsRef = (product?.variants as any[]) || [];
+    // Does any in-stock variant exist for this set of chosen options?
+    const comboVariantIndex = (opts: Record<string, string>) =>
+        variantsRef.findIndex(v => variantAttrs.every(a => !opts[a.name] || v.options?.[a.name] === opts[a.name]) && Object.keys(opts).every(k => v.options?.[k] === opts[k]));
+    const pickOption = (attr: string, value: string) => {
+        let next = { ...selectedOptions, [attr]: value };
+        let idx = comboVariantIndex(next);
+        if (idx < 0) {
+            // The chosen combination doesn't exist — keep the just-clicked value and fall back to
+            // the first variant that has it, adopting that variant's other attribute values.
+            idx = variantsRef.findIndex(v => v.options?.[attr] === value && v.stock !== 0);
+            if (idx < 0) idx = variantsRef.findIndex(v => v.options?.[attr] === value);
+            if (idx < 0) return;
+            next = { ...(variantsRef[idx].options || {}) };
+        }
+        setSelectedOptions(next);
+        setSelectedVariantIndex(idx);
+        const v = variantsRef[idx];
+        if (v?.image_url) {
+            const imgIdx = allImages.findIndex(img => img === getProxiedImageUrl(v.image_url));
+            if (imgIdx >= 0) setCurrentImageIndex(imgIdx);
+        }
+    };
+    // Start grouped products on their first purchasable combination instead of "nothing chosen".
+    useEffect(() => {
+        if (!isGroupedVariants || selectedVariantIndex !== -1) return;
+        const first = variantsRef.findIndex(v => v.stock !== 0);
+        const i = first >= 0 ? first : 0;
+        if (variantsRef[i]) { setSelectedVariantIndex(i); setSelectedOptions({ ...(variantsRef[i].options || {}) }); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isGroupedVariants, product?.id]);
+
     const deliveryDates = useMemo(() => {
         const stateName = location.includes(",") ? location.split(",")[1].trim() : location;
         const baseDays = NIGERIAN_STATES.find(s => s.state === stateName)?.delivery_days || 3;
@@ -1909,7 +1954,46 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 )}
 
                                 {/* ─── VARIANTS & BUNDLES ─── */}
-                                {product.variants && product.variants.length > 0 && (
+                                {isGroupedVariants && (
+                                    <div className="mt-4 mb-2 p-4 rounded-2xl border border-gray-200 bg-white shadow-sm space-y-4">
+                                        {variantAttrs.map(attr => (
+                                            <div key={attr.name}>
+                                                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">{attr.name} <span className="text-gray-300">({attr.values.length})</span></h3>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {attr.values.map(val => {
+                                                        const chosen = selectedOptions[attr.name] === val;
+                                                        // Greyed when no purchasable variant carries this value together with the
+                                                        // OTHER attribute's current choice (still clickable — it jumps to a valid combo).
+                                                        const others = { ...selectedOptions }; delete others[attr.name];
+                                                        const available = variantsRef.some(v => v.options?.[attr.name] === val && v.stock !== 0 && Object.keys(others).every(k => v.options?.[k] === others[k]));
+                                                        return (
+                                                            <button
+                                                                key={val}
+                                                                type="button"
+                                                                onClick={() => pickOption(attr.name, val)}
+                                                                className={`px-3.5 py-2 rounded-lg border text-sm font-bold transition-all ${chosen ? 'border-red-500 text-red-600 bg-red-50 ring-1 ring-red-500' : available ? 'border-gray-200 bg-gray-50 text-gray-900 hover:border-gray-400' : 'border-gray-100 bg-gray-50 text-gray-300'}`}
+                                                            >
+                                                                {val}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(() => {
+                                            const v = variantsRef[selectedVariantIndex];
+                                            if (!v) return null;
+                                            return (
+                                                <p className="text-xs text-gray-500">
+                                                    Selected: <span className="font-bold text-gray-800">{v.name}</span>
+                                                    {v.stock === 0 && <span className="ml-2 text-rose-500 font-bold">Out of stock</span>}
+                                                    {v.stock != null && v.stock > 0 && v.stock <= 3 && <span className="ml-2 text-orange-500 font-bold">Almost gone · {v.stock} left</span>}
+                                                </p>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+                                {!isGroupedVariants && product.variants && product.variants.length > 0 && (
                                     <div className="mt-4 mb-2 p-4 rounded-2xl border border-gray-200 bg-white shadow-sm">
                                         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Select Option</h3>
                                         <div className="grid grid-cols-2 gap-2">
