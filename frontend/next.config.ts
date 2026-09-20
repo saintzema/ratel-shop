@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
       { source: "/shop", destination: "/search", permanent: true },
       { source: "/shop/:path*", destination: "/search", permanent: true },
       { source: "/returns", destination: "/return-policy", permanent: true },
+      // Legal pages live under /legal/* but were linked (and shared) without the prefix.
+      { source: "/consumer-protection", destination: "/legal/consumer-protection", permanent: true },
+      { source: "/data-deletion", destination: "/legal/data-deletion", permanent: true },
+      { source: "/acceptable-use", destination: "/legal/acceptable-use", permanent: true },
     ];
   },
 

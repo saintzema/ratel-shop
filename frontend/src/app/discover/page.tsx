@@ -64,13 +64,18 @@ export default function DiscoverPage() {
     }, [spots, activeTab]);
 
     const callSpot = (s: Spot) => {
-        const num = s.seller?.phoneNumber || s.seller?.whatsappNumber;
-        if (num) window.location.href = `tel:${num.replace(/\s+/g, "")}`;
+        const num = String(s.seller?.phoneNumber || s.seller?.whatsappNumber || s.specs?.phone || "").trim();
+        if (num) window.location.href = `tel:${num.replace(/[^\d+]/g, "")}`;
     };
 
     const directions = (s: Spot) => {
-        const url = s.specs?.maps_url;
-        if (url) nativeBridge.openUrl(url);
+        // A stored maps link without a protocol ("maps.app.goo.gl/…", "goo.gl/maps/…")
+        // was treated as a relative path and opened a 404 on our own site — normalise it,
+        // and fall back to a Maps search for the place when no usable link was saved.
+        let url = String(s.specs?.maps_url || "").trim();
+        if (url && !/^https?:\/\//i.test(url)) url = `https://${url.replace(/^\/+/, "")}`;
+        if (!url) url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([s.name, s.location_city, s.location_state].filter(Boolean).join(", "))}`;
+        nativeBridge.openUrl(url);
     };
 
     return (
@@ -196,14 +201,13 @@ export default function DiscoverPage() {
                                     <div className="flex gap-2 mt-auto pt-4">
                                         <button
                                             onClick={(e) => { e.preventDefault(); directions(spot); }}
-                                            disabled={!spot.specs?.maps_url}
-                                            className="flex-1 h-10 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black flex items-center justify-center gap-1.5"
+                                                                                        className="flex-1 h-10 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black flex items-center justify-center gap-1.5"
                                         >
                                             <Navigation2 className="h-3.5 w-3.5" /> Directions
                                         </button>
                                         <button
                                             onClick={(e) => { e.preventDefault(); callSpot(spot); }}
-                                            disabled={!spot.seller?.phoneNumber && !spot.seller?.whatsappNumber}
+                                            disabled={!spot.seller?.phoneNumber && !spot.seller?.whatsappNumber && !spot.specs?.phone}
                                             className="h-10 w-10 rounded-xl border border-gray-200 disabled:opacity-30 flex items-center justify-center text-gray-700"
                                         >
                                             <Phone className="h-4 w-4" />

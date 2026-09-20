@@ -561,50 +561,47 @@ export default function QRPaymentsPage() {
             img.onerror = () => resolve(null);
             img.src = src;
         });
-        const W = 800, H = 1080;
+        // Alipay-style card: white brand strip, big coloured banner with a short call to
+        // action, then a white rounded panel holding the QR (store logo in the centre)
+        // with the store name underneath and a "how to use" line at the bottom.
+        const W = 900, H = 1280;
         const c = document.createElement("canvas");
         c.width = W; c.height = H;
         const g = c.getContext("2d")!;
-        g.fillStyle = "#f3f4f6"; g.fillRect(0, 0, W, H);
-        // card
-        g.fillStyle = "#ffffff";
-        g.beginPath(); (g as any).roundRect(40, 40, W - 80, H - 80, 36); g.fill();
-        // brand header
-        g.fillStyle = "#0a6847";
-        g.beginPath(); (g as any).roundRect(40, 40, W - 80, 130, [36, 36, 0, 0]); g.fill();
+        g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
         const fpLogo = await loadImg("/logo.png");
-        let hx = 80;
-        if (fpLogo) { g.drawImage(fpLogo, 80, 62, 86, 86); hx = 184; }
-        g.fillStyle = "#ffffff"; g.textAlign = "left";
-        g.font = "800 44px Arial, Helvetica, sans-serif"; g.fillText("FairPrice.ng", hx, 118);
-        g.font = "600 20px Arial, Helvetica, sans-serif"; g.fillStyle = "rgba(255,255,255,0.8)";
-        g.fillText("FairPay · Secure escrow payments", hx, 148);
-        // store identity
-        g.textAlign = "center";
-        const storeLogo = seller?.logo_url ? await loadImg(getProxiedImageUrl(seller.logo_url)) : null;
-        let ty = 250;
-        if (storeLogo) {
-            g.save(); g.beginPath(); g.arc(W / 2, 246, 50, 0, Math.PI * 2); g.clip();
-            g.drawImage(storeLogo, W / 2 - 50, 196, 100, 100); g.restore();
-            g.strokeStyle = "#e5e7eb"; g.lineWidth = 4; g.beginPath(); g.arc(W / 2, 246, 50, 0, Math.PI * 2); g.stroke();
-            ty = 340;
-        }
-        g.fillStyle = "#111827"; g.font = "800 46px Arial, Helvetica, sans-serif";
-        let name = bizName; while (g.measureText(name).width > W - 160 && name.length > 4) name = name.slice(0, -2);
-        g.fillText(name === bizName ? name : `${name}…`, W / 2, ty);
-        g.fillStyle = "#6b7280"; g.font = "600 24px Arial, Helvetica, sans-serif";
-        g.fillText(subtitle || "Scan to browse & pay", W / 2, ty + 42);
-        // QR
-        const qs = 520, qx = (W - qs) / 2, qy = ty + 80;
-        g.fillStyle = "#ffffff"; g.strokeStyle = "#e5e7eb"; g.lineWidth = 3;
-        g.beginPath(); (g as any).roundRect(qx - 20, qy - 20, qs + 40, qs + 40, 28); g.fill(); g.stroke();
+        g.textBaseline = "middle";
+        if (fpLogo) g.drawImage(fpLogo, W / 2 - 200, 60, 110, 110);
+        g.fillStyle = "#0a6847"; g.textAlign = "left";
+        g.font = "800 72px Arial, Helvetica, sans-serif";
+        g.fillText("FairPrice", W / 2 - 70, 112);
+        // banner
+        g.fillStyle = "#0a6847"; g.fillRect(0, 220, W, H - 220);
+        g.fillStyle = "#ffffff"; g.textAlign = "center";
+        g.font = "800 60px Arial, Helvetica, sans-serif";
+        g.fillText(subtitle || "Scan to pay with FairPrice", W / 2, 320);
+        // white panel
+        const px = 120, py = 400, pw = W - 240, ph = 700;
+        g.fillStyle = "#ffffff";
+        g.beginPath(); (g as any).roundRect(px, py, pw, ph, 44); g.fill();
+        const qs = 500, qx = (W - qs) / 2, qy = py + 50;
         g.imageSmoothingEnabled = false;
         g.drawImage(qr, qx, qy, qs, qs);
-        // footer
-        g.fillStyle = "#0a6847"; g.font = "800 26px Arial, Helvetica, sans-serif";
-        g.fillText("Scan with your phone camera or the FairPrice app", W / 2, qy + qs + 70);
-        g.fillStyle = "#9ca3af"; g.font = "600 20px Arial, Helvetica, sans-serif";
-        g.fillText("Powered by FairPrice.ng · Buy & sell with buyer protection", W / 2, H - 80);
+        g.imageSmoothingEnabled = true;
+        // store logo badge over the QR centre (the QR already reserves the hole)
+        const storeLogo = seller?.logo_url ? await loadImg(getProxiedImageUrl(seller.logo_url)) : null;
+        if (storeLogo) {
+            const ls = 96, lx = W / 2 - ls / 2, ly = qy + qs / 2 - ls / 2;
+            g.save(); g.beginPath(); (g as any).roundRect(lx, ly, ls, ls, 14); g.clip();
+            g.drawImage(storeLogo, lx, ly, ls, ls); g.restore();
+        }
+        g.fillStyle = "#111827"; g.font = "600 38px Arial, Helvetica, sans-serif";
+        let name = bizName; while (g.measureText(name).width > pw - 60 && name.length > 4) name = name.slice(0, -2);
+        g.fillText(name === bizName ? name : `${name}…`, W / 2, qy + qs + 70);
+        g.fillStyle = "#ffffff"; g.font = "500 44px Arial, Helvetica, sans-serif";
+        g.fillText("Open “Scan” inside FairPrice", W / 2, py + ph + 80);
+        g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "500 26px Arial, Helvetica, sans-serif";
+        g.fillText("Buyer protection · Secure escrow · fairprice.ng", W / 2, H - 60);
         const link = document.createElement("a");
         try { link.href = c.toDataURL("image/png"); } catch { link.href = qr.toDataURL("image/png"); }
         link.download = `${fileName}.png`;

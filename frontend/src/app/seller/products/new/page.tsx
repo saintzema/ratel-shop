@@ -58,7 +58,7 @@ function NewProductContent() {
         financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
         contact_info: { show: false, phone: "", whatsapp: "" },
-        variants: [] as { name: string; price: string; image_url: string; original_price: string }[],
+        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string }[],
         // Defaults to requiring delivery details (normal shipping checkout). Turning
         // this off is for in-person/consumable items (food, drinks) where a customer
         // just needs to pay — same fast checkout QR/payment links already use.
@@ -685,6 +685,7 @@ function NewProductContent() {
                     name: v.name.trim(),
                     price: parseInt(v.price.replace(/,/g, "")) || 0,
                     original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
+                    stock: v.stock !== "" && v.stock != null ? parseInt(String(v.stock)) : undefined,
                     image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                     is_default: false
                 })),
@@ -1348,7 +1349,7 @@ function NewProductContent() {
                                 variant="outline"
                                 onClick={() => setFormData(p => ({
                                     ...p,
-                                    variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "" }]
+                                    variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "", stock: "" }]
                                 }))}
                                 className="h-9 gap-1.5 text-sm"
                             >
@@ -1433,6 +1434,20 @@ function NewProductContent() {
                                                         setFormData(p => ({ ...p, variants: next }));
                                                     }}
                                                     className="h-10 text-sm bg-white border-gray-200 text-gray-500"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-medium text-gray-600">Stock</label>
+                                                <Input
+                                                    placeholder="Optional (0 = sold out)"
+                                                    inputMode="numeric"
+                                                    value={variant.stock ?? ""}
+                                                    onChange={(e) => {
+                                                        const next = [...formData.variants];
+                                                        next[index].stock = e.target.value.replace(/\D/g, "");
+                                                        setFormData(p => ({ ...p, variants: next }));
+                                                    }}
+                                                    className="h-10 text-sm bg-white border-gray-200"
                                                 />
                                             </div>
                                         </div>

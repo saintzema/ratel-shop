@@ -69,7 +69,7 @@ function EditProductContent() {
         financing_down_payment: "",
         financing_deposit_pct: 10,
         isDepositByPct: true,
-        variants: [] as { name: string; price: string; image_url: string; original_price: string }[],
+        variants: [] as { name: string; price: string; image_url: string; original_price: string; stock: string }[],
         require_delivery_details: true,
     });
     const [isSaving, setIsSaving] = useState(false);
@@ -216,7 +216,8 @@ function EditProductContent() {
                             name: v.name,
                             price: v.price > 0 ? v.price.toLocaleString() : "",
                             original_price: v.original_price ? v.original_price.toLocaleString() : "",
-                            image_url: v.image_url || ""
+                            image_url: v.image_url || "",
+                            stock: v.stock != null ? String(v.stock) : ""
                         })) : [],
                         require_delivery_details: !(found as any).is_direct_payment,
                     }));
@@ -576,6 +577,7 @@ function EditProductContent() {
                 name: v.name.trim(),
                 price: parseInt(v.price.replace(/,/g, "")) || 0,
                 original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
+                stock: v.stock !== "" && v.stock != null ? parseInt(String(v.stock)) : undefined,
                 image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
                 is_default: false
             })),
@@ -1113,7 +1115,7 @@ function EditProductContent() {
                             markDirty();
                             setFormData(p => ({
                                 ...p,
-                                variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "" }]
+                                variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "", stock: "" }]
                             }));
                         }}
                         className="h-9 gap-1.5 text-sm"
@@ -1210,6 +1212,21 @@ function EditProductContent() {
                                                 setFormData(p => ({ ...p, variants: next }));
                                             }}
                                             className="h-10 text-sm bg-white border-gray-200 text-gray-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600">Stock</label>
+                                        <Input
+                                            placeholder="Optional (0 = sold out)"
+                                            inputMode="numeric"
+                                            value={variant.stock ?? ""}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].stock = e.target.value.replace(/\D/g, "");
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200"
                                         />
                                     </div>
                                 </div>

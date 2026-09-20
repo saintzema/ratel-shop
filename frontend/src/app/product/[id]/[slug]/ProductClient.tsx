@@ -1963,6 +1963,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         <span className="text-[10px] text-gray-400 line-through text-left">{formatPrice(Number(v.original_price))}</span>
                                                     )}
                                                     {v.stock === 0 && <span className="text-[10px] font-bold text-rose-500 text-left">Out of stock</span>}
+                                                    {v.stock != null && v.stock > 0 && v.stock <= 3 && <span className="text-[10px] font-bold text-orange-500 text-left">Almost gone · {v.stock} left</span>}
                                                 </button>
                                             ))}
                                         </div>

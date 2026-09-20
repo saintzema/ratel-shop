@@ -592,6 +592,7 @@ function CheckoutContent() {
     const [pickupDetails, setPickupDetails] = useState({ state: "", city: "", station: "" });
 
     const [isGuestCheckout, setIsGuestCheckout] = useState(false);
+    const [guestChoiceDismissed, setGuestChoiceDismissed] = useState(false);
     const [showGuestPasswordSetup, setShowGuestPasswordSetup] = useState(false);
     const [guestPassword, setGuestPassword] = useState("");
     const [showGuestPassword, setShowGuestPassword] = useState(false);
@@ -1756,6 +1757,22 @@ function CheckoutContent() {
                             <div>
                                 <h3 className="font-bold text-sm">Action Required: Secure Your Account</h3>
                                 <p className="text-xs mt-1">We noticed you logged in via WhatsApp. Please enter your real name and email address in the Shipping section below to complete your profile.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Guests get an explicit choice up front instead of silently being
+                        treated as a guest: sign in (keeps addresses/orders) or go on with
+                        just contact details. */}
+                    {!user && !guestChoiceDismissed && (
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                            <div>
+                                <h3 className="font-black text-gray-900 text-sm">Checking out as a guest</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Sign in to use saved addresses and track orders, or continue with just your contact details.</p>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                                <button onClick={() => router.push(`/login?redirect=${encodeURIComponent("/checkout")}`)} className="h-10 px-5 rounded-full bg-black text-white text-xs font-black">Sign in</button>
+                                <button onClick={() => setGuestChoiceDismissed(true)} className="h-10 px-5 rounded-full border border-gray-300 text-xs font-black text-gray-800">Continue as guest</button>
                             </div>
                         </div>
                     )}

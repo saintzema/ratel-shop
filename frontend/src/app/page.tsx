@@ -573,6 +573,18 @@ function HomeContent() {
                           headline (covering the "A" in AUTONOMOUS on the ZEMA 360
                           slide) — hero art has content on the left, so that side has
                           to stay clear. Swiping still moves both directions. */}
+                      {/* Back arrow, tucked into the bottom-left corner (the dots row) rather than
+                          the vertical middle, so it never covers hero copy on the left. */}
+                      <button
+                        aria-label="Previous banner"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
+                        }}
+                        className="absolute z-30 left-2 md:left-3 bottom-2 md:bottom-3 h-7 w-7 md:h-9 md:w-9 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-md border border-white/25 text-white flex items-center justify-center transition-all active:scale-90"
+                      >
+                        <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+                      </button>
                       <button
                         aria-label="Next banner"
                         onClick={(e) => {
