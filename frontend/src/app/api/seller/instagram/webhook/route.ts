@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { notifySeller } from "@/lib/seller-notify";
-import { fireworksJSON, isFireworksEnabled } from "@/lib/fireworks";
+import { aiJSON } from "@/lib/ai-provider";
 import { sendInstagramDm } from "@/lib/instagram-dm";
 
 const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || "fairprice_ig_webhook_2024";
@@ -41,17 +41,16 @@ async function classifyIntent(text: string): Promise<boolean> {
     // Only bother with an AI call for something that reads like a real question —
     // avoids burning API calls on "nice 😍" or "🙌🙌🙌".
     if (!clean.includes("?") || clean.split(/\s+/).length < 3) return false;
-    if (!isFireworksEnabled() && !process.env.GEMINI_API_KEY) return false;
+    if (!process.env.DASHSCOPE_API_KEY && !process.env.FIREWORKS_API_KEY && !process.env.GEMINI_API_KEY) return false;
 
     try {
-        const result = await fireworksJSON<{ intent: boolean }>({
+        const result = (await aiJSON<{ intent: boolean }>({
             system: "You classify a single Instagram comment on a product post. Reply with strict JSON only: {\"intent\": true|false}. true means the commenter is showing real purchase interest (asking price, availability, how to buy, requesting a DM/link). false means it's a generic reaction, compliment, unrelated question, or spam.",
             prompt: `Comment: "${clean}"`,
-            jsonMode: true,
             temperature: 0,
             maxTokens: 20,
             timeoutMs: 4000,
-        });
+        }))?.data;
         return !!result?.intent;
     } catch {
         return false; // never let a slow/failed AI call block the webhook ack
@@ -115,7 +114,7 @@ interface IgMessagingEvent {
  * instead of guessing.
  */
 async function draftDmReply(sellerId: string, sellerName: string, buyerText: string): Promise<string | null> {
-    if (!isFireworksEnabled() && !process.env.GEMINI_API_KEY) return null;
+    if (!process.env.DASHSCOPE_API_KEY && !process.env.FIREWORKS_API_KEY && !process.env.GEMINI_API_KEY) return null;
 
     const products = await db.product.findMany({
         where: { sellerId, isActive: true },
@@ -130,17 +129,16 @@ async function draftDmReply(sellerId: string, sellerName: string, buyerText: str
         .join("\n");
 
     try {
-        const result = await fireworksJSON<{ canAnswer: boolean; reply: string }>({
+        const result = (await aiJSON<{ canAnswer: boolean; reply: string }>({
             system: `You are a helpful assistant answering an Instagram DM on behalf of "${sellerName}", a Nigerian seller on FairPrice.ng. Answer ONLY plain product questions (price, availability, specs) using the catalog below — never invent a price or product that isn't listed. If the buyer is trying to negotiate a price, place an order, complain, or asks anything you can't answer from this catalog, set canAnswer to false so a human takes over. Reply with strict JSON only: {"canAnswer": true|false, "reply": "short, friendly, human-sounding answer — no markdown, no emoji spam"}.
 
 Catalog:
 ${catalog}`,
             prompt: `Buyer DM: "${buyerText}"`,
-            jsonMode: true,
             temperature: 0.3,
             maxTokens: 200,
             timeoutMs: 6000,
-        });
+        }))?.data;
         if (!result || !result.canAnswer || !result.reply) return null;
         return result.reply;
     } catch {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
-import { fireworksJSON, isFireworksEnabled, fireworksModel } from "@/lib/fireworks";
+import { aiJSON } from "@/lib/ai-provider";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -59,42 +59,17 @@ RULES:
 
     let draft: QuoteDraft | null = null;
 
-    if (isFireworksEnabled()) {
-        const fw = await fireworksJSON<QuoteDraft>({
-            system: "Output ONLY one valid JSON object, no markdown, no explanation.",
-            prompt,
-            temperature: 0.4,
-            // "AT LEAST 3 line items" with realistic multi-clause descriptions
-            // (materials + specs) plus a notes field routinely needs more than
-            // 1000 tokens for a 6-7 item quote — a live example truncated mid-
-            // response, which produced syntactically-valid-but-empty leading
-            // items (missing description/price) once JSON.parse recovered
-            // what it could. 2000 gives real headroom without being unbounded.
-            maxTokens: 2000,
-        });
-        if (fw?.items?.length) draft = fw;
-    }
-
-    if (!draft && GEMINI_API_KEY) {
-        try {
-            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: 0.4 },
-                }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                    const clean = text.replace(/```json\s?/g, "").replace(/```/g, "").trim();
-                    draft = JSON.parse(clean);
-                }
-            }
-        } catch { /* fall through to error below */ }
-    }
+    // Provider is admin-switchable (Qwen by default) with automatic fallback — see lib/ai-provider.
+    const ai = await aiJSON<QuoteDraft>({
+        system: "Output ONLY one valid JSON object, no markdown, no explanation.",
+        prompt,
+        temperature: 0.4,
+        // "AT LEAST 3 line items" with realistic multi-clause descriptions plus a notes field
+        // routinely needs more than 1000 tokens for a 6-7 item quote — a live example truncated
+        // mid-response. 2000 gives real headroom without being unbounded.
+        maxTokens: 2000,
+    });
+    if (ai?.data?.items?.length) draft = ai.data;
 
     // Real observed model failure modes this sanitizes:
     //  1. Some items come back with description/unitPrice entirely missing

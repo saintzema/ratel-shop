@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fireworksJSON, isFireworksEnabled, fireworksModel } from "@/lib/fireworks";
+import { aiJSON } from "@/lib/ai-provider";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -27,10 +27,6 @@ function checkRateLimit(req: Request): boolean {
 export async function POST(req: Request) {
     if (!checkRateLimit(req)) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
-
-    if (!GEMINI_API_KEY) {
-        return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
     }
 
     try {
@@ -77,26 +73,23 @@ export async function POST(req: Request) {
         - specs must contain AT LEAST 5 key-value pairs inferred from the product name/category — e.g. for a vehicle: Motor/Engine Type, Seating Capacity, Charging/Fuel Type, Max Speed, Dimensions, Weight Capacity. For electronics: Brand, Model, Power Source, Connectivity, Dimensions. Never return fewer than 5 specs, and never leave a spec's value as a placeholder like "..." — infer a real, plausible value from the product name and category, or omit that key entirely if there's truly nothing sensible to infer.
         `;
 
-        // ── Fireworks AI (AMD GPUs) — PRIMARY provider ───────────────────────────
-        // Generates the product listing on AMD-hosted inference when configured. Falls
-        // through to Gemini on any failure so seller/admin auto-fill never breaks.
-        if (isFireworksEnabled()) {
-            const fw = await fireworksJSON<any>({
-                system: "You are an expert Nigerian e-commerce copywriter. Output ONLY one valid JSON object, no markdown, no reasoning, no explanation before or after — your entire response must be the raw JSON object starting with { and ending with }.",
-                prompt,
-                temperature: 0.7,
-                maxTokens: 1600,
-            });
-            if (fw && fw.description) {
-                db.searchCache.upsert({
-                    where: { query: cacheKey },
-                    create: { query: cacheKey, products: fw as any },
-                    update: { products: fw as any },
-                }).catch(() => {});
-                return NextResponse.json(fw, {
-                    headers: { "X-Cache": "MISS", "X-Provider": "fireworks", "X-Model": fireworksModel() },
-                });
-            }
+        // Admin-switchable provider (Qwen by default) with automatic fallback — lib/ai-provider.
+        const ai = await aiJSON<any>({
+            system: "You are an expert Nigerian e-commerce copywriter. Output ONLY one valid JSON object, no markdown, no reasoning, no explanation before or after — your entire response must be the raw JSON object starting with { and ending with }.",
+            prompt,
+            temperature: 0.7,
+            maxTokens: 1600,
+        });
+        if (ai?.data?.description) {
+            db.searchCache.upsert({
+                where: { query: cacheKey },
+                create: { query: cacheKey, products: ai.data as any },
+                update: { products: ai.data as any },
+            }).catch(() => {});
+            return NextResponse.json(ai.data, { headers: { "X-Cache": "MISS", "X-Provider": ai.provider } });
+        }
+        if (!GEMINI_API_KEY) {
+            return NextResponse.json({ error: "AI service is temporarily unavailable." }, { status: 502 });
         }
 
         const fetchWithRetry = async (attempt = 0): Promise<Response> => {

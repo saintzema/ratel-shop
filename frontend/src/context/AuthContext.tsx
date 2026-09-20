@@ -169,6 +169,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
     }, []);
 
+    // Keep sign-in persistent AND honest. Tokens last 30 days; once one expires (or the signing
+    // secret changes) every Bearer call silently 401s while the UI still looks signed in. Probe the
+    // stored token once per browser session: refresh it when it's close to expiry, and if it's
+    // dead, re-issue it (Google/Apple users) or sign out cleanly so the user just logs in again
+    // instead of hitting mysterious "Unauthorized" errors.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        let tok: string | null = null, stored: string | null = null;
+        try { tok = localStorage.getItem("fp_token"); stored = localStorage.getItem("fp_user"); } catch { return; }
+        if (!tok || !stored) return;
+        try { if (sessionStorage.getItem("fp_token_checked")) return; sessionStorage.setItem("fp_token_checked", "1"); } catch { /* private mode */ }
+        fetch("/api/auth/session-check", { headers: { Authorization: `Bearer ${tok}` } })
+            .then(r => r.json())
+            .then(d => {
+                if (d?.valid) {
+                    if (typeof d.daysLeft === "number" && d.daysLeft < 7) {
+                        try { const u = JSON.parse(stored!); if (u?.email) ensureToken(u.email); } catch { /* ignore */ }
+                    }
+                    return;
+                }
+                const email = session?.user?.email;
+                if (email) { ensureToken(email); return; }
+                localStorage.removeItem("fp_token");
+                localStorage.removeItem("fp_user");
+                setUser(null);
+            })
+            .catch(() => { /* offline — try again next session */ });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // --- Identity Self-Healing ---
     // If a user is logged in with a temporary 'user_' ID (from DB offline fallback),
     // we attempt to re-verify their identity if the DB is now available.

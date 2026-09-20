@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fireworksJSON, isFireworksEnabled, fireworksModel } from "@/lib/fireworks";
+import { aiJSON } from "@/lib/ai-provider";
 import { getUserFromRequest } from "@/lib/jwt";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -71,42 +71,16 @@ CRITICAL RULES:
 - End with a simple, direct call to action (e.g. "DM to order" or "WhatsApp me to grab yours").
 - Output ONLY the caption text. No quotes, no markdown, no labels like "Caption:".`;
 
-        if (isFireworksEnabled()) {
-            const fw = await fireworksJSON<{ caption: string }>({
-                system: "Output ONLY one valid JSON object: {\"caption\": \"...\"}. No markdown, no extra text.",
-                prompt: prompt + '\n\nReturn as JSON: {"caption": "the caption text"}',
-                temperature: 0.8,
-                maxTokens: 300,
-            });
-            if (fw?.caption) {
-                return NextResponse.json({ caption: fw.caption.trim() }, { headers: { "X-Provider": "fireworks", "X-Model": fireworksModel() } });
-            }
-        }
-
-        if (!GEMINI_API_KEY) {
-            return NextResponse.json({ error: "AI caption generation is not configured on this server." }, { status: 500 });
-        }
-
-        const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8 },
-            }),
+        const ai = await aiJSON<{ caption: string }>({
+            system: "Output ONLY one valid JSON object: {\"caption\": \"...\"}. No markdown, no extra text.",
+            prompt: prompt + '\n\nReturn as JSON: {"caption": "the caption text"}',
+            temperature: 0.8,
+            maxTokens: 300,
         });
-
-        if (!res.ok) {
+        if (!ai?.data?.caption) {
             return NextResponse.json({ error: "AI caption service is temporarily unavailable." }, { status: 502 });
         }
-
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!text) {
-            return NextResponse.json({ error: "AI didn't return a caption." }, { status: 502 });
-        }
-
-        return NextResponse.json({ caption: text.trim() });
+        return NextResponse.json({ caption: ai.data.caption.trim() }, { headers: { "X-Provider": ai.provider } });
     } catch (error: any) {
         console.error("[social-caption] error:", error);
         return NextResponse.json({ error: "Failed to generate caption" }, { status: 500 });

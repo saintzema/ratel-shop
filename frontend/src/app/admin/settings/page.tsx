@@ -53,7 +53,7 @@ export default function AdminSettings() {
     const [codGlobalThreshold, setCodGlobalThreshold] = useState("50000");
 
     // AI Provider
-    const [aiProvider, setAiProvider] = useState<"qwen" | "gemini">("qwen");
+    const [aiProvider, setAiProvider] = useState<"qwen" | "gemini" | "fireworks">("qwen");
 
     // Payout HITL threshold — auto-payouts at/below this go out instantly; above it
     // require a WhatsApp approval before the transfer fires (see paystack/webhook).
@@ -163,7 +163,7 @@ export default function AdminSettings() {
                     if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
                     if (initialData.waVerificationEnabled !== undefined) setWaVerificationEnabled(initialData.waVerificationEnabled);
                     if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
-                    if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini");
+                    if (initialData.aiProvider) setAiProvider(initialData.aiProvider as "qwen" | "gemini" | "fireworks");
                     if (initialData.payoutHitlThreshold !== undefined) setPayoutHitlThreshold(initialData.payoutHitlThreshold.toString());
                     if (initialData.zema360PaidPlansOnly !== undefined) setZema360PaidPlansOnly(initialData.zema360PaidPlansOnly);
                     if (initialData.metaAdAccountId) setMetaAdAccountId(initialData.metaAdAccountId);
@@ -742,11 +742,11 @@ export default function AdminSettings() {
                             <div className="py-4 border-t border-gray-100">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Brain className="h-4 w-4 text-violet-500" />
-                                    <h4 className="text-sm font-bold text-gray-900">Ziva AI Brain</h4>
+                                    <h4 className="text-sm font-bold text-gray-900">AI Brain (text features)</h4>
                                     <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-violet-50 text-violet-600">Active: {aiProvider.toUpperCase()}</span>
                                 </div>
-                                <p className="text-xs text-gray-400 mb-3">Switch the AI model powering Ziva chat and WhatsApp intelligence. Changes take effect within 60 seconds — no redeploy needed.</p>
-                                <div className="flex gap-3">
+                                <p className="text-xs text-gray-400 mb-3">Primary model for Ziva chat, WhatsApp intelligence, product copy, captions, quotes and Instagram replies. The other providers stay on as automatic fallbacks. Image recognition and live-price/grounded search stay on Gemini regardless. Changes take effect within 60 seconds — no redeploy needed.</p>
+                                <div className="flex flex-col sm:flex-row gap-3">
                                     <button
                                         onClick={() => setAiProvider("qwen")}
                                         className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "qwen" ? "border-violet-500 bg-violet-50 text-violet-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
@@ -760,6 +760,13 @@ export default function AdminSettings() {
                                     >
                                         Gemini (Google)
                                         <p className="text-[10px] font-medium mt-0.5 opacity-70">gemini-2.5-flash · Vertex</p>
+                                    </button>
+                                    <button
+                                        onClick={() => setAiProvider("fireworks")}
+                                        className={`flex-1 py-3 px-4 rounded-2xl border-2 text-sm font-black transition-all ${aiProvider === "fireworks" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-gray-100 text-gray-400 hover:border-gray-200"}`}
+                                    >
+                                        Fireworks (AMD)
+                                        <p className="text-[10px] font-medium mt-0.5 opacity-70">GLM 5.2 · serverless</p>
                                     </button>
                                 </div>
                             </div>
