@@ -7,6 +7,7 @@ interface EmailTemplatePayload {
     quoteUrl?: string;
     balance?: string | null;
     code?: string;
+    magicLink?: string;
     orderId?: string;
     productName?: string;
     amount?: number;
@@ -210,6 +211,11 @@ export function buildEmailTemplate(type: EmailType, payload: EmailTemplatePayloa
     <div style="font-size:40px;font-weight:900;letter-spacing:12px;margin:0;" class="code-text">${payload.code || "------"}</div>
 </div>
 
+${payload.magicLink ? `
+<div style="text-align:center;margin-bottom:28px;">
+    <a href="${payload.magicLink}" style="display:inline-block;background-color:${BRAND_COLOR};color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 36px;border-radius:999px;">Sign in instantly</a>
+    <p style="margin:12px 0 0 0;font-size:12px;color:#86868b;">One tap signs you in and keeps you signed in on this device. Or enter the code above. Expires in 10 minutes.</p>
+</div>` : ""}
 <p style="margin:0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">If you didn't request this code, you can safely ignore this email.</p>
             `);
             break;

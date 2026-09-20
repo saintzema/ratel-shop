@@ -191,7 +191,7 @@ export const DEFAULT_HOMEPAGE_BANNERS = FEATURE_SLIDE_OPTIONS.map(f => ({
 
 export const DEFAULT_AD_SLOTS = [
     { id: 'ad1', title: 'Flash Deals',   img: '', link: '/deals',              componentId: 'flash-deals'   },
-    { id: 'ad2', title: 'New Arrivals',  img: '', link: '/category/new',       componentId: 'new-arrivals'  },
+    { id: 'ad2', title: 'New Arrivals',  img: '', link: '/search?sort=newest',       componentId: 'new-arrivals'  },
     { id: 'ad3', title: 'Top Brands',    img: '', link: '/search?sort=popular', componentId: 'top-brands'   },
     { id: 'ad4', title: 'Ziva AI Chat',  img: '', link: '#',                   componentId: 'ziva-ai'       },
 ];

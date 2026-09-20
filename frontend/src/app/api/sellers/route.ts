@@ -99,7 +99,14 @@ export async function GET(req: Request) {
         // exactly the non-sensitive data their local filtering actually needs.
         if (!user || user.role !== "admin") {
             if (user && user.role === "seller") {
-                whereClause.userId = user.userId;
+                // A seller used to be scoped to ONLY their own store here. The local
+                // "which sellers are active" cache (which every product listing is
+                // filtered against) is rebuilt from this response, so a seller's whole
+                // homepage collapsed to just their own products + global ones after any
+                // sync — same "products disappear" bug buyers had. They now get every
+                // active store PLUS their own (including pending/frozen ones); bank
+                // details are still only returned for their own row (see mapping below).
+                whereClause = { OR: [{ status: "active" }, { userId: user.userId }] };
             } else {
                 // Not logged in, or logged in as a plain buyer/rider/courier with no
                 // seller row of their own — either way, the same public active-only

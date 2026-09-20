@@ -13,6 +13,9 @@ export function FloatingCart() {
     const [isBouncing, setIsBouncing] = useState(false);
     const [prevCount, setPrevCount] = useState(0);
 
+    // Warm the cart route so tapping the FAB navigates instantly.
+    useEffect(() => { router.prefetch("/cart"); }, [router]);
+
     const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
     // Trigger bounce effect when count increases
@@ -43,7 +46,9 @@ export function FloatingCart() {
                 dragConstraints={{ top: -300, bottom: 300 }}
                 dragElastic={0.1}
                 dragMomentum={false}
-                onClick={() => {
+                // onTap, not onClick: with drag="y" a browser click can be swallowed by the
+                // drag gesture, which read as "the cart button doesn't open instantly".
+                onTap={() => {
                     if (pathname === "/cart") {
                         window.scrollTo({ top: 0, behavior: "smooth" });
                     } else {

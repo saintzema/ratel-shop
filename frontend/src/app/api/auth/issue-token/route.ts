@@ -1,68 +1,54 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
-import { signToken } from "@/lib/jwt";
-import { effectiveRole } from "@/lib/constants";
+import { authOptions } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/jwt";
+import { issueSessionForEmail } from "@/lib/session-token";
+
+// A freshly registered account has no other proof to show yet (registration creates the user and
+// signs them in straight away) — allow a short window for that one flow only.
+const NEW_ACCOUNT_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * POST /api/auth/issue-token
- * Issues a JWT for a user whose identity was already verified client-side
- * (e.g. email OTP code). Looks up the user by email and returns a signed token.
+ * POST /api/auth/issue-token { email }
  *
- * This endpoint does NOT re-verify identity — it must only be called after
- * a successful verification step (e.g. email code, WA OTP) has been completed.
+ * This used to hand a signed JWT to ANYONE who posted an email address — including an admin's —
+ * because it "trusted" that verification had happened client-side. It now requires real proof for
+ * the account, one of:
+ *   1. a still-valid FairPrice JWT for that same account (token refresh / role re-resolve),
+ *   2. a NextAuth (Google/Apple) session for that same email,
+ *   3. the account having been created in the last few minutes (the registration flow).
+ * New sign-ins go through /api/auth/verify (password), /api/auth/email-code/verify (code or magic
+ * link) or the WhatsApp OTP verify route, all of which return their own token directly.
  */
 export async function POST(req: Request) {
     try {
         const { email } = await req.json();
         if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });
+        const e = String(email).toLowerCase().trim();
 
-        const user = await db.user.findUnique({
-            where: { email: email.toLowerCase().trim() },
-            select: { id: true, email: true, role: true }
-        });
+        let proven = false;
 
-        if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        const bearer = getUserFromRequest(req);
+        if (bearer?.email && bearer.email.toLowerCase() === e) proven = true;
 
-        // An invited teammate acting on someone else's seller dashboard gets
-        // staffOf/staffPermissions embedded so permission checks (e.g. blocking
-        // price/stock edits) work without a DB lookup on every request. Only
-        // applies if this email isn't itself a real seller — an actual seller
-        // logging in should never be scoped down by a stale staff invite.
-        let staffClaims: { staffOf: string; staffPermissions: any } | null = null;
-        const ownSeller = await db.seller.findFirst({ where: { userId: user.id } });
-        if (!ownSeller) {
-            let staffRecord = await db.sellerStaff.findFirst({
-                where: { invitedEmail: user.email.toLowerCase(), status: { in: ["invited", "active"] } },
-            });
-            // First login after being invited — no separate "accept" click required;
-            // the invite itself (sent by the seller, to an email the seller chose) is
-            // the consent step. Link the account and flip to active here.
-            if (staffRecord && staffRecord.status === "invited") {
-                staffRecord = await db.sellerStaff.update({
-                    where: { id: staffRecord.id },
-                    data: { status: "active", userId: user.id },
-                });
-            }
-            if (staffRecord) {
-                staffClaims = {
-                    staffOf: staffRecord.sellerId,
-                    staffPermissions: {
-                        canEditPrice: staffRecord.canEditPrice,
-                        canEditStock: staffRecord.canEditStock,
-                        canManageDiscounts: staffRecord.canManageDiscounts,
-                        canViewFinancials: staffRecord.canViewFinancials,
-                    },
-                };
-            }
+        if (!proven) {
+            try {
+                const session: any = await getServerSession(authOptions as any);
+                if (session?.user?.email && String(session.user.email).toLowerCase() === e) proven = true;
+            } catch { /* no session cookie */ }
         }
 
-        const token = signToken({
-            userId: user.id,
-            email: user.email,
-            role: effectiveRole(user.email, user.role) as any,
-            ...(staffClaims || {}),
-        });
-        return NextResponse.json({ token, ...(staffClaims ? { staffOf: staffClaims.staffOf } : {}) });
+        if (!proven) {
+            const u = await db.user.findUnique({ where: { email: e }, select: { createdAt: true } });
+            if (u?.createdAt && Date.now() - u.createdAt.getTime() < NEW_ACCOUNT_WINDOW_MS) proven = true;
+        }
+
+        if (!proven) return NextResponse.json({ error: "Not authorised for this account" }, { status: 401 });
+
+        const session = await issueSessionForEmail(e);
+        if (!session) return NextResponse.json({ error: "User not found" }, { status: 404 });
+        return NextResponse.json({ token: session.token, ...(session.staffOf ? { staffOf: session.staffOf } : {}) });
     } catch (err: any) {
         console.error("[issue-token] error:", err);
         return NextResponse.json({ error: "Service unavailable" }, { status: 500 });

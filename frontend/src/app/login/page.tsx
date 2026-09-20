@@ -511,22 +511,38 @@ export default function UnifiedAuthPage() {
         }
     };
 
+    // Server-side email sign-in: the code AND a one-tap link are generated, stored (hashed) and
+    // checked on the server. The old flow generated the code in the browser and compared it
+    // client-side, which proved nothing about who was typing it.
+    const sendServerLoginCode = async (): Promise<boolean> => {
+        const email = existingUser?.email || (identifier.includes("@") ? identifier : "");
+        if (!email) return false;
+        try {
+            const res = await fetch("/api/auth/email-code/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, redirect: redirectPath }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) { setError(data.error || "Could not send the code — please try again."); return false; }
+            return true;
+        } catch { setError("Could not send the code — please check your connection."); return false; }
+    };
+
     const handleResendCode = async () => {
         setError("");
+        if (step === "otp_existing") { await sendServerLoginCode(); return; }
         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
         setSentCode(newCode);
-        const nameToUse = step === 'otp_existing' ? (existingUser?.name || "User") : firstName.trim();
+        const nameToUse = firstName.trim();
         const sent = await handleSendVerificationEmail(newCode, nameToUse);
         if (!sent) setError("Could not send the code — please check your email address and try again.");
     };
 
     const handleSendOtpLoginCode = async () => {
         setError("");
-        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-        setSentCode(newCode);
         setStep("otp_existing");
-        const sent = await handleSendVerificationEmail(newCode, existingUser?.name || "User");
-        if (!sent) setError("Could not send the verification code — please try again in a moment.");
+        await sendServerLoginCode();
     };
 
     const handleFinalizeRegistration = (skipped: boolean = false) => {
@@ -616,45 +632,32 @@ export default function UnifiedAuthPage() {
     const handleFinalizeOtpLogin = async () => {
         setError("");
         const enteredCode = Array.from({ length: 6 }).map((_, i) => (document.getElementById(`otp-ex-${i}`) as HTMLInputElement)?.value || "").join("");
-
-        if (enteredCode !== sentCode && sentCode) {
-            setError("Invalid verification code. Please check your email.");
-            return;
-        }
+        if (enteredCode.length < 6) { setError("Enter the 6-digit code from your email."); return; }
+        const email = existingUser?.email || identifier;
 
         setIsLoading(true);
-        // Slight delay for UX, then log in
-        await new Promise(r => setTimeout(r, 800));
-        if (existingUser) {
-            let determinedRole: "customer" | "seller" | "admin" = "customer";
-            if (existingUser?.role) {
-                determinedRole = existingUser.role as "customer" | "seller" | "admin";
-            } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
-                determinedRole = "admin";
-            } else if (identifier.toLowerCase().includes("seller@")) {
-                determinedRole = "seller";
+        try {
+            const res = await fetch("/api/auth/email-code/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, code: enteredCode }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                setError(data.error || "Invalid verification code. Please check your email.");
+                setIsLoading(false);
+                return;
             }
-
-            // Issue JWT so protected API calls work
-            try {
-                const tokenRes = await fetch('/api/auth/issue-token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: existingUser.email }),
-                });
-                if (tokenRes.ok) {
-                    const tokenData = await tokenRes.json();
-                    saveToken(tokenData.token);
-                }
-            } catch { /* non-critical */ }
-
+            saveToken(data.token);
+            const role = data.user?.role || existingUser?.role || "customer";
             const finalRedirect =
-                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
                         redirectPath;
-
-            login(existingUser);
+            login({ ...(existingUser || {}), ...data.user });
             router.push(finalRedirect);
+        } catch {
+            setError("Couldn't verify the code — check your connection and try again.");
         }
         setIsLoading(false);
     };

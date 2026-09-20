@@ -8,6 +8,14 @@ import { DataSyncService } from "@/lib/sync-store";
 import { visibleInterval } from "@/lib/client-poll";
 import { effectiveRole } from "@/lib/constants";
 
+// Proof for /api/auth/issue-token: the caller's existing token, if it has one.
+const bearerHeader = (): Record<string, string> => {
+    try {
+        const t = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+        return t ? { Authorization: `Bearer ${t}` } : {};
+    } catch { return {}; }
+};
+
 interface AuthContextType {
     user: User | null;
     isLoading: boolean;
@@ -106,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             const tokenRes = await fetch("/api/auth/issue-token", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", ...bearerHeader() },
                 body: JSON.stringify({ email }),
             });
             if (tokenRes.ok) {
@@ -387,7 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
                 const tokenRes = await fetch("/api/auth/issue-token", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...bearerHeader() },
                     body: JSON.stringify({ email: userData.email }),
                 });
                 if (tokenRes.ok) {
@@ -485,7 +493,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (res.ok && userData.email) {
                 const tokenRes = await fetch("/api/auth/issue-token", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", ...bearerHeader() },
                     body: JSON.stringify({ email: userData.email }),
                 });
                 if (tokenRes.ok) {

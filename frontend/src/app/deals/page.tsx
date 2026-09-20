@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { SEED_PRODUCTS, SEED_DEALS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
@@ -12,6 +12,21 @@ import { Clock, Flame, Tag, Percent, ChevronRight, Zap } from "lucide-react";
 
 export default function DealsPage() {
     const [sortBy, setSortBy] = useState<"discount" | "price-low" | "price-high" | "popular">("discount");
+    // The memos below read the local catalogue cache, which is empty on a cold visit (e.g. arriving
+    // from a hero tile) — re-run them when the cache fills, and fetch the catalogue ourselves if
+    // there isn't enough discounted stock cached, so this page never opens empty.
+    const [cacheTick, setCacheTick] = useState(0);
+    useEffect(() => {
+        const bump = () => setCacheTick(t => t + 1);
+        window.addEventListener("sync-store-update", bump);
+        const hasDiscounts = DataSyncService.getApprovedProducts().some(p => p.original_price && p.original_price > p.price);
+        if (!hasDiscounts) {
+            fetch("/api/products?limit=200").then(r => r.ok ? r.json() : null).then(d => {
+                if (d?.products?.length) DataSyncService.addRawProducts(d.products, false);
+            }).catch(() => {});
+        }
+        return () => window.removeEventListener("sync-store-update", bump);
+    }, []);
 
     // Get active deals with their products
     const activeDeals = useMemo(() => {
@@ -43,7 +58,7 @@ export default function DealsPage() {
                 end_at: string;
                 is_active: boolean;
             }>;
-    }, []);
+    }, [cacheTick]);
 
     // Also find products with significant price drops (original > price) that aren't already in deals
     const priceDropProducts = useMemo(() => {
@@ -58,7 +73,7 @@ export default function DealsPage() {
                 savings: p.original_price! - p.price,
             }))
             .sort((a, b) => b.discount_pct - a.discount_pct);
-    }, [activeDeals]);
+    }, [activeDeals, cacheTick]);
 
     // Sort deals
     const sortedDeals = useMemo(() => {

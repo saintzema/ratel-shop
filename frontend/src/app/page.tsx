@@ -630,11 +630,20 @@ function HomeContent() {
                         key={ad.id}
                         className="relative rounded-xl md:rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md bg-gray-900"
                         onClick={() => {
-                          if (ad.componentId === "ziva-ai" || ad.link === "#") {
+                          if (ad.componentId === "ziva-ai") {
                             setIsPriceModalOpen(true);
-                          } else if (ad.link) {
-                            router.push(ad.link);
+                            return;
                           }
+                          // These tiles used to lead nowhere useful (a "#" link, or pages that
+                          // opened empty). Each now lands on real, discounted/new stock from
+                          // Global Stores and every other seller.
+                          const TILE_TARGETS: Record<string, string> = {
+                            "flash-deals": "/deals",
+                            "new-arrivals": "/search?sort=newest",
+                            "top-brands": "/search?sort=popular",
+                          };
+                          const target = TILE_TARGETS[ad.componentId] || (ad.link && ad.link !== "#" ? ad.link : "/deals");
+                          router.push(target);
                         }}
                       >
                         {AdComponent ? (
