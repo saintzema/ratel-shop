@@ -20,10 +20,12 @@ export async function GET(
     const { id } = await params;
     const seller = await db.seller.findUnique({
         where: { id },
-        select: { paystackSubaccountCode: true, commissionRate: true },
+        select: { paystackSubaccountCode: true, commissionRate: true, autoPayoutEnabled: true },
     });
     return NextResponse.json({
-        subaccountCode: seller?.paystackSubaccountCode || null,
+        // Instant payout switched off (by the seller OR an admin) means no split at
+        // charge time — the money then follows the normal manual settlement path.
+        subaccountCode: seller?.autoPayoutEnabled === false ? null : (seller?.paystackSubaccountCode || null),
         commissionRate: await resolveCommissionRate(seller?.commissionRate),
     });
 }

@@ -13,6 +13,7 @@ import { useLocation } from "@/context/LocationContext";
 import { formatPrice, cn } from "@/lib/utils";
 import { RideChat } from "@/components/ride/RideChat";
 import { RideMap } from "@/components/ride/RideMap";
+import { RideDriverPanel } from "@/components/ride/RideDriverPanel";
 import { BookingMap } from "@/components/ride/BookingMap";
 import { MaskedCallButton } from "@/components/ride/MaskedCallButton";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
@@ -50,10 +51,10 @@ function estimateRideFare(distanceKm: number, vehicleClass: string = ""): number
 }
 
 const CLASSES = [
-    { value: "", label: "Any vehicle" },
-    { value: "ev", label: "EV" },
-    { value: "newer", label: "Newer" },
-    { value: "standard", label: "Standard" },
+    { value: "", label: "Any vehicle", hint: "Fastest pickup — any approved car" },
+    { value: "standard", label: "Standard", hint: "Everyday rides" },
+    { value: "newer", label: "Newer", hint: "Newer, more comfortable cars" },
+    { value: "ev", label: "EV", hint: "Quiet electric cars" },
 ];
 
 const CANCEL_REASONS = ["Found another ride", "Taking too long", "Wrong pickup or drop-off", "Changed my mind", "Other"];
@@ -187,6 +188,7 @@ export default function RidePage() {
     const [lastVisibleDrivers, setLastVisibleDrivers] = useState<number | null>(null);
 
     const [rides, setRides] = useState<any[]>([]);
+    const [liveByRide, setLiveByRide] = useState<Record<string, { km: number; min: number; arrived: boolean }>>({});
     const [loading, setLoading] = useState(true);
     const [cancelTarget, setCancelTarget] = useState<string | null>(null);
     const offerCountRef = useRef<Record<string, number>>({});
@@ -581,15 +583,39 @@ export default function RidePage() {
                         </p>
                     )}
 
-                    <div className="relative">
-                        <select
-                            value={vehicleClassPref}
-                            onChange={e => setVehicleClassPref(e.target.value)}
-                            className="w-full h-10 pl-3 pr-8 rounded-md border border-input bg-white text-sm appearance-none"
-                        >
-                            {CLASSES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    {/* Vehicle type cards with a live fare range, AMAP-style — picking one
+                        re-prices the trip (via the same vehicleClassPref the fare effect
+                        already watches) instead of hiding the difference in a dropdown. */}
+                    <div className="space-y-2">
+                        {CLASSES.map(c => {
+                            const selected = vehicleClassPref === c.value;
+                            const est = routeDistanceKm != null ? estimateRideFare(routeDistanceKm, c.value) : null;
+                            return (
+                                <button
+                                    key={c.value || "any"}
+                                    type="button"
+                                    onClick={() => setVehicleClassPref(c.value)}
+                                    className={cn(
+                                        "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                                        selected ? "border-brand-green-500 bg-brand-green-50/60 ring-1 ring-brand-green-500" : "border-gray-200 bg-white"
+                                    )}
+                                >
+                                    <Car className={cn("h-7 w-7 shrink-0", selected ? "text-brand-green-600" : "text-gray-400")} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-gray-900">{c.label}</p>
+                                        <p className="text-[11px] text-gray-500">{c.hint}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        {est != null ? (
+                                            <>
+                                                <p className="text-sm font-black text-gray-900">{formatPrice(Math.round(est * 0.92 / 100) * 100)}–{formatPrice(Math.round(est * 1.12 / 100) * 100)}</p>
+                                                <p className="text-[10px] text-gray-400">Est. fare</p>
+                                            </>
+                                        ) : <p className="text-[11px] text-gray-400">Set a route</p>}
+                                    </div>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <div className="bg-white rounded-xl p-4">
@@ -652,13 +678,13 @@ export default function RidePage() {
                                         "text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full",
                                         ride.status === "searching" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
                                     )}>
-                                        {ride.status === "searching" ? "Waiting for offers" : ride.status === "in_progress" ? "In Progress" : ride.status}
+                                        {ride.status === "searching" ? "Notifying drivers to respond…" : ride.status === "in_progress" ? "In Progress" : ride.status}
                                     </span>
                                 </div>
 
                                 {ride.status === "searching" && (
                                     <div className="space-y-3">
-                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active={false} />
+                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active={false} searching />
                                         <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                             <ShieldCheck className="h-3.5 w-3.5 text-brand-green-600" />
                                             {ride.offers?.length > 0
@@ -704,36 +730,16 @@ export default function RidePage() {
 
                                 {(ride.status === "matched" || ride.status === "in_progress") && ride.driver && (
                                     <div className="space-y-3">
-                                        {ride.status === "matched" && ride.pickupCode && (
-                                            <div className="bg-gray-900 rounded-xl px-4 py-3 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Ride Code</p>
-                                                    <p className="text-xl font-black text-white tracking-[0.2em]">{ride.pickupCode}</p>
-                                                </div>
-                                                <p className="text-[11px] text-gray-400 max-w-[160px] text-right">Read the last 2 digits to your driver when they arrive</p>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                            <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold">
-                                                <CheckCircle2 className="h-4 w-4" />
-                                                {ride.status === "in_progress" ? "Trip in progress" : "Matched"} with {ride.driver.name} · {formatPrice(ride.agreedFare)}
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <MaskedCallButton kind="ride" tripId={ride.id} label="Call Driver" />
-                                                <a
-                                                    href={`https://wa.me/?text=${encodeURIComponent(
-                                                        `🚗 My FairPrice ride details, for safety:\n\nDriver: ${ride.driver.name}\nVehicle: ${ride.vehicle?.make || ""} ${ride.vehicle?.model || ""} (${ride.vehicle?.plateNumber || "plate n/a"})\nFrom: ${ride.pickup}\nTo: ${ride.dropoff}\nFare: ${formatPrice(ride.agreedFare)}`
-                                                    )}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full flex items-center gap-1.5 shrink-0"
-                                                >
-                                                    <ShieldCheck className="h-3.5 w-3.5" /> Share trip for safety
-                                                </a>
-                                            </div>
-                                        </div>
-                                        <RideMap rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active plateNumber={ride.vehicle?.plateNumber} vehicleColor={ride.vehicle?.color} />
-                                        {ride.conversationId && <RideChat conversationId={ride.conversationId} />}
+                                        <RideMap
+                                            rideId={ride.id} pickup={ride.pickup} dropoff={ride.dropoff} trackRole="driver" active
+                                            plateNumber={ride.vehicle?.plateNumber} vehicleColor={ride.vehicle?.color}
+                                            legToPickup={ride.status === "matched"}
+                                            onLive={(info) => setLiveByRide(prev => {
+                                                const p = prev[ride.id];
+                                                return p && p.km === info.km && p.min === info.min && p.arrived === info.arrived ? prev : { ...prev, [ride.id]: info };
+                                            })}
+                                        />
+                                        <RideDriverPanel ride={ride} live={liveByRide[ride.id] || null} onCancel={() => setCancelTarget(ride.id)} />
                                     </div>
                                 )}
                             </div>

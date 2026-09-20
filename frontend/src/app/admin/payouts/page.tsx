@@ -18,7 +18,7 @@ export default function PayoutRequestsDirectory() {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     // Override State
     const [selectedPayout, setSelectedPayout] = useState<any>(null);
@@ -30,6 +30,9 @@ export default function PayoutRequestsDirectory() {
     // seller's bank via Paystack's own subaccount split, never touching the payout
     // system below. Previously zero visibility into this from inside FairPrice.
     const [subaccounts, setSubaccounts] = useState<any[]>([]);
+    const [subPage, setSubPage] = useState(1);
+    const [subSearch, setSubSearch] = useState("");
+    const SUB_PAGE_SIZE = 8;
     const [subaccountsLoading, setSubaccountsLoading] = useState(true);
     const [subaccountsError, setSubaccountsError] = useState("");
 
@@ -136,6 +139,12 @@ export default function PayoutRequestsDirectory() {
         return matchesSearch && matchesView;
     });
 
+    const subFiltered = subaccounts.filter((x) => {
+        const q = subSearch.trim().toLowerCase();
+        return !q || `${x.businessName} ${x.bankName} ${x.accountNumber} ${x.subaccountCode}`.toLowerCase().includes(q);
+    });
+    const subTotalPages = Math.max(1, Math.ceil(subFiltered.length / SUB_PAGE_SIZE));
+    const subPageRows = subFiltered.slice((subPage - 1) * SUB_PAGE_SIZE, subPage * SUB_PAGE_SIZE);
     const totalPages = Math.ceil(filtered.length / itemsPerPage);
     const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -251,8 +260,15 @@ export default function PayoutRequestsDirectory() {
                 ) : subaccounts.length === 0 ? (
                     <p className="text-sm text-gray-400 font-medium">No sellers have a split-payment subaccount set up yet.</p>
                 ) : (
+                    <>
+                    <input
+                        value={subSearch}
+                        onChange={(e) => { setSubSearch(e.target.value); setSubPage(1); }}
+                        placeholder="Search seller, bank or code…"
+                        className="mb-3 w-full h-10 px-4 rounded-xl border border-gray-200 text-sm"
+                    />
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full min-w-[640px] text-left text-sm">
                             <thead>
                                 <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
                                     <th className="pb-2 pr-4">Seller</th>
@@ -262,11 +278,11 @@ export default function PayoutRequestsDirectory() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {subaccounts.map((s) => (
+                                {subPageRows.map((s) => (
                                     <tr key={s.sellerId}>
-                                        <td className="py-2.5 pr-4 font-bold text-gray-900">{s.businessName}</td>
-                                        <td className="py-2.5 pr-4 text-gray-600">{s.bankName} {s.accountNumber}</td>
-                                        <td className="py-2.5 pr-4 font-mono text-xs text-gray-500">{s.subaccountCode}</td>
+                                        <td className="py-2.5 pr-4 font-bold text-gray-900 whitespace-nowrap">{s.businessName}</td>
+                                        <td className="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{s.bankName} {s.accountNumber}</td>
+                                        <td className="py-2.5 pr-4 font-mono text-xs text-gray-500 whitespace-nowrap">{s.subaccountCode}</td>
                                         <td className="py-2.5">
                                             {s.fetchError ? (
                                                 <span className="text-xs font-bold text-rose-600">Error: {s.fetchError}</span>
@@ -293,6 +309,8 @@ export default function PayoutRequestsDirectory() {
                             </tbody>
                         </table>
                     </div>
+                    <Pagination currentPage={subPage} totalPages={subTotalPages} onPageChange={setSubPage} itemsPerPage={SUB_PAGE_SIZE} totalItems={subFiltered.length} type="subaccounts" className="px-0" />
+                    </>
                 )}
             </div>
 
@@ -343,20 +361,20 @@ export default function PayoutRequestsDirectory() {
                     horizontally on narrow viewports while the outer div keeps the rounded
                     corners. */}
                 <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full min-w-[820px] text-left border-collapse">
                     <thead>
                         <tr className="bg-gray-50/50">
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Transaction</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Seller Info</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Destination</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                            <th className="px-5 py-4 whitespace-nowrap text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Transaction</th>
+                            <th className="px-5 py-4 whitespace-nowrap text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Seller Info</th>
+                            <th className="px-5 py-4 whitespace-nowrap text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Destination</th>
+                            <th className="px-5 py-4 whitespace-nowrap text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                            <th className="px-5 py-4 whitespace-nowrap text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                         {paginated.map((p) => (
                             <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
-                                <td className="px-8 py-6">
+                                <td className="px-5 py-5">
                                     <div className="flex items-center gap-3">
                                         <div className={cn(
                                             "h-10 w-10 rounded-xl flex items-center justify-center font-black shadow-sm",
@@ -370,19 +388,19 @@ export default function PayoutRequestsDirectory() {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-8 py-6">
+                                <td className="px-5 py-5">
                                     <Link href={`/admin/users/${p.seller_id}`} className="flex flex-col hover:underline group">
                                         <span className="font-bold text-gray-900 text-sm group-hover:text-indigo-600">{p.seller_name}</span>
                                         <span className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">ID: {(p.seller_id || "").toUpperCase()}</span>
                                     </Link>
                                 </td>
-                                <td className="px-8 py-6">
+                                <td className="px-5 py-5">
                                     <div className="flex flex-col">
                                         <span className="font-bold text-gray-900 text-sm">{p.bank}</span>
                                         <span className="text-[11px] text-gray-500 font-bold">{p.method} •••• {p.account_last4}</span>
                                     </div>
                                 </td>
-                                <td className="px-8 py-6">
+                                <td className="px-5 py-5">
                                     <div className="flex flex-col gap-1.5 max-w-[220px]">
                                         <div className="flex items-center gap-2">
                                             <span className={cn(
@@ -410,7 +428,7 @@ export default function PayoutRequestsDirectory() {
                                         )}
                                     </div>
                                 </td>
-                                <td className="px-8 py-6 text-right">
+                                <td className="px-5 py-5 text-right">
                                     {(p.status === "processing" || p.status === "pending" || p.status === "failed") ? (
                                         <div className="flex items-center justify-end gap-2 transition-opacity">
                                             <Button

@@ -1933,6 +1933,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             {product.variants.map((v: any, idx: number) => (
                                                 <button
                                                     key={idx}
+                                                    disabled={v.stock === 0}
                                                     onClick={() => {
                                                         setSelectedVariantIndex(idx);
                                                         if (v.image_url) {
@@ -1945,7 +1946,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                             }
                                                         }
                                                     }}
-                                                    className={`flex flex-col gap-1 p-3 border rounded-xl transition-all ${selectedVariantIndex === idx ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-gray-200 hover:border-emerald-300'}`}
+                                                    className={`flex flex-col gap-1 p-3 border rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed ${selectedVariantIndex === idx ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-gray-200 hover:border-emerald-300'}`}
                                                 >
                                                     {v.image_url && (
                                                         <img
@@ -1958,6 +1959,10 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     <span className={`text-xs font-black text-left ${selectedVariantIndex === idx ? 'text-emerald-600' : 'text-gray-600'}`}>
                                                         {formatPrice(v.price ? Number(v.price) : product.price)}
                                                     </span>
+                                                    {v.original_price && Number(v.original_price) > Number(v.price || 0) && (
+                                                        <span className="text-[10px] text-gray-400 line-through text-left">{formatPrice(Number(v.original_price))}</span>
+                                                    )}
+                                                    {v.stock === 0 && <span className="text-[10px] font-bold text-rose-500 text-left">Out of stock</span>}
                                                 </button>
                                             ))}
                                         </div>

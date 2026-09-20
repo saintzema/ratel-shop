@@ -150,7 +150,7 @@ export default function PayoutsSettingsPage() {
                 account_number: s.account_number || "",
                 account_name: s.account_name || "",
             });
-            setAutoPayoutEnabled((s as any).auto_payout_enabled ?? false);
+            setAutoPayoutEnabled((s as any).auto_payout_enabled ?? true);
 
             // Get orders for this seller
             const sellerOrders = DataSyncService.getOrders().filter(

@@ -121,6 +121,7 @@ export default function AdminUserDetailPage() {
                             account_number: sellerRec.accountNumber,
                             account_name: sellerRec.accountName,
                             paystack_subaccount_code: sellerRec.paystackSubaccountCode,
+                            auto_payout_enabled: sellerRec.autoPayoutEnabled ?? true,
                             store_url: sellerRec.storeUrl,
                             location: sellerRec.location,
                             city: sellerRec.city,
@@ -264,6 +265,31 @@ export default function AdminUserDetailPage() {
             .catch(() => setSubaccountStatus(null));
     }, [userEntity?.paystack_subaccount_code, userEntity?.id]);
 
+    // Admin-side switch for the same `autoPayoutEnabled` flag the seller flips from
+    // seller/settings/payouts — one DB field, so either side's change shows on the
+    // other, and turning it off stops checkout from attaching the Paystack split.
+    const [togglingPayout, setTogglingPayout] = useState(false);
+    const toggleInstantPayout = async () => {
+        if (!userEntity) return;
+        const next = !(userEntity.auto_payout_enabled ?? true);
+        setTogglingPayout(true);
+        try {
+            const token = localStorage.getItem("fp_token");
+            const res = await fetch(`/api/sellers/${userEntity.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                body: JSON.stringify({ autoPayoutEnabled: next }),
+            });
+            if (!res.ok) throw new Error("save failed");
+            setUserEntity((prev: any) => ({ ...prev, auto_payout_enabled: next }));
+            DataSyncService.updateSeller(userEntity.id, { auto_payout_enabled: next } as any);
+        } catch {
+            alert("Couldn't update instant payout. Please try again.");
+        } finally {
+            setTogglingPayout(false);
+        }
+    };
+
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -364,9 +390,14 @@ export default function AdminUserDetailPage() {
                                 <Wallet className="h-4 w-4" /> Checking Payout Status…
                             </span>
                         ) : subaccountStatus?.verified ? (
-                            <span className="h-11 px-5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
-                                <Wallet className="h-4 w-4" /> Instant Payout Enabled
-                            </span>
+                            <button
+                                onClick={toggleInstantPayout}
+                                disabled={togglingPayout}
+                                title="Tap to turn instant payout on/off for this seller"
+                                className={`h-11 px-5 rounded-2xl border font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-colors disabled:opacity-60 ${(userEntity.auto_payout_enabled ?? true) ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-gray-200 bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                            >
+                                <Wallet className="h-4 w-4" /> {togglingPayout ? "Saving…" : (userEntity.auto_payout_enabled ?? true) ? "Instant Payout Enabled" : "Instant Payout Disabled"}
+                            </button>
                         ) : (
                             <div className="flex items-center gap-2">
                                 <span className="h-11 px-5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-wider flex items-center gap-2" title="Paystack holds the first payout to a new/updated subaccount until it's manually verified once in Paystack's own dashboard — no API can skip this.">

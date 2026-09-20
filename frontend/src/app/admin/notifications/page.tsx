@@ -48,7 +48,11 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
 ];
 
 export default function AdminPushNotifications() {
-    const { user, isMounted } = useAuth() as any;
+    // AuthContext has no `isMounted` — destructuring it gave `undefined` forever, so the
+    // guard below returned null on every render and Push Alerts was a permanently
+    // blank page. `isLoading` is what actually says "auth hasn't resolved yet".
+    const { user, isLoading } = useAuth();
+    const isMounted = !isLoading;
     const router = useRouter();
 
     // Broadcast State

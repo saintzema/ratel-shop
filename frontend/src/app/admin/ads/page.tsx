@@ -24,7 +24,7 @@ export default function SponsoredAdsPage() {
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         loadData();
@@ -141,7 +141,7 @@ export default function SponsoredAdsPage() {
             {/* Campaigns Table */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
+                    <table className="w-full min-w-[860px] text-left text-sm">
                         <thead className="bg-gray-50/50 text-gray-500 text-xs uppercase tracking-wider">
                             <tr>
                                 <th className="px-6 py-4 font-bold">Campaign</th>

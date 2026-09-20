@@ -21,6 +21,12 @@ interface RideMapProps {
     vehicleColor?: string;
     /** "ride" (default) polls /api/rides/[id]/location; "delivery" polls /api/deliveries/[id]/location. */
     kind?: "ride" | "delivery";
+    /** Show the AMAP-style radar pulse + "Trying to call a ride for you" while no driver has accepted yet. */
+    searching?: boolean;
+    /** Ride is matched but the car hasn't reached pickup yet — draw the car→pickup leg and an "X km · Y min" bubble on the car. */
+    legToPickup?: boolean;
+    /** Live driver→pickup distance/ETA, fed to the status panel ("The driver is on the way 2.4 km 7 min" / "Driver has arrived"). */
+    onLive?: (info: { km: number; min: number; arrived: boolean }) => void;
 }
 
 const POLL_MS = 4000;
@@ -38,6 +44,18 @@ function buildPlateIcon(google: any, plateNumber: string, vehicleColor?: string)
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
         scaledSize: new google.maps.Size(w, h),
         anchor: new google.maps.Point(w / 2, h + 12), // floats the pill ~12px above the pin
+    };
+}
+
+/** "2.4km 5min" pill that rides next to the approaching car, like the AMAP reference. */
+function buildEtaIcon(google: any, text: string) {
+    const w = Math.max(70, text.length * 9 + 22);
+    const h = 28;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.5"/><text x="${w / 2}" y="${h / 2 + 5}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" fill="#2563eb">${text}</text></svg>`;
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(w, h),
+        anchor: new google.maps.Point(-14, h / 2),
     };
 }
 
@@ -109,13 +127,20 @@ function buildMeIcon(google: any, headingDeg: number | null) {
  * Renders nothing (the calling page falls back to its plain text summary)
  * if NEXT_PUBLIC_GOOGLE_MAPS_API_KEY isn't set.
  */
-export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber, vehicleColor, kind = "ride" }: RideMapProps) {
+export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumber, vehicleColor, kind = "ride", searching = false, legToPickup = false, onLive }: RideMapProps) {
     const apiBase = kind === "delivery" ? "/api/deliveries" : "/api/rides";
     // Rides key the location response as {driver, rider}; deliveries as {courier, sender}.
     const primaryRoleKey = trackRole === "driver" || trackRole === "courier" ? (kind === "delivery" ? "courier" : "driver") : (kind === "delivery" ? "sender" : "rider");
     const mapRef = useRef<any>(null);
     const liveMarkerRef = useRef<any>(null);
     const plateMarkerRef = useRef<any>(null);
+    const etaMarkerRef = useRef<any>(null);
+    const etaTextRef = useRef("");
+    const pickupLocRef = useRef<{ lat: number; lng: number } | null>(null);
+    const legLineRef = useRef<any>(null);
+    const pollCountRef = useRef(0);
+    const onLiveRef = useRef(onLive);
+    onLiveRef.current = onLive;
     const liveMarkerPos = useRef<{ lat: number; lng: number } | null>(null);
     const headingRef = useRef<number>(0);
     const animFrameRef = useRef<number | null>(null);
@@ -203,6 +228,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         ]).then(([pickupLoc, dropoffLoc]) => {
             if (cancelled) return;
             if (!pickupLoc || !dropoffLoc) { setMapError(true); return; }
+            pickupLocRef.current = pickupLoc;
 
             new google.maps.Marker({
                 position: pickupLoc, map,
@@ -226,7 +252,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                         strokeColor: "#16a34a", strokeWeight: 4, strokeOpacity: 0.85,
                     });
                     setRouteInfo({ distance: route.distanceText, duration: route.durationText });
-                    map.fitBounds(route.bounds, 80);
+                    if (searching) { map.setCenter(pickupLoc); map.setZoom(15); } else map.fitBounds(route.bounds, 80);
                 } else {
                     // Directions failed (e.g. no drivable route found) — the two
                     // pins and geocoded locations are still real and useful on
@@ -341,6 +367,39 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
 
                 const to = { lat: point.lat, lng: point.lng };
 
+                // Live car → pickup metrics (straight-line ×1.3 road factor, ~30 km/h city
+                // pace) feeding the status panel and the bubble riding next to the car.
+                const pk = pickupLocRef.current;
+                if (legToPickup && pk && (trackRole === "driver" || trackRole === "courier")) {
+                    const d = distanceMeters(to, pk);
+                    const km = Math.round((d / 1000) * 1.3 * 10) / 10;
+                    const min = Math.max(1, Math.ceil(km * 2));
+                    const arrived = d < 80;
+                    onLiveRef.current?.({ km, min, arrived });
+                    const label = arrived ? "Arrived" : `${km}km ${min}min`;
+                    if (etaMarkerRef.current) {
+                        if (etaTextRef.current !== label) { etaMarkerRef.current.setIcon(buildEtaIcon(google, label)); etaTextRef.current = label; }
+                    } else {
+                        etaMarkerRef.current = new google.maps.Marker({ position: to, map: mapRef.current, icon: buildEtaIcon(google, label), zIndex: 998, clickable: false });
+                        etaTextRef.current = label;
+                    }
+                    // Redraw the car→pickup route roughly every 24s (not every 4s poll).
+                    if (!arrived && pollCountRef.current++ % 6 === 0) {
+                        new google.maps.DirectionsService().route(
+                            { origin: to, destination: pk, travelMode: google.maps.TravelMode.DRIVING },
+                            (result: any, status: string) => {
+                                if (status !== "OK" || !result?.routes?.[0]) return;
+                                legLineRef.current?.setMap(null);
+                                legLineRef.current = new google.maps.Polyline({
+                                    path: result.routes[0].overview_path, map: mapRef.current,
+                                    strokeColor: "#16a34a", strokeWeight: 6, strokeOpacity: 0.95, zIndex: 10,
+                                });
+                            }
+                        );
+                    }
+                    if (arrived) { legLineRef.current?.setMap(null); legLineRef.current = null; }
+                }
+
                 // A compact navigation-arrow icon (not a plain pin) so rotating it to
                 // face the direction of travel — AMap/inDrive-style — actually reads
                 // as "which way this car/person is facing" rather than a spinning pin.
@@ -403,6 +462,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                     const lng = from.lng + (to.lng - from.lng) * eased;
                     liveMarkerRef.current.setPosition({ lat, lng });
                     if (plateMarkerRef.current) plateMarkerRef.current.setPosition({ lat, lng });
+                    if (etaMarkerRef.current) etaMarkerRef.current.setPosition({ lat, lng });
                     if (t < 1) animFrameRef.current = requestAnimationFrame(step);
                 };
                 animFrameRef.current = requestAnimationFrame(step);
@@ -413,7 +473,7 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
         pollRef.current = setInterval(poll, POLL_MS);
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, active, rideId, trackRole]);
+    }, [ready, active, rideId, trackRole, legToPickup]);
 
     if (!hasGoogleMapsKey) return null;
 
@@ -436,7 +496,15 @@ export function RideMap({ rideId, pickup, dropoff, trackRole, active, plateNumbe
                     <p className="text-xs text-gray-400">Couldn't map this address exactly — the ride still works, just without the live view.</p>
                 </div>
             )}
-            {routeInfo && (
+            {searching && !mapError && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="absolute h-40 w-40 rounded-full bg-blue-400/20 animate-ping" />
+                    <span className="absolute h-24 w-24 rounded-full bg-blue-400/25 animate-ping [animation-delay:400ms]" />
+                    <span className="absolute h-44 w-44 rounded-full border border-blue-300/50" />
+                    <span className="absolute -mt-16 bg-white rounded-lg shadow-md px-3 py-1.5 text-xs font-bold text-gray-900">Trying to call a ride for you</span>
+                </div>
+            )}
+            {routeInfo && !searching && (
                 <div
                     className="absolute top-2.5 left-2.5 right-2.5 rounded-2xl px-3.5 py-2.5 flex items-center gap-4 text-xs font-bold text-gray-700"
                     style={{

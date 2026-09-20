@@ -45,6 +45,8 @@ export function Pagination({
                 onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
                 className="bg-transparent text-indigo-600 font-black outline-none cursor-pointer"
               >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
                 <option value={200}>200</option>

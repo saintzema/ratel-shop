@@ -548,11 +548,65 @@ export default function QRPaymentsPage() {
         } catch {}
     };
 
-    const downloadQR = (id: string, fileName: string) => {
-        const canvas = document.getElementById(id) as HTMLCanvasElement;
-        if (!canvas) return;
+    // Saves a branded poster, not just the bare QR: FairPrice header, the store's logo
+    // and name, an optional amount line, the QR itself, and a "Powered by" footer —
+    // so a saved/printed/shared image says whose QR it is and who to trust.
+    const downloadQR = async (id: string, fileName: string, subtitle?: string) => {
+        const qr = document.getElementById(id) as HTMLCanvasElement;
+        if (!qr) return;
+        const loadImg = (src: string) => new Promise<HTMLImageElement | null>((resolve) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = src;
+        });
+        const W = 800, H = 1080;
+        const c = document.createElement("canvas");
+        c.width = W; c.height = H;
+        const g = c.getContext("2d")!;
+        g.fillStyle = "#f3f4f6"; g.fillRect(0, 0, W, H);
+        // card
+        g.fillStyle = "#ffffff";
+        g.beginPath(); (g as any).roundRect(40, 40, W - 80, H - 80, 36); g.fill();
+        // brand header
+        g.fillStyle = "#0a6847";
+        g.beginPath(); (g as any).roundRect(40, 40, W - 80, 130, [36, 36, 0, 0]); g.fill();
+        const fpLogo = await loadImg("/logo.png");
+        let hx = 80;
+        if (fpLogo) { g.drawImage(fpLogo, 80, 62, 86, 86); hx = 184; }
+        g.fillStyle = "#ffffff"; g.textAlign = "left";
+        g.font = "800 44px Arial, Helvetica, sans-serif"; g.fillText("FairPrice.ng", hx, 118);
+        g.font = "600 20px Arial, Helvetica, sans-serif"; g.fillStyle = "rgba(255,255,255,0.8)";
+        g.fillText("FairPay · Secure escrow payments", hx, 148);
+        // store identity
+        g.textAlign = "center";
+        const storeLogo = seller?.logo_url ? await loadImg(getProxiedImageUrl(seller.logo_url)) : null;
+        let ty = 250;
+        if (storeLogo) {
+            g.save(); g.beginPath(); g.arc(W / 2, 246, 50, 0, Math.PI * 2); g.clip();
+            g.drawImage(storeLogo, W / 2 - 50, 196, 100, 100); g.restore();
+            g.strokeStyle = "#e5e7eb"; g.lineWidth = 4; g.beginPath(); g.arc(W / 2, 246, 50, 0, Math.PI * 2); g.stroke();
+            ty = 340;
+        }
+        g.fillStyle = "#111827"; g.font = "800 46px Arial, Helvetica, sans-serif";
+        let name = bizName; while (g.measureText(name).width > W - 160 && name.length > 4) name = name.slice(0, -2);
+        g.fillText(name === bizName ? name : `${name}…`, W / 2, ty);
+        g.fillStyle = "#6b7280"; g.font = "600 24px Arial, Helvetica, sans-serif";
+        g.fillText(subtitle || "Scan to browse & pay", W / 2, ty + 42);
+        // QR
+        const qs = 520, qx = (W - qs) / 2, qy = ty + 80;
+        g.fillStyle = "#ffffff"; g.strokeStyle = "#e5e7eb"; g.lineWidth = 3;
+        g.beginPath(); (g as any).roundRect(qx - 20, qy - 20, qs + 40, qs + 40, 28); g.fill(); g.stroke();
+        g.imageSmoothingEnabled = false;
+        g.drawImage(qr, qx, qy, qs, qs);
+        // footer
+        g.fillStyle = "#0a6847"; g.font = "800 26px Arial, Helvetica, sans-serif";
+        g.fillText("Scan with your phone camera or the FairPrice app", W / 2, qy + qs + 70);
+        g.fillStyle = "#9ca3af"; g.font = "600 20px Arial, Helvetica, sans-serif";
+        g.fillText("Powered by FairPrice.ng · Buy & sell with buyer protection", W / 2, H - 80);
         const link = document.createElement("a");
-        link.href  = canvas.toDataURL("image/png");
+        try { link.href = c.toDataURL("image/png"); } catch { link.href = qr.toDataURL("image/png"); }
         link.download = `${fileName}.png`;
         document.body.appendChild(link);
         link.click();
@@ -680,7 +734,7 @@ export default function QRPaymentsPage() {
 
                                 <div className="flex gap-3 justify-center mb-6">
                                     <button
-                                        onClick={() => downloadQR("store-qr", `${bizName}-Store-QR`)}
+                                        onClick={() => downloadQR("store-qr", `${bizName}-Store-QR`, "Scan to browse & pay")}
                                         className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 text-white text-xs font-black transition-all active:scale-95"
                                     >
                                         <Download className="h-3.5 w-3.5" /> Save QR
@@ -881,7 +935,7 @@ export default function QRPaymentsPage() {
 
                                                     <div className="flex items-center justify-center gap-2 mt-4">
                                                         <button
-                                                            onClick={() => downloadQR("payment-qr", `FairPayQR-${amount ? `₦${amount}` : "OpenAmount"}`)}
+                                                            onClick={() => downloadQR("payment-qr", `FairPayQR-${amount ? `₦${amount}` : "OpenAmount"}`, amount ? `Pay ₦${Number(amount).toLocaleString()}${label ? ` · ${label}` : ""}` : "Scan to pay any amount")}
                                                             className="h-10 w-10 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all active:scale-90"
                                                         >
                                                             <Download className="h-4 w-4" />

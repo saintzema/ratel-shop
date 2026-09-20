@@ -148,11 +148,13 @@ export async function GET(req: Request) {
                 bankName: true,
                 accountNumber: true,
                 accountName: true,
+                autoPayoutEnabled: true,
+                paystackSubaccountCode: true,
             },
             take: 100
         });
 
-        const mappedSellers = sellers.map(({ bankName, accountNumber, accountName, ...s }) => {
+        const mappedSellers = sellers.map(({ bankName, accountNumber, accountName, autoPayoutEnabled, paystackSubaccountCode, ...s }) => {
             const isOwnerOrAdmin = !!user && (user.role === "admin" || s.userId === user.userId);
             return {
                 ...s,
@@ -170,6 +172,8 @@ export async function GET(req: Request) {
                 bank_name: isOwnerOrAdmin ? bankName : undefined,
                 account_number: isOwnerOrAdmin ? accountNumber : undefined,
                 account_name: isOwnerOrAdmin ? accountName : undefined,
+                auto_payout_enabled: isOwnerOrAdmin ? autoPayoutEnabled : undefined,
+                paystack_subaccount_code: isOwnerOrAdmin ? paystackSubaccountCode : undefined,
             };
         });
 
