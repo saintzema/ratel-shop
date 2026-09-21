@@ -63,7 +63,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-7282189204441509~3202323884</string>
 	<!-- Required by Apple whenever an app can request App Tracking Transparency
 	     (AdMob's UserMessagingPlatform does this for personalized ads) — shown
 	     to the user the first time tracking permission is requested. -->
