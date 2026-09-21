@@ -2,6 +2,18 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { buildEmailTemplate, EmailType } from '@/lib/email-templates';
 
+// This endpoint is open by design (server routes, webhooks and client flows all call it without a
+// token), so the one abuse we can cheaply stop is using it to bomb a single inbox: cap emails per
+// recipient. (A per-IP cap would throttle our own webhooks, which all share Vercel's IPs.)
+const HITS = new Map<string, number[]>();
+function rateOk(key: string, max: number, windowMs: number) {
+    const now = Date.now();
+    const recent = (HITS.get(key) || []).filter(t => now - t < windowMs);
+    if (recent.length >= max) return false;
+    HITS.set(key, [...recent, now]);
+    return true;
+}
+
 // Initialize Resend inside the handler to prevent build-time failures if API key is missing
 function getResend() {
     return new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
@@ -11,6 +23,11 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { to, type, payload } = body as { to: string | string[], type: EmailType, payload: any };
+
+        const firstTo = Array.isArray(to) ? to[0] : to;
+        if (firstTo && !rateOk(`to:${String(firstTo).toLowerCase()}`, 30, 60 * 60 * 1000)) {
+            return NextResponse.json({ success: false, error: 'Too many emails to this address.' }, { status: 429 });
+        }
 
         if (!to || !type) {
             return NextResponse.json(
