@@ -12,7 +12,7 @@ export type AiProvider = "qwen" | "gemini" | "fireworks";
 
 const DASHSCOPE_BASE = process.env.QWEN_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
 // Cheap, fast tier by default — override with QWEN_TEXT_MODEL. (QWEN_MODEL is Ziva's own, pricier model.)
-const QWEN_TEXT_MODEL = process.env.QWEN_TEXT_MODEL || "qwen-plus";
+const QWEN_TEXT_MODEL = process.env.QWEN_TEXT_MODEL || "qwen3.8-flash";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 let cached: { value: AiProvider; at: number } | null = null;

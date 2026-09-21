@@ -74,5 +74,12 @@
 	     immediately rather than showing a permission prompt. -->
 	<key>NSCameraUsageDescription</key>
 	<string>FairPrice needs camera access to scan FairPay QR codes so you can pay a seller instantly.</string>
+	<!-- Ride booking / package delivery / "near you" use the device location through the
+	     WebView (navigator.geolocation). Without this key iOS silently denies every
+	     location request in the app. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>FairPrice uses your location to fill in your pickup point, show nearby drivers and price your trip accurately.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FairPrice needs access to your photos so you can upload product pictures, ID documents and QR screenshots.</string>
 </dict>
 </plist>

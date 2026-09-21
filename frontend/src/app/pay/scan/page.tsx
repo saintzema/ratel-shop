@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import jsQR from "jsqr";
 import { ArrowLeft, QrCode, AlertTriangle, ExternalLink, Flashlight, FlashlightOff, Camera, ImageIcon, Wallet, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nativeBridge } from "@/lib/native-bridge";
@@ -56,6 +55,19 @@ export default function ScanToPayPage() {
     // that happens after it started, so torchSupported must be read from a
     // ref here, not the state value the closure was created with.
     const torchSupportedRef = useRef(false);
+    // The decoder is fetched in parallel with the camera instead of being part of the page
+    // bundle, so the camera (the thing the user is waiting on) is never delayed by it. Chromium
+    // (all Android WebViews/Chrome) also has a native, hardware-accelerated BarcodeDetector,
+    // which is far faster than jsQR — used when present, jsQR is the fallback (iOS Safari).
+    const jsQRRef = useRef<any>(null);
+    const detectorRef = useRef<any>(null);
+    const loadDecoder = () => {
+        if (!jsQRRef.current) import("jsqr").then(m => { jsQRRef.current = m.default; }).catch(() => {});
+        try {
+            const BD = (window as any).BarcodeDetector;
+            if (BD && !detectorRef.current) detectorRef.current = new BD({ formats: ["qr_code"] });
+        } catch { /* unsupported format list — jsQR handles it */ }
+    };
 
     const [phase, setPhase] = useState<"idle" | "starting" | "scanning" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -89,7 +101,9 @@ export default function ScanToPayPage() {
         // succeeds silently when the browser already has a recorded grant;
         // otherwise it falls straight back to the normal tap-to-enable idle
         // screen with zero visible difference from before.
+        // Camera first (it's what the user is waiting on), decoder loads alongside it.
         startCamera(true);
+        loadDecoder();
         return () => { cancelledRef.current = true; stopStream(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -115,6 +129,18 @@ export default function ScanToPayPage() {
             setError("This browser doesn't support camera access. Try updating it, or use a different browser.");
             return;
         }
+
+        // If the browser/app already says "denied", don't wait on a request that can never
+        // succeed — explain how to re-enable right away. (Granted/prompt fall through: a grant
+        // is remembered by the browser/OS for good, so this only ever asks once.)
+        try {
+            const perm = await (navigator as any).permissions?.query?.({ name: "camera" });
+            if (perm?.state === "denied") {
+                setPhase("error");
+                setError("Camera access is turned off for FairPrice. Enable it in your device settings (or the site's permissions), then come back.");
+                return;
+            }
+        } catch { /* Permissions API unavailable (older iOS) — just ask */ }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -176,28 +202,30 @@ export default function ScanToPayPage() {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-                frameCountRef.current++;
-                if (torchSupportedRef.current && frameCountRef.current % 15 === 0) sampleBrightness(imageData);
-
-                // "dontInvert" only tried dark-on-light — a QR shown on a bright
-                // phone screen, or under glare, can need the inverted read.
-                // "attemptBoth" costs a bit more CPU per frame but this is the
-                // single biggest lever for the "doesn't pick it up" complaint
-                // that a pure-JS decoder actually has (native OS scanners use
-                // hardware-accelerated detection this can't fully match).
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "attemptBoth",
-                });
-                if (code?.data) {
-                    handleDecoded(code.data);
-                    return;
+            frameCountRef.current++;
+            const detector = detectorRef.current;
+            // Native detector: no canvas copy, no pixel loop.
+            if (detector && frameCountRef.current % 2 === 0) {
+                detector.detect(video).then((codes: any[]) => {
+                    if (codes?.[0]?.rawValue && !cancelledRef.current) handleDecoded(codes[0].rawValue);
+                }).catch(() => {});
+            }
+            const needCanvas = torchSupportedRef.current && frameCountRef.current % 15 === 0;
+            if (jsQRRef.current && (!detector || needCanvas) && frameCountRef.current % 2 === 0) {
+                // Decode on a downscaled frame (≤800px wide): jsQR cost is per pixel, and a QR
+                // that fills a good part of the frame reads fine at this size.
+                const scale = Math.min(1, 800 / video.videoWidth);
+                const w = Math.round(video.videoWidth * scale), h = Math.round(video.videoHeight * scale);
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d", { willReadFrequently: true });
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, w, h);
+                    const imageData = ctx.getImageData(0, 0, w, h);
+                    if (needCanvas) sampleBrightness(imageData);
+                    if (!detector) {
+                        const code = jsQRRef.current(imageData.data, w, h, { inversionAttempts: "attemptBoth" });
+                        if (code?.data) { handleDecoded(code.data); return; }
+                    }
                 }
             }
         }
@@ -275,7 +303,8 @@ export default function ScanToPayPage() {
             if (!ctx) throw new Error("no canvas context");
             ctx.drawImage(img, 0, 0);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+            if (!jsQRRef.current) jsQRRef.current = (await import("jsqr")).default;
+            const code = jsQRRef.current(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
             if (code?.data) {
                 handleDecoded(code.data);
             } else {

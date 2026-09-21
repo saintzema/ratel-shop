@@ -50,4 +50,9 @@
          WebView's camera permission grant silently fails even after the user taps Allow. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Ride pickup prefill / nearby drivers use navigator.geolocation in the WebView, which
+         only works when the app itself holds a location permission. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
 </manifest>
