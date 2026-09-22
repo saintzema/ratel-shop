@@ -289,8 +289,9 @@ export function Zema360HeroBanner() {
         {/* ── RIGHT: Pipeline (desktop) · Metrics (desktop) · GET ACCESS (all screens) ── */}
         <div className="flex flex-col items-end flex-shrink-0" style={{ minWidth: "min(40%,155px)", gap: "clamp(8px,1.5vw,14px)" }}>
 
-          {/* Live pipeline — desktop only */}
-          <div className="hidden sm:flex flex-col gap-[3px] items-end">
+          {/* Live pipeline — every screen size now (it was hidden on phones, which is why the
+              vertical one-by-one highlight seemed to have disappeared there). */}
+          <div className="flex flex-col gap-[2px] md:gap-[3px] items-end">
             <span className="text-gray-500 text-[7px] md:text-[8px] font-black uppercase tracking-widest mb-0.5">Live Pipeline</span>
             {PIPELINE.map((p, i) => (
               <div
@@ -333,7 +334,7 @@ export function Zema360HeroBanner() {
           </div>
 
           {/* Mobile-only seller perks — 3 mini badges stacked */}
-          <div className="sm:hidden flex flex-col items-end gap-1.5 flex-1 justify-center">
+          <div className="hidden">
             {SELLER_PERKS.map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <span style={{ color: "#9ca3af", fontSize: "10px", fontWeight: 700 }}>{label}</span>
@@ -812,7 +813,7 @@ function FeatureHeroShell({
           previously the text column was `w-full` on mobile, which starved
           the visual next to it down to almost nothing. */}
       <div className="absolute inset-0 flex items-start md:items-center pt-3 md:pt-0 px-5 md:pl-8 gap-2 md:gap-3" style={{ zIndex: 7 }}>
-        <div className="flex flex-col justify-center min-w-0 w-[58%] md:w-auto md:max-w-[200px]">
+        <div className="flex flex-col justify-center min-w-0 w-[58%] md:w-auto md:max-w-[380px]">
           {/* Badge + this slide's own CTA share the top row — desktop only.
               There's no bottom-bar overlay to clear on desktop, so there's
               room for both up top the way there used to be everywhere. */}
@@ -835,7 +836,7 @@ function FeatureHeroShell({
           <h2 className="text-white font-black leading-tight tracking-tight mb-1.5" style={{ fontSize: "clamp(1.1rem,3vw,1.7rem)" }}>
             {title}
           </h2>
-          <p className="text-gray-300 font-medium leading-snug line-clamp-2 md:line-clamp-none" style={{ fontSize: "clamp(9px,1.2vw,12px)", maxWidth: "28ch" }}>
+          <p className="text-gray-300 font-medium leading-snug" style={{ fontSize: "clamp(10px,1.2vw,13px)", maxWidth: "44ch" }}>
             {subtitle}
           </p>
           {/* Mobile-only CTA, underneath the text — the badge+CTA header row

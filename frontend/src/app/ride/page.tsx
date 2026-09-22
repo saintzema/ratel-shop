@@ -24,7 +24,7 @@ import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
-import { freeRouteDistanceKm, freeReverseGeocode } from "@/lib/free-distance";
+import { freeRouteDistanceKm, freeReverseGeocode, approxRoadKm } from "@/lib/free-distance";
 
 // ₦500 base + a tiered/degressive per-km rate — a flat ₦550/km priced an
 // 11km Abuja trip at ~₦6,660 and, when a route glitch inflated the distance,
@@ -154,8 +154,8 @@ export default function RidePage() {
                 const point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 let address: string | null = null;
                 if (hasGoogleMapsKey) {
-                    const g = await loadGoogleMaps()?.catch(() => null);
-                    if (g && window.google?.maps) {
+                    await loadGoogleMaps()?.catch(() => null);
+                    if (window.google?.maps) {
                         const geocoder = new window.google.maps.Geocoder();
                         address = await new Promise((resolve) => {
                             geocoder.geocode({ location: point }, (results: any, status: string) => {
@@ -184,6 +184,7 @@ export default function RidePage() {
     const [fareTouched, setFareTouched] = useState(false);
     const [autoAccept, setAutoAccept] = useState(false);
     const [vehicleClassPref, setVehicleClassPref] = useState("");
+    const [classOpen, setClassOpen] = useState(false);
     const [posting, setPosting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [lastVisibleDrivers, setLastVisibleDrivers] = useState<number | null>(null);
@@ -277,8 +278,8 @@ export default function RidePage() {
             let km: number | null = null;
 
             if (hasGoogleMapsKey) {
-                const g = await loadGoogleMaps()?.catch(() => null);
-                if (g && window.google?.maps) {
+                await loadGoogleMaps()?.catch(() => null);
+                if (window.google?.maps) {
                     const geocoder = new window.google.maps.Geocoder();
                     // Pickup/dropoff/stop use the exact coordinates the rider picked
                     // from the suggestions dropdown when available, instead of
@@ -306,6 +307,11 @@ export default function RidePage() {
 
             if (km == null) {
                 km = await freeRouteDistanceKm(routeAddresses);
+            }
+            // Last resort so the price ALWAYS moves: both points already known from the
+            // suggestions dropdown → straight-line distance × road factor, no network needed.
+            if (km == null && route.length === 2 && pickupCoords && dropoffCoords) {
+                km = approxRoadKm(pickupCoords, dropoffCoords);
             }
 
             if (cancelled || km == null) return;
@@ -499,10 +505,10 @@ export default function RidePage() {
                         </button>
                     </div>
                 </div>
-                <p className="text-sm text-gray-500 mb-6">Name your price. Nearby drivers will send you offers — you pick the one you want.</p>
+                <p className="text-sm text-gray-500 mb-3 truncate">Name your price — drivers send offers, you pick.</p>
                 {!hasApprovedVehicle && (
-                    <p className="text-xs text-gray-400 -mt-4 mb-6">
-                        Going somewhere anyway? <button onClick={() => router.push("/drive/onboarding")} className="text-brand-green-600 font-bold underline">Register your car</button> and pick up riders headed your way.
+                    <p className="text-xs text-gray-400 -mt-1 mb-3 truncate">
+                        Have a car? <button onClick={() => router.push("/drive/onboarding")} className="text-brand-green-600 font-bold underline">Register to drive</button> and earn on your route.
                     </p>
                 )}
 
@@ -588,14 +594,22 @@ export default function RidePage() {
                         re-prices the trip (via the same vehicleClassPref the fare effect
                         already watches) instead of hiding the difference in a dropdown. */}
                     <div className="space-y-2">
-                        {CLASSES.map(c => {
+                        {CLASSES.filter(c => classOpen || c.value === vehicleClassPref).map(c => {
                             const selected = vehicleClassPref === c.value;
                             const est = routeDistanceKm != null ? estimateRideFare(routeDistanceKm, c.value) : null;
                             return (
                                 <button
                                     key={c.value || "any"}
                                     type="button"
-                                    onClick={() => setVehicleClassPref(c.value)}
+                                    onClick={() => {
+                                        // Collapsed: tapping the chosen card opens the other types.
+                                        // Open: tapping any type selects it, re-prices to that type's
+                                        // recommendation, and folds the list back up.
+                                        if (!classOpen) { setClassOpen(true); return; }
+                                        setVehicleClassPref(c.value);
+                                        setFareTouched(false);
+                                        setClassOpen(false);
+                                    }}
                                     className={cn(
                                         "w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
                                         selected ? "border-brand-green-500 bg-brand-green-50/60 ring-1 ring-brand-green-500" : "border-gray-200 bg-white"
@@ -604,7 +618,7 @@ export default function RidePage() {
                                     <Car className={cn("h-7 w-7 shrink-0", selected ? "text-brand-green-600" : "text-gray-400")} />
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-gray-900">{c.label}</p>
-                                        <p className="text-[11px] text-gray-500">{c.hint}</p>
+                                        <p className="text-[11px] text-gray-500 truncate">{c.hint}</p>
                                     </div>
                                     <div className="text-right shrink-0">
                                         {est != null ? (
@@ -614,6 +628,7 @@ export default function RidePage() {
                                             </>
                                         ) : <p className="text-[11px] text-gray-400">Set a route</p>}
                                     </div>
+                                    {!classOpen && <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />}
                                 </button>
                             );
                         })}

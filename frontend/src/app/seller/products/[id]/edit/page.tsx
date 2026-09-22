@@ -1142,7 +1142,7 @@ function EditProductContent() {
                                             variants: p.variants.filter((_, i) => i !== index)
                                         }));
                                     }}
-                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center z-10"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>

@@ -45,7 +45,7 @@ export function MobileBottomNav() {
         // Sell replaces Cart in the center slot, Jiji-style — cart is still
         // reachable from the top navbar on every page, it just isn't one of
         // the five primary bottom-nav destinations anymore.
-        { name: "Sell", href: "/sell", icon: Plus, isSell: true },
+        { name: "Post Ad", href: "/sell", icon: Plus, isSell: true },
         { name: "Messages", href: "#messages", icon: MessageCircle, count: combinedUnread, isMessages: true },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];

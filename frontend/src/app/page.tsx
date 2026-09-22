@@ -490,7 +490,7 @@ function HomeContent() {
               Navbar) plus the PWA banner. The old fixed 128px was tuned for desktop
               web and left a band of empty grey above the hero in the native app. */}
           <section
-            className="relative w-full bg-[#E3E6E6] pb-5 md:pb-8"
+            className="relative w-full bg-[#E3E6E6] pb-1.5 md:pb-2"
           >
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
@@ -579,9 +579,9 @@ function HomeContent() {
                             e.stopPropagation();
                             setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length);
                           }}
-                          className="p-1.5 text-white/80 hover:text-white transition-all active:scale-90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+                          className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] text-white flex items-center justify-center transition-all active:scale-90"
                         >
-                          <ChevronLeft className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.5} />
+                          <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" strokeWidth={2.5} />
                         </button>
                         <button
                           aria-label="Next banner"
@@ -589,9 +589,9 @@ function HomeContent() {
                             e.stopPropagation();
                             setCurrentBannerIndex(prev => (prev + 1) % banners.length);
                           }}
-                          className="p-1.5 text-white/80 hover:text-white transition-all active:scale-90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)]"
+                          className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] text-white flex items-center justify-center transition-all active:scale-90"
                         >
-                          <ChevronRight className="h-6 w-6 md:h-7 md:w-7" strokeWidth={2.5} />
+                          <ChevronRight className="h-4 w-4 md:h-5 md:w-5" strokeWidth={2.5} />
                         </button>
                       </div>
                     </>
@@ -666,7 +666,7 @@ function HomeContent() {
             {/* Start Selling / Dashboard + Price Checker, relocated out of the hero so they never
                 sit on top of slide copy or animations — they live in the gap between the hero
                 and the category pills instead. */}
-            <div className="container mx-auto px-1 md:px-2 mt-3 md:mt-4 flex flex-row items-center justify-center gap-2 md:gap-3">
+            <div className="container mx-auto px-1 md:px-2 mt-2 flex flex-row items-center justify-center gap-2 md:gap-3">
               <Button
                       size="lg"
                       className="rounded-full px-4 md:px-7 h-10 md:h-12 bg-gradient-to-b from-[#fbbf24] to-brand-orange hover:from-[#fcd34d] hover:to-[#fbbf24] text-black font-black text-[11px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(245,158,11,0.5)] border border-amber-300/60 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
@@ -685,13 +685,15 @@ function HomeContent() {
                       {isSeller ? "DASHBOARD" : "START SELLING"}
                     </Button>
                     <Button
-                      size="lg"
-                      className="rounded-full px-4 md:px-7 h-10 md:h-12 bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[11px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
-                      onClick={() => setIsPriceModalOpen(true)}
-                    >
-                      PRICE CHECKER AI
-                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
-                    </Button>
+                size="lg"
+                className="relative overflow-hidden rounded-full px-4 md:px-7 h-10 md:h-12 bg-gradient-to-b from-[#34d399] via-[#10b981] to-[#047857] hover:brightness-110 text-white font-black text-[11px] md:text-[14px] border border-white/45 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.55),inset_0_-8px_14px_rgba(4,120,87,0.35),0_10px_22px_-8px_rgba(16,185,129,0.7)] backdrop-blur-xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
+                onClick={() => setIsPriceModalOpen(true)}
+              >
+                {/* liquid-glass gloss: soft white highlight across the top half */}
+                <span aria-hidden className="pointer-events-none absolute inset-x-2 top-0 h-1/2 rounded-full bg-gradient-to-b from-white/45 to-transparent" />
+                <span className="relative">PRICE CHECKER AI</span>
+                <Sparkles className="relative h-4 w-4 md:h-5 md:w-5 text-white animate-pulse" />
+              </Button>
             </div>
           </section>
 

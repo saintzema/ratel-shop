@@ -573,9 +573,32 @@ function NewProductContent() {
         setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
     };
 
+    // The "current seller" pointer can be missing even for an established seller (new device,
+    // cache purge, a sync racing the seller layout). Instead of telling them to wait and retry,
+    // resolve it right here from what we know: local cache first, then the database.
+    const resolveSellerId = async (): Promise<string | null> => {
+        let id = DataSyncService.getCurrentSellerId();
+        if (id) return id;
+        try {
+            const u = JSON.parse(localStorage.getItem("fp_user") || "null");
+            if (!u) return null;
+            const local = DataSyncService.pickPrimarySeller(DataSyncService.findSellersForUser(u.id, u.email));
+            if (local?.id) { DataSyncService.loginSeller(local.id); return local.id; }
+            const tok = localStorage.getItem("fp_token");
+            const res = await fetch("/api/sellers?all=true", { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+            const rows = res.ok ? await res.json() : [];
+            const mine = (Array.isArray(rows) ? rows : []).filter((r: any) =>
+                r.user_id === u.id || r.userId === u.id || (u.email && (r.owner_email === u.email || r.ownerEmail === u.email)));
+            const rank = (r: any) => (r.bank_name ? 4 : 0) + (r.verified ? 2 : 0) + (r.status === "active" ? 1 : 0);
+            const best = mine.sort((a: any, b: any) => rank(b) - rank(a))[0];
+            if (best?.id) { DataSyncService.loginSeller(best.id); DataSyncService.autoSync(); return best.id; }
+        } catch { /* fall through to the message below */ }
+        return null;
+    };
+
     const handleSubmit = async () => {
-        const sellerId = DataSyncService.getCurrentSellerId();
         if (isSubmitting) return;
+        const sellerId = await resolveSellerId();
         // This used to bail out completely silently on a missing sellerId — a
         // seller on a cold cache (new device, just after the storage-quota
         // purge) clicked Publish and nothing happened at all, with no error and
@@ -1371,7 +1394,7 @@ function NewProductContent() {
                                                 ...p,
                                                 variants: p.variants.filter((_, i) => i !== index)
                                             }))}
-                                            className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center z-10"
                                         >
                                             <X className="h-3 w-3" />
                                         </button>

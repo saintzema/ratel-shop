@@ -224,7 +224,7 @@ export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: Boo
 
     return (
         <div className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)] mb-4" style={{ border: "1px solid rgba(255,255,255,0.6)" }}>
-            <div ref={attachMapDiv} className="h-48 w-full bg-gray-100" />
+            <div ref={attachMapDiv} className="h-64 sm:h-72 w-full bg-gray-100" />
             {mapError && (
                 <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-2 text-center px-6">
                     <p className="text-xs text-gray-400">Live map unavailable right now — you can still book normally.</p>

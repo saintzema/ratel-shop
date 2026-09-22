@@ -94,8 +94,8 @@ export default function SendPackagePage() {
                 const point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 let address: string | null = null;
                 if (hasGoogleMapsKey) {
-                    const g = await loadGoogleMaps()?.catch(() => null);
-                    if (g && window.google?.maps) {
+                    await loadGoogleMaps()?.catch(() => null);
+                    if (window.google?.maps) {
                         const geocoder = new window.google.maps.Geocoder();
                         address = await new Promise((resolve) => {
                             geocoder.geocode({ location: point }, (results: any, status: string) => {
@@ -172,8 +172,8 @@ export default function SendPackagePage() {
             let km: number | null = null;
 
             if (hasGoogleMapsKey) {
-                const g = await loadGoogleMaps()?.catch(() => null);
-                if (g && window.google?.maps) {
+                await loadGoogleMaps()?.catch(() => null);
+                if (window.google?.maps) {
                     const geocoder = new window.google.maps.Geocoder();
                     // Prefer the coordinates already resolved by the Places dropdown
                     // pick over re-geocoding the address STRING — see the pickupCoords
@@ -198,6 +198,7 @@ export default function SendPackagePage() {
                 ]);
                 if (pickupLoc && dropoffLoc) km = approxRoadKm(pickupLoc, dropoffLoc);
             }
+            if (km == null && pickupCoords && dropoffCoords) km = approxRoadKm(pickupCoords, dropoffCoords);
 
             if (cancelled || km == null) return;
             setRouteDistanceKm(km);

@@ -388,7 +388,7 @@ export default function ScanToPayPage() {
                 )}
 
                 {phase === "scanning" && !error && (
-                    <p className="absolute bottom-28 inset-x-0 text-center text-white/80 text-sm font-semibold px-6">
+                    <p className="absolute bottom-[12.5rem] inset-x-0 text-center text-white/90 drop-shadow text-sm font-semibold px-6">
                         Point your camera at a FairPay QR code
                     </p>
                 )}
@@ -399,7 +399,7 @@ export default function ScanToPayPage() {
                 {phase === "scanning" && !error && torchSupported && lowLight && !torchOn && (
                     <button
                         onClick={toggleTorch}
-                        className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-white/90 text-black text-xs font-bold rounded-full px-4 py-2 flex items-center gap-1.5 shadow-lg animate-pulse"
+                        className="absolute bottom-[15.5rem] left-1/2 -translate-x-1/2 bg-white/90 text-black text-xs font-bold rounded-full px-4 py-2 flex items-center gap-1.5 shadow-lg animate-pulse"
                     >
                         <Flashlight className="h-3.5 w-3.5" /> Low light — tap to turn on flash
                     </button>
@@ -495,7 +495,7 @@ export default function ScanToPayPage() {
                 )}
 
                 {albumError && !result && (
-                    <p className="absolute bottom-44 inset-x-0 text-center text-amber-300 text-xs font-semibold px-8">{albumError}</p>
+                    <p className="absolute bottom-[17.5rem] inset-x-0 text-center text-amber-300 text-xs font-semibold px-8">{albumError}</p>
                 )}
             </div>
         </div>

@@ -76,12 +76,31 @@ export function KeyboardAware() {
             return null;
         };
 
+        // While the user is dragging/scrolling, NEVER fight them. The old version re-centred the
+        // focused field five times after focus AND on every visual-viewport resize — and iOS
+        // fires resize whenever the toolbar collapses mid-scroll — so a focused input snapped the
+        // page back every time you tried to scroll ("refuses to scroll", jerky scrolling).
+        let userScrollingUntil = 0;
+        const markUserScroll = () => { userScrollingUntil = Date.now() + 1500; };
+        window.addEventListener("touchstart", markUserScroll, { passive: true });
+        window.addEventListener("touchmove", markUserScroll, { passive: true });
+        window.addEventListener("wheel", markUserScroll, { passive: true });
+        const userIsScrolling = () => Date.now() < userScrollingUntil;
+
+        // Only nudge when the field is actually hidden (under the keyboard / off-screen).
+        const isHidden = (el: HTMLElement) => {
+            const r = el.getBoundingClientRect();
+            const vh = window.visualViewport?.height ?? window.innerHeight;
+            return r.top < 8 || r.bottom > vh - 8;
+        };
+
         const handleFocusIn = (e: FocusEvent) => {
             const target = e.target as HTMLElement;
             if (!target || !isInputLike(target)) return;
 
             const doScroll = () => {
                 try {
+                    if (userIsScrolling()) return;
                     const fixedParent = getFixedAncestor(target);
                     if (fixedParent) {
                         // For inputs inside fixed containers (chat modals, etc.),
@@ -97,19 +116,19 @@ export function KeyboardAware() {
                         // Also ensure the input itself is visible
                         target.scrollIntoView({ behavior: "smooth", block: "nearest" });
                     } else {
-                        // Standard page inputs — center them in the viewport
-                        target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                        // Standard page inputs — only if actually covered, and just enough to reveal
+                        if (isHidden(target)) target.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
                     }
                 } catch (_) {}
             };
 
             // Aggressive polling during the ~400ms keyboard animation
             doScroll();
-            const t1 = setTimeout(doScroll, 100);
-            const t2 = setTimeout(doScroll, 250);
-            const t3 = setTimeout(doScroll, 400);
-            const t4 = setTimeout(doScroll, 600);
-            const t5 = setTimeout(doScroll, 800);
+            const t1 = setTimeout(doScroll, 250);
+            const t2 = setTimeout(doScroll, 500);
+            const t3 = setTimeout(() => {}, 0);
+            const t4 = setTimeout(() => {}, 0);
+            const t5 = setTimeout(() => {}, 0);
 
             // Cleanup on blur (user moved away before animation finished)
             const cleanup = () => {
@@ -131,8 +150,9 @@ export function KeyboardAware() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 updateKeyboardHeight();
+                if (userIsScrolling()) return;
                 const activeEl = document.activeElement as HTMLElement;
-                if (activeEl && isInputLike(activeEl)) {
+                if (activeEl && isInputLike(activeEl) && isHidden(activeEl)) {
                     const fixedParent = getFixedAncestor(activeEl);
                     if (fixedParent) {
                         const scrollableChild = fixedParent.querySelector(
@@ -143,10 +163,10 @@ export function KeyboardAware() {
                         }
                         activeEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
                     } else {
-                        activeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                        activeEl.scrollIntoView({ behavior: "auto", block: "center" });
                     }
                 }
-            }, 16);
+            }, 120);
         };
 
         if (window.visualViewport) {
@@ -168,6 +188,9 @@ export function KeyboardAware() {
 
         return () => {
             document.removeEventListener("focusin", handleFocusIn);
+            window.removeEventListener("touchstart", markUserScroll);
+            window.removeEventListener("touchmove", markUserScroll);
+            window.removeEventListener("wheel", markUserScroll);
             window.removeEventListener("scroll", preventBodyScroll);
             if (window.visualViewport) {
                 window.visualViewport.removeEventListener("resize", handleVVEvent);
