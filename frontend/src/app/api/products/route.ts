@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { stripInlineImages } from "@/lib/inline-images";
 import { categoryMatchTerms } from "@/lib/category-aliases";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
@@ -321,7 +322,10 @@ export async function GET(req: Request) {
             nextCursor = hasMore ? products[products.length - 1]?.id : null;
         }
 
-        const mappedProducts = products.map((p: any) => ({
+        // Swap any base64-inlined photo for a URL BEFORE the aliasing below, so
+        // imageUrl and image_url both come out pointing at the served route
+        // rather than each carrying its own copy of the same megabyte.
+        const mappedProducts = products.map(stripInlineImages).map((p: any) => ({
             ...p,
             seller_id: p.sellerId,
             seller_name: p.sellerName,

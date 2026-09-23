@@ -227,11 +227,13 @@ export function Zema360HeroBanner() {
           <a
             href="/zema360"
             onClick={e => e.stopPropagation()}
-            className="self-center sm:self-start font-black uppercase tracking-widest transition-all active:scale-95 hover:opacity-80 inline-flex items-center gap-1.5"
+            className="self-center sm:self-start font-black uppercase tracking-widest transition-all active:scale-95 hover:brightness-110 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5"
             style={{
-              color: "#fbbf24",
+              color: "#3a2a00",
               fontSize: "clamp(9px,1.2vw,13px)",
               whiteSpace: "nowrap",
+              background: "linear-gradient(to bottom, #ffd77a 0%, #f5b942 100%)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.55), 0 6px 16px -6px rgba(245,185,66,0.7)",
             }}
           >
             Get Access
@@ -243,8 +245,13 @@ export function Zema360HeroBanner() {
               SELLING button sits over the middle-right of this banner and was
               clipping the end of this line. Hugging the left edge keeps the
               whole tagline clear of it. */}
-          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1.5 text-left" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "18ch", marginLeft: 0, marginRight: "auto" }}>
-            AI agents — fully hands-free.
+          {/* "hands-free" is one word to a reader but two to a line-breaker —
+              the hyphen is a legal break point, so it was splitting as
+              "FULLY HANDS-" / "FREE". Holding the compound together (and
+              giving the line a couple more characters to sit in) keeps it
+              whole. */}
+          <p className="sm:hidden text-gray-300 font-medium leading-snug mt-1.5 text-left" style={{ fontSize: "clamp(9px,2vw,11px)", maxWidth: "22ch", marginLeft: 0, marginRight: "auto" }}>
+            AI agents — <span style={{ whiteSpace: "nowrap" }}>fully hands-free.</span>
           </p>
         </div>
 
@@ -252,7 +259,7 @@ export function Zema360HeroBanner() {
         <div className="hidden sm:flex flex-col justify-center flex-1 min-w-0 px-1 md:px-3">
           {/* Tagline */}
           <p className="text-gray-400 font-medium leading-snug mb-3 md:mb-4" style={{ fontSize: "clamp(9px,1.15vw,13px)", maxWidth: "26ch" }}>
-            AI agents that handle every order, escrow & payout — fully hands-free.
+            AI agents that handle every order, escrow &amp; payout — <span style={{ whiteSpace: "nowrap" }}>fully hands-free.</span>
           </p>
 
           {/* What sellers get */}
@@ -780,6 +787,21 @@ export function ZivaAIBanner() {
   );
 }
 
+/* Every hero CTA — Get Access, Find a Driver, Send Now, Browse Experts — is
+ * the same filled gold pill as the subnav's own pills, rather than bare
+ * coloured text with an arrow. A CTA that doesn't look pressable doesn't get
+ * pressed; this keeps one shape across the whole hero family. The slide's
+ * accent colour becomes the pill's fill, and the label goes dark on top of
+ * it so it stays readable on light golds. */
+function ctaPillStyle(accent: string): React.CSSProperties {
+  return {
+    color: "#2a1f00",
+    background: `linear-gradient(to bottom, ${accent}f2 0%, ${accent} 100%)`,
+    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 16px -6px ${accent}b3`,
+    whiteSpace: "nowrap",
+  };
+}
+
 /* ─── Feature Hero Banners ───────────────────────────────────────────────
  * One shared shell (badge, title, subtitle, CTA, full-slide click target)
  * so five feature promos read as one consistent, on-brand hero family
@@ -827,8 +849,8 @@ function FeatureHeroShell({
             <a
               href={href}
               onClick={e => e.stopPropagation()}
-              className="font-black uppercase tracking-widest transition-all active:scale-95 hover:opacity-80 inline-flex items-center gap-1 shrink-0"
-              style={{ color: ctaColor, fontSize: "clamp(8px,1.1vw,12px)" }}
+              className="font-black uppercase tracking-widest transition-all active:scale-95 hover:brightness-110 inline-flex items-center gap-1 shrink-0 rounded-full px-3.5 py-1.5"
+              style={{ ...ctaPillStyle(ctaColor), fontSize: "clamp(8px,1.1vw,12px)" }}
             >
               {ctaLabel} <span aria-hidden="true">→</span>
             </a>
@@ -844,8 +866,8 @@ function FeatureHeroShell({
           <a
             href={href}
             onClick={e => e.stopPropagation()}
-            className="md:hidden mt-2 self-start font-black uppercase tracking-widest transition-all active:scale-95 inline-flex items-center gap-1"
-            style={{ color: ctaColor, fontSize: "10px" }}
+            className="md:hidden mt-2 self-start font-black uppercase tracking-widest transition-all active:scale-95 inline-flex items-center gap-1 rounded-full px-3 py-1"
+            style={{ ...ctaPillStyle(ctaColor), fontSize: "10px" }}
           >
             {ctaLabel} <span aria-hidden="true">→</span>
           </a>

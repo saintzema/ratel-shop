@@ -365,8 +365,16 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     ]);
     const [isTrendsLoading, setIsTrendsLoading] = useState(false);
 
-    // Fetch Trends on Mount
+    // Fetched when the modal is actually OPENED, once per session — not on
+    // mount. This component is mounted (closed) by the homepage, the navbar
+    // and every product page at the same time, so "on mount" meant firing an
+    // AI-backed endpoint that takes tens of seconds three or four times over
+    // on a page nobody had even clicked into. It was both a real source of the
+    // homepage feeling frozen and a standing bill for answers no one read.
+    const trendsFetchedRef = useRef(false);
     useEffect(() => {
+        if (!isOpen || trendsFetchedRef.current) return;
+        trendsFetchedRef.current = true;
         const fetchTrends = async () => {
             setIsTrendsLoading(true);
             try {
@@ -384,7 +392,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
             }
         };
         fetchTrends();
-    }, []);
+    }, [isOpen]);
 
     const initialQueryTriggeredRef = useRef<string | null>(null);
 

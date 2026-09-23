@@ -1910,10 +1910,10 @@ export function Navbar() {
                         <Link href="/sell" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Earn Money
                         </Link>
+                        <SlidingSubnavTexts />
                         <Link href="/search?sort=top_rated" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
                         </Link>
-                        <SlidingSubnavTexts />
                     </div >
                     {/* Right: Trust Badges */}
                     < div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end" >
@@ -2063,7 +2063,15 @@ const SlidingSubnavTexts = () => {
     }, []);
 
     return (
-        <div className="relative h-5 md:h-6 w-40 md:w-56 overflow-hidden flex items-center shrink-0 ml-1">
+        // No fixed width: both messages are absolutely positioned (they cross-fade
+        // in place), so the box takes its width from an invisible sizer holding
+        // the LONGER of the two strings. It used to be a hard w-40/w-56, which cut
+        // "₦1,000 LATE DELIVERY REFUND" off with an ellipsis on every phone. The
+        // subnav row scrolls sideways, so there's no reason to squeeze it.
+        <div className="relative h-5 md:h-6 overflow-hidden flex items-center shrink-0 ml-1">
+            <span aria-hidden className="invisible whitespace-nowrap px-2 md:px-3 font-bold tracking-wide text-[10px] md:text-[12px] inline-flex items-center gap-1.5">
+                <Package className="w-3 h-3 shrink-0" /> ₦1,000 LATE DELIVERY REFUND
+            </span>
             <AnimatePresence mode="wait">
                 {index === 0 ? (
                     <motion.button
@@ -2075,7 +2083,7 @@ const SlidingSubnavTexts = () => {
                         className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-emerald-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
                         onClick={() => router.push('/search?delivery=free')}
                     >
-                        <Package className="w-3 h-3 text-emerald-400 shrink-0" /> <span className="truncate">FREE DELIVERY EVERYWHERE</span>
+                        <Package className="w-3 h-3 text-emerald-400 shrink-0" /> <span className="whitespace-nowrap">FREE DELIVERY EVERYWHERE</span>
                     </motion.button>
                 ) : (
                     <motion.button
@@ -2087,7 +2095,7 @@ const SlidingSubnavTexts = () => {
                         className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-amber-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
                         onClick={() => router.push('/buyer-protection')}
                     >
-                        <Shield className="w-3 h-3 text-amber-400 shrink-0" /> <span className="truncate">₦1,000 LATE DELIVERY REFUND</span>
+                        <Shield className="w-3 h-3 text-amber-400 shrink-0" /> <span className="whitespace-nowrap">₦1,000 LATE DELIVERY REFUND</span>
                     </motion.button>
                 )}
             </AnimatePresence>

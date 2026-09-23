@@ -24,6 +24,28 @@ interface BookingMapProps {
 }
 
 /**
+ * The cone/arrow that sits under the "you are here" dot and points where the
+ * rider is facing. With no heading yet it collapses to a zero-scale symbol
+ * (invisible) rather than an arrow pointing at an arbitrary north, so the map
+ * never claims a direction it doesn't know.
+ */
+function headingIcon(google: any, heading: number | null) {
+    if (heading == null) return { path: google.maps.SymbolPath.CIRCLE, scale: 0, fillOpacity: 0, strokeWeight: 0 };
+    return {
+        // A stubby arrowhead drawn pointing "up" (0° = north), which Maps then
+        // rotates by the compass heading.
+        path: "M 0,-3.4 L 2.1,1.6 L 0,0.7 L -2.1,1.6 Z",
+        scale: 3.4,
+        fillColor: "#3b82f6",
+        fillOpacity: 1,
+        strokeColor: "#fff",
+        strokeWeight: 1.2,
+        rotation: heading,
+        anchor: new google.maps.Point(0, 3.4),
+    };
+}
+
+/**
  * The map AMap/inDrive show from the moment you open the booking screen —
  * your own live position pulsing on the map, pickup/dropoff pins dropping in
  * as you type, a route line once both are set. RideMap (the OTHER map in
@@ -37,6 +59,11 @@ interface BookingMapProps {
 export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: BookingMapProps) {
     const mapRef = useRef<any>(null);
     const meMarkerRef = useRef<any>(null);
+    // The direction-of-travel arrow sitting under the blue dot, AMap/Google-
+    // Maps style. Kept as its OWN marker rather than folded into the dot's
+    // icon so the dot stays a perfect circle while only the arrow rotates.
+    const meHeadingRef = useRef<any>(null);
+    const headingRef = useRef<number | null>(null);
     const pickupMarkerRef = useRef<any>(null);
     const dropoffMarkerRef = useRef<any>(null);
     const routeLineRef = useRef<any>(null);
@@ -77,6 +104,11 @@ export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: Boo
             // that cleanup actually has to live instead.
             if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
             if ((meMarkerRef as any).pulseInterval) clearInterval((meMarkerRef as any).pulseInterval);
+            const orientationHandler = (meMarkerRef as any).orientationHandler;
+            if (orientationHandler) {
+                window.removeEventListener("deviceorientationabsolute", orientationHandler);
+                window.removeEventListener("deviceorientation", orientationHandler);
+            }
             return;
         }
         if ((node as any).__fpMapAttached) return;
@@ -98,11 +130,46 @@ export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: Boo
             mapRef.current = map;
             setReady(true);
 
+            // Which way the rider is FACING. GPS only reports a heading while
+            // the device is actually moving (it's derived from successive
+            // fixes), so a rider standing still at the kerb — the normal case
+            // on this screen — gets nothing from it. The compass does report
+            // while stationary, so listen to that too and prefer whichever
+            // arrived last. iOS gates its compass behind a
+            // DeviceOrientationEvent.requestPermission() call that needs a user
+            // gesture, so there the arrow only appears once they start moving;
+            // the dot itself is unaffected either way.
+            const onOrientation = (e: any) => {
+                const deg = typeof e.webkitCompassHeading === "number"
+                    ? e.webkitCompassHeading
+                    : (e.absolute && typeof e.alpha === "number" ? 360 - e.alpha : null);
+                if (deg == null || Number.isNaN(deg)) return;
+                headingRef.current = deg;
+                meHeadingRef.current?.setIcon(headingIcon(google, deg));
+            };
+            window.addEventListener("deviceorientationabsolute", onOrientation);
+            window.addEventListener("deviceorientation", onOrientation);
+            (meMarkerRef as any).orientationHandler = onOrientation;
+
             if (!navigator.geolocation) { setLocating(false); return; }
             watchIdRef.current = navigator.geolocation.watchPosition(
                 (pos) => {
                     const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     setLocating(false);
+                    if (typeof pos.coords.heading === "number" && !Number.isNaN(pos.coords.heading)) {
+                        headingRef.current = pos.coords.heading;
+                    }
+                    if (!meHeadingRef.current) {
+                        meHeadingRef.current = new google.maps.Marker({
+                            position: me, map,
+                            icon: headingIcon(google, headingRef.current),
+                            clickable: false,
+                            zIndex: 499,
+                        });
+                    } else {
+                        meHeadingRef.current.setPosition(me);
+                        meHeadingRef.current.setIcon(headingIcon(google, headingRef.current));
+                    }
                     if (!meMarkerRef.current) {
                         map.setCenter(me);
                         map.setZoom(14);
@@ -223,7 +290,7 @@ export function BookingMap({ pickup, dropoff, pickupCoords, dropoffCoords }: Boo
     if (!hasGoogleMapsKey) return null;
 
     return (
-        <div className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)] mb-4" style={{ border: "1px solid rgba(255,255,255,0.6)" }}>
+        <div className="rounded-[22px] overflow-hidden relative shadow-[0_8px_30px_rgba(16,24,40,0.10)] mb-1.5" style={{ border: "1px solid rgba(255,255,255,0.6)" }}>
             <div ref={attachMapDiv} className="h-64 sm:h-72 w-full bg-gray-100" />
             {mapError && (
                 <div className="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-2 text-center px-6">

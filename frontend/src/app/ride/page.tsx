@@ -24,7 +24,8 @@ import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { useHeaderOffset } from "@/lib/use-header-offset";
 import { loadGoogleMaps, hasGoogleMapsKey } from "@/lib/google-maps";
 import { cachedGeocode, cachedDirections } from "@/lib/geo-cache";
-import { freeRouteDistanceKm, freeReverseGeocode, approxRoadKm } from "@/lib/free-distance";
+import { freeRouteDistanceKm, approxRoadKm } from "@/lib/free-distance";
+import { reverseGeocodePlace } from "@/lib/detect-state";
 
 // ₦500 base + a tiered/degressive per-km rate — a flat ₦550/km priced an
 // 11km Abuja trip at ~₦6,660 and, when a route glitch inflated the distance,
@@ -100,13 +101,21 @@ function StopInput({ value, onChange, onRemove, placeholder }: { value: string; 
 }
 
 export default function RidePage() {
-    const { user } = useAuth();
+    const { user, login } = useAuth();
     const router = useRouter();
     const { location, setLocation } = useLocation();
     const headerOffset = useHeaderOffset();
 
-    const [confirmingCity, setConfirmingCity] = useState(true);
+    // The state-confirm sheet is now a FALLBACK, not the front door. A real
+    // ride app asks for precise location the moment you open the booking
+    // screen and works the answer out itself; asking "Are you in Lagos?"
+    // before knowing anything is how you price a Port Harcourt trip against
+    // Lagos drivers. This only opens if the GPS fix is refused or lands
+    // somewhere we can't map to one of our states.
+    const [confirmingCity, setConfirmingCity] = useState(false);
     const [pickingState, setPickingState] = useState(false);
+    const [locationDenied, setLocationDenied] = useState(false);
+    const [locating, setLocating] = useState(true);
 
     const [pickup, setPickup] = useState("");
     const [dropoff, setDropoff] = useState("");
@@ -147,35 +156,43 @@ export default function RidePage() {
     // overwrites something already typed) and fails completely silently:
     // if location is denied or unavailable, pickup just stays blank exactly
     // as it always has.
-    useEffect(() => {
-        if (pickup || typeof navigator === "undefined" || !navigator.geolocation) return;
+    const requestLocation = () => {
+        if (typeof navigator === "undefined" || !navigator.geolocation) {
+            setLocating(false); setConfirmingCity(true); return;
+        }
+        setLocating(true);
+        setLocationDenied(false);
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
                 const point = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                let address: string | null = null;
-                if (hasGoogleMapsKey) {
-                    await loadGoogleMaps()?.catch(() => null);
-                    if (window.google?.maps) {
-                        const geocoder = new window.google.maps.Geocoder();
-                        address = await new Promise((resolve) => {
-                            geocoder.geocode({ location: point }, (results: any, status: string) => {
-                                resolve(status === "OK" && results?.[0] ? results[0].formatted_address : null);
-                            });
-                        });
-                    }
-                }
-                if (!address) address = await freeReverseGeocode(point);
-                if (address) {
-                    setPickup((current) => current || address!);
+                const place = await reverseGeocodePlace(point);
+                setLocating(false);
+                if (place.address) {
+                    setPickup((current) => current || place.address!);
                     setPickupIsMyLocation(true);
                     setPickupCoords(point);
                 }
+                // A rider standing in Enugu shouldn't have to notice the app
+                // still thinks they're in Lagos — their real state becomes the
+                // one drivers are matched against, silently and correctly.
+                if (place.state) setLocation(place.state);
+                // Outside Nigeria, or a fix we couldn't place — fall back to
+                // asking, which is the only honest thing left to do.
+                else setConfirmingCity(true);
             },
-            () => { /* denied/unavailable — pickup just stays blank, as before */ },
-            { timeout: 8000, maximumAge: 5 * 60 * 1000 }
+            () => {
+                setLocating(false);
+                setLocationDenied(true);
+                setConfirmingCity(true);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60 * 1000 }
         );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    };
+
+    // Ask on open, the way Bolt/inDrive do — not behind a button the rider
+    // has to find. The browser only shows its own permission prompt once per
+    // origin and remembers the answer forever after, so this is a single ask.
+    useEffect(() => { requestLocation(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
     const [fare, setFare] = useState(2000);
     const [suggestedFare, setSuggestedFare] = useState<number | null>(null);
     const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
@@ -189,6 +206,19 @@ export default function RidePage() {
     const [error, setError] = useState<string | null>(null);
     const [lastVisibleDrivers, setLastVisibleDrivers] = useState<number | null>(null);
 
+    // Phone-first booking for a rider who never signed in. Nigerian drivers
+    // call the rider the second they accept, so the number is the part that
+    // actually has to exist — name and email are optional extras that just
+    // finish the account off. Collected only at "Find a Driver", never as a
+    // wall in front of the form.
+    const [guestSheet, setGuestSheet] = useState(false);
+    const [guestPhone, setGuestPhone] = useState("");
+    const [guestName, setGuestName] = useState("");
+    const [guestEmail, setGuestEmail] = useState("");
+    const [guestBusy, setGuestBusy] = useState(false);
+    const [guestError, setGuestError] = useState<string | null>(null);
+    const [guestNeedsSignIn, setGuestNeedsSignIn] = useState(false);
+
     const [rides, setRides] = useState<any[]>([]);
     const [liveByRide, setLiveByRide] = useState<Record<string, { km: number; min: number; arrived: boolean }>>({});
     const [loading, setLoading] = useState(true);
@@ -199,8 +229,8 @@ export default function RidePage() {
     // board if they can already drive, or to registration if they can't yet.
     const [hasApprovedVehicle, setHasApprovedVehicle] = useState(false);
 
-    const authHeaders = (): Record<string, string> => {
-        const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
+    const authHeaders = (override?: string): Record<string, string> => {
+        const tok = override || (typeof window !== "undefined" ? localStorage.getItem("fp_token") : null);
         return tok ? { Authorization: `Bearer ${tok}` } : {};
     };
 
@@ -331,17 +361,49 @@ export default function RidePage() {
         setPickupIsMyLocation(false);
     };
 
-    const postRide = async () => {
+    // Turns a typed phone number into a real (brand new) account and signs the
+    // rider in, then posts the ride they already filled in. If the number
+    // already belongs to somebody, the server refuses to hand over a session —
+    // see /api/auth/phone-start — and we send them to sign in properly instead
+    // of quietly letting anyone claim an account by typing a number.
+    const startGuestSession = async () => {
+        setGuestError(null);
+        if (!guestPhone.trim()) { setGuestError("Enter the number a driver can call you on."); return; }
+        setGuestBusy(true);
+        try {
+            const res = await fetch("/api/auth/phone-start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone: guestPhone, name: guestName, email: guestEmail || undefined }),
+            });
+            const data = await res.json();
+            if (data?.existing) { setGuestNeedsSignIn(true); return; }
+            if (!res.ok || !data?.token) throw new Error(data?.error || "Could not start your booking");
+            localStorage.setItem("fp_token", data.token);
+            login(data.user);
+            setGuestSheet(false);
+            // `user` won't be readable here yet (state update is async), so hand
+            // the fresh token straight to the post instead of waiting a render.
+            await postRide(data.token);
+        } catch (e: any) {
+            setGuestError(e.message);
+        } finally {
+            setGuestBusy(false);
+        }
+    };
+
+    const postRide = async (overrideToken?: string) => {
         setError(null);
         if (!pickup || !dropoff) { setError("Enter pickup and drop-off."); return; }
         if (!fare || fare <= 0) { setError("Enter what you're willing to pay."); return; }
+        if (!user && !overrideToken) { setGuestError(null); setGuestNeedsSignIn(false); setGuestSheet(true); return; }
         setPosting(true);
         const validStops = stops.map(s => s.address.trim()).filter(Boolean);
         const combinedDropoff = validStops.length ? [...validStops, dropoff].join(" → ") : dropoff;
         try {
             const res = await fetch("/api/rides", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", ...authHeaders() },
+                headers: { "Content-Type": "application/json", ...authHeaders(overrideToken) },
                 body: JSON.stringify({
                     pickup, dropoff: combinedDropoff, proposedFare: fare,
                     vehicleClassPref: vehicleClassPref || undefined,
@@ -416,21 +478,6 @@ export default function RidePage() {
     const matchedRide = activeRides.find(r => r.status === "matched" || r.status === "in_progress");
     useLocationBroadcast(matchedRide?.id || null, !!matchedRide);
 
-    if (!user) {
-        return (
-            <div className="min-h-screen flex flex-col">
-                <Navbar />
-                <div className="flex-1 flex items-center justify-center p-8 text-center" style={{ paddingTop: headerOffset }}>
-                    <div>
-                        <p className="font-bold text-gray-900 mb-4">Sign in to book a ride</p>
-                        <Button onClick={() => router.push("/login?redirect=/ride")}>Sign In</Button>
-                    </div>
-                </div>
-                <Footer />
-            </div>
-        );
-    }
-
     return (
         <div className="min-h-screen bg-white font-sans">
             <Navbar />
@@ -473,7 +520,11 @@ export default function RidePage() {
                             ) : (
                                 <>
                                     <h2 className="text-lg font-black text-gray-900 mb-1">Are you in {location}?</h2>
-                                    <p className="text-xs text-gray-500 mb-5">We'll show you drivers based on this.</p>
+                                    <p className="text-xs text-gray-500 mb-5">
+                                        {locationDenied
+                                            ? "We couldn't read your location, so we're going by your saved state. Drivers are matched on this."
+                                            : "We'll show you drivers based on this."}
+                                    </p>
                                     <div className="flex gap-2">
                                         <Button variant="outline" className="flex-1 h-11 rounded-xl" onClick={() => setPickingState(true)}>
                                             Change
@@ -482,6 +533,95 @@ export default function RidePage() {
                                             Yes, that's right
                                         </Button>
                                     </div>
+                                </>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Phone-first booking sheet — the only thing standing between a
+                guest and a posted ride. */}
+            <AnimatePresence>
+                {guestSheet && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center"
+                        onClick={() => setGuestSheet(false)}
+                    >
+                        <motion.div
+                            initial={{ y: 60 }} animate={{ y: 0 }} exit={{ y: 60 }}
+                            className="w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl bg-white p-6"
+                            style={{ boxShadow: "0 -8px 40px rgba(16,24,40,0.18)" }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {guestNeedsSignIn ? (
+                                <>
+                                    <h2 className="text-lg font-black text-gray-900 mb-1">You already have an account</h2>
+                                    <p className="text-xs text-gray-500 mb-5">
+                                        That number is registered on FairPrice. Sign in and your ride goes out straight away —
+                                        your saved addresses and past trips come with you.
+                                    </p>
+                                    <Button
+                                        className="w-full h-11 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 font-black"
+                                        onClick={() => router.push("/login?redirect=/ride")}
+                                    >
+                                        Sign in
+                                    </Button>
+                                    <button
+                                        onClick={() => { setGuestNeedsSignIn(false); setGuestPhone(""); }}
+                                        className="w-full mt-2 text-xs text-gray-500 font-bold"
+                                    >
+                                        Use a different number
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="text-lg font-black text-gray-900 mb-1">How should the driver reach you?</h2>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        Drivers call the moment they accept. We'll show them this number and nothing else.
+                                    </p>
+                                    <div className="space-y-2.5">
+                                        <Input
+                                            type="tel"
+                                            inputMode="tel"
+                                            autoFocus
+                                            placeholder="Phone number, e.g. 0803 000 0000"
+                                            value={guestPhone}
+                                            onChange={e => setGuestPhone(e.target.value)}
+                                            className="h-11 rounded-xl"
+                                        />
+                                        <Input
+                                            placeholder="Your name (optional)"
+                                            value={guestName}
+                                            onChange={e => setGuestName(e.target.value)}
+                                            className="h-11 rounded-xl"
+                                        />
+                                        <Input
+                                            type="email"
+                                            placeholder="Email (optional — for receipts)"
+                                            value={guestEmail}
+                                            onChange={e => setGuestEmail(e.target.value)}
+                                            className="h-11 rounded-xl"
+                                        />
+                                    </div>
+                                    {guestError && <p className="text-xs text-rose-600 font-semibold mt-2">{guestError}</p>}
+                                    <Button
+                                        onClick={startGuestSession}
+                                        disabled={guestBusy}
+                                        className="w-full h-11 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 font-black mt-4"
+                                    >
+                                        {guestBusy ? "Posting…" : "Find a Driver"}
+                                    </Button>
+                                    <p className="text-[10px] text-gray-400 text-center mt-2">
+                                        This creates your FairPrice account — sign in with the same number next time.
+                                    </p>
+                                    <button
+                                        onClick={() => router.push("/login?redirect=/ride")}
+                                        className="w-full mt-2 text-xs text-gray-500 font-bold"
+                                    >
+                                        I already have an account
+                                    </button>
                                 </>
                             )}
                         </motion.div>
@@ -514,7 +654,18 @@ export default function RidePage() {
 
                 <BookingMap pickup={pickup} dropoff={dropoff} pickupCoords={pickupCoords} dropoffCoords={dropoffCoords} />
 
-                <div className="bg-gray-50 rounded-2xl p-5 space-y-3 mb-8">
+                {locationDenied && (
+                    <button
+                        type="button"
+                        onClick={requestLocation}
+                        className="w-full mb-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left"
+                    >
+                        <p className="text-[11px] font-bold text-amber-800">Location is off — we can't fill in your pickup</p>
+                        <p className="text-[10px] text-amber-700">Allow location in your browser or phone settings, then tap here to retry.</p>
+                    </button>
+                )}
+
+                <div className="bg-gray-50 rounded-2xl p-3 space-y-3 mb-8">
                     {/* Grouped like a real ride app's route card: pickup/stops/
                         drop-off stacked in one bordered box, with a swap and an
                         add-stop control docked on the right instead of a
@@ -527,7 +678,7 @@ export default function RidePage() {
                                 <MapPin fill="currentColor" strokeWidth={1.5} className="absolute left-3 h-4 w-4 text-brand-green-600 pointer-events-none" />
                                 <Input
                                     ref={pickupAutocomplete.inputRef}
-                                    placeholder="Pickup location"
+                                    placeholder={locating ? "Finding your location…" : "Pickup location"}
                                     value={pickupIsMyLocation ? "My Location" : pickup}
                                     // Reveal the real address on focus so a keystroke edits
                                     // from there, not from the literal text "My Location" —
@@ -657,15 +808,15 @@ export default function RidePage() {
                         )}
                     </div>
 
+                    {error && <p className="text-sm text-rose-600 font-semibold">{error}</p>}
+                    <Button onClick={() => postRide()} disabled={posting} className="w-full h-11 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 font-black">
+                        {posting ? "Posting..." : "Find a Driver"}
+                    </Button>
+
                     <label className="flex items-center justify-between bg-white rounded-xl p-3 cursor-pointer">
                         <span className="text-xs font-bold text-gray-700">Auto-accept the first offer at or below this price</span>
                         <input type="checkbox" checked={autoAccept} onChange={e => setAutoAccept(e.target.checked)} className="h-5 w-5 accent-brand-green-600" />
                     </label>
-
-                    {error && <p className="text-sm text-rose-600 font-semibold">{error}</p>}
-                    <Button onClick={postRide} disabled={posting} className="w-full h-11 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 font-black">
-                        {posting ? "Posting..." : "Find a Driver"}
-                    </Button>
                 </div>
 
                 {lastVisibleDrivers !== null && (
