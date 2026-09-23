@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, ShieldCheck, Car } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldCheck, Car, Gift } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,12 @@ export default function RidePaymentPage() {
     const id = params.id as string;
     const { user } = useAuth();
     const [ride, setRide] = useState<RideSummary | null>(null);
+    // How much of the fare the rider's reward credit covers. Quoted by the
+    // server and re-derived there when the payment is confirmed — this copy is
+    // for display and for the amount Paystack is asked to charge.
+    const [creditApplied, setCreditApplied] = useState(0);
+    const [creditBalance, setCreditBalance] = useState(0);
+    const [amountDue, setAmountDue] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showCheckout, setShowCheckout] = useState(false);
     const [error, setError] = useState("");
@@ -38,7 +44,12 @@ export default function RidePaymentPage() {
     const load = () => {
         fetch(`/api/rides/${id}/pay`, { headers: authHeaders() })
             .then(r => r.ok ? r.json() : null)
-            .then(d => setRide(d?.ride || null))
+            .then(d => {
+                setRide(d?.ride || null);
+                setCreditApplied(d?.creditApplied || 0);
+                setCreditBalance(d?.creditBalance || 0);
+                setAmountDue(d?.amountDue ?? d?.ride?.agreedFare ?? 0);
+            })
             .finally(() => setLoading(false));
     };
     useEffect(() => { if (user) load(); }, [id, user]);
@@ -89,9 +100,37 @@ export default function RidePaymentPage() {
                         </div>
                     </div>
 
-                    <div className="border-t border-gray-100 pt-4 flex justify-between items-center">
-                        <span className="text-sm text-gray-500 font-bold">Trip fare</span>
-                        <span className="text-2xl font-black text-gray-900">{formatPrice(ride.agreedFare)}</span>
+                    <div className="border-t border-gray-100 pt-4 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500 font-bold">Trip fare</span>
+                            <span className={creditApplied > 0 ? "text-sm font-bold text-gray-500" : "text-2xl font-black text-gray-900"}>
+                                {formatPrice(ride.agreedFare)}
+                            </span>
+                        </div>
+                        {creditApplied > 0 && (
+                            <>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-emerald-600 font-bold flex items-center gap-1.5">
+                                        <Gift className="h-3.5 w-3.5" /> Reward credit
+                                    </span>
+                                    <span className="text-sm font-bold text-emerald-600">-{formatPrice(creditApplied)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-1.5 border-t border-gray-100">
+                                    <span className="text-sm text-gray-500 font-bold">You pay</span>
+                                    <span className="text-2xl font-black text-gray-900">{formatPrice(amountDue)}</span>
+                                </div>
+                                {creditBalance > creditApplied && (
+                                    <p className="text-[11px] text-gray-400">
+                                        {formatPrice(creditBalance - creditApplied)} stays in your balance for your next trip.
+                                    </p>
+                                )}
+                            </>
+                        )}
+                        {creditApplied === 0 && creditBalance > 0 && (
+                            <p className="text-[11px] text-gray-400">
+                                You have {formatPrice(creditBalance)} in credit — it applies once a fare is large enough to take it.
+                            </p>
+                        )}
                     </div>
 
                     {ride.paidAt ? (
@@ -105,10 +144,13 @@ export default function RidePaymentPage() {
                         <>
                             {error && <p className="text-xs text-red-500">{error}</p>}
                             <Button onClick={() => setShowCheckout(true)} className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                                Pay {formatPrice(ride.agreedFare)} Now
+                                Pay {formatPrice(amountDue)} Now
                             </Button>
-                            <p className="text-[11px] text-gray-400 flex items-center gap-1 justify-center pt-1">
-                                <ShieldCheck className="h-3 w-3" /> Secured by Paystack — your driver is paid instantly
+                            <p className="text-[11px] text-gray-400 flex items-center gap-1 justify-center pt-1 text-center">
+                                <ShieldCheck className="h-3 w-3 shrink-0" />
+                                {creditBalance > 0
+                                    ? "Paying here is the only way to spend your credit — and your driver still gets the full fare, instantly."
+                                    : "Secured by Paystack — your driver is paid instantly"}
                             </p>
                         </>
                     )}
@@ -116,7 +158,7 @@ export default function RidePaymentPage() {
 
                 {showCheckout && !ride.paidAt && (
                     <PaystackCheckout
-                        amount={Math.round(ride.agreedFare * 100)}
+                        amount={Math.round(amountDue * 100)}
                         email={user.email}
                         metadata={{ type: "ride_payment", ride_id: id }}
                         onSuccess={handleSuccess}

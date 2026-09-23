@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
 import { Product, Coupon } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
+import { applicableCredit } from "@/lib/credit-rules";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
@@ -493,17 +494,20 @@ function CheckoutContent() {
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
     const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
 
-    // Ad-reward credit — platform-funded, earned by watching a rewarded ad on
-    // the cart page (see RewardedAdCard). Separate from appliedCoupon (a
-    // seller's own promo code) since it's redeemed through its own endpoint.
-    const [adRewardCredit, setAdRewardCredit] = useState<{ id: string; amount: number; expiresAt: string } | null>(null);
+    // Reward credit — everything the buyer has earned from daily check-ins and
+    // rewarded ads, as one balance. This used to read a SINGLE credit row and
+    // apply its full amount, which meant a buyer holding six ₦10 check-ins got
+    // ₦10 off and silently lost the other fifty. The wallet endpoint pools
+    // them and returns how much of THIS bill they may cover, under the same
+    // share cap the ride checkout uses.
+    const [creditBalance, setCreditBalance] = useState(0);
     useEffect(() => {
         if (!user) return;
         const token = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
         if (!token) return;
-        fetch("/api/ads/reward", { headers: { Authorization: `Bearer ${token}` } })
+        fetch("/api/wallet?billTotal=0", { headers: { Authorization: `Bearer ${token}` } })
             .then((r) => (r.ok ? r.json() : null))
-            .then((data) => setAdRewardCredit(data?.credit || null))
+            .then((data) => setCreditBalance(data?.balance || 0))
             .catch(() => {});
     }, [user]);
 
@@ -940,9 +944,16 @@ function CheckoutContent() {
     }, 0);
 
     const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier)) : 0;
-    const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0) + (adRewardCredit?.amount || 0);
 
-    const total = Math.max(0, itemsPayableNow + shipping + escrowFee - (appliedCoupon?.amount || 0) - (adRewardCredit?.amount || 0));
+    // Credit is applied to the bill AFTER any coupon, and only up to the same
+    // share cap the server enforces — mirrored here from lib/credit-wallet so
+    // the figure on screen is the figure that will actually be charged.
+    const billBeforeCredit = Math.max(0, itemsPayableNow + shipping + escrowFee - (appliedCoupon?.amount || 0));
+    const creditApplied = applicableCredit(creditBalance, billBeforeCredit);
+
+    const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0) + creditApplied;
+
+    const total = Math.max(0, billBeforeCredit - creditApplied);
 
     // COD eligibility: admin-configurable threshold + expensive category override
     const EXPENSIVE_CATEGORIES = ["cars", "automotive", "vehicles"];
@@ -1548,12 +1559,14 @@ function CheckoutContent() {
                 DataSyncService.useCoupon(appliedCoupon.code, user.id);
             }
 
-            if (adRewardCredit && user && createdOrders[0]?.order?.id) {
+            if (creditApplied > 0 && user && createdOrders[0]?.order?.id) {
                 const rewardToken = localStorage.getItem("fp_token");
-                fetch("/api/ads/reward", {
-                    method: "PATCH",
+                // Spends across as many credits as the amount needs, oldest
+                // expiry first, and splits the last one so change isn't lost.
+                fetch("/api/wallet", {
+                    method: "POST",
                     headers: { "Content-Type": "application/json", ...(rewardToken ? { Authorization: `Bearer ${rewardToken}` } : {}) },
-                    body: JSON.stringify({ creditId: adRewardCredit.id, orderId: createdOrders[0].order.id }),
+                    body: JSON.stringify({ billTotal: billBeforeCredit, reference: `order:${createdOrders[0].order.id}` }),
                 }).catch(() => {});
             }
 
@@ -2893,13 +2906,17 @@ function CheckoutContent() {
                                                         </div>
                                                     )}
 
-                                                    {adRewardCredit && (
+                                                    {creditApplied > 0 && (
                                                         <div className="flex justify-between items-center text-[13px]">
                                                             <div className="flex flex-col">
-                                                                <span className="text-gray-500 font-medium">Ad Reward Credit</span>
-                                                                <span className="text-[10px] text-gray-400">Earned by watching an ad</span>
+                                                                <span className="text-gray-500 font-medium">Reward Credit</span>
+                                                                <span className="text-[10px] text-gray-400">
+                                                                    {creditApplied < creditBalance
+                                                                        ? `${formatPrice(creditBalance - creditApplied)} stays in your balance for next time`
+                                                                        : "Earned from daily check-ins"}
+                                                                </span>
                                                             </div>
-                                                            <span className="font-bold text-emerald-600">-{formatPrice(adRewardCredit.amount)}</span>
+                                                            <span className="font-bold text-emerald-600">-{formatPrice(creditApplied)}</span>
                                                         </div>
                                                     )}
 

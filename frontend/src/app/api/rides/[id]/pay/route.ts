@@ -5,6 +5,7 @@ import { verifyPaystackTransaction } from "@/lib/paystack-verify";
 import { notifyUser } from "@/lib/user-notify";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { transferRideFareToDriver } from "@/lib/ride-payout";
+import { previewWallet, redeemCredits } from "@/lib/credit-wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!ride) return NextResponse.json({ error: "Ride not found" }, { status: 404 });
     if (ride.riderId !== user.userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    // What the rider's reward credit can take off this fare. Quoted here and
+    // re-derived on POST — the client never gets to say how much it applied.
+    //
+    // Credit only works when the ride is paid IN APP. If the rider hands the
+    // driver cash or sends a bank transfer, the money never passes through
+    // FairPrice and there is nothing for a credit to reduce. That's a real
+    // constraint, and it's also the point: the discount is the reason to pay
+    // on the rail that gives the rider a receipt and a dispute path, and pays
+    // the driver automatically.
+    const wallet = ride.agreedFare
+        ? await previewWallet(user.userId, ride.agreedFare)
+        : { balance: 0, applicable: 0, amountDue: 0 };
+
     return NextResponse.json({
         ride: {
             id: ride.id,
@@ -40,6 +54,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             paidAt: ride.paidAt,
             driverName: ride.driver?.name,
         },
+        creditBalance: wallet.balance,
+        creditApplied: wallet.applicable,
+        amountDue: wallet.amountDue,
     });
 }
 
@@ -71,10 +88,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Payment could not be verified" }, { status: 402 });
     }
 
+    // The fare the rider owes AFTER their reward credit — recomputed here from
+    // the live balance rather than taken from the request, so the discount
+    // can't be inflated by editing the payload.
+    const wallet = await previewWallet(user.userId, ride.agreedFare);
     const paidKobo = result.tx.amount || 0;
-    const expectedKobo = Math.round(ride.agreedFare * 100);
+    const expectedKobo = Math.round(wallet.amountDue * 100);
     if (paidKobo < expectedKobo) {
-        return NextResponse.json({ error: `Amount paid (₦${(paidKobo / 100).toLocaleString()}) is less than the agreed fare (₦${ride.agreedFare.toLocaleString()})` }, { status: 400 });
+        return NextResponse.json({ error: `Amount paid (₦${(paidKobo / 100).toLocaleString()}) is less than the ₦${wallet.amountDue.toLocaleString()} due` }, { status: 400 });
     }
 
     let updated;
@@ -89,6 +110,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ success: true, ride: current, alreadyPaid: true });
         }
         throw e;
+    }
+
+    // Credit is consumed only once the payment has verified and the ride is
+    // recorded as paid, so a failed payment never burns it. The driver is
+    // still transferred the FULL agreed fare below — the credit is funded by
+    // the platform out of take rate, it is not a deduction from the driver's
+    // earnings, and a driver must never be paid less because their rider had
+    // a check-in streak.
+    if (wallet.applicable > 0) {
+        await redeemCredits(user.userId, wallet.applicable, `ride:${rideId}`).catch(() => 0);
     }
 
     if (ride.driverId) {
