@@ -45,7 +45,8 @@ import {
     Plus,
     Wrench,
     Store as StoreIcon,
-    ShieldCheck
+    ShieldCheck,
+    Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -1909,6 +1910,9 @@ export function Navbar() {
                         </Link>
                         <Link href="/sell" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Earn Money
+                        </Link>
+                        <Link href="/rewards" className="flex items-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full transition-all text-[11px] md:text-[13px] font-bold bg-gradient-to-b from-[#ffd77a] to-[#f5b942] text-[#4a3200] shadow-sm hover:brightness-105">
+                            <Gift className="w-3 h-3 md:w-3.5 md:h-3.5" /> Daily Reward
                         </Link>
                         <SlidingSubnavTexts />
                         <Link href="/search?sort=top_rated" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">

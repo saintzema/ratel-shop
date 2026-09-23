@@ -21,7 +21,10 @@ export async function POST(request: Request) {
 
         const cooldownStart = new Date(Date.now() - AD_CONFIG.rewardedAd.cooldownHours * 60 * 60 * 1000);
         const recent = await db.adRewardCredit.findFirst({
-            where: { userId: user.userId, createdAt: { gte: cooldownStart } },
+            // Scoped to rewarded_ad: this ledger is shared with the daily
+            // check-in credit, and without the filter a check-in would read as
+            // "you already claimed an ad reward" and lock the ad out for 24h.
+            where: { userId: user.userId, source: "rewarded_ad", createdAt: { gte: cooldownStart } },
         });
         if (recent) {
             const nextEligible = new Date(recent.createdAt.getTime() + AD_CONFIG.rewardedAd.cooldownHours * 60 * 60 * 1000);
@@ -93,12 +96,20 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const credit = await db.adRewardCredit.findFirst({
+        const credits = await db.adRewardCredit.findMany({
             where: { userId: user.userId, status: "active", expiresAt: { gt: new Date() } },
             orderBy: { createdAt: "desc" },
         });
 
-        return NextResponse.json({ success: true, credit: credit || null });
+        // `credit` (singular) stays for the checkout page's existing use. The
+        // list and total are what daily check-in needs, since a buyer builds up
+        // several small credits rather than holding one.
+        return NextResponse.json({
+            success: true,
+            credit: credits[0] || null,
+            credits,
+            totalAmount: credits.reduce((sum, c) => sum + c.amount, 0),
+        });
     } catch (error: any) {
         console.error("[ads/reward] GET error:", error);
         return NextResponse.json({ error: "Failed to fetch reward status" }, { status: 500 });

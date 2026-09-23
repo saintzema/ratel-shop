@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { stripInlineImages } from "@/lib/inline-images";
+import { stripInlineImages, uploadInlineImagesFor } from "@/lib/inline-images";
+import { refreshPriceFlag } from "@/lib/price-flag-service";
+import { rankingMultiplier } from "@/lib/price-benchmark";
 import { categoryMatchTerms } from "@/lib/category-aliases";
 import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest, JWTPayload } from "@/lib/jwt";
@@ -285,7 +287,11 @@ export async function GET(req: Request) {
                 s += Math.min((p.soldCount || 0) / 10, 30);
                 s += (p.avgRating || 0) * 3;
                 if (p.isSponsored) s += 20;
-                return s;
+                // A listing priced well above its comparables stops outranking
+                // honest ones. Nothing is hidden or repriced — that stays the
+                // seller's call — it just loses the top of the page, which is
+                // the part the platform actually owes the buyer.
+                return s * rankingMultiplier(p.priceFlag);
             };
             products = pool
                 .sort((a, b) => {
@@ -430,6 +436,24 @@ export async function DELETE(req: Request) {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+
+        // ─── No base64 image ever reaches a column ───
+        // Photos used to be accepted as `data:` URIs and written straight into
+        // imageUrl/images. One product ended up holding 543 KB of base64, which
+        // then rode along inside every product-list response the homepage
+        // fetched — a 4.6 MB payload that froze the main thread for seconds on
+        // load. Anything inline is decoded and stored in Blob here, before any
+        // branch below can persist it, so the failure mode can't come back.
+        // Runs for every write path (create, edit, image-only hydration).
+        const uploaded = await uploadInlineImagesFor({
+            imageUrl: body.image_url ?? body.imageUrl,
+            images: body.images,
+        });
+        if (uploaded.imageUrl !== undefined) {
+            body.image_url = uploaded.imageUrl;
+            if (body.imageUrl !== undefined) body.imageUrl = uploaded.imageUrl;
+        }
+        if (uploaded.images !== undefined) body.images = uploaded.images;
 
         // FALLBACK: Handle deletion via POST if DELETE method is blocked
         if (body.action === "delete" && body.id) {
@@ -579,7 +603,8 @@ export async function POST(req: Request) {
             imageUrl: body.image_url,
             images: body.images || [],
             stock: body.stock ?? 100,
-            priceFlag: body.price_flag || "none",
+            // Seller-supplied verdicts are ignored; refreshPriceFlag decides.
+            priceFlag: "none",
             isSponsored: body.is_sponsored || false,
             isTrending: body.is_trending || false,
             isActive: isSellerActive ? (body.is_active !== false) : false,
@@ -634,6 +659,14 @@ export async function POST(req: Request) {
             update: safeUpdate,
             create: productData,
         });
+
+        // The price verdict is computed here, against the real catalogue, and
+        // never taken from the request — the field used to be whatever the
+        // seller's browser sent, which is how a ₦2,485,000 iPhone 16 came to
+        // wear a "FAIR" badge beside an ₦850,000 one. Failure is non-fatal:
+        // a listing that can't be benchmarked keeps no badge rather than
+        // blocking the save.
+        await refreshPriceFlag(product.id).catch(() => null);
 
         // Broadcast update for real-time sync
         broadcast({ type: "product_updated", id: product.id });

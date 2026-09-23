@@ -25,6 +25,7 @@ import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
+import { PriceBenchmarkNotice } from "@/components/product/PriceBenchmarkNotice";
 import { hasFinancing, isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
 import { FinancingOffer } from "@/components/financing/FinancingOffer";
@@ -1928,6 +1929,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         );
                                     })()}
                                 </div>
+
+                                {/* The working behind the price badge — what
+                                    comparable listings actually cost. Renders
+                                    nothing when the price is ordinary. */}
+                                <PriceBenchmarkNotice productId={product.id} />
 
                                 {/* FairPrice Intelligence */}
                                 {priceComparison && (
