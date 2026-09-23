@@ -36,9 +36,9 @@ export async function getBalance(userId: string): Promise<number> {
     return Math.max(0, Math.floor(result._sum.amount ?? 0));
 }
 
-export async function previewWallet(userId: string, billTotal: number): Promise<WalletView> {
+export async function previewWallet(userId: string, billTotal: number, marginCap?: number): Promise<WalletView> {
     const balance = await getBalance(userId);
-    const applicable = applicableCredit(balance, billTotal);
+    const applicable = applicableCredit(balance, billTotal, marginCap);
     return { balance, applicable, amountDue: Math.max(0, billTotal - applicable) };
 }
 

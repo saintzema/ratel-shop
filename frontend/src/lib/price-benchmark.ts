@@ -35,6 +35,8 @@ export interface Benchmark {
     peerCount: number;
     /** price ÷ median, for copy like "2.9× the typical price". */
     ratio: number | null;
+    /** Where the baseline came from — other listings, or a stored market reference. */
+    basis?: "listings" | "reference";
 }
 
 // A listing this far above the median of its peers is overpriced. Nigerian
@@ -45,6 +47,13 @@ const GREAT_DEAL_AT = 0.72;
 // Far enough below the median to be a bait listing rather than a bargain.
 const TOO_LOW_AT = 0.45;
 const MIN_PEERS = 3;
+// Two comparables is a thin sample, but a listing at double the price of the
+// only other two of the same model is not a sampling artefact — it's the
+// finding. Requiring three would have kept a ₦2,485,000 iPhone 16 unflagged
+// beside an ₦850,000 one purely because the catalogue is young. Ordinary
+// variation still needs the full sample.
+const MIN_PEERS_WHEN_EXTREME = 2;
+const EXTREME_RATIO = 2;
 
 // Words that say nothing about WHICH product this is. Condition and year do
 // move the price, but they don't make two listings different products, and
@@ -177,22 +186,55 @@ export function median(values: number[]): number | null {
  * launder itself into looking fair — which is exactly the failure mode being
  * fixed here.
  */
-export function benchmarkPrice(target: Comparable, catalogue: Comparable[]): Benchmark {
+export function benchmarkPrice(
+    target: Comparable,
+    catalogue: Comparable[],
+    opts: { referencePrice?: number | null } = {},
+): Benchmark {
     const peers = findComparables(target, catalogue);
-    if (peers.length < MIN_PEERS || !(target.price > 0)) {
+    if (!(target.price > 0)) {
         return { flag: "none", median: null, peerCount: peers.length, ratio: null };
     }
 
-    const mid = median(peers.map(p => p.price))!;
-    if (!(mid > 0)) return { flag: "none", median: null, peerCount: peers.length, ratio: null };
+    const peerMedian = peers.length > 0 ? median(peers.map(p => p.price)) : null;
+
+    // `opts.referencePrice` (Product.recommendedPrice) is deliberately NOT used
+    // as a fallback baseline, though it was tried. That column is written from
+    // the same seller-supplied payload as the price itself, so on the live
+    // catalogue a ₦2,485,000 iPhone 16 carried a ₦2,485,000 "recommended"
+    // price and benchmarking against it handed the listing a FAIR badge —
+    // reinstating precisely the self-certification this module exists to
+    // remove. Elsewhere the column is unrelated junk (a ₦3,910,000 machine
+    // against a ₦120,000 reference). A trustworthy reference has to come from
+    // a source the seller does not control; until one exists, a thin category
+    // gets no badge, which is the honest answer.
+    const useReference = false;
+
+    const mid = peerMedian;
+    if (mid == null || !(mid > 0)) {
+        return { flag: "none", median: null, peerCount: peers.length, ratio: null };
+    }
 
     const ratio = target.price / mid;
+    const basis: "listings" | "reference" = useReference ? "reference" : "listings";
+    void opts;
+
+    // Sample-size gate — waived for a reference price (it isn't a sample) and
+    // relaxed for an unmistakable outlier.
+    if (basis === "listings") {
+        const extreme = ratio >= EXTREME_RATIO || ratio <= 1 / EXTREME_RATIO;
+        const needed = extreme ? MIN_PEERS_WHEN_EXTREME : MIN_PEERS;
+        if (peers.length < needed) {
+            return { flag: "none", median: null, peerCount: peers.length, ratio: null };
+        }
+    }
+
     let flag: PriceFlag = "fair";
     if (ratio >= OVERPRICED_AT) flag = "overpriced";
     else if (ratio <= TOO_LOW_AT) flag = "too_low";
     else if (ratio <= GREAT_DEAL_AT) flag = "great_deal";
 
-    return { flag, median: mid, peerCount: peers.length, ratio };
+    return { flag, median: mid, peerCount: peers.length, ratio, basis };
 }
 
 /**

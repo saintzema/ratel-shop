@@ -7,56 +7,57 @@ datasource db {
 }
 
 model User {
-  id              String               @id @default(cuid())
-  email           String               @unique
-  name            String
-  password        String?
-  role            UserRole             @default(customer)
-  avatarUrl       String?
-  location        String?
-  birthday        String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  isPremium       Boolean              @default(false)
-  whatsappNumber  String?              @unique
+  id                    String                   @id @default(cuid())
+  email                 String                   @unique
+  name                  String
+  password              String?
+  role                  UserRole                 @default(customer)
+  avatarUrl             String?
+  location              String?
+  birthday              String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  isPremium             Boolean                  @default(false)
+  whatsappNumber        String?                  @unique
   // Meta's business-scoped user ID. Since WhatsApp usernames rolled out, an
   // inbound message can arrive with NO phone number at all — the BSUID is then
   // the ONLY stable way to recognise a returning customer. Always present on
   // inbound webhooks (username adopter or not), so we record it whenever seen.
-  whatsappUserId  String?              @unique
-  whatsappUsername String?
-  premiumExpiresAt DateTime?
-  accounts        Account[]
-  addresses       Address[]
-  complaints      Complaint[]          @relation("UserComplaints")
-  disputes        Dispute[]            @relation("BuyerDisputes")
-  negotiations    NegotiationRequest[]
-  notifications   Notification[]
-  orders          Order[]
-  reviews         Review[]
-  sellers         Seller[]
-  sessions        Session[]
-  supportMessages SupportMessage[]
-  discountUsages  UserDiscountUsage[]
+  whatsappUserId        String?                  @unique
+  whatsappUsername      String?
+  premiumExpiresAt      DateTime?
+  accounts              Account[]
+  addresses             Address[]
+  complaints            Complaint[]              @relation("UserComplaints")
+  disputes              Dispute[]                @relation("BuyerDisputes")
+  negotiations          NegotiationRequest[]
+  notifications         Notification[]
+  orders                Order[]
+  reviews               Review[]
+  sellers               Seller[]
+  sessions              Session[]
+  supportMessages       SupportMessage[]
+  discountUsages        UserDiscountUsage[]
   whatsAppVerifications WhatsAppVerification[]
   financingApplications FinancingApplication[]
-  savedCards      SavedCard[]
-  adRewardCredits AdRewardCredit[]
-  vehicles        Vehicle[]
-  ridesAsRider    RideRequest[]        @relation("RiderRides")
-  ridesAsDriver   RideRequest[]        @relation("DriverRides")
-  rideOffers      RideOffer[]
-  deliveriesAsSender  DeliveryRequest[] @relation("SenderDeliveries")
-  deliveriesAsCourier DeliveryRequest[] @relation("CourierDeliveries")
-  deliveryOffers      DeliveryOffer[]
+  savedCards            SavedCard[]
+  adRewardCredits       AdRewardCredit[]
+  vehicles              Vehicle[]
+  ridesAsRider          RideRequest[]            @relation("RiderRides")
+  ridesAsDriver         RideRequest[]            @relation("DriverRides")
+  rideOffers            RideOffer[]
+  driverCommissions     DriverCommissionCharge[] @relation("DriverCommissions")
+  deliveriesAsSender    DeliveryRequest[]        @relation("SenderDeliveries")
+  deliveriesAsCourier   DeliveryRequest[]        @relation("CourierDeliveries")
+  deliveryOffers        DeliveryOffer[]
   // A generic "where do I get paid" destination for anyone earning on the
   // platform outside the Seller system (couriers today; drivers could reuse
   // this later) — deliberately NOT another Seller row, since a courier
   // isn't a store. Only ever read server-side for a real Paystack transfer;
   // never returned to a client beyond the masked last 4 digits.
-  payoutBankName      String?
-  payoutAccountNumber String?
-  payoutAccountName   String?
+  payoutBankName        String?
+  payoutAccountNumber   String?
+  payoutAccountName     String?
   // NIN-based identity verification — every user, not just drivers (the
   // NaviaRide community feedback we reviewed calls this the actual load-
   // bearing trust layer for ride-sharing in Nigeria). No NIMC/NIN API
@@ -64,11 +65,11 @@ model User {
   // data-sharing agreement, a business step, not a code one — so this
   // starts in "not_submitted" and stays there until that partnership
   // exists; the fields and admin review queue are ready for it.
-  ninNumber           String?
-  ninStatus           KYCStatus @default(not_submitted)
-  ninSubmittedAt      DateTime?
-  ninReviewedAt       DateTime?
-  ninRejectionReason  String?
+  ninNumber             String?
+  ninStatus             KYCStatus                @default(not_submitted)
+  ninSubmittedAt        DateTime?
+  ninReviewedAt         DateTime?
+  ninRejectionReason    String?
 }
 
 // A buyer-facing, platform-funded credit earned by watching a rewarded ad —
@@ -76,16 +77,16 @@ model User {
 // applies to any order regardless of seller; FairPrice absorbs the cost as
 // the price of the ad impression, not the seller.
 model AdRewardCredit {
-  id          String    @id @default(cuid())
-  userId      String
-  amount      Float
-  source      String    @default("rewarded_ad")
-  status      String    @default("active") // active | redeemed | expired
-  expiresAt   DateTime
+  id              String    @id @default(cuid())
+  userId          String
+  amount          Float
+  source          String    @default("rewarded_ad")
+  status          String    @default("active") // active | redeemed | expired
+  expiresAt       DateTime
   redeemedOrderId String?
-  createdAt   DateTime  @default(now())
-  redeemedAt  DateTime?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  redeemedAt      DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
 }
@@ -138,15 +139,15 @@ model ChargeAttempt {
 // can see and reply to it from the FairPrice dashboard instead of only
 // getting a one-shot notification with no record afterward.
 model InstagramComment {
-  id            String   @id @default(cuid())
-  sellerId      String
-  igCommentId   String   @unique
-  igMediaId     String?
-  fromUsername  String
-  text          String
-  replied       Boolean  @default(false)
-  replyText     String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  sellerId     String
+  igCommentId  String   @unique
+  igMediaId    String?
+  fromUsername String
+  text         String
+  replied      Boolean  @default(false)
+  replyText    String?
+  createdAt    DateTime @default(now())
 
   @@index([sellerId])
 }
@@ -173,7 +174,6 @@ model InstagramMessage {
 /**
  * Platform-agnostic social post record — both already-published posts and
  * ones queued to go out later.
- *
  * InstagramPost below is kept as-is for the existing IG records rather than
  * migrated: it's referenced by the boost ownership check and the posts page,
  * and a rename/backfill buys nothing here. New writes (Facebook, and anything
@@ -181,20 +181,20 @@ model InstagramMessage {
  * at all, so the seller's post history was silently Instagram-only.
  */
 model SocialPost {
-  id          String    @id @default(cuid())
-  sellerId    String
-  platform    String // "facebook" | "instagram"
-  productId   String?
-  caption     String?
-  imageUrl    String?
+  id            String    @id @default(cuid())
+  sellerId      String
+  platform      String // "facebook" | "instagram"
+  productId     String?
+  caption       String?
+  imageUrl      String?
   // scheduled | published | failed
-  status      String    @default("published")
-  scheduledAt DateTime?
-  publishedAt DateTime?
-  externalId  String? // FB post id / IG media id
-  permalink   String?
+  status        String    @default("published")
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  externalId    String? // FB post id / IG media id
+  permalink     String?
   failureReason String?
-  createdAt   DateTime  @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([sellerId])
   // Drives the scheduler sweep: "everything still queued whose time has come".
@@ -202,12 +202,12 @@ model SocialPost {
 }
 
 model InstagramPost {
-  id         String   @id @default(cuid())
-  sellerId   String
-  mediaId    String   @unique
-  permalink  String?
-  caption    String?
-  productId  String?
+  id          String   @id @default(cuid())
+  sellerId    String
+  mediaId     String   @unique
+  permalink   String?
+  caption     String?
+  productId   String?
   publishedAt DateTime @default(now())
 
   @@index([sellerId])
@@ -261,96 +261,96 @@ model Address {
 }
 
 model Seller {
-  id             String               @id @default(cuid())
-  userId         String
-  businessName   String
-  ownerName      String?
-  ownerEmail     String?
-  description    String
-  logoUrl        String?
-  coverImageUrl  String?
-  category       String
-  verified       Boolean              @default(false)
-  rating         Float                @default(0.0)
-  trustScore     Float                @default(50.0)
-  status         SellerStatus         @default(pending)
-  subscriptionPlan String              @default("Starter")
-  planExpiryDate  DateTime?
+  id                      String               @id @default(cuid())
+  userId                  String
+  businessName            String
+  ownerName               String?
+  ownerEmail              String?
+  description             String
+  logoUrl                 String?
+  coverImageUrl           String?
+  category                String
+  verified                Boolean              @default(false)
+  rating                  Float                @default(0.0)
+  trustScore              Float                @default(50.0)
+  status                  SellerStatus         @default(pending)
+  subscriptionPlan        String               @default("Starter")
+  planExpiryDate          DateTime?
   // What to fall back to when planExpiryDate passes without renewal. Null means
   // the default (Starter/free). Lets us override per-seller, e.g. a seller who
   // gets a temporary discounted-plan arrangement drops to that plan, not Starter.
-  planDowngradeTo String?
-  commissionRate  Float                @default(2.5)
-  tier            String               @default("Standard")
+  planDowngradeTo         String?
+  commissionRate          Float                @default(2.5)
+  tier                    String               @default("Standard")
   // Paystack Subaccount code (ACCT_xxx). Once set, QR/direct-payment charges
   // route the seller's exact cut here via Paystack's own split at the moment
   // of payment — settles to their bank automatically (T+1), no Transfer API
   // call needed, sidestepping the third-party-transfer business tier gate
   // entirely.
-  paystackSubaccountCode String?
-  kycStatus      KYCStatus            @default(not_submitted)
-  bankName       String?
-  accountNumber  String?
-  accountName    String?
-  storeUrl       String?              @unique
-  location       String?
+  paystackSubaccountCode  String?
+  kycStatus               KYCStatus            @default(not_submitted)
+  bankName                String?
+  accountNumber           String?
+  accountName             String?
+  storeUrl                String?              @unique
+  location                String?
   // Structured location — onboarding already collects a state/city via the
   // address step but was silently dropping them (only the free-text `location`
   // field existed, and nothing populated it either). These are what powers
   // Jiji-style localized search: same-city results first, then same-state,
   // then everywhere else.
-  state          String?
-  city           String?
-  weeklyOrders   String?
-  currencies     String[]
-  staffCount     String?
-  physicalStores String?
-  joinedAt       DateTime             @default(now())
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  whatsappEnabled Boolean             @default(false)
-  whatsappNumber String?
+  state                   String?
+  city                    String?
+  weeklyOrders            String?
+  currencies              String[]
+  staffCount              String?
+  physicalStores          String?
+  joinedAt                DateTime             @default(now())
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  whatsappEnabled         Boolean              @default(false)
+  whatsappNumber          String?
   // The regular business contact number(s) from onboarding — distinct from
   // whatsappNumber, which specifically gates WhatsApp-only features (QR
   // generation, product upload via chat, etc). Conflating the two meant a
   // seller who only gave a landline/non-WhatsApp number could never use them.
-  phoneNumber    String?
+  phoneNumber             String?
   // Default true — sellers who go to the trouble of generating a payment QR
   // clearly want to get paid without extra friction. The HITL threshold
   // (getPayoutHitlThreshold) is the actual safety gate for high-value
   // payouts, not this flag; a seller/admin can still explicitly disable it.
-  autoPayoutEnabled Boolean            @default(true)
-  whatsappDirectDM  Boolean            @default(false)
-  instagramAccessToken  String?
-  instagramUserId       String?
-  instagramUsername     String?
-  instagramTokenExpiry  DateTime?
+  autoPayoutEnabled       Boolean              @default(true)
+  whatsappDirectDM        Boolean              @default(false)
+  instagramAccessToken    String?
+  instagramUserId         String?
+  instagramUsername       String?
+  instagramTokenExpiry    DateTime?
   // Standard Facebook Login for Business (graph.facebook.com), separate OAuth
   // flow from Instagram Business Login above — a seller can have one, both,
   // or neither connected. facebookPageAccessToken is a PAGE token (doesn't
   // expire the way a user token does, as long as the underlying user token
   // stays valid), not the user's own access token.
-  facebookPageId            String?
-  facebookPageName          String?
-  facebookPageAccessToken   String?
-  idDocumentUrl     String?           // NIN/Passport/Driver's License scan — onboarding never actually uploaded this before
-  cacDocumentUrl    String?           // CAC certificate for registered businesses — same gap
-  cacRcNumber       String?
-  businessRegistered Boolean          @default(false)
-  complaints     Complaint[]          @relation("SellerComplaints")
-  discounts      Discount[]
-  disputes       Dispute[]            @relation("SellerDisputes")
-  gigProposals   GigProposal[]
-  kycSubmissions KYCSubmission[]
-  negotiations   NegotiationRequest[] @relation("SellerNegotiations")
-  orders         Order[]              @relation("SellerOrders")
-  payouts        Payout[]
-  priceAlerts    PriceAlert[]
-  products       Product[]
-  quotes         Quote[]
-  reviews        Review[]
-  staff          SellerStaff[]
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  facebookPageId          String?
+  facebookPageName        String?
+  facebookPageAccessToken String?
+  idDocumentUrl           String? // NIN/Passport/Driver's License scan — onboarding never actually uploaded this before
+  cacDocumentUrl          String? // CAC certificate for registered businesses — same gap
+  cacRcNumber             String?
+  businessRegistered      Boolean              @default(false)
+  complaints              Complaint[]          @relation("SellerComplaints")
+  discounts               Discount[]
+  disputes                Dispute[]            @relation("SellerDisputes")
+  gigProposals            GigProposal[]
+  kycSubmissions          KYCSubmission[]
+  negotiations            NegotiationRequest[] @relation("SellerNegotiations")
+  orders                  Order[]              @relation("SellerOrders")
+  payouts                 Payout[]
+  priceAlerts             PriceAlert[]
+  products                Product[]
+  quotes                  Quote[]
+  reviews                 Review[]
+  staff                   SellerStaff[]
+  user                    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
@@ -362,24 +362,24 @@ model Seller {
 // payable through a public link (deposit or full balance) that reuses the
 // same Paystack verification path as regular checkout.
 model Quote {
-  id             String   @id @default(cuid())
-  sellerId       String
-  title          String
-  clientName     String
-  clientContact  String?
-  items          Json // [{ description, qty, unitPrice }]
-  subtotal       Float
-  total          Float
-  depositRequired Boolean @default(false)
-  depositAmount  Float?
-  amountPaid     Float    @default(0)
-  status         String   @default("draft") // draft | sent | deposit_paid | paid | cancelled
-  notes          String?
-  currency       String   @default("NGN")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  payments       QuotePayment[]
+  id              String         @id @default(cuid())
+  sellerId        String
+  title           String
+  clientName      String
+  clientContact   String?
+  items           Json // [{ description, qty, unitPrice }]
+  subtotal        Float
+  total           Float
+  depositRequired Boolean        @default(false)
+  depositAmount   Float?
+  amountPaid      Float          @default(0)
+  status          String         @default("draft") // draft | sent | deposit_paid | paid | cancelled
+  notes           String?
+  currency        String         @default("NGN")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  seller          Seller         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  payments        QuotePayment[]
 
   @@index([sellerId])
   @@index([status])
@@ -393,7 +393,7 @@ model Quote {
 // Quotes — this is a discovery/matching layer in front of it, not a parallel
 // payments system.
 model GigRequest {
-  id                 String    @id @default(cuid())
+  id                 String        @id @default(cuid())
   posterUserId       String?
   posterName         String
   posterEmail        String?
@@ -403,15 +403,15 @@ model GigRequest {
   category           String
   budgetMin          Float?
   budgetMax          Float?
-  budgetType         String    @default("fixed") // fixed | hourly
+  budgetType         String        @default("fixed") // fixed | hourly
   deadline           DateTime?
   locationState      String?
   locationCity       String?
-  status             String    @default("open") // open | in_progress | completed | cancelled
-  isSponsored        Boolean   @default(false)
+  status             String        @default("open") // open | in_progress | completed | cancelled
+  isSponsored        Boolean       @default(false)
   acceptedProposalId String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
   proposals          GigProposal[]
 
   @@index([status])
@@ -440,20 +440,20 @@ model GigProposal {
 // (e.g. can't touch price/stock) — free for a seller's first 3 months per the
 // standing plan policy, checked at invite time against Seller.joinedAt.
 model SellerStaff {
-  id           String   @id @default(cuid())
-  sellerId     String
-  invitedEmail String
-  userId       String? // set once the invited email actually has/creates an account and accepts
-  canEditPrice Boolean  @default(false)
-  canEditStock Boolean  @default(false)
-  canManageDiscounts Boolean @default(false)
-  canViewFinancials  Boolean @default(false)
-  status       String   @default("invited") // invited | active | revoked
-  createdAt    DateTime @default(now())
-  seller       Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  sellerId           String
+  invitedEmail       String
+  userId             String? // set once the invited email actually has/creates an account and accepts
+  canEditPrice       Boolean  @default(false)
+  canEditStock       Boolean  @default(false)
+  canManageDiscounts Boolean  @default(false)
+  canViewFinancials  Boolean  @default(false)
+  status             String   @default("invited") // invited | active | revoked
+  createdAt          DateTime @default(now())
+  seller             Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
-  @@index([sellerId])
   @@unique([sellerId, invitedEmail])
+  @@index([sellerId])
 }
 
 model QuotePayment {
@@ -468,61 +468,61 @@ model QuotePayment {
 }
 
 model Product {
-  id               String               @id @default(cuid())
-  sellerId         String
-  sellerName       String
-  name             String
-  description      String
-  price            Float
-  originalPrice    Float?
-  recommendedPrice Float?
-  category         String
-  imageUrl         String
-  images           String[]
-  stock            Int                  @default(1)
-  priceFlag        PriceFlag            @default(none)
-  isSponsored      Boolean              @default(false)
-  isActive         Boolean              @default(true)
-  avgRating        Float                @default(0.0)
-  reviewCount      Int                  @default(0)
-  soldCount        Int                  @default(0)
-  condition        ProductCondition     @default(brand_new)
+  id                    String                 @id @default(cuid())
+  sellerId              String
+  sellerName            String
+  name                  String
+  description           String
+  price                 Float
+  originalPrice         Float?
+  recommendedPrice      Float?
+  category              String
+  imageUrl              String
+  images                String[]
+  stock                 Int                    @default(1)
+  priceFlag             PriceFlag              @default(none)
+  isSponsored           Boolean                @default(false)
+  isActive              Boolean                @default(true)
+  avgRating             Float                  @default(0.0)
+  reviewCount           Int                    @default(0)
+  soldCount             Int                    @default(0)
+  condition             ProductCondition       @default(brand_new)
   // Defaults to `product` so every existing row keeps behaving exactly as before.
-  listingType      ListingType          @default(product)
+  listingType           ListingType            @default(product)
   // Where the item physically is. Nigerian buyers filter on this before almost
   // anything else — an item in Lagos is not a substitute for the same item in
   // Kano when they have to collect it or pay inter-state delivery. Nullable so
   // the 300-odd existing listings stay valid; sellers backfill as they edit.
   // Indexed because search filters and location-priority ranking both hit it.
-  locationState    String?
-  locationCity     String?
-  externalUrl      String?
-  highlights       String[]
-  specs            Json?
-  tags             String[]             @default([])
-  subcategory      String?
-  slug             String?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  financingAvailable Boolean            @default(false)
-  financingDownPayment Float?
-  financingDepositPct  Float?             @map("financing_deposit_pct")
-  isDirectPayment      Boolean            @default(false) @map("is_direct_payment")
-  isTrending       Boolean              @default(false)
+  locationState         String?
+  locationCity          String?
+  externalUrl           String?
+  highlights            String[]
+  specs                 Json?
+  tags                  String[]               @default([])
+  subcategory           String?
+  slug                  String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  financingAvailable    Boolean                @default(false)
+  financingDownPayment  Float?
+  financingDepositPct   Float?                 @map("financing_deposit_pct")
+  isDirectPayment       Boolean                @default(false) @map("is_direct_payment")
+  isTrending            Boolean                @default(false)
   // Per-listing performance counters, surfaced to the seller on their Products
   // page (Jiji shows impressions/visitors/phone views/chats per ad). Real
   // columns rather than keys inside `specs` because these are incremented
   // concurrently — a read-modify-write on a JSON blob loses counts under any
   // real traffic, whereas `{ increment: 1 }` is atomic in the database.
-  viewCount        Int                  @default(0)
-  phoneViewCount   Int                  @default(0)
-  chatCount        Int                  @default(0)
-  deals            Deal[]
-  negotiations     NegotiationRequest[]
-  orders           Order[]
-  priceAlerts      PriceAlert[]
-  seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  reviews          Review[]
+  viewCount             Int                    @default(0)
+  phoneViewCount        Int                    @default(0)
+  chatCount             Int                    @default(0)
+  deals                 Deal[]
+  negotiations          NegotiationRequest[]
+  orders                Order[]
+  priceAlerts           PriceAlert[]
+  seller                Seller                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  reviews               Review[]
   financingApplications FinancingApplication[]
 
   @@index([sellerId])
@@ -547,12 +547,12 @@ model MarketplaceCategory {
 }
 
 model MarketplaceSubcategory {
-  id          String              @id @default(cuid())
-  categoryId  String
-  name        String
-  slug        String
-  category    MarketplaceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
+  id         String              @id @default(cuid())
+  categoryId String
+  name       String
+  slug       String
+  category   MarketplaceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime            @default(now())
 
   @@unique([categoryId, name])
 }
@@ -568,7 +568,7 @@ model Order {
   escrowStatus      EscrowStatus   @default(held)
   shippingAddress   String
   paymentMethod     String         @default("paystack")
-  paymentReference  String?        // Paystack charge reference — links to the actual collected transaction (null for COD/WhatsApp/unpaid orders)
+  paymentReference  String? // Paystack charge reference — links to the actual collected transaction (null for COD/WhatsApp/unpaid orders)
   isDirectPayment   Boolean        @default(false) @map("is_direct_payment")
   trackingStatus    TrackingStatus @default(pending)
   trackingId        String?        @unique
@@ -584,7 +584,7 @@ model Order {
   deliveredAt       DateTime?
   chatMessages      Json?
   payoutStatus      String?        @default("none")
-  statusNote        String?        // Seller-added note visible to buyer & admin (e.g. "held in customs")
+  statusNote        String? // Seller-added note visible to buyer & admin (e.g. "held in customs")
   unreadAdmin       Boolean?       @default(false)
   zivaActive        Boolean?       @default(false)
   financing         Json?
@@ -603,9 +603,9 @@ model Payout {
   id               String   @id @default(cuid())
   sellerId         String
   amount           Float
-  grossAmount      Float?   // What the customer actually paid, before the platform fee — lets sellers/admin see the full breakdown, not just their net take
-  platformFee      Float?   // grossAmount - amount, for the same statement/receipt breakdown
-  label            String?  // What the payment was for (QR label / order description), for statements
+  grossAmount      Float? // What the customer actually paid, before the platform fee — lets sellers/admin see the full breakdown, not just their net take
+  platformFee      Float? // grossAmount - amount, for the same statement/receipt breakdown
+  label            String? // What the payment was for (QR label / order description), for statements
   status           String   @default("pending")
   bankName         String
   accountNumber    String
@@ -617,7 +617,7 @@ model Payout {
   // the realistic case (a sequential retry); this is the DB-level backstop
   // against a genuine race between two near-simultaneous deliveries.
   paymentReference String?  @unique // Links to the original Paystack charge reference for audit
-  transferCode     String?  // Paystack transfer code for tracking
+  transferCode     String? // Paystack transfer code for tracking
   isAutoPayout     Boolean  @default(false)
   // The actual Paystack (or our own pre-flight check's) error text for the most
   // recent failed attempt — e.g. "You cannot initiate third party payouts as a
@@ -632,24 +632,24 @@ model Payout {
 }
 
 model NegotiationRequest {
-  id             String             @id @default(cuid())
-  productId      String
-  customerId     String
-  customerName   String
-  sellerId       String
-  proposedPrice  Float
-  message        String?
-  status         NegotiationStatus  @default(pending)
+  id               String             @id @default(cuid())
+  productId        String
+  customerId       String
+  customerName     String
+  sellerId         String
+  proposedPrice    Float
+  message          String?
+  status           NegotiationStatus  @default(pending)
   customerWhatsapp String?
-  counterPrice   Float?
-  counterMessage String?
-  counterStatus  NegotiationStatus?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  chatMessages   Json?
-  customer       User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  product        Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id], onDelete: Cascade)
+  counterPrice     Float?
+  counterMessage   String?
+  counterStatus    NegotiationStatus?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  chatMessages     Json?
+  customer         User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product          Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller           Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([sellerId])
@@ -773,12 +773,10 @@ model Notification {
 
 /**
  * Buyer↔seller chat, PERSISTED.
- *
  * These threads used to live only in browser localStorage — there was no table
  * for them at all. Any cache purge, new device or cleared storage destroyed every
  * conversation permanently, which is exactly what sellers hit: notifications
  * survived (they are rows) while every message thread vanished.
- *
  * Threads are scoped to a PRODUCT, not just to a pair of people. The same buyer
  * asking about a generator and a fridge from one seller gets two separate
  * threads, so neither conversation turns into an unreadable mix of two
@@ -787,27 +785,27 @@ model Notification {
  * constraint would then allow unlimited duplicate general threads.
  */
 model Conversation {
-  id            String   @id @default(cuid())
-  sellerId      String
-  buyerId       String
-  productId     String   @default("")
-  productName   String?
-  productImage  String?
-  sellerName    String?
-  buyerName     String?
-  lastMessage   String?
-  lastMessageAt DateTime @default(now())
-  unreadForSeller Int    @default(0)
-  unreadForBuyer  Int    @default(0)
+  id              String           @id @default(cuid())
+  sellerId        String
+  buyerId         String
+  productId       String           @default("")
+  productName     String?
+  productImage    String?
+  sellerName      String?
+  buyerName       String?
+  lastMessage     String?
+  lastMessageAt   DateTime         @default(now())
+  unreadForSeller Int              @default(0)
+  unreadForBuyer  Int              @default(0)
   // What this thread is actually ABOUT — the unified-inbox ask: rides and
   // deliveries were both piggybacking on this same table (a ride/delivery
   // id as productId, "Ride: X → Y" stuffed into productName as the only
   // signal), which is exactly why a mixed inbox was hard to scan at a
   // glance. Existing order-chat rows default to "order" on this migration,
   // so nothing already in production silently reclassifies.
-  type          ConversationType @default(order)
-  createdAt     DateTime @default(now())
-  messages      ChatMessage[]
+  type            ConversationType @default(order)
+  createdAt       DateTime         @default(now())
+  messages        ChatMessage[]
 
   @@unique([sellerId, buyerId, productId])
   @@index([sellerId, lastMessageAt])
@@ -823,17 +821,17 @@ enum ConversationType {
 }
 
 model ChatMessage {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   conversationId String
   senderId       String
   senderName     String?
   // "buyer" | "seller" — who this came from, independent of ids, so the UI can
   // align bubbles without resolving identity on every render.
-  senderRole     String   @default("buyer")
+  senderRole     String       @default("buyer")
   text           String
   imageUrl       String?
   readAt         DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
@@ -892,6 +890,19 @@ model SystemSetting {
   whatsappNegotiationBridge   Boolean  @default(true)
   aiProvider                  String   @default("qwen")
   payoutHitlThreshold         Float    @default(50000)
+  // ── Mobility take rate ──────────────────────────────────────────────
+  // How FairPrice earns on a ride or a delivery: a percentage of the agreed
+  // fare, deducted before the driver/courier is paid.
+  //
+  // 12% is a deliberate position, not a guess. Uber charges Nigerian drivers
+  // ~25% and Bolt ~20%; inDrive's low single-digit-to-~10% commission is the
+  // single biggest reason Nigerian drivers move to it and recruit each other
+  // onto it. Undercutting Bolt by a wide margin is the supply-side wedge, and
+  // supply is what a mobility marketplace actually competes on. Admin-editable
+  // so it can be tuned — or dropped to 0 in a city being opened up — without a
+  // redeploy.
+  rideCommission              Float    @default(12.0)
+  deliveryCommission          Float    @default(12.0)
   // ZEMA 360 is free/automatic for every seller today (default false = no gating).
   // Flip to true once paid-plan-only ZEMA 360 features exist and should be enforced —
   // triggerZema360 checks this before restricting anything, so leaving it false never
@@ -901,12 +912,12 @@ model SystemSetting {
   // budget * (1 + adsMarkupPct/100) upfront; FairPrice pays Meta the plain
   // budget and keeps the markup. 20% is mid-range for marketplace-managed ad
   // products (commonly 15-30% across comparable platforms).
-  adsMarkupPct                 Float    @default(20)
+  adsMarkupPct                Float    @default(20)
   // Admin-editable so ad boosting can go live without a redeploy — env vars
   // (META_AD_ACCOUNT_ID / META_ADS_ACCESS_TOKEN) still work as a fallback for
   // local dev, but these DB values take priority whenever set.
-  metaAdAccountId               String?
-  metaAdsAccessToken            String?
+  metaAdAccountId             String?
+  metaAdsAccessToken          String?
 }
 
 // A seller-funded Facebook/Instagram boost of an already-published post.
@@ -916,39 +927,39 @@ model SystemSetting {
 // Meta and keeps the markup as platform revenue. Never the other way around;
 // a failed/unverified payment must never result in a live campaign.
 model AdCampaign {
-  id              String   @id @default(cuid())
-  sellerId        String
-  productId       String?
-  platform        String // "facebook" | "instagram"
-  postId          String // the underlying Page post / IG media id being boosted
-  budgetKobo      Int // what actually gets spent with Meta (excludes markup)
-  markupPct       Float
+  id               String   @id @default(cuid())
+  sellerId         String
+  productId        String?
+  platform         String // "facebook" | "instagram"
+  postId           String // the underlying Page post / IG media id being boosted
+  budgetKobo       Int // what actually gets spent with Meta (excludes markup)
+  markupPct        Float
   totalChargedKobo Int // budgetKobo * (1 + markupPct/100) — what the seller paid
-  days            Int
-  paidReference   String // Paystack transaction reference, verified before campaign creation
-  metaCampaignId  String?
-  metaAdSetId     String?
-  metaAdId        String?
-  status          String   @default("pending") // pending | active | failed | completed
-  failureReason   String?
-  createdAt       DateTime @default(now())
+  days             Int
+  paidReference    String // Paystack transaction reference, verified before campaign creation
+  metaCampaignId   String?
+  metaAdSetId      String?
+  metaAdId         String?
+  status           String   @default("pending") // pending | active | failed | completed
+  failureReason    String?
+  createdAt        DateTime @default(now())
 
   @@index([sellerId])
 }
 
 model Discount {
-  id         String    @id @default(cuid())
+  id         String              @id @default(cuid())
   sellerId   String
-  code       String    @unique
+  code       String              @unique
   type       String
   value      Float
   usageLimit Int?
-  usageCount Int       @default(0)
+  usageCount Int                 @default(0)
   expiry     DateTime?
-  status     String    @default("active")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  status     String              @default("active")
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  seller     Seller              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   usages     UserDiscountUsage[]
 }
 
@@ -1130,67 +1141,67 @@ enum RideStatus {
  * accepts one specific offer.
  */
 model RideRequest {
-  id               String        @id @default(cuid())
-  riderId          String
-  driverId         String?
-  vehicleId        String?
-  pickup           String
-  dropoff          String
+  id                 String        @id @default(cuid())
+  riderId            String
+  driverId           String?
+  vehicleId          String?
+  pickup             String
+  dropoff            String
   // Best-effort proximity, not live GPS — see the state/city columns already
   // used for product location filtering. A driver sees requests in their own
   // state so an offer is at least geographically plausible.
-  pickupState      String?
-  pickupCity       String?
-  vehicleClassPref VehicleClass?
-  proposedFare     Float
+  pickupState        String?
+  pickupCity         String?
+  vehicleClassPref   VehicleClass?
+  proposedFare       Float
   // "Auto-accept an offer up to ₦X" — inDrive's actual highest-leverage UX
   // detail: it removes the friction of a rider having to babysit the request
   // once they've already decided their ceiling.
-  autoAcceptMax    Float?
-  agreedFare       Float?
-  status           RideStatus    @default(searching)
-  conversationId   String?
-  cancelReason     String?
+  autoAcceptMax      Float?
+  agreedFare         Float?
+  status             RideStatus    @default(searching)
+  conversationId     String?
+  cancelReason       String?
   // Live tracking, once matched — updated by whichever side's device is
   // actively broadcasting (see /api/rides/[id]/location). Nullable: a ride
   // that's still "searching" has neither yet, and either party may have
   // location sharing off (denied the browser permission) without breaking
   // the ride itself — the map just shows what it actually has.
-  driverLat        Float?
-  driverLng        Float?
-  driverLocationAt DateTime?
-  riderLat         Float?
-  riderLng         Float?
-  riderLocationAt  DateTime?
-  rating           Int?
-  ratingComment    String?
-  startedAt        DateTime?
-  completedAt      DateTime?
+  driverLat          Float?
+  driverLng          Float?
+  driverLocationAt   DateTime?
+  riderLat           Float?
+  riderLng           Float?
+  riderLocationAt    DateTime?
+  rating             Int?
+  ratingComment      String?
+  startedAt          DateTime?
+  completedAt        DateTime?
   // A 4-digit code shown to the rider once matched ("Ride Code: 1234", same
   // as AMap/inDrive) — the rider reads out the digits the driver's app asks
   // for (last two by default) before the driver can mark pickup, so a
   // driver can't fat-finger "picked up" for the wrong passenger at a busy
   // pickup point.
-  pickupCode       String?
+  pickupCode         String?
   // In-app fare payment, collected once the driver ends the trip (see
   // /api/rides/[id]/pay) rather than settled cash-in-hand — the QR the
   // driver's screen renders after sliding to end just points at
   // /ride/[id]/pay. Paid straight through to the driver's own payout bank
   // details (see lib/ride-payout.ts) the moment payment verifies, since the
   // trip is already over — no escrow hold needed the way a delivery has one.
-  paymentReference String?       @unique
-  paidAt           DateTime?
+  paymentReference   String?       @unique
+  paidAt             DateTime?
   // Set once an automatic Paystack transfer to the driver's payout bank
   // details succeeds. Null means the driver either has no bank details on
   // file yet, or the transfer failed — either way it falls back to the same
   // admin-reviewed settlement queue seller/courier payouts already use.
   driverTransferCode String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  rider            User          @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
-  driver           User?         @relation("DriverRides", fields: [driverId], references: [id])
-  vehicle          Vehicle?      @relation(fields: [vehicleId], references: [id])
-  offers           RideOffer[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  rider              User          @relation("RiderRides", fields: [riderId], references: [id], onDelete: Cascade)
+  driver             User?         @relation("DriverRides", fields: [driverId], references: [id])
+  vehicle            Vehicle?      @relation(fields: [vehicleId], references: [id])
+  offers             RideOffer[]
 
   @@index([riderId])
   @@index([driverId])
@@ -1253,36 +1264,36 @@ enum DeliveryOfferStatus {
  * get paid."
  */
 model DeliveryRequest {
-  id               String         @id @default(cuid())
-  senderId         String
-  courierId        String?
-  pickup           String
-  dropoff          String
-  pickupState      String?
-  pickupCity       String?
-  packageDescription String
-  packageSize      PackageSize    @default(small)
-  recipientName    String?
-  recipientPhone   String?
-  proposedFare     Float
-  autoAcceptMax    Float?
-  agreedFare       Float?
-  status           DeliveryStatus @default(searching)
-  conversationId   String?
-  cancelReason     String?
-  courierLat       Float?
-  courierLng       Float?
-  courierLocationAt DateTime?
-  senderLat        Float?
-  senderLng        Float?
-  senderLocationAt DateTime?
-  rating           Int?
-  ratingComment    String?
-  pickedUpAt       DateTime?
-  deliveredAt      DateTime?
+  id                  String          @id @default(cuid())
+  senderId            String
+  courierId           String?
+  pickup              String
+  dropoff             String
+  pickupState         String?
+  pickupCity          String?
+  packageDescription  String
+  packageSize         PackageSize     @default(small)
+  recipientName       String?
+  recipientPhone      String?
+  proposedFare        Float
+  autoAcceptMax       Float?
+  agreedFare          Float?
+  status              DeliveryStatus  @default(searching)
+  conversationId      String?
+  cancelReason        String?
+  courierLat          Float?
+  courierLng          Float?
+  courierLocationAt   DateTime?
+  senderLat           Float?
+  senderLng           Float?
+  senderLocationAt    DateTime?
+  rating              Int?
+  ratingComment       String?
+  pickedUpAt          DateTime?
+  deliveredAt         DateTime?
   // Same pickup-verification code as RideRequest.pickupCode — the sender
   // reads it out to the courier before pickup is confirmed.
-  pickupCode       String?
+  pickupCode          String?
   // In-app payment collection: the sender pays the agreed fare into escrow
   // via Paystack once matched (see /api/deliveries/[id]/pay), rather than
   // settling cash-in-hand like rides currently do. escrowStatus mirrors the
@@ -1291,19 +1302,19 @@ model DeliveryRequest {
   // delivery (owed to the courier; settled out to them the same
   // admin-reviewed way seller payouts are today until couriers have their
   // own payout-bank-details flow).
-  escrowStatus     EscrowStatus?
-  paymentReference String?        @unique
-  paidAt           DateTime?
+  escrowStatus        EscrowStatus?
+  paymentReference    String?         @unique
+  paidAt              DateTime?
   // Set once an automatic Paystack transfer to the courier's payout bank
   // details succeeds (see lib/delivery-payout.ts). Null means the courier
   // either has no bank details on file yet, or the transfer failed — either
   // way it falls back to the existing admin-reviewed settlement queue.
   courierTransferCode String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  sender           User           @relation("SenderDeliveries", fields: [senderId], references: [id], onDelete: Cascade)
-  courier          User?          @relation("CourierDeliveries", fields: [courierId], references: [id])
-  offers           DeliveryOffer[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  sender              User            @relation("SenderDeliveries", fields: [senderId], references: [id], onDelete: Cascade)
+  courier             User?           @relation("CourierDeliveries", fields: [courierId], references: [id])
+  offers              DeliveryOffer[]
 
   @@index([senderId])
   @@index([courierId])
@@ -1406,15 +1417,15 @@ model WhatsAppInteraction {
 }
 
 model WhatsAppVerification {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String             @id @default(cuid())
+  code        String             @unique
   phoneNumber String
   userId      String?
   status      VerificationStatus @default(pending)
   expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime           @default(now())
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  updatedAt   DateTime           @updatedAt
 
   @@index([code])
   @@index([phoneNumber])
@@ -1442,95 +1453,96 @@ enum FinancingStatus {
 }
 
 model FinancingApplication {
-  id                String          @id @default(cuid())
-  userId            String?
-  productId         String?
-  type              FinancingType   @default(individual)
-  status            FinancingStatus @default(pending)
-  
+  id        String          @id @default(cuid())
+  userId    String?
+  productId String?
+  type      FinancingType   @default(individual)
+  status    FinancingStatus @default(pending)
+
   // Basic Loan Details
-  loanAmount        Float
-  tenureMonths      Int
-  monthlyRepayment  Float
-  interestRate      Float
-  downPayment       Float           @default(0)
-  insuranceFee      Float?
-  
+  loanAmount       Float
+  tenureMonths     Int
+  monthlyRepayment Float
+  interestRate     Float
+  downPayment      Float  @default(0)
+  insuranceFee     Float?
+
   // Applicant Details
-  businessName      String?
-  customerName      String?
-  phoneNumber       String?
-  email             String?
-  employmentStatus  String?         // salary_earner, business_person
-  
+  businessName     String?
+  customerName     String?
+  phoneNumber      String?
+  email            String?
+  employmentStatus String? // salary_earner, business_person
+
   // Document URLs (Stored in CDN/S3)
-  cacDocumentUrl    String?
-  auditedFinancialsUrl String?
+  cacDocumentUrl        String?
+  auditedFinancialsUrl  String?
   cashFlowProjectionUrl String?
-  bankStatementUrl  String?
-  companyProfileUrl String?
-  energyAuditUrl    String?
-  vendorInvoiceUrl  String?
-  auditData         Json?           @map("audit_data")
-  payslipData       Json?           @map("payslip_data")
-  
+  bankStatementUrl      String?
+  companyProfileUrl     String?
+  energyAuditUrl        String?
+  vendorInvoiceUrl      String?
+  auditData             Json?   @map("audit_data")
+  payslipData           Json?   @map("payslip_data")
+
   // Draft / multi-step form management
-  currentStep       Int             @default(1)
-  applicationType   String?         // 'salary_earner' | 'business_owner'
-  contractType      String?         // 'long_term' | 'short_term'
-  documentsJson     String?         // JSON-serialized document metadata for save/resume
-  depositAmount     Float           @default(0)
-  payslipsUrl       String[]
+  currentStep     Int      @default(1)
+  applicationType String? // 'salary_earner' | 'business_owner'
+  contractType    String? // 'long_term' | 'short_term'
+  documentsJson   String? // JSON-serialized document metadata for save/resume
+  depositAmount   Float    @default(0)
+  payslipsUrl     String[]
 
   // Applicant signature (base64 PNG data-URL)
-  signatureDataUrl  String?
+  signatureDataUrl String?
 
   // Business owner — company & directors
   companyRegistrationNumber String?
-  companyLogoBase64 String?         // base64 logo for board resolution letterhead
-  directorsJson     String?         // JSON array of {name,title,idNumber,bvn?,signatureDataUrl?}
-  boardResolutionDataUrl String?    // Final generated board resolution as base64 image
+  companyLogoBase64         String? // base64 logo for board resolution letterhead
+  directorsJson             String? // JSON array of {name,title,idNumber,bvn?,signatureDataUrl?}
+  boardResolutionDataUrl    String? // Final generated board resolution as base64 image
 
   // Metadata
-  source            String          @default("whatsapp") // whatsapp, web, app
-  adminNotes        String?
-  officeAddress     String?
+  source             String    @default("whatsapp") // whatsapp, web, app
+  adminNotes         String?
+  officeAddress      String?
   meetingScheduledAt DateTime?
-  
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
 
-  user              User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
   @@index([type])
 }
+
 model ZemaApprovalRequest {
-  id             String    @id @default(cuid())
-  runId          String
-  orderId        String?
-  status         String    @default("pending")
-  agentDecision  String?
-  approvedBy     String?
-  resolvedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  runId         String
+  orderId       String?
+  status        String    @default("pending")
+  agentDecision String?
+  approvedBy    String?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([runId])
   @@index([status])
 }
 
 model WhatsAppNegotiationSession {
-  id              String   @id @default(cuid())
-  sellerId        String
-  negotiationId   String
-  sellerPhone     String
-  customerPhone   String?
-  lastMessageId   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(cuid())
+  sellerId      String
+  negotiationId String
+  sellerPhone   String
+  customerPhone String?
+  lastMessageId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([sellerPhone, negotiationId])
   @@index([sellerPhone])
@@ -1541,16 +1553,53 @@ model WhatsAppNegotiationSession {
 // (bank transfers, cash, USSD). Used as XPRIZE revenue evidence.
 model OfflineTransaction {
   id              String   @id @default(cuid())
-  amount          Float                          // NGN
-  description     String                         // what was sold / service rendered
+  amount          Float // NGN
+  description     String // what was sold / service rendered
   buyerName       String
   paymentMethod   String   @default("bank_transfer") // bank_transfer | cash | ussd | pos
-  bankReference   String?                        // bank transaction ID / receipt number
-  evidenceNote    String?                        // judge-facing context note
-  transactionDate DateTime                       // when payment was received
+  bankReference   String? // bank transaction ID / receipt number
+  evidenceNote    String? // judge-facing context note
+  transactionDate DateTime // when payment was received
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([transactionDate])
   @@map("offline_transactions")
+}
+
+/**
+ * What a driver or courier owes FairPrice in commission, and what they've
+ * settled. This is the inDrive/Bolt model, and it exists because Nigeria runs
+ * on cash: if the rider hands the driver ₦2,000 in the car, the platform never
+ * touches the money and can't net its take rate out of a transfer it isn't
+ * making. So the commission is booked as a charge against the driver instead,
+ * and they clear it from their earnings or by topping up — exactly how Bolt
+ * and inDrive drivers operate a wallet that must stay above zero to keep
+ * receiving requests.
+ * An in-app ride still writes a row here with status "settled" at the moment
+ * of payment, so a driver's statement shows every ride's commission in one
+ * place regardless of how the fare was collected.
+ */
+model DriverCommissionCharge {
+  id        String    @id @default(cuid())
+  driverId  String
+  // The ride or delivery this commission is for. Not a relation, because the
+  // same ledger serves both and Prisma can't point one field at two models.
+  jobType   String // "ride" | "delivery"
+  jobId     String
+  fare      Float
+  ratePct   Float
+  amount    Float
+  // "owed"    — cash job, driver keeps the fare and owes us this
+  // "settled" — in-app job, already netted out of the payout
+  // "paid"    — an owed charge the driver has since cleared
+  // "waived"  — written off by an admin
+  status    String    @default("owed")
+  settledAt DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+  driver    User      @relation("DriverCommissions", fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@unique([jobType, jobId])
+  @@index([driverId, status])
 }

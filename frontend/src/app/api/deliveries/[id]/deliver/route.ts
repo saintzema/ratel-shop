@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { notifyUser } from "@/lib/user-notify";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { transferDeliveryFareToCourier } from "@/lib/delivery-payout";
+import { splitFare, recordCommission } from "@/lib/mobility-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -46,13 +47,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             { type: "system", link: "/send-package" }
         ).catch(() => {});
 
-        const transfer = delivery.courierId && delivery.agreedFare
-            ? await transferDeliveryFareToCourier(deliveryId, delivery.agreedFare, delivery.courierId)
+        // Platform take rate — the sender's whole fare is sitting in escrow in
+        // our account, so keeping the commission is just a matter of releasing
+        // the remainder to the courier. See lib/mobility-commission.ts.
+        const split = delivery.agreedFare ? await splitFare("delivery", delivery.agreedFare) : null;
+        if (delivery.courierId && delivery.agreedFare && split) {
+            await recordCommission({
+                driverId: delivery.courierId, jobType: "delivery", jobId: deliveryId,
+                fare: delivery.agreedFare, settled: true, note: "Paid in app",
+            });
+        }
+
+        const transfer = delivery.courierId && delivery.agreedFare && split
+            ? await transferDeliveryFareToCourier(deliveryId, split.payout, delivery.courierId)
             : { success: false, message: "No courier or fare on this delivery" };
 
         if (transfer.success) {
             await notifyUser(delivery.courierId!,
-                `💰 ₦${delivery.agreedFare?.toLocaleString()} has been sent to your bank account for this delivery.`,
+                `💰 ₦${split?.payout.toLocaleString()} has been sent to your bank account for this delivery (₦${delivery.agreedFare?.toLocaleString()} fare less ${split?.ratePct}% service fee).`,
                 { type: "system", link: "/deliver/dashboard" }
             ).catch(() => {});
         } else {

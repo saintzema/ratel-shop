@@ -6,6 +6,7 @@ import { notifyUser } from "@/lib/user-notify";
 import { notifyAdmins } from "@/lib/admin-notify";
 import { transferRideFareToDriver } from "@/lib/ride-payout";
 import { previewWallet, redeemCredits } from "@/lib/credit-wallet";
+import { splitFare, recordCommission } from "@/lib/mobility-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // on the rail that gives the rider a receipt and a dispute path, and pays
     // the driver automatically.
     const wallet = ride.agreedFare
-        ? await previewWallet(user.userId, ride.agreedFare)
+        ? await previewWallet(user.userId, ride.agreedFare, (await splitFare("ride", ride.agreedFare)).commission)
         : { balance: 0, applicable: 0, amountDue: 0 };
 
     return NextResponse.json({
@@ -91,7 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // The fare the rider owes AFTER their reward credit — recomputed here from
     // the live balance rather than taken from the request, so the discount
     // can't be inflated by editing the payload.
-    const wallet = await previewWallet(user.userId, ride.agreedFare);
+    const fareSplit = await splitFare("ride", ride.agreedFare);
+    const wallet = await previewWallet(user.userId, ride.agreedFare, fareSplit.commission);
     const paidKobo = result.tx.amount || 0;
     const expectedKobo = Math.round(wallet.amountDue * 100);
     if (paidKobo < expectedKobo) {
@@ -123,19 +125,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     if (ride.driverId) {
-        const transfer = await transferRideFareToDriver(rideId, ride.agreedFare, ride.driverId);
+        // The platform's take rate comes out here. The rider paid the full
+        // fare into our Paystack account, so keeping the commission is simply
+        // a matter of transferring the driver the remainder — see
+        // lib/mobility-commission.ts for why the rate is what it is.
+        //
+        // The rider's reward credit does NOT come out of this: the driver is
+        // paid on the agreed fare regardless of any discount the rider had,
+        // because a driver who earns less for carrying a rider with a check-in
+        // streak would simply start refusing those riders.
+        const split = fareSplit;
+        await recordCommission({
+            driverId: ride.driverId, jobType: "ride", jobId: rideId,
+            fare: ride.agreedFare, settled: true, note: "Paid in app",
+        });
+
+        const transfer = await transferRideFareToDriver(rideId, split.payout, ride.driverId);
         if (transfer.success) {
             await notifyUser(ride.driverId,
-                `💰 ₦${ride.agreedFare.toLocaleString()} has been sent to your bank account for ${ride.pickup} → ${ride.dropoff}.`,
+                `💰 ₦${split.payout.toLocaleString()} has been sent to your bank account for ${ride.pickup} → ${ride.dropoff} (₦${ride.agreedFare.toLocaleString()} fare less ${split.ratePct}% service fee).`,
                 { type: "system", link: "/drive/dashboard" }
             ).catch(() => {});
         } else {
             await notifyUser(ride.driverId,
-                `💰 The rider paid ₦${ride.agreedFare.toLocaleString()} for ${ride.pickup} → ${ride.dropoff} — add your payout bank details to get paid automatically next time, or our team will settle this one shortly.`,
+                `💰 The rider paid ₦${ride.agreedFare.toLocaleString()} for ${ride.pickup} → ${ride.dropoff}. Your ₦${split.payout.toLocaleString()} is waiting — add your payout bank details to get paid automatically next time, or our team will settle this one shortly.`,
                 { type: "system", link: "/account/payout-details" }
             ).catch(() => {});
             await notifyAdmins(
-                `💰 Ride fare paid: ₦${ride.agreedFare.toLocaleString()} owed to driver for ${ride.pickup} → ${ride.dropoff} (ride ${rideId}). Auto-transfer did not run (${transfer.message}) — settle manually.`,
+                `💰 Ride fare paid: ₦${split.payout.toLocaleString()} owed to driver for ${ride.pickup} → ${ride.dropoff} (ride ${rideId}). Auto-transfer did not run (${transfer.message}) — settle manually.`,
                 { type: "system", link: "/admin/payouts" }
             ).catch(() => {});
         }

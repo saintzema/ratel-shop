@@ -3,6 +3,8 @@ import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 import { verifyPaystackTransaction } from "@/lib/paystack-verify";
 import { notifyUser } from "@/lib/user-notify";
+import { previewWallet, redeemCredits } from "@/lib/credit-wallet";
+import { splitFare } from "@/lib/mobility-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +48,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const paidKobo = result.tx.amount || 0;
-    const expectedKobo = Math.round(delivery.agreedFare * 100);
+    // Reward credit, capped by what the platform actually earns on this
+    // delivery — re-derived here from the live balance rather than taken from
+    // the request, so the discount can't be inflated by editing the payload.
+    const feeSplit = await splitFare("delivery", delivery.agreedFare);
+    const wallet = await previewWallet(user.userId, delivery.agreedFare, feeSplit.commission);
+    const expectedKobo = Math.round(wallet.amountDue * 100);
     if (paidKobo < expectedKobo) {
-        return NextResponse.json({ error: `Amount paid (₦${(paidKobo / 100).toLocaleString()}) is less than the agreed fare (₦${delivery.agreedFare.toLocaleString()})` }, { status: 400 });
+        return NextResponse.json({ error: `Amount paid (₦${(paidKobo / 100).toLocaleString()}) is less than the ₦${wallet.amountDue.toLocaleString()} due` }, { status: 400 });
     }
 
     let updated;
@@ -73,5 +80,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ).catch(() => {});
     }
 
-    return NextResponse.json({ success: true, delivery: updated });
+    // Consumed only once the payment verified and escrow is recorded, so a
+    // failed payment never burns the sender's credit.
+    if (wallet.applicable > 0) {
+        await redeemCredits(user.userId, wallet.applicable, `delivery:${deliveryId}`).catch(() => 0);
+    }
+
+    return NextResponse.json({ success: true, delivery: updated, creditApplied: wallet.applicable });
 }

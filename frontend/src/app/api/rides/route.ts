@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/jwt";
 import { db } from "@/lib/db";
 import { notifyUser } from "@/lib/user-notify";
+import { outstandingCommission, MAX_OUTSTANDING_COMMISSION } from "@/lib/mobility-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,20 @@ export async function GET(req: NextRequest) {
         });
         if (myVehicles.length === 0) {
             return NextResponse.json({ rides: [], vehicles: [], needsApprovedVehicle: true });
+        }
+
+        // A driver carrying too much unpaid service fee from CASH trips stops
+        // being offered new work until they settle. This is the only thing
+        // that makes a cash-commission model collectable at all — it's the
+        // same backstop Bolt and inDrive run, and without it the take rate on
+        // cash rides is a suggestion rather than revenue.
+        const owed = await outstandingCommission(user.userId);
+        if (owed > MAX_OUTSTANDING_COMMISSION) {
+            return NextResponse.json({
+                rides: [], vehicles: myVehicles,
+                commissionOwed: owed, commissionLimit: MAX_OUTSTANDING_COMMISSION,
+                blockedForCommission: true,
+            });
         }
         const myClasses = myVehicles.map(v => v.vehicleClass);
         const myStates = Array.from(new Set(myVehicles.map(v => v.operatingState).filter(Boolean))) as string[];
