@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const changes: { id: string; name: string; from: string; to: string; price: number; median: number | null; peers: number }[] = [];
     for (const product of catalogue) {
-        const verdict = benchmarkPrice(product, comparables, { referencePrice: product.recommendedPrice });
+        const verdict = benchmarkPrice(product, comparables);
         if (verdict.flag === product.priceFlag) continue;
         changes.push({
             id: product.id,

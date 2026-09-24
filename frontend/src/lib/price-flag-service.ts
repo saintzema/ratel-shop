@@ -48,7 +48,7 @@ export async function benchmarkAgainstCatalogue(
         take: opts.candidateLimit ?? 250,
     }).catch(() => [] as Comparable[]);
 
-    return benchmarkPrice(target, candidates, { referencePrice: (target as any).recommendedPrice ?? null });
+    return benchmarkPrice(target, candidates);
 }
 
 /** Benchmarks one product and persists the verdict. Returns what it decided. */

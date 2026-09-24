@@ -66,7 +66,12 @@ const NOISE = new Set([
     "inch", "inches", "pcs", "set", "kit", "pack", "in", "of", "by", "a",
 ]);
 
-const CAPACITY = /(\d+(?:\.\d+)?)\s*(gb|tb|mb|ml|l|kg|g|w|kw|mah|ah)\b/gi;
+// Longest units FIRST: the alternation is ordered, so a leading `w` would
+// match inside "980kwh" and then fail its word boundary, leaving the capacity
+// unread — which silently made a 980kWh generator look comparable to a 500W
+// one. Energy units (wh/kwh) are listed because battery and generator
+// listings are full of them.
+const CAPACITY = /(\d+(?:\.\d+)?)\s*(kwh|mah|kw|wh|ah|gb|tb|mb|kg|ml|g|l|w)\b/gi;
 
 // Words that mark a different MODEL TIER of the same product line. A Pro Max
 // is not an expensive iPhone, it's a different phone, and comparing the two
@@ -105,7 +110,14 @@ const UNIT_SCALE: Record<string, [string, number]> = {
     mb: ["bytes", 1], gb: ["bytes", 1024], tb: ["bytes", 1024 * 1024],
     ml: ["volume", 1], l: ["volume", 1000],
     g: ["mass", 1], kg: ["mass", 1000],
+    // Watts and watt-hours are different dimensions, and they share a family
+    // here anyway. This is not a units error, it's the useful comparison:
+    // generator and battery listings state their size in whichever of the two
+    // they please, and what matters for "is this the same product" is the
+    // ORDER OF MAGNITUDE. A 980kWh unit against a 500W one is a different
+    // product by any reading; a 500W against a 600W is the same one.
     w: ["power", 1], kw: ["power", 1000],
+    wh: ["power", 1], kwh: ["power", 1000],
     mah: ["charge", 1], ah: ["charge", 1000],
 };
 
@@ -186,38 +198,36 @@ export function median(values: number[]): number | null {
  * launder itself into looking fair — which is exactly the failure mode being
  * fixed here.
  */
-export function benchmarkPrice(
-    target: Comparable,
-    catalogue: Comparable[],
-    opts: { referencePrice?: number | null } = {},
-): Benchmark {
+/**
+ * NOTE ON A REJECTED FALLBACK — do not re-add it without reading this.
+ *
+ * The obvious fix for a thin category is to fall back to
+ * Product.recommendedPrice when there aren't enough comparables. It was
+ * tried against the live catalogue and reverted the same hour: that column is
+ * written from the same seller-supplied payload as the price itself, so a
+ * ₦2,485,000 iPhone 16 carried a ₦2,485,000 "recommended" price and scored
+ * itself FAIR — reinstating exactly the self-certification this module exists
+ * to remove. Elsewhere the column is unrelated junk (a ₦3,910,000 machine
+ * against a ₦120,000 reference).
+ *
+ * A usable reference has to come from a source the seller cannot write to —
+ * e.g. the grounded market lookup behind the Price Checker, stored in a
+ * separate column. Until that exists, a thin category gets no badge, which is
+ * the honest answer.
+ */
+export function benchmarkPrice(target: Comparable, catalogue: Comparable[]): Benchmark {
     const peers = findComparables(target, catalogue);
     if (!(target.price > 0)) {
         return { flag: "none", median: null, peerCount: peers.length, ratio: null };
     }
 
-    const peerMedian = peers.length > 0 ? median(peers.map(p => p.price)) : null;
-
-    // `opts.referencePrice` (Product.recommendedPrice) is deliberately NOT used
-    // as a fallback baseline, though it was tried. That column is written from
-    // the same seller-supplied payload as the price itself, so on the live
-    // catalogue a ₦2,485,000 iPhone 16 carried a ₦2,485,000 "recommended"
-    // price and benchmarking against it handed the listing a FAIR badge —
-    // reinstating precisely the self-certification this module exists to
-    // remove. Elsewhere the column is unrelated junk (a ₦3,910,000 machine
-    // against a ₦120,000 reference). A trustworthy reference has to come from
-    // a source the seller does not control; until one exists, a thin category
-    // gets no badge, which is the honest answer.
-    const useReference = false;
-
-    const mid = peerMedian;
+    const mid = peers.length > 0 ? median(peers.map(p => p.price)) : null;
     if (mid == null || !(mid > 0)) {
         return { flag: "none", median: null, peerCount: peers.length, ratio: null };
     }
 
     const ratio = target.price / mid;
-    const basis: "listings" | "reference" = useReference ? "reference" : "listings";
-    void opts;
+    const basis: "listings" | "reference" = "listings";
 
     // Sample-size gate — waived for a reference price (it isn't a sample) and
     // relaxed for an unmistakable outlier.
