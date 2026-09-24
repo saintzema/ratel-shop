@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const catalogue = await db.product.findMany({
         where: { isActive: true, price: { gt: 0 } },
-        select: { id: true, name: true, price: true, category: true, priceFlag: true, recommendedPrice: true },
+        select: { id: true, name: true, price: true, category: true, priceFlag: true, marketPrice: true },
     });
 
     const comparables: Comparable[] = catalogue.map(p => ({
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const changes: { id: string; name: string; from: string; to: string; price: number; median: number | null; peers: number }[] = [];
     for (const product of catalogue) {
-        const verdict = benchmarkPrice(product, comparables);
+        const verdict = benchmarkPrice(product, comparables, { marketPrice: product.marketPrice });
         if (verdict.flag === product.priceFlag) continue;
         changes.push({
             id: product.id,

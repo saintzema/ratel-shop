@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const product = await db.product.findUnique({
         where: { id },
-        select: { id: true, name: true, price: true, category: true, priceFlag: true, recommendedPrice: true },
+        select: { id: true, name: true, price: true, category: true, priceFlag: true, marketPrice: true },
     }).catch(() => null);
     if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

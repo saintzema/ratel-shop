@@ -481,6 +481,20 @@ model Product {
   images                String[]
   stock                 Int                    @default(1)
   priceFlag             PriceFlag              @default(none)
+  // ── Independent market reference — SERVER-WRITTEN ONLY ──────────────
+  // What this item actually sells for in Nigeria, from the grounded market
+  // lookup behind the Price Checker. Deliberately separate from
+  // recommendedPrice, which arrives in the same seller-supplied payload as
+  // `price` and is therefore useless as a check on it: on the live catalogue a
+  // ₦2,485,000 iPhone 16 carried a ₦2,485,000 "recommended" price and would
+  // have graded itself FAIR. These columns are stripped from every write path
+  // (see /api/products POST) and only ever set by the enrichment job, so a
+  // seller cannot grade their own listing.
+  marketPrice           Float?
+  marketPriceLow        Float?
+  marketPriceHigh       Float?
+  marketPriceAt         DateTime?
+  marketPriceSource     String?
   isSponsored           Boolean                @default(false)
   isActive              Boolean                @default(true)
   avgRating             Float                  @default(0.0)

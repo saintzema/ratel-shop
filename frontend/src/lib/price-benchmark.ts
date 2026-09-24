@@ -199,35 +199,41 @@ export function median(values: number[]): number | null {
  * fixed here.
  */
 /**
- * NOTE ON A REJECTED FALLBACK — do not re-add it without reading this.
+ * `marketPrice` must be the SERVER-WRITTEN column, never recommendedPrice.
  *
- * The obvious fix for a thin category is to fall back to
- * Product.recommendedPrice when there aren't enough comparables. It was
- * tried against the live catalogue and reverted the same hour: that column is
- * written from the same seller-supplied payload as the price itself, so a
- * ₦2,485,000 iPhone 16 carried a ₦2,485,000 "recommended" price and scored
- * itself FAIR — reinstating exactly the self-certification this module exists
- * to remove. Elsewhere the column is unrelated junk (a ₦3,910,000 machine
- * against a ₦120,000 reference).
+ * Falling back to Product.recommendedPrice was tried and reverted the same
+ * hour: it's written from the same request body as the price, so a listing
+ * supplies its own baseline and grades itself. A ₦2,485,000 iPhone 16 carried
+ * a ₦2,485,000 "recommended" price and scored FAIR — reinstating exactly the
+ * self-certification this module exists to remove.
  *
- * A usable reference has to come from a source the seller cannot write to —
- * e.g. the grounded market lookup behind the Price Checker, stored in a
- * separate column. Until that exists, a thin category gets no badge, which is
- * the honest answer.
+ * Product.marketPrice is filled only by the enrichment job from a grounded
+ * market lookup and is stripped from every write path, so it's safe here.
  */
-export function benchmarkPrice(target: Comparable, catalogue: Comparable[]): Benchmark {
+export function benchmarkPrice(
+    target: Comparable,
+    catalogue: Comparable[],
+    opts: { marketPrice?: number | null } = {},
+): Benchmark {
     const peers = findComparables(target, catalogue);
     if (!(target.price > 0)) {
         return { flag: "none", median: null, peerCount: peers.length, ratio: null };
     }
 
-    const mid = peers.length > 0 ? median(peers.map(p => p.price)) : null;
+    const peerMedian = peers.length > 0 ? median(peers.map(p => p.price)) : null;
+    const hasEnoughPeers = peerMedian != null && peerMedian > 0 && peers.length >= MIN_PEERS_WHEN_EXTREME;
+
+    // Listings first — other sellers on this platform are the most relevant
+    // comparison and need no external call. The market reference carries a
+    // thin category, where the catalogue genuinely cannot answer.
+    const useMarket = !hasEnoughPeers && typeof opts.marketPrice === "number" && opts.marketPrice > 0;
+    const mid = useMarket ? opts.marketPrice! : peerMedian;
     if (mid == null || !(mid > 0)) {
         return { flag: "none", median: null, peerCount: peers.length, ratio: null };
     }
 
     const ratio = target.price / mid;
-    const basis: "listings" | "reference" = "listings";
+    const basis: "listings" | "reference" = useMarket ? "reference" : "listings";
 
     // Sample-size gate — waived for a reference price (it isn't a sample) and
     // relaxed for an unmistakable outlier.

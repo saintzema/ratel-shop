@@ -437,6 +437,19 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // ─── The market reference is not the seller's to set ───
+        // marketPrice/marketPriceLow/... are the ONLY independent check on
+        // whether a listing is fairly priced. If a request could set them, a
+        // seller would grade their own listing — which is exactly how
+        // recommendedPrice became useless for this. Stripped here, before any
+        // branch below reads the body, on every write path.
+        for (const field of [
+            "marketPrice", "marketPriceLow", "marketPriceHigh", "marketPriceAt", "marketPriceSource",
+            "market_price", "market_price_low", "market_price_high", "market_price_at", "market_price_source",
+        ]) {
+            delete (body as any)[field];
+        }
+
         // ─── No base64 image ever reaches a column ───
         // Photos used to be accepted as `data:` URIs and written straight into
         // imageUrl/images. One product ended up holding 543 KB of base64, which

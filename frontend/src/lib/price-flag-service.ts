@@ -48,14 +48,14 @@ export async function benchmarkAgainstCatalogue(
         take: opts.candidateLimit ?? 250,
     }).catch(() => [] as Comparable[]);
 
-    return benchmarkPrice(target, candidates);
+    return benchmarkPrice(target, candidates, { marketPrice: (target as any).marketPrice ?? null });
 }
 
 /** Benchmarks one product and persists the verdict. Returns what it decided. */
 export async function refreshPriceFlag(productId: string): Promise<Benchmark | null> {
     const product = await db.product.findUnique({
         where: { id: productId },
-        select: { id: true, name: true, price: true, category: true, priceFlag: true, recommendedPrice: true },
+        select: { id: true, name: true, price: true, category: true, priceFlag: true, marketPrice: true },
     }).catch(() => null);
     if (!product) return null;
 
