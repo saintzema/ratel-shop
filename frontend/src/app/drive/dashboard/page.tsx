@@ -18,6 +18,7 @@ import { SlideToConfirm } from "@/components/ride/SlideToConfirm";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { useLocationBroadcast } from "@/hooks/useLocationBroadcast";
 import { playDingSound } from "@/lib/audio";
+import { DriverCommissionCard } from "@/components/ride/DriverCommissionCard";
 
 /** A driver's open-request board — send a counter-offer on any ride, inDrive-style. */
 /** One per active ride, so useLocationBroadcast's hook call stays valid inside the .map() below. */
@@ -42,6 +43,13 @@ export default function DriveDashboardPage() {
     // on that card for a bit rather than silently updating the number, which
     // is the whole point of a rider being able to sweeten an offer.
     const [justRaised, setJustRaised] = useState<Record<string, boolean>>({});
+    // Set when the server stops serving requests because too much cash
+    // commission is outstanding — without this the board just looks empty and
+    // the driver has no idea why the work dried up.
+    const [blockedForCommission, setBlockedForCommission] = useState(false);
+    const [settlingCash, setSettlingCash] = useState<string | null>(null);
+    const [cashError, setCashError] = useState<Record<string, string>>({});
+    const [commissionTick, setCommissionTick] = useState(0);
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -89,11 +97,33 @@ export default function DriveDashboardPage() {
                 setMyActiveRides(d?.myActiveRides || []);
                 setVehicles(d?.vehicles || []);
                 setNeedsApproval(!!d?.needsApprovedVehicle);
+                setBlockedForCommission(!!d?.blockedForCommission);
             })
             .finally(() => setLoading(false));
     };
 
     useEffect(() => { load(); return visibleInterval(load, 8000); }, [user]);
+
+    // The rider handed over cash. The fare never touches FairPrice, so the
+    // trip is closed out here and the service fee goes onto the driver's
+    // balance instead of being netted out of a payout — see
+    // lib/mobility-commission.ts.
+    const settleCash = async (rideId: string) => {
+        setCashError(prev => ({ ...prev, [rideId]: "" }));
+        setSettlingCash(rideId);
+        try {
+            const res = await fetch(`/api/rides/${rideId}/settle-cash`, { method: "POST", headers: authHeaders() });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setCashError(prev => ({ ...prev, [rideId]: data?.error || "Couldn't record the cash payment" }));
+                return;
+            }
+            setCommissionTick(t => t + 1);
+            load();
+        } finally {
+            setSettlingCash(null);
+        }
+    };
 
     const [startCodeInputs, setStartCodeInputs] = useState<Record<string, string>>({});
     const [startCodeErrors, setStartCodeErrors] = useState<Record<string, string>>({});
@@ -212,7 +242,17 @@ export default function DriveDashboardPage() {
                     </div>
                 </div>
 
-                {open.length === 0 ? (
+                <DriverCommissionCard key={commissionTick} />
+
+                {blockedForCommission ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+                        <p className="font-black text-red-700 mb-1">New requests are paused</p>
+                        <p className="text-xs text-red-600">
+                            Your outstanding service fee from cash trips is over the limit. Settle it and requests
+                            resume straight away — or take your next trip with in-app payment and it clears itself.
+                        </p>
+                    </div>
+                ) : open.length === 0 ? (
                     <p className="text-center text-sm text-gray-400 py-10">No open ride requests right now — check back shortly.</p>
                 ) : (
                     <div className="space-y-4">
@@ -340,6 +380,28 @@ export default function DriveDashboardPage() {
                                                         {payingRideId === ride.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} Show Checkout on This Phone
                                                     </Button>
                                                 </div>
+                                            </div>
+
+                                            {/* Cash still settles most trips in Nigeria, so it needs a
+                                                first-class button rather than leaving the trip open
+                                                forever. The service fee moves onto the driver's balance
+                                                instead of coming out of a payout. */}
+                                            <div className="border-t border-gray-100 pt-3">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={settlingCash === ride.id}
+                                                    onClick={() => settleCash(ride.id)}
+                                                    className="w-full"
+                                                >
+                                                    {settlingCash === ride.id ? "Recording…" : "Rider paid me in cash"}
+                                                </Button>
+                                                <p className="text-[10px] text-gray-400 text-center mt-1.5">
+                                                    Keeps the cash. The service fee is added to your balance.
+                                                </p>
+                                                {cashError[ride.id] && (
+                                                    <p className="text-[11px] text-rose-600 font-semibold text-center mt-1">{cashError[ride.id]}</p>
+                                                )}
                                             </div>
                                         </div>
                                     )}
