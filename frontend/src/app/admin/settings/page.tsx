@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PriceMaintenanceCard } from "@/components/admin/PriceMaintenanceCard";
 import Link from "next/link";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import {
@@ -337,6 +338,9 @@ export default function AdminSettings() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                 {/* Marketplace Fees */}
                 <div className="xl:col-span-2 space-y-8">
+                    {/* Both of these were API-only, so neither had ever been run. */}
+                    <PriceMaintenanceCard />
+
                     <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
                         <div className="flex items-center gap-3 mb-8">
                             <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
