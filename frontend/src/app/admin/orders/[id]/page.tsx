@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { DeliveryAddress } from "@/components/ui/DeliveryAddress";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DataSyncService } from "@/lib/sync-store";
@@ -230,7 +231,7 @@ export default function AdminOrderDetailPage() {
                                 <div>
                                     <div className="font-bold text-sm text-gray-700">Delivery Address</div>
                                     <div className="text-xs text-gray-500 font-medium mt-1 leading-relaxed">
-                                        {order.shipping_address || "No shipping address provided"}
+                                        {order.shipping_address ? <DeliveryAddress value={order.shipping_address} /> : "No shipping address provided"}
                                     </div>
                                 </div>
                             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DeliveryAddress } from "@/components/ui/DeliveryAddress";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Order, ReturnRequest } from "@/lib/types";
@@ -564,7 +565,7 @@ function SellerOrdersContent() {
                                                         {order.shipping_address && (
                                                             <div className="mb-3 p-2 bg-blue-50 border border-blue-100 rounded-lg">
                                                                 <p className="text-[10px] font-bold text-blue-600 uppercase">Ship To</p>
-                                                                <p className="text-xs text-blue-800 font-medium">{order.shipping_address}</p>
+                                                                <p className="text-xs text-blue-800 font-medium"><DeliveryAddress value={order.shipping_address} /></p>
                                                             </div>
                                                         )}
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">

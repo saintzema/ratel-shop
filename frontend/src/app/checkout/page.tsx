@@ -294,6 +294,11 @@ interface SavedAddress {
     station?: string;
     method: "doorstep" | "pickup";
     whatsappPhone?: string;
+    // The exact point picked from Google's suggestions, kept with the address
+    // so a returning customer doesn't silently lose their pin and fall back to
+    // a street name the courier can't find.
+    lat?: number;
+    lng?: number;
 }
 
 function getAddressKey(): string {
@@ -787,6 +792,9 @@ function CheckoutContent() {
                     phone: latest.phone,
                     email: latest.email || user?.email || ""
                 });
+                if (typeof latest.lat === "number" && typeof latest.lng === "number") {
+                    setAddressCoords({ lat: latest.lat, lng: latest.lng });
+                }
                 if (latest.method === "pickup") {
                     setDeliveryMethod("pickup");
                     setPickupDetails({
@@ -995,7 +1003,9 @@ function CheckoutContent() {
             state: deliveryMethod === "pickup" ? pickupDetails.state : address.state,
             station: pickupDetails.station,
             method: deliveryMethod,
-            whatsappPhone: showWhatsappField ? whatsappPhone : undefined
+            whatsappPhone: showWhatsappField ? whatsappPhone : undefined,
+            lat: addressCoords?.lat,
+            lng: addressCoords?.lng,
         };
         // Avoid duplicates by matching street + city + method (case-insensitive and trimmed)
         const normalize = (str?: string) => (str || "").trim().toLowerCase();
