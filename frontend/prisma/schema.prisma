@@ -70,6 +70,11 @@ model User {
   ninSubmittedAt        DateTime?
   ninReviewedAt         DateTime?
   ninRejectionReason    String?
+  // Scan of the government ID backing the NIN. The reviewer has to SEE a
+  // document — a typed 11-digit number is a claim, not evidence, and there is
+  // no NIMC lookup to check it against.
+  ninDocumentUrl        String?
+  ninDocumentType       IDType?
 }
 
 // A buyer-facing, platform-funded credit earned by watching a rewarded ad —

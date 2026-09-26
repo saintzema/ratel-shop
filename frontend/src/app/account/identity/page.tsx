@@ -7,14 +7,27 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
-import { ShieldCheck, ShieldAlert, Clock, BadgeCheck, Loader2 } from "lucide-react";
+import { Upload, ShieldCheck, ShieldAlert, Clock, BadgeCheck, Loader2 } from "lucide-react";
 
 interface IdentityStatus {
-    status: "not_submitted" | "pending" | "approved" | "rejected";
-    submittedAt: string | null;
-    reviewedAt: string | null;
-    rejectionReason: string | null;
-    ninMasked: string | null;
+    status: string;
+    ownStatus?: string;
+    submittedAt?: string | null;
+    reviewedAt?: string | null;
+    rejectionReason?: string | null;
+    ninMasked?: string | null;
+    hasDocument?: boolean;
+    documentType?: string | null;
+    // Filled when this account also owns a store that has been through the
+    // seller KYC queue — so a verified vendor isn't asked to do it twice.
+    sellerKyc?: {
+        storeName: string;
+        status: string;
+        idType: string | null;
+        submittedAt: string | null;
+        reviewedAt: string | null;
+        hasDocument: boolean;
+    } | null;
 }
 
 export default function IdentityPage() {
@@ -24,6 +37,12 @@ export default function IdentityPage() {
     const [nin, setNin] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // The reviewer has no NIMC lookup to check a number against, so the scan
+    // is the only actual evidence in the submission.
+    const [documentType, setDocumentType] = useState("nin");
+    const [documentUrl, setDocumentUrl] = useState("");
+    const [documentName, setDocumentName] = useState("");
+    const [uploading, setUploading] = useState(false);
 
     const authHeaders = (): Record<string, string> => {
         const tok = typeof window !== "undefined" ? localStorage.getItem("fp_token") : null;
@@ -53,6 +72,37 @@ export default function IdentityPage() {
 
     useEffect(() => { if (user) load(); }, [user]);
 
+    const uploadDocument = async (file: File) => {
+        setError(null);
+        setUploading(true);
+        try {
+            const form = new FormData();
+            form.append("file", file);
+            form.append("folder", "kyc");
+            const res = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: form });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data?.url) {
+                setError(data?.error || "That upload didn't go through — try a smaller photo.");
+                return;
+            }
+            if (String(data.url).startsWith("data:")) {
+                // The upload route falls back to a base64 data URI when Blob
+                // storage isn't configured. The API refuses those on purpose —
+                // a KYC scan inlined into a column is the same megabytes-in-JSON
+                // problem that froze the homepage — so say so plainly instead of
+                // failing at submit with a confusing message.
+                setError("File storage isn't configured, so the document can't be saved. Tell support.");
+                return;
+            }
+            setDocumentUrl(data.url);
+            setDocumentName(file.name);
+        } catch {
+            setError("Upload failed — check your connection and try again.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const submit = async () => {
         setError(null);
         setSubmitting(true);
@@ -60,11 +110,13 @@ export default function IdentityPage() {
             const res = await fetch("/api/account/identity", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
-                body: JSON.stringify({ ninNumber: nin }),
+                body: JSON.stringify({ ninNumber: nin, documentUrl, documentType }),
             });
             const data = await res.json();
             if (!res.ok) { setError(data.error || "Something went wrong"); return; }
             setNin("");
+            setDocumentUrl("");
+            setDocumentName("");
             load();
         } finally {
             setSubmitting(false);
@@ -108,13 +160,32 @@ export default function IdentityPage() {
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 text-center">
                         <BadgeCheck className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
                         <h2 className="font-black text-emerald-900 mb-1">Identity Verified</h2>
-                        <p className="text-xs text-emerald-700">NIN on file: {info.ninMasked} · Verified {info.reviewedAt ? new Date(info.reviewedAt).toLocaleDateString() : ""}</p>
+                        {info.ownStatus === "approved" ? (
+                            <p className="text-xs text-emerald-700">
+                                NIN on file: {info.ninMasked} · Verified {info.reviewedAt ? new Date(info.reviewedAt).toLocaleDateString() : ""}
+                            </p>
+                        ) : (
+                            <p className="text-xs text-emerald-700">
+                                Carried over from the KYC you completed for {info.sellerKyc?.storeName || "your store"} — nothing more to do.
+                            </p>
+                        )}
                     </div>
                 ) : info.status === "pending" ? (
                     <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 text-center">
                         <Clock className="h-10 w-10 text-amber-500 mx-auto mb-3" />
                         <h2 className="font-black text-amber-900 mb-1">Under Review</h2>
-                        <p className="text-xs text-amber-700">NIN on file: {info.ninMasked} · Submitted {info.submittedAt ? new Date(info.submittedAt).toLocaleDateString() : ""}</p>
+                        {info.ownStatus === "pending" ? (
+                            <p className="text-xs text-amber-700">
+                                NIN on file: {info.ninMasked} · Submitted {info.submittedAt ? new Date(info.submittedAt).toLocaleDateString() : ""}
+                                {info.hasDocument ? " · ID document attached" : ""}
+                            </p>
+                        ) : (
+                            <p className="text-xs text-amber-700">
+                                Your store KYC for {info.sellerKyc?.storeName || "your store"} is with our team
+                                {info.sellerKyc?.submittedAt ? ` · submitted ${new Date(info.sellerKyc.submittedAt).toLocaleDateString()}` : ""}.
+                                It covers this account too.
+                            </p>
+                        )}
                         <p className="text-[11px] text-amber-600 mt-2">Our team manually reviews every submission — this usually takes 1–2 business days.</p>
                     </div>
                 ) : (
@@ -137,14 +208,49 @@ export default function IdentityPage() {
                                 inputMode="numeric"
                                 className="bg-white"
                             />
+
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block pt-1">Which ID are you uploading?</label>
+                            <select
+                                value={documentType}
+                                onChange={e => setDocumentType(e.target.value)}
+                                className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm"
+                            >
+                                <option value="nin">NIN slip</option>
+                                <option value="drivers_license">Driver's licence</option>
+                                <option value="voters_card">Voter's card</option>
+                                <option value="passport">International passport</option>
+                            </select>
+
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block pt-1">Photo of the document</label>
+                            <label className="flex items-center gap-2 w-full h-11 px-3 rounded-xl border border-dashed border-gray-300 bg-white cursor-pointer text-sm text-gray-500 hover:border-brand-green-400">
+                                {uploading ? <Loader2 className="h-4 w-4 animate-spin text-brand-green-600" /> : <Upload className="h-4 w-4 text-brand-green-600" />}
+                                <span className="truncate">
+                                    {uploading ? "Uploading…" : documentName || "Tap to take a photo or choose a file"}
+                                </span>
+                                <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadDocument(f); }}
+                                />
+                            </label>
+                            {documentUrl && !uploading && (
+                                <p className="text-[11px] text-emerald-600 font-semibold">Document attached — ready to submit.</p>
+                            )}
+
                             {error && <p className="text-xs text-rose-600 font-semibold">{error}</p>}
                             <Button
                                 onClick={submit}
-                                disabled={submitting || nin.length !== 11}
+                                disabled={submitting || uploading || nin.length !== 11 || !documentUrl}
                                 className="w-full bg-brand-green-600 hover:bg-brand-green-700"
                             >
                                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit for Verification"}
                             </Button>
+                            {nin.length === 11 && !documentUrl && !uploading && (
+                                <p className="text-[11px] text-gray-400 text-center">
+                                    Add a photo of your ID to submit — we have no way to check a number on its own.
+                                </p>
+                            )}
                         </div>
                         <p className="text-[11px] text-gray-400">
                             Your NIN is stored securely and used only to verify your identity — never shown to other users or shared with a third party.

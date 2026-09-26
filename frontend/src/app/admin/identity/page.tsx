@@ -79,6 +79,21 @@ export default function AdminIdentityPage() {
                                 <p className="font-black text-gray-900">{u.name}</p>
                                 <p className="text-xs text-gray-500 mt-0.5">{u.email} {u.whatsappNumber ? `· ${u.whatsappNumber}` : ""}</p>
                                 <p className="text-xs text-gray-500 mt-0.5">NIN: {u.ninNumber} · Submitted {u.ninSubmittedAt ? new Date(u.ninSubmittedAt).toLocaleDateString() : "—"}</p>
+                                {/* Approving on a typed number alone verifies nothing — the
+                                    reviewer has to open the scan. Older submissions predate
+                                    the upload and say so rather than looking broken. */}
+                                {u.ninDocumentUrl ? (
+                                    <a
+                                        href={u.ninDocumentUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-bold text-brand-green-700 underline mt-1"
+                                    >
+                                        View {String(u.ninDocumentType || "ID").replace(/_/g, " ")} document
+                                    </a>
+                                ) : (
+                                    <p className="text-[11px] text-amber-600 mt-1">No document attached — submitted before uploads were required.</p>
+                                )}
                                 {u.ninStatus === "rejected" && u.ninRejectionReason && (
                                     <p className="text-xs text-rose-600 font-semibold mt-1">Rejected: {u.ninRejectionReason}</p>
                                 )}

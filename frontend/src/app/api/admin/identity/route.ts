@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
 
     const users = await db.user.findMany({
         where: { ninStatus: validStatus ? (validStatus as any) : { not: "not_submitted" } },
-        select: { id: true, name: true, email: true, whatsappNumber: true, ninNumber: true, ninStatus: true, ninSubmittedAt: true, ninReviewedAt: true, ninRejectionReason: true },
+        // The document is the only real evidence in a submission — there is no
+        // NIMC lookup to check the number against — so the reviewer must get it.
+        select: { id: true, name: true, email: true, whatsappNumber: true, ninNumber: true, ninStatus: true, ninSubmittedAt: true, ninReviewedAt: true, ninRejectionReason: true, ninDocumentUrl: true, ninDocumentType: true },
         orderBy: { ninSubmittedAt: "desc" },
     });
     return NextResponse.json({ users });
