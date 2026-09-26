@@ -69,7 +69,7 @@ export function RewardedAdCard({ isLoggedIn }: { isLoggedIn: boolean }) {
             <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
                 <Gift className="h-5 w-5 text-emerald-600 shrink-0" />
                 <p className="text-sm font-bold text-emerald-800">
-                    You have {formatPrice(activeCredit.amount)} off ready to apply at checkout — expires soon, use it before it's gone.
+                    You have {formatPrice(activeCredit.amount)} of credit ready — it comes off automatically at checkout.
                 </p>
             </div>
         );
@@ -88,7 +88,7 @@ export function RewardedAdCard({ isLoggedIn }: { isLoggedIn: boolean }) {
             )}
             <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900">
-                    Watch a short ad, get {formatPrice(AD_CONFIG.rewardedAd.creditAmount)} off
+                    Watch a short ad, get up to {formatPrice(AD_CONFIG.rewardedAd.creditAmount)} off
                 </p>
                 <p className="text-xs text-gray-400">Takes about 30 seconds</p>
                 {claimError && <p className="text-xs text-red-500 mt-1">{claimError}</p>}

@@ -21,7 +21,9 @@ interface AuthContextType {
     isLoading: boolean;
     login: (userData: User) => void;
     logout: () => void;
-    register: (userData: User) => void;
+    // Returns a promise so callers can act once the account really exists in
+    // the database and an fp_token has been issued (e.g. persisting a password).
+    register: (userData: User) => Promise<void>;
     updateUser: (userData: Partial<User>) => void;
 }
 

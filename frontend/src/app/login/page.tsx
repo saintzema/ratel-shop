@@ -596,6 +596,20 @@ export default function UnifiedAuthPage() {
             const preexistingId = fetchedUser?.id || existingUser?.id;
             const newId = preexistingId || "user_" + Math.random().toString(36).substr(2, 9);
             
+            // THE password has to reach the database, not just this device.
+            //
+            // register() POSTs to /api/users, which deliberately ignores any
+            // password it is sent (it is unauthenticated, so accepting one there
+            // was an account-takeover hole). saveRegisteredUser() writes to
+            // localStorage. Between them, the chosen password was stored ONLY on
+            // the device that created the account — so the DB row had
+            // password: null, and signing in anywhere else got hasPassword:false
+            // and was asked to "create a password", which reads exactly like the
+            // account was never recognised. That is the second-device report.
+            //
+            // register() issues an fp_token, so the authenticated branch of
+            // /api/auth/set-password can persist the hash straight afterwards.
+            // Email ownership was already proven by the OTP step above.
             register({
                 id: newId,
                 name: regName,
@@ -603,8 +617,18 @@ export default function UnifiedAuthPage() {
                 role: determinedRole,
                 created_at: fetchedUser?.createdAt || existingUser?.created_at || new Date().toISOString(),
                 birthday: birthday || undefined
-            });
-            // Persist this user as registered with password
+            }).then(() => {
+                if (!password) return;
+                const tok = localStorage.getItem("fp_token");
+                if (!tok) return;
+                return fetch("/api/auth/set-password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                    body: JSON.stringify({ password }),
+                });
+            }).catch(err => console.error("Could not persist password to the account:", err));
+
+            // Local mirror, so the same device still works offline.
             saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined, password);
 
             // Track registration event

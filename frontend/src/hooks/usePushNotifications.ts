@@ -178,7 +178,7 @@ export function usePushNotifications() {
 
 async function scheduleMarketingNotifications() {
     try {
-        await LocalNotifications.cancel({ notifications: [{ id: 101 }, { id: 102 }, { id: 103 }, { id: 104 }] });
+        await LocalNotifications.cancel({ notifications: [{ id: 101 }, { id: 102 }, { id: 103 }, { id: 104 }, { id: 105 }] });
 
         let templates: NotificationTemplate[] = [
             { id: "morning_alert", title: "Good Morning! ☀️", body: "Start your day with amazing deals.", time: "07:45 AM" },
@@ -225,6 +225,20 @@ async function scheduleMarketingNotifications() {
         weekend.setDate(weekend.getDate() + toSat);
         weekend.setHours(10, 0, 0, 0);
         scheduled.push({ title: templates[3].title, body: templates[3].body, id: 104, schedule: { at: weekend }, actionTypeId: 'VIEW_ACTION' });
+
+        // Daily check-in reminder — a REPEATING notification, not a one-shot.
+        // The four above each fire once on a fixed future date, which is fine
+        // for a marketing nudge but useless for a streak: the whole mechanic
+        // depends on being reminded every single day, and a streak that breaks
+        // because nobody was told resets the reward to day one.
+        scheduled.push({
+            title: "Your daily reward is waiting 🎁",
+            body: "Check in now to keep your streak — day 7 pays the most.",
+            id: 105,
+            schedule: { on: { hour: 9, minute: 0 }, allowWhileIdle: true },
+            actionTypeId: "VIEW_ACTION",
+            extra: { link: "/rewards" },
+        });
 
         await LocalNotifications.schedule({ notifications: scheduled as any });
         console.log("Marketing notifications scheduled with Admin templates.");

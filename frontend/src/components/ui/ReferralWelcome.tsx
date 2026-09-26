@@ -53,8 +53,8 @@ export function ReferralWelcome() {
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-black text-amber-900">A friend invited you to FairPrice</p>
                 <p className="text-xs text-amber-800 mt-0.5">
-                    Shop as normal — nothing extra to do. When your first order is complete, your friend gets a
-                    ₦5,000 credit as a thank you. Your invite stays linked to this device until then.
+                    Place your first order and you BOTH get ₦2,000 credit — yours to spend on any order, ride or
+                    delivery here. Nothing extra to do; your invite stays linked until then.
                 </p>
             </div>
             <button

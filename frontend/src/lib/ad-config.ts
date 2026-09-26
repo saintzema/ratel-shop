@@ -22,7 +22,11 @@ export const AD_CONFIG = {
     // What a completed rewarded-ad view earns the buyer.
     rewardedAd: {
         creditAmount: 500, // ₦500
-        creditValidityHours: 2,
+        // Was 2 hours, which meant the reward was usually dead before the
+        // buyer got back to their cart — an offer nobody can redeem is worse
+        // than no offer. A week is long enough to be worth watching an ad for
+        // and short enough to still create urgency.
+        creditValidityHours: 24 * 7,
         cooldownHours: 24, // one reward per user per this window
     },
 } as const;

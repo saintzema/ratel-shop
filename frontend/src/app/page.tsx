@@ -16,6 +16,7 @@ import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Mo
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { ReferralWelcome } from "@/components/ui/ReferralWelcome";
+import { CheckinNudge } from "@/components/ui/CheckinNudge";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
@@ -432,6 +433,9 @@ function HomeContent() {
 
           {/* Someone arriving on a ?ref= link used to be told nothing at all. */}
           <ReferralWelcome />
+
+          {/* The streak only works if people are actually reminded. */}
+          <CheckinNudge />
 
           {/* ─── Quick Actions (Alipay-style) ───
               Lives on Home, not tucked into Account — this is the default tab,

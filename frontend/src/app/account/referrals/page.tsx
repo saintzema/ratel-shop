@@ -97,7 +97,7 @@ export default function ReferralsPage() {
                             <div className="flex-1 text-center md:text-left">
                                 <h1 className="text-3xl md:text-4xl font-black mb-3">Invite Friends, Earn ₦2,000</h1>
                                 <p className="text-emerald-50 text-base max-w-lg leading-relaxed">
-                                    Share your unique link. When a friend makes their first purchase, you get a ₦5,000 coupon valid for 30 days.
+                                    Share your unique link. When a friend makes their first purchase, you BOTH get ₦2,000 credit to spend on FairPrice.
                                 </p>
                             </div>
                             <div className="shrink-0">

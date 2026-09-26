@@ -1597,29 +1597,34 @@ function CheckoutContent() {
             }
 
             // ─── Referral Rewards Dispensation ───
+            // Referral payout is decided on the SERVER now — see
+            // /api/referrals/complete. The browser used to decode the code
+            // itself and write a coupon through the local sync store, paying
+            // the referrer only, while the referrals page promised both sides
+            // ₦2,000. Both sides now genuinely get ₦2,000 of platform credit,
+            // and the server checks that a real first order exists before
+            // paying anything, so posting a code cannot mint credit.
             const refCode = localStorage.getItem("fp_referral");
             if (refCode && typeof window !== "undefined") {
-                try {
-                    const referrerId = atob(refCode);
-                    // Prevent self-referral abuse and null IDs
-                    if (referrerId && referrerId !== user?.id) {
-                        DataSyncService.addCoupon({
-                            amount: 5000,
-                            userId: referrerId,
-                            issuedBy: "referral",
-                            reason: `Referral bonus unlocked! Assigned for new purchase by ${fullName || orderUserId}.`,
-                            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Extends 30 Days
-                        });
-                        
-                        // Register the referral in the tracker
-                        DataSyncService.addReferral(referrerId, orderUserId, fullName || "A Friend", "completed");
-                        
-                        // Remove hook to prevent infinite coupon payouts on subsequent orders
-                        localStorage.removeItem("fp_referral");
-                    }
-                } catch (e) {
-                    console.error("Failed to decode referral payload mapping", e);
-                }
+                const refToken = localStorage.getItem("fp_token");
+                fetch("/api/referrals/complete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...(refToken ? { Authorization: `Bearer ${refToken}` } : {}) },
+                    body: JSON.stringify({ referrerCode: refCode }),
+                })
+                    .then(r => r.json().catch(() => null))
+                    .then(d => {
+                        // Cleared only on a definite outcome, so a transient
+                        // network failure doesn't silently burn the referral.
+                        if (d?.success) {
+                            localStorage.removeItem("fp_referral");
+                            try {
+                                const referrerId = atob(refCode);
+                                DataSyncService.addReferral(referrerId, orderUserId, fullName || "A Friend", "completed");
+                            } catch { /* tracker only — the credit is already paid */ }
+                        }
+                    })
+                    .catch(e => console.error("Referral payout call failed", e));
             }
 
             // Dispatch event to update navbar/orders page immediately
