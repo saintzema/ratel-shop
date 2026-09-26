@@ -43,7 +43,7 @@ export default function ProfilePage() {
     const [formData, setFormData] = useState({
         name: user?.name || "",
         email: user?.email || "",
-        phone: (user as any)?.phone || "",
+        phone: (user as any)?.whatsappNumber || "",
         whatsapp: getWaNumber(user),
         address: (user as any)?.address || "",
         password: "",
@@ -56,7 +56,7 @@ export default function ProfilePage() {
                 ...prev,
                 name: user.name || "",
                 email: user.email || "",
-                phone: (user as any)?.phone || "",
+                phone: (user as any)?.whatsappNumber || "",
                 whatsapp: getWaNumber(user),
                 address: (user as any)?.address || "",
                 location: user.location || prev.location || globalLocation || "Lagos, Nigeria"
@@ -311,37 +311,20 @@ export default function ProfilePage() {
                             </Button>
                         </div>
 
-                        {/* Phone */}
-                        <div className="flex gap-4 items-start pb-6 border-b border-gray-100">
-                            <div className="mt-1"><Phone className="h-5 w-5 text-gray-400" /></div>
-                            <div className="flex-1">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Mobile Phone Number</label>
-                                {editingField === "phone" ? (
-                                    <Input
-                                        value={formData.phone}
-                                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                        className="h-10 border-emerald-500 focus:ring-emerald-500/20"
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <p className="text-gray-900 h-10 flex items-center">{formData.phone || "Not set"}</p>
-                                )}
-                            </div>
-                            <Button
-                                variant="outline"
-                                className="mt-6"
-                                onClick={() => setEditingField(editingField === "phone" ? null : "phone")}
-                            >
-                                {editingField === "phone" ? "Cancel" : "Edit"}
-                            </Button>
-                        </div>
+                        {/* There used to be a separate "Mobile Phone Number" field here.
+                            It was bound to formData.phone, which handleSave never sent and
+                            which reads a column that does not exist on the user record — so
+                            editing it and pressing Save silently did nothing, every time,
+                            and it always redisplayed as "Not set". Two phone fields for one
+                            stored number could only ever lose data, so the working one below
+                            is now the only one, relabelled to say what it actually is. */}
 
-                        {/* WhatsApp */}
+                        {/* Phone number (stored as whatsappNumber) */}
                         <div className="flex gap-4 items-start pb-6 border-b border-gray-100">
                             <div className="mt-1"><MessageSquare className="h-5 w-5 text-emerald-500" /></div>
                             <div className="flex-1">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">
-                                    WhatsApp Number
+                                    Phone Number
                                     {waLocal && (
                                         <span className="ml-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ LINKED</span>
                                     )}
@@ -371,7 +354,7 @@ export default function ProfilePage() {
                                                 <span className="font-semibold">{waCountryCode} {waLocal}</span>
                                             </>
                                         ) : (
-                                            <span className="text-gray-400 italic text-sm">Not linked — add to receive order updates &amp; broadcasts via WhatsApp</span>
+                                            <span className="text-gray-400 italic text-sm">Not set — add it so couriers and drivers can reach you, and for order updates on WhatsApp</span>
                                         )}
                                     </p>
                                 )}

@@ -207,7 +207,13 @@ export default function UnifiedAuthPage() {
 
         let dbError = false;
         try {
-            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`, { signal: controller.signal });
+            // cache: "no-store" as well as the server's header — a bfcache or
+            // service-worker hit answering this from a stale copy is what made a
+            // returning user get asked to create a password again.
+            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`, {
+                signal: controller.signal,
+                cache: "no-store",
+            });
             clearTimeout(timeoutId);
             
             if (res.ok) {
@@ -570,10 +576,17 @@ export default function UnifiedAuthPage() {
         }
 
         setTimeout(() => {
+            // A seller who ALREADY has an account is sent to their dashboard, not
+            // back through onboarding. Routing every seller login to
+            // /seller/onboarding is what made signing in from a second device
+            // look like the account had not been recognised at all — the tester
+            // read it, reasonably, as being treated as a brand new user.
+            const isReturningUser = !!(fetchedUser?.id || existingUser?.id);
             const finalRedirect =
                 determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                    determinedRole === "seller" && redirectPath === "/" ? "/seller/onboarding" :
-                        redirectPath;
+                    determinedRole === "seller" && redirectPath === "/"
+                        ? (isReturningUser ? "/seller/dashboard" : "/seller/onboarding")
+                        : redirectPath;
 
             const regEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const regName = `${firstName.trim()} ${lastName.trim()}`;

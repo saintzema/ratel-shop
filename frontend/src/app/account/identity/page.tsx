@@ -30,10 +30,25 @@ export default function IdentityPage() {
         return tok ? { Authorization: `Bearer ${tok}` } : {};
     };
 
+    // A failed load used to leave `info` null forever, and the render treats
+    // null as "still loading" — so any 401, 500 or dropped connection showed a
+    // spinner that never stopped, with no error and no way to retry. That is
+    // the reported symptom: the page "rolls" and the form is unreachable.
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
     const load = () => {
-        fetch("/api/account/identity", { headers: authHeaders() })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d) setInfo(d); });
+        setLoadError(null);
+        setLoading(true);
+        fetch("/api/account/identity", { headers: authHeaders(), cache: "no-store" })
+            .then(async r => {
+                if (r.status === 401) throw new Error("Your session expired — sign in again to continue.");
+                if (!r.ok) throw new Error("We couldn't load your verification status.");
+                return r.json();
+            })
+            .then(d => setInfo(d))
+            .catch(e => setLoadError(e?.message || "We couldn't load your verification status."))
+            .finally(() => setLoading(false));
     };
 
     useEffect(() => { if (user) load(); }, [user]);
@@ -80,8 +95,15 @@ export default function IdentityPage() {
                     A verified badge builds real trust for rides, escrow, and negotiation — especially in Nigeria, where a driver or seller you can actually trust matters more than a good price.
                 </p>
 
-                {!info ? (
+                {loading ? (
                     <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
+                ) : loadError || !info ? (
+                    <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 text-center">
+                        <ShieldAlert className="h-8 w-8 text-rose-400 mx-auto mb-3" />
+                        <p className="text-sm font-bold text-rose-900 mb-1">Couldn't load this page</p>
+                        <p className="text-xs text-rose-600 mb-4">{loadError || "Something went wrong."}</p>
+                        <Button onClick={load} variant="outline" className="rounded-xl">Try again</Button>
+                    </div>
                 ) : info.status === "approved" ? (
                     <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 text-center">
                         <BadgeCheck className="h-10 w-10 text-emerald-600 mx-auto mb-3" />

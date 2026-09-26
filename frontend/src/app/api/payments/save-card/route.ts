@@ -71,8 +71,40 @@ export async function POST(req: NextRequest) {
         },
     });
 
+    // Give the ₦50 back as FairPrice credit.
+    //
+    // Paystack verifies a card by charging it, so saving a card costs the
+    // customer real money — a tester went to save her card and was asked to
+    // pay ₦50 she had not agreed to, which is a fair thing to be upset about.
+    // The charge can't be avoided, but it can be returned: the same credit
+    // ledger daily check-in uses, spendable on any order, ride or delivery.
+    // Keyed on the Paystack reference so a replayed callback can't mint it
+    // twice.
+    const alreadyCredited = await db.adRewardCredit.findFirst({
+        where: { userId: user.userId, source: `card_verification:${reference}` },
+        select: { id: true },
+    }).catch(() => null);
+
+    let creditRefunded = 0;
+    if (!alreadyCredited) {
+        const amount = Math.round((tx.amount ?? 0) / 100);
+        if (amount > 0) {
+            await db.adRewardCredit.create({
+                data: {
+                    userId: user.userId,
+                    amount,
+                    source: `card_verification:${reference}`,
+                    status: "active",
+                    expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+                },
+            }).catch(() => null);
+            creditRefunded = amount;
+        }
+    }
+
     return NextResponse.json({
         success: true,
+        creditRefunded,
         card: {
             id: saved.id,
             last4: saved.last4,

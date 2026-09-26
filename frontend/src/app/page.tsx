@@ -15,6 +15,7 @@ import { Footer } from "@/components/layout/Footer";
 import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag, QrCode, Wallet, Megaphone, FileText, Package2, Wrench } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
+import { ReferralWelcome } from "@/components/ui/ReferralWelcome";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
@@ -428,6 +429,9 @@ function HomeContent() {
       <div className="flex-1 flex flex-col relative">
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
+
+          {/* Someone arriving on a ?ref= link used to be told nothing at all. */}
+          <ReferralWelcome />
 
           {/* ─── Quick Actions (Alipay-style) ───
               Lives on Home, not tucked into Account — this is the default tab,

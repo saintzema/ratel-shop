@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
 import { Product, Coupon } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
+import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { applicableCredit } from "@/lib/credit-rules";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Logo } from "@/components/ui/logo";
@@ -378,6 +379,19 @@ function CheckoutContent() {
         email: ""
     });
     const [addressError, setAddressError] = useState("");
+    // The exact point the customer picked from Google's suggestions. Saved with
+    // the order so a courier, a seller or an admin can open the real location in
+    // Maps instead of guessing from a typed street name — a Lagos address string
+    // on its own is frequently not findable.
+    const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+    // Picking from the dropdown fills the street line AND captures the point.
+    // The state/city selects below stay authoritative for delivery pricing, so
+    // this only ever refines the street text — it never silently reassigns the
+    // state under the customer.
+    const streetAutocomplete = usePlacesAutocomplete((formatted, coords) => {
+        setAddress(prev => ({ ...prev, street: formatted }));
+        setAddressCoords(coords);
+    });
     const shippingAddressRef = useRef<HTMLElement>(null);
     const paymentSectionRef = useRef<HTMLElement>(null);
 
@@ -748,7 +762,7 @@ function CheckoutContent() {
                     street: saved[0]?.street || "",
                     city: saved[0]?.city || "Lagos",
                     state: saved[0]?.state || "Lagos",
-                    phone: saved[0]?.phone || (user as any)?.phone || "",
+                    phone: saved[0]?.phone || (user as any)?.whatsappNumber || (user as any)?.phone || "",
                     email: ""
                 });
                 setIsEditingAddress(true);
@@ -799,7 +813,7 @@ function CheckoutContent() {
                     firstName,
                     lastName,
                     email: user.email,
-                    phone: (user as any)?.phone || ""
+                    phone: (user as any)?.whatsappNumber || (user as any)?.phone || ""
                 }));
                 setIsEditingAddress(true);
             }
@@ -1111,7 +1125,13 @@ function CheckoutContent() {
                 scrollToShippingAddress();
                 return;
             }
-            if (!pickupDetails.state) {
+            // Doorstep keeps its state in `address.state`; `pickupDetails` belongs
+            // to the pickup-station picker and is deliberately blanked for
+            // doorstep loads to stop station data leaking between methods. This
+            // check read pickupDetails.state, which is therefore ALWAYS empty on
+            // a doorstep order — so every doorstep customer was told to "select
+            // your state" no matter what they picked, in the profile or here.
+            if (!address.state.trim()) {
                 setAddressError("Please select your state.");
                 scrollToShippingAddress();
                 return;
@@ -1463,7 +1483,13 @@ function CheckoutContent() {
                     escrow_status: "held",
                     shipping_address: deliveryMethod === "pickup"
                         ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`.replace(/, ,/g, ', ')
-                        : `${fullName}, ${address.street}, ${address.city}, ${address.state || 'Lagos'}`.replace(/, ,/g, ', '),
+                        // The exact coordinates the customer picked ride along in the
+                        // address line itself. No schema change, and every surface that
+                        // already renders an address — seller dashboard, admin, courier
+                        // sheet — gets a tappable Maps link for free. A typed Lagos
+                        // street name often isn't findable on its own; a pin always is.
+                        : `${fullName}, ${address.street}, ${address.city}, ${address.state || 'Lagos'}`.replace(/, ,/g, ', ')
+                            + (addressCoords ? ` · https://www.google.com/maps/search/?api=1&query=${addressCoords.lat},${addressCoords.lng}` : ''),
                     delivery_method: deliveryMethod,
                     customer_phone: `${countryCode} ${address.phone}`,
                     customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
@@ -2261,12 +2287,22 @@ function CheckoutContent() {
                                                 <div className="space-y-1">
                                                     <label className="text-xs font-bold uppercase text-gray-400">Street Address <span className="text-red-400">*</span></label>
                                                     <Input
+                                                        ref={streetAutocomplete.inputRef}
                                                         value={address.street}
-                                                        onChange={e => setAddress({ ...address, street: e.target.value })}
-                                                        placeholder="123 Example Street, Lekki Phase 1"
+                                                        onChange={e => { setAddress({ ...address, street: e.target.value }); setAddressCoords(undefined); }}
+                                                        placeholder="Start typing your address…"
                                                         required
                                                         className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                     />
+                                                    {addressCoords ? (
+                                                        <p className="text-[11px] text-emerald-600 font-semibold">
+                                                            Pinned on the map — your courier gets exact directions.
+                                                        </p>
+                                                    ) : streetAutocomplete.supported ? (
+                                                        <p className="text-[11px] text-gray-400">
+                                                            Pick your address from the suggestions so the courier can find you.
+                                                        </p>
+                                                    ) : null}
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <div className="space-y-1">
@@ -2459,7 +2495,9 @@ function CheckoutContent() {
                                                             setAddressError("Please enter your delivery street address.");
                                                             return;
                                                         }
-                                                        if (!pickupDetails.state) {
+                                                        // Same fix as the main validator above — doorstep
+                                                        // state lives in address.state, not pickupDetails.
+                                                        if (!address.state.trim()) {
                                                             setAddressError("Please select your state.");
                                                             return;
                                                         }

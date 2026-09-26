@@ -231,8 +231,15 @@ export async function GET(req: Request) {
                 return NextResponse.json({ exists: false, userId: null });
             }
             const { password, ...safeUser } = user;
+            // NOT cached. This response decides whether the login screen shows
+            // "enter your password" or "create a password", and a 5-minute
+            // browser cache meant a lookup taken moments before a password was
+            // set kept answering hasPassword:false afterwards — so someone who
+            // had just signed up and logged in was asked to create a password
+            // all over again on their next attempt. An auth-state probe has to
+            // be read fresh every time.
             return NextResponse.json({ ...safeUser, exists: true, userId: user.id, hasPassword: !!password }, {
-                headers: { "Cache-Control": "private, max-age=300" }
+                headers: { "Cache-Control": "no-store" }
             });
         }
         const users = await db.user.findMany();

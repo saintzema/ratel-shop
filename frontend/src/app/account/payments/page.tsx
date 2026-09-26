@@ -76,6 +76,8 @@ export default function PaymentsPage() {
     const [cards, setCards] = useState<SavedCard[]>([]);
     const [loadingCards, setLoadingCards] = useState(false);
     const [showCardCheckout, setShowCardCheckout] = useState(false);
+    // Consent gate in front of the real ₦50 verification charge.
+    const [confirmingCard, setConfirmingCard] = useState(false);
     const [cardSaveError, setCardSaveError] = useState<string | null>(null);
     const [adding, setAdding] = useState<"bank" | null>(null);
     const [showAccount, setShowAccount] = useState<string | null>(null);
@@ -271,7 +273,7 @@ export default function PaymentsPage() {
                 {/* Payment Methods Section */}
                 <div className="mb-10">
                     <div className="flex gap-3 mb-4">
-                        <Button onClick={() => { setCardSaveError(null); setShowCardCheckout(true); }} className="bg-black text-white rounded-xl font-semibold">
+                        <Button onClick={() => { setCardSaveError(null); setConfirmingCard(true); }} className="bg-black text-white rounded-xl font-semibold">
                             <CreditCard className="h-4 w-4 mr-1" /> Add Card
                         </Button>
                         <Button onClick={() => setAdding("bank")} variant="outline" className="rounded-xl font-semibold border-emerald-500 text-emerald-700 hover:bg-emerald-50">
@@ -285,9 +287,39 @@ export default function PaymentsPage() {
                         </div>
                     )}
 
-                    {/* Real Paystack card tokenization — a small ₦50 charge is how Paystack's
-                        Inline popup collects & verifies a card for reuse; we never see the
-                        card number ourselves, only the reusable authorization it returns. */}
+                    {/* Saving a card means a real ₦50 charge on a real card — that is
+                        how Paystack's Inline popup collects and verifies a card for
+                        reuse; we never see the card number ourselves, only the
+                        reusable authorization it returns.
+
+                        Tapping "Add Card" used to mount the checkout immediately, so
+                        the first thing anyone saw was a live payment screen asking for
+                        ₦50 they had not agreed to. Taking money from someone without
+                        telling them first is not a UX detail. The charge is now stated
+                        plainly and needs an explicit tap. */}
+                    {confirmingCard && (
+                        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                            <p className="text-sm font-bold text-amber-900 mb-1">Saving a card charges ₦50 — you get it back</p>
+                            <p className="text-xs text-amber-800 mb-3">
+                                Paystack verifies a card by charging it, so there is a real ₦50 charge. We add that
+                                ₦50 straight back to your FairPrice credit, which you can spend on any order, ride
+                                or delivery. FairPrice never sees your card number.
+                            </p>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => { setConfirmingCard(false); setShowCardCheckout(true); }}
+                                    className="bg-black text-white rounded-xl font-semibold"
+                                    size="sm"
+                                >
+                                    Continue — ₦50, refunded as credit
+                                </Button>
+                                <Button onClick={() => setConfirmingCard(false)} variant="outline" size="sm" className="rounded-xl">
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     {showCardCheckout && user?.email && (
                         <PaystackCheckout
                             amount={CARD_VERIFICATION_AMOUNT_KOBO}
